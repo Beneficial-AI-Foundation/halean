@@ -21,7 +21,30 @@ structure TriggerVars where
   platform : String
   entityId : Option String := none
   description : String
+  /-- The full `trigger` variable as HA builds it (`TriggerData` + platform
+  fields), for templates. -/
+  value : Template.Value := .none
   deriving Repr, Inhabited
+
+open Template in
+/-- `trigger_data` (`id`, `idx`, `alias`) + the platform's own fields. -/
+def triggerValue (t : Trigger) (platform : String) (fields : List (String × Value)) : Value :=
+  .dict ((([("id", Value.str t.id), ("idx", .str (toString t.idx)),
+           ("alias", match t.alias with | some a => .str a | none => .none),
+           ("platform", .str platform)] : List (String × Value)) ++ fields).map fun (k, v) => (.str k, v))
+
+def stateVal : Option EntityState → Template.Value
+  | some s => .state s
+  | none => .none
+
+def forVal : Option Nat → Template.Value
+  | none => .none
+  | some _ => .opaque "timedelta"
+
+def boundVal : Option Bound → Template.Value
+  | none => .none
+  | some (.num f) => .float f
+  | some (.entity e) => .str e
 
 /-- What keeps a `for:` timer alive (`_check_same_state` / numeric check). -/
 inductive SameCheck where
@@ -150,7 +173,7 @@ def triggerAutomation (ai : Nat) (tv : TriggerVars) : EM Unit := do
   let e ← getE
   let some a := e.automations[ai]? | return
   -- conditions are checked before the mode check (entity.py)
-  let env := { e.condEnv with triggerId := some tv.id }
+  let env := { e.condEnv with triggerId := some tv.id, trigger := tv.value }
   if !checkAutomationConditions env a.conditions then
     emit [.log "debug" s!"{a.alias}: conditions not met"]
     return
@@ -160,7 +183,7 @@ def triggerAutomation (ai : Nat) (tv : TriggerVars) : EM Unit := do
     emit [.log "warning" s!"{a.alias}: {why}"]
     return
   let wait : Wait := if decision == .enqueue then .queued else .ready
-  let run : Run := { id := e.nextRunId, autoIdx := ai, triggerId := tv.id,
+  let run : Run := { id := e.nextRunId, autoIdx := ai, triggerId := tv.id, trigger := tv.value,
                      frames := [.seq a.actions false], wait }
   let mut e := { e with runs := e.runs ++ [run], nextRunId := e.nextRunId + 1 }
   if decision == .restart then
@@ -172,9 +195,15 @@ def triggerAutomation (ai : Nat) (tv : TriggerVars) : EM Unit := do
 
 /-! ## Triggers -/
 
-def stateTriggerVars (t : Trigger) (eid : String) : TriggerVars :=
+/-- `state.py::call_action` -/
+def stateTriggerVars (t : Trigger) (eid : String) (old new : Option EntityState)
+    (attr : Option String) (forMs : Option Nat) : TriggerVars :=
   { id := t.id, idx := t.idx, platform := "state", entityId := some eid,
-    description := s!"state of {eid}" }
+    description := s!"state of {eid}",
+    value := triggerValue t "state" [
+      ("entity_id", .str eid), ("from_state", stateVal old), ("to_state", stateVal new),
+      ("for", forVal forMs), ("attribute", match attr with | some a => .str a | none => .none),
+      ("description", .str s!"state of {eid}")] }
 
 /-- `state.py::state_automation_listener` -/
 def onStateTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option EntityState) :
@@ -185,7 +214,7 @@ def onStateTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option Ent
   let newV := valueOf attr new
   if attr.isSome && oldV == newV then return
   if !fromM.matches oldV || !toM.matches newV || (!matchAll && oldV == newV) then return
-  let tv := stateTriggerVars t eid
+  let tv := stateTriggerVars t eid old new attr forMs
   match forMs with
   | none | some 0 => triggerAutomation ai tv
   | some p =>
@@ -195,7 +224,7 @@ def onStateTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option Ent
       [{ id := e.nextPendingId, autoIdx := ai, entity := eid, fireAt := e.now.utc + p, check, vars := tv }] }
 
 /-- `numeric_state.py::state_automation_listener` -/
-def onNumericTrigger (ai : Nat) (t : Trigger) (eid : String) (new : Option EntityState) :
+def onNumericTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option EntityState) :
     EM Unit := do
   let .numericState eids below above attr forMs := t.kind | return
   if !eids.contains eid then return
@@ -210,8 +239,14 @@ def onNumericTrigger (ai : Nat) (t : Trigger) (eid : String) (new : Option Entit
     if e.armed.contains (ai, t.idx, eid) then
       let e := { e with armed := e.armed.filter (· != (ai, t.idx, eid)) }
       setE e
-      let tv : TriggerVars := { id := t.id, idx := t.idx, platform := "numeric_state",
-                                entityId := some eid, description := s!"numeric state of {eid}" }
+      let tv : TriggerVars := {
+        id := t.id, idx := t.idx, platform := "numeric_state",
+        entityId := some eid, description := s!"numeric state of {eid}",
+        value := triggerValue t "numeric_state" [
+          ("entity_id", .str eid), ("below", boundVal below), ("above", boundVal above),
+          ("attribute", match attr with | some a => .str a | none => .none),
+          ("from_state", stateVal old), ("to_state", stateVal new), ("for", forVal forMs),
+          ("description", .str s!"numeric state of {eid}")] }
       match forMs with
       | none | some 0 => triggerAutomation ai tv
       | some p =>
@@ -244,7 +279,7 @@ def onStateChanged (eid : String) (old new : Option EntityState) : EM Unit := do
     for t in a.triggers do
       match t.kind with
       | .state .. => onStateTrigger ai t eid old new
-      | .numericState .. => onNumericTrigger ai t eid new
+      | .numericState .. => onNumericTrigger ai t eid old new
       | _ => pure ()
   -- `state_for_cancel_listener`s: drop timers whose condition broke
   let e ← getE
@@ -258,8 +293,14 @@ def onEvent (ty : String) (data : Json) : EM Unit := do
     for t in a.triggers do
       if let .event types want := t.kind then
         if types.contains ty && want.all (fun (k, v) => field? data k == some v) then
-          triggerAutomation ai { id := t.id, idx := t.idx, platform := "event",
-                                 description := s!"event '{ty}'" }
+          let ev : Template.Value := .pyobj "Event" [
+            ("event_type", .str ty), ("data", Template.Value.ofJson data),
+            ("origin", .opaque "event.origin"), ("time_fired", .opaque "datetime"),
+            ("context", .opaque "context")]
+          triggerAutomation ai {
+            id := t.id, idx := t.idx, platform := "event",
+            description := s!"event '{ty}'",
+            value := triggerValue t "event" [("event", ev), ("description", .str s!"event '{ty}'")] }
 
 def Pattern.matches (p : Pattern) (v : Nat) : Bool :=
   match p with
@@ -278,12 +319,18 @@ def fireTimeTriggers (sec : Nat) (tz : Int) : EM Unit := do
       match t.kind with
       | .time ats wd =>
         if ats.contains tod && (wd.map (·.contains inst.weekday)).getD true then
-          triggerAutomation ai { id := t.id, idx := t.idx, platform := "time",
-                                 description := "time" }
+          triggerAutomation ai {
+            id := t.id, idx := t.idx, platform := "time",
+            description := "time",
+            value := triggerValue t "time" [("now", .opaque "datetime"),
+              ("description", .str "time"), ("entity_id", .none)] }
       | .timePattern ph pm ps =>
         if ph.matches h && pm.matches m && ps.matches s then
-          triggerAutomation ai { id := t.id, idx := t.idx, platform := "time_pattern",
-                                 description := "time pattern" }
+          triggerAutomation ai {
+            id := t.id, idx := t.idx, platform := "time_pattern",
+            description := "time pattern",
+            value := triggerValue t "time_pattern" [("now", .opaque "datetime"),
+              ("description", .str "time pattern")] }
       | _ => pure ()
 
 /-- Fire everything due at or before `t`: `for:` timers and delays. -/

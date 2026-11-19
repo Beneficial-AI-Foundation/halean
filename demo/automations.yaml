@@ -28,7 +28,14 @@
     - trigger: numeric_state
       entity_id: sensor.living_room_temperature
       below: 19
+    # numeric_state only fires on crossing 19; if the room is already cold
+    # (e.g. after a restart), the periodic re-check catches it.
+    - trigger: time_pattern
+      seconds: "/30"
   conditions:
+    - condition: numeric_state
+      entity_id: sensor.living_room_temperature
+      below: 19
     - condition: state
       entity_id: switch.heater
       state: "off"
@@ -82,3 +89,23 @@
           - action: light.turn_off
             target: { entity_id: light.living_room_light }
           - delay: { seconds: 1 }
+
+# Templates are rendered by the Lean template service (HALean.Template):
+# the condition, the Jinja in `value` and the `trigger` variable.
+- id: room_report
+  alias: Room report (template)
+  mode: queued
+  triggers:
+    - trigger: state
+      entity_id: [sensor.living_room_temperature, switch.heater, light.hallway_light]
+  conditions:
+    - "{{ trigger.to_state is not none and trigger.to_state.state not in ['unknown', 'unavailable'] }}"
+  actions:
+    - action: input_text.set_value
+      target: { entity_id: input_text.room_report }
+      data:
+        value: >-
+          {% set t = states('sensor.living_room_temperature') | float(0) %}
+          {{ t | round(1) }} °C, heater {{ states('switch.heater') }},
+          {{ 'cold' if t < 19.5 else 'comfortable' if t <= 21.5 else 'warm' }}
+          (last: {{ trigger.to_state.name }} is {{ trigger.to_state.state }})

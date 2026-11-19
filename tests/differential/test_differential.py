@@ -215,3 +215,9 @@ def test_harness_matches_pin() -> None:
     assert tag == __version__, (
         f"harness runs Home Assistant {__version__} but manifest.yaml is pinned to {tag}; "
         "bump pytest-homeassistant-custom-component in tests/differential/run.py")
+    import jinja2
+
+    pinned = manifest["upstream"].get("jinja2")
+    assert pinned == jinja2.__version__, (
+        f"harness runs Jinja2 {jinja2.__version__} but manifest.yaml says {pinned}; "
+        "re-check the template evaluator against the new Jinja2 and update the pin")

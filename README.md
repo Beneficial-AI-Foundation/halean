@@ -6,7 +6,7 @@ function by function, so it can be formally verified and still track upstream.
 | Service | Lean | Executable | Status |
 |---|---|---|---|
 | Automation engine (triggers → conditions → actions, run modes) | `HALean/Automation/` | `halean-automation` | done, tested against real HA |
-| Templates (Jinja) | `HALean/Template/` | | next |
+| Templates (Jinja) | `HALean/Template/` | `halean-template` (test driver) | subset done, used by automations, tested against real HA |
 | Scripts | `HALean/Script/` | | planned |
 | State machine, event bus, service registry | `HALean/Core/` | | planned |
 
@@ -23,7 +23,7 @@ cd demo && docker compose up --build
 Then open <http://localhost:8124/halean-demo>. The login is in
 `demo/.run/login.txt`, created on the first start. This starts a separate Home
 Assistant (2026.10.4) with dummy devices: a motion sensor, two lights, a heater
-and a temperature sensor. HA has **no automations of its own**. All six in
+and a temperature sensor. HA has **no automations of its own**. All seven in
 [`demo/automations.yaml`](demo/automations.yaml) run in the Lean engine. A
 simulator walks through the hallway and lets the room cool, so the engine keeps
 reacting. The "Lean engine" card and the logbook card show each run as it
@@ -52,7 +52,7 @@ export ELAN_HOME=/Volumes/MacStorage/AppData/elan
 export PATH=$ELAN_HOME/bin:$PATH
 lake build                       # engine + all proofs
 uv run tests/run_scenarios.py    # behaviour scenarios (engine only)
-uv run tests/differential/run.py # same scenarios through a real Home Assistant vs the engine
+uv run tests/differential/run.py # scenarios + template cases through a real Home Assistant vs Lean
 uv run tests/bridge_e2e.py       # bridge against a fake HA WebSocket server
 uv run tests/live/docker_e2e.py  # bridge + engine driving the pinned HA release in a throwaway Docker container
 ```
@@ -95,10 +95,18 @@ the same order either way; only delivery on the bus is deferred.
 The harness can catch subtle differences: changing the engine so a failing
 nested `condition` ends the whole run fails `nested_condition` against real HA.
 
+**Templates** get their own differential test (`tests/differential/test_templates.py`).
+Every case in `tests/templates/cases.yaml` is rendered by HA's own
+`Template.async_render` (or `condition.async_template`) and by `halean-template`.
+The result type and `repr()` must match, or both must raise. Cases marked
+`unsupported: true` must be rejected by HALean at load time.
+
 **One pinned release.** The translation, the differential harness and the Docker
 image all use the release tag recorded in `manifest.yaml` (`upstream.tag`), so
 every test exercises exactly the code that was translated.
-`test_harness_matches_pin` fails if the harness and the pin ever diverge.
+`test_harness_matches_pin` fails if the harness and the pin ever diverge. Templates
+also depend on Jinja2, which is not HA code, so `manifest.yaml` pins its version
+too (`upstream.jinja2`, 3.1.6), and the same test checks it.
 Releases are used instead of `dev` because `pytest-homeassistant-custom-component`
 is published only for releases.
 
@@ -151,9 +159,25 @@ doesn't run twice.
 | Area | Supported | Rejected at load, stays in HA |
 |---|---|---|
 | Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `for`, arming), `time` (fixed `at`, weekday), `time_pattern`, `event` (flat `event_data`) | templates, `template`, `sun`, `zone`, `homeassistant`, `mqtt`, `webhook`, device triggers, entity-based or offset `time` |
-| Conditions | `and`/`or`/`not` (incl. shorthand), `state` (match any/all, `for`, attribute, `input_*` references), `numeric_state`, `time` (fixed, `input_datetime`, `time` entities, midnight crossing, weekday), `trigger`, `enabled: false` | `template`, `value_template`, platform conditions, timestamp-sensor bounds (error) |
-| Actions | service call (blocking), `delay`, `condition`, `choose`, `if`/`else`, `repeat` count/while/until, `stop` (+`error`), `event`, `sequence`, `continue_on_error`, static `enabled` | templates in data, `response_variable`, `variables`, `wait_template`, `wait_for_trigger`, `parallel`, `repeat for_each`, device actions, `scene` |
+| Conditions | `and`/`or`/`not` (incl. shorthand), `state` (match any/all, `for`, attribute, `input_*` references), `numeric_state`, `time` (fixed, `input_datetime`, `time` entities, midnight crossing, weekday), `trigger`, `template` (incl. the `"{{ ... }}"` shorthand), `enabled: false` | `value_template` on state/numeric_state, platform conditions, timestamp-sensor bounds (error) |
+| Actions | service call (blocking; templates in `data` and `target`), `delay`, `condition`, `choose`, `if`/`else`, `repeat` count/while/until, `stop` (+`error`), `event` (templates in `event_data`), `sequence`, `continue_on_error`, static `enabled` | templated action names, a whole-`data` template, `response_variable`, `variables`, `wait_template`, `wait_for_trigger`, `parallel`, `repeat for_each`, device actions, `scene` |
 | Run modes | `single`, `restart`, `queued` (FIFO), `parallel`, `max`, conditions checked before admission | `max_exceeded` log levels |
+
+### Templates (`HALean/Template/`)
+
+A Jinja evaluator over Python-faithful values: `{{ 0.1 + 0.2 }}` prints
+`0.30000000000000004`, `round(2.675, 2)` is `2.67`, and `1 == 1.0 == True`. Results
+go through HA's `_parse_result` (`"42"` becomes `42`, `"[1, 2]"` becomes a list,
+`"007"` stays a string).
+
+| Supported | Rejected at load, stays in HA |
+|---|---|
+| `{{ }}`, `{% if/elif/else %}`, `{% for %}` (with `if`, `else`, `loop.*`, `break`/`continue`), `{% set %}` (incl. tuples), `namespace()`, comments, `-` whitespace control; all operators, chained comparisons, `x if c else y`, slices; `states(...)`, `states.domain.entity` / `states['...']` (`state`, `attributes`, `name`, `domain`, `object_id`, `entity_id`), `is_state`, `state_attr`, `is_state_attr`, `has_value`, `float`, `int`, `bool`, `is_number`, `iif`, `dict`; filters `round`, `default`, `lower`, `upper`, `title`, `capitalize`, `trim`, `replace`, `length`, `first`, `last`, `join`, `list`, `string`, `abs`, `sum`; common tests; str methods `split`, `strip`, `replace`, `startswith`, ...; the `trigger` variable for every supported trigger platform | any other global, filter or test (`now()`, `this`, `range`, `expand`, `map`, `selectattr`, `sort`, ...), macros, `include`, `raw` |
+
+Some values are reachable but not modelled yet (`last_changed`, `trigger.for`,
+`trigger.now`, iterating `states.light`). Using them is a render error in HALean,
+so it is never a silent wrong answer. Case-changing filters on non-ASCII text are
+also errors for now.
 
 Upstream behaviours the translation keeps exactly, each covered by a scenario
 in `tests/scenarios/`:
@@ -174,13 +198,18 @@ in `tests/scenarios/`:
 `evalAnd_nil`, `evalOr_nil`, `evalCond_disabled`, `evalNot_disabled`,
 `evalAnd_all_disabled`, `checkAutomationConditions_nil`, `testConditions_nil`,
 `match_invert`, `match_all`, `single_exclusive`, `restart_never_rejects`,
-`admit_bounded` (queued/parallel never exceed `max`), `queued_waits`.
+`admit_bounded` (queued/parallel never exceed `max`), `queued_waits`, `templateCond_static`.
+
+`HALean/Template/Proofs.lean`: `render_static` (static templates are never
+evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 
 ## Known gaps and deviations
 
-* **The translation is tested against Python, not proven equivalent.** All 19
-  differential scenarios match real HA at the pinned release, but they cover
-  only the paths they exercise.
+* **The translation is tested against Python, not proven equivalent.** All 20
+  differential scenarios and all template cases match real HA at the pinned
+  release, but they cover only the paths they exercise.
+* Floats sent on as JSON lose their trailing `.0` (`20.0` arrives as `20`).
+  HA's own service schemas coerce these, and Python compares them as equal.
 * Callbacks run in a fixed order (automations in config order, then triggers in
   order), which models HA's eager-task scheduling. Timing races between
   separate HA tasks are not modelled.
@@ -196,10 +225,13 @@ in `tests/scenarios/`:
 
 ## Next steps
 
-1. Generate differential scenarios automatically (random automations within the supported
+1. Templates, part 2: `template` triggers (and `value_template` on
+   state/numeric_state), `now()`/datetimes, `this`, `range`, iterating states,
+   `map`/`select`/`selectattr`, `variables`.
+2. Generate differential scenarios automatically (random automations within the supported
    subset plus random event sequences) to cover far more paths than hand-written ones.
-2. Make the run loop total and prove run-level properties: a `single` automation never has
+3. Make the run loop total and prove run-level properties: a `single` automation never has
    two live runs, and a `queued` one runs in arrival order.
-3. User-level properties over a whole `automations.yaml`: conflicting commands to the
+4. User-level properties over a whole `automations.yaml`: conflicting commands to the
    same entity, and trigger loops (an action that re-triggers itself).
-4. Widen the subset: templates, `wait_for_trigger`, `parallel`.
+5. Widen the subset: `wait_for_trigger`, `parallel`.

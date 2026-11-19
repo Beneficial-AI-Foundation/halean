@@ -1,0 +1,1338 @@
+/-
+  Rendering. Translated from:
+    * `helpers/template/__init__.py`  – `Template.async_render`, `_parse_result`,
+      `_cached_parse_result`, `render_complex`, `is_template_string`
+    * `helpers/template/states.py`    – `AllStates`, `DomainStates`,
+      `TemplateStateBase.__getitem__`, `_get_state_if_valid`
+    * `helpers/template/extensions/state.py` – `is_state`, `state_attr`,
+      `is_state_attr`, `has_value`
+    * `helpers/template/extensions/type_cast.py` – `float`, `int`, `is_number`
+    * `helpers/template/extensions/math.py` – `round` (`forgiving_round`)
+    * `helpers/template/extensions/functional.py` – `iif`
+    * `helpers/template/helpers.py` – `forgiving_boolean`, `result_as_boolean`
+  and from Jinja2 itself (the evaluator, builtin filters and tests, sandboxed
+  `getattr`/`getitem`, `Undefined`).
+
+  Every name, filter and test a template uses is checked at load time
+  (`check`); anything outside the supported set is rejected, never guessed.
+-/
+import HALean.Template.Syntax
+open Lean
+
+namespace HALean.Template
+
+/-- What a template can see. -/
+structure Ctx where
+  states : States
+  /-- Variables passed to the render (`trigger`, ...), innermost first. -/
+  vars : List (String × Value) := []
+
+inductive Signal where
+  | normal | brk | cont
+  deriving BEq, Inhabited
+
+structure RS where
+  /-- `namespace()` objects. -/
+  heap : Array (List (String × Value)) := #[]
+  out : String := ""
+  /-- Loop iterations and calls, to bound runaway templates. -/
+  steps : Nat := 0
+
+abbrev R := ExceptT String (StateM RS)
+
+/-- HA's `MAX_TEMPLATE_OUTPUT` -/
+def MAX_TEMPLATE_OUTPUT : Nat := 256 * 1024
+
+/-- Upper bound on loop iterations per render. HA has a render timeout
+instead; a template hitting this would be rejected by HA's own checks. -/
+def MAX_STEPS : Nat := 1000000
+
+def tick : R Unit := do
+  let s ← get
+  if s.steps ≥ MAX_STEPS then throw "template exceeded HALean's step budget"
+  set { s with steps := s.steps + 1 }
+
+/-! ## Names -/
+
+/-- Globals HALean implements, with HA's semantics. -/
+def GLOBALS : List String :=
+  ["states", "is_state", "state_attr", "is_state_attr", "has_value", "float", "int", "bool",
+   "is_number", "iif", "namespace", "dict"]
+
+def FILTERS : List String :=
+  ["float", "int", "bool", "is_number", "iif", "has_value", "state_attr", "states", "round",
+   "default", "d", "lower", "upper", "capitalize", "title", "trim", "replace", "length", "count",
+   "first", "last", "join", "list", "string", "abs", "sum"]
+
+def TESTS : List String :=
+  ["defined", "undefined", "none", "number", "string", "boolean", "integer", "float",
+   "mapping", "sequence", "iterable", "true", "false", "eq", "equalto", "==", "ne", "!=",
+   "lt", "<", "lessthan", "le", "<=", "gt", ">", "greaterthan", "ge", ">=", "in",
+   "divisibleby", "even", "odd", "is_state", "is_state_attr", "has_value", "is_number"]
+
+/-- `[\da-z_]+` without a leading/trailing `_` and without `__`. -/
+def validSlug (s : String) : Bool :=
+  !s.isEmpty && s.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'z') || c == '_')
+    && !s.startsWith "_" && !s.endsWith "_" && (s.splitOn "__").length == 1
+
+/-- `homeassistant.core.valid_domain` -/
+def validDomain (s : String) : Bool := validSlug s
+
+/-- `homeassistant.core.valid_entity_id` -/
+def validEntityId (s : String) : Bool :=
+  match s.splitOn "." with
+  | [d, o] => validSlug d && validSlug o
+  | _ => false
+
+/-! ## Errors and conversions -/
+
+def undefErr (v : Value) : R α :=
+  match v with
+  | .undef n => throw s!"UndefinedError: {n} is undefined"
+  | _ => throw "UndefinedError"
+
+def strOf (v : Value) : R String :=
+  match pyStr v with
+  | .ok s => pure s
+  | .error e => throw e
+
+/-- `float(x)`: `none` = ValueError/TypeError (the caller decides). -/
+def toFloat? (v : Value) : R (Option Float) :=
+  match v with
+  | .float f => pure (some f)
+  | .int i => pure (some (intToFloat i))
+  | .bool b => pure (some (if b then 1.0 else 0.0))
+  | .str s => pure (parseFloatStr s)
+  | .undef _ => undefErr v
+  | .opaque w => throw s!"{w} values are not supported by HALean"
+  | _ => pure none
+
+def noDefault (fn : String) (v : Value) : R α := do
+  let s := (pyStr v).toOption.getD (typeName v)
+  throw s!"Template error: {fn} got invalid input '{s}' but no default was specified"
+
+/-- `cv.boolean` (`none` = `vol.Invalid`). -/
+def cvBoolean (v : Value) : Option Bool :=
+  match v with
+  | .bool b => some b
+  | .str s =>
+    let s := s.trim.toLower
+    if ["1", "true", "yes", "on", "enable"].contains s then some true
+    else if ["0", "false", "no", "off", "disable"].contains s then some false
+    else none
+  | .int i => some (i != 0)
+  | .float f => some (f != 0)
+  | _ => none
+
+/-- `result_as_boolean` -/
+def resultAsBoolean (v : Value) : Bool :=
+  match v with
+  | .none => false
+  | v => (cvBoolean v).getD false
+
+/-- `jinja2.filters.do_int` with `base=10`; `none` = the default. -/
+def doInt (v : Value) : R (Option Int) := do
+  match v with
+  | .int i => return some i
+  | .bool b => return some (if b then 1 else 0)
+  | .float f =>
+    if f.isInf then throw "OverflowError: cannot convert float infinity to integer"
+    return floatToInt? f
+  | .str s =>
+    match parseIntStr s with
+    | some i => return some i
+    | none => return (parseFloatStr s).bind floatToInt?
+  | .undef _ => undefErr v
+  | .opaque w => throw s!"{w} values are not supported by HALean"
+  | _ => return none
+
+/-- Python's `round(x, n)` on floats: correctly rounded, half to even on the
+exact binary value (so `round(2.675, 2) == 2.67`). -/
+def pyRound (f : Float) (n : Int) : Float :=
+  if !Float.isFinite' f then f else
+  let (neg, num, den) := floatFrac f
+  -- q = round_half_even(num/den * 10^n)
+  let (nn, dd) := if n ≥ 0 then (num * 10 ^ n.toNat, den) else (num, den * 10 ^ (-n).toNat)
+  let q0 := nn / dd
+  let r := nn % dd
+  let q := if 2 * r > dd || (2 * r == dd && q0 % 2 == 1) then q0 + 1 else q0
+  if n ≥ 0 then ratToFloat neg q (10 ^ n.toNat) else ratToFloat neg (q * 10 ^ (-n).toNat) 1
+
+/-- `math.floor` / `math.ceil` of a float, as an int. -/
+def floorF (f : Float) : Option Int := do
+  let i ← floatToInt? f
+  if intToFloat i > f then some (i - 1) else some i
+def ceilF (f : Float) : Option Int := do
+  let i ← floatToInt? f
+  if intToFloat i < f then some (i + 1) else some i
+
+/-! ## Attribute and item access (sandboxed, as Jinja's `getattr`/`getitem`) -/
+
+def lookupKV (kvs : List (Value × Value)) (k : Value) : Option Value :=
+  (kvs.find? (fun (k', _) => pyEq k' k)).map (·.2)
+
+def STATE_OPAQUE : List String :=
+  ["last_changed", "last_updated", "last_reported", "context", "state_with_unit",
+   "format_state", "as_dict", "as_compressed_state", "json_fragment", "expire", "last_changed_timestamp",
+   "last_updated_timestamp", "last_reported_timestamp", "as_dict_json", "as_compressed_state_json"]
+
+/-- `TemplateStateBase` attributes (`__getitem__` + properties). -/
+def stateAttr (s : EntityState) (a : String) : R Value :=
+  match a with
+  | "state" => pure (.str s.state)
+  | "entity_id" => pure (.str s.entityId)
+  | "attributes" => pure (Value.ofJson s.attributes)
+  | "domain" => pure (.str s.domain)
+  | "object_id" => pure (.str ((s.entityId.splitOn ".").getD 1 ""))
+  | "name" =>
+    match s.attr? "friendly_name" with
+    | some j =>
+      let v := Value.ofJson j
+      if truthy v then pure v
+      else pure (.str (((s.entityId.splitOn ".").getD 1 "").replace "_" " "))
+    | none => pure (.str (((s.entityId.splitOn ".").getD 1 "").replace "_" " "))
+  | a => if STATE_OPAQUE.contains a then pure (.opaque s!"state.{a}")
+         else pure (.undef s!"'TemplateState object' has no attribute '{a}'")
+
+/-- `_get_state_if_valid` -/
+def stateIfValid (ctx : Ctx) (eid : String) : R Value :=
+  match ctx.states.get? eid with
+  | some s => pure (.state s)
+  | none => if validEntityId eid then pure .none else throw s!"Invalid entity ID '{eid}'"
+
+def RESERVED_NAMES : List String :=
+  ["contextfunction", "evalcontextfunction", "environmentfunction", "jinja_pass_arg"]
+
+def STR_METHODS : List String :=
+  ["lower", "upper", "strip", "lstrip", "rstrip", "split", "startswith", "endswith", "replace",
+   "title", "capitalize"]
+
+def getattrV (ctx : Ctx) (v : Value) (a : String) : R Value := do
+  if a.startsWith "_" then throw s!"access to attribute '{a}' is unsafe"
+  match v with
+  | .undef _ => undefErr v
+  | .allStates =>
+    if a.contains '.' then stateIfValid ctx a
+    else if RESERVED_NAMES.contains a then pure .none
+    else if !validDomain a then throw s!"Invalid domain name '{a}'"
+    else pure (.domain a)
+  | .domain d => stateIfValid ctx s!"{d}.{a}"
+  | .state s => stateAttr s a
+  | .dict kvs =>
+    if ["items", "keys", "values", "get"].contains a then pure (.func s!"dict.{a}" (some v))
+    else pure ((lookupKV kvs (.str a)).getD (.undef s!"'dict object' has no attribute '{a}'"))
+  | .str _ =>
+    if STR_METHODS.contains a then pure (.func s!"str.{a}" (some v))
+    else throw s!"str.{a} is not supported by HALean"
+  | .ns id => do
+    let fields := (← get).heap.getD id []
+    pure ((fields.find? (·.1 == a)).map (·.2) |>.getD (.undef s!"'Namespace' has no attribute '{a}'"))
+  | .none => pure (.undef s!"'None' has no attribute '{a}'")
+  | .pyobj c fs => pure ((fs.find? (·.1 == a)).map (·.2) |>.getD (.undef s!"'{c}' has no attribute '{a}'"))
+  | .opaque w => throw s!"{w} values are not supported by HALean"
+  | v => throw s!"attribute '{a}' of {typeName v} is not supported by HALean"
+
+def seqIndex (xs : List α) (i : Int) : Option α :=
+  let n : Int := xs.length
+  let j := if i < 0 then i + n else i
+  if j < 0 || j ≥ n then none else xs[j.toNat]?
+
+def getitemV (ctx : Ctx) (v : Value) (k : Value) : R Value := do
+  match v with
+  | .undef _ => undefErr v
+  | .dict kvs =>
+    match lookupKV kvs k with
+    | some x => pure x
+    | none => match k with
+      | .str a => if ["items", "keys", "values", "get"].contains a then getattrV ctx v a
+                  else pure (.undef s!"'dict object' has no attribute '{a}'")
+      | _ => pure (.undef "'dict object' has no such item")
+  | .list xs | .tuple xs =>
+    match k with
+    | .int i => pure ((seqIndex xs i).getD (.undef "list index out of range"))
+    | .bool b => pure ((seqIndex xs (if b then 1 else 0)).getD (.undef "list index out of range"))
+    | .str a => throw s!"attribute '{a}' of {typeName v} is not supported by HALean"
+    | _ => pure (.undef "invalid list index")
+  | .str s =>
+    match k with
+    | .int i => pure ((seqIndex s.toList i).map (fun c => Value.str (toString c)) |>.getD (.undef "string index out of range"))
+    | .str a => getattrV ctx v a
+    | _ => pure (.undef "invalid string index")
+  | .state _ | .allStates | .domain _ | .ns _ | .pyobj _ _ =>
+    match k with
+    | .str a => getattrV ctx v a
+    | _ => pure (.undef "invalid key")
+  | .none => pure (.undef "'None' is not subscriptable")
+  | .opaque w => throw s!"{w} values are not supported by HALean"
+  | v => throw s!"indexing {typeName v} is not supported by HALean"
+
+/-- Python slice semantics (`xs[a:b:c]`). -/
+def sliceList (xs : List α) (a b c : Option Int) : Except String (List α) := do
+  let n : Int := xs.length
+  let step := c.getD 1
+  if step == 0 then throw "slice step cannot be zero"
+  let norm (i : Int) (lo hi : Int) : Int :=
+    let i := if i < 0 then i + n else i
+    if i < lo then lo else if i > hi then hi else i
+  if step > 0 then
+    let s := match a with | some i => norm i 0 n | none => 0
+    let e := match b with | some i => norm i 0 n | none => n
+    let idx := ((List.range ((e - s).toNat)).map Int.ofNat).filterMap fun k =>
+      if (k : Int) % step == 0 then some (s + k) else none
+    return idx.filterMap fun i => xs[i.toNat]?
+  else
+    let s := match a with | some i => norm i (-1) (n - 1) | none => n - 1
+    let e := match b with | some i => norm i (-1) (n - 1) | none => -1
+    let cnt := (s - e).toNat
+    let idx := ((List.range cnt).map Int.ofNat).filterMap fun k =>
+      if (k : Int) % (-step) == 0 then some (s - k) else none
+    return idx.filterMap fun i => if i < 0 then none else xs[i.toNat]?
+
+/-- Python iteration. -/
+def iterV (v : Value) : R (List Value) :=
+  match v with
+  | .list xs | .tuple xs => pure xs
+  | .str s => pure (s.toList.map fun c => .str (toString c))
+  | .dict kvs => pure (kvs.map (·.1))
+  | .undef _ => pure []
+  | .domain d => throw s!"iterating states.{d} is not supported by HALean yet"
+  | .allStates => throw "iterating states is not supported by HALean yet"
+  | .opaque w => throw s!"{w} values are not supported by HALean"
+  | v => throw s!"'{typeName v}' object is not iterable"
+
+def lenV (v : Value) : R Int :=
+  match v with
+  | .list xs | .tuple xs => pure xs.length
+  | .str s => pure s.length
+  | .dict kvs => pure kvs.length
+  | .undef _ => pure 0
+  | .opaque w => throw s!"{w} values are not supported by HALean"
+  | v => throw s!"object of type '{typeName v}' has no len()"
+
+/-- Python `x in c` -/
+def containsV (c x : Value) : R Bool := do
+  match c with
+  | .str s => match x with
+    | .str t => pure ((s.splitOn t).length > 1 || t.isEmpty)
+    | _ => throw s!"'in <string>' requires string as left operand, not {typeName x}"
+  | .dict kvs => pure ((lookupKV kvs x).isSome)
+  | .undef _ => pure false
+  | c => do pure ((← iterV c).any (pyEq · x))
+
+/-! ## Arithmetic -/
+
+def fracOf (n : Num) : Bool × Nat × Nat :=
+  match n with
+  | .i v => (v < 0, v.natAbs, 1)
+  | .f v => floatFrac v
+
+/-- Exact floor of a/b for finite floats (Python's float `//` and `%`). -/
+def floatFloorDivMod (a b : Float) : Float × Float :=
+  if !Float.isFinite' a || !Float.isFinite' b then (Float.floor (a / b), a - b * Float.floor (a / b)) else
+  let (na, pa, qa) := floatFrac a
+  let (nb, pb, qb) := floatFrac b
+  -- a/b = (±pa*qb) / (±pb*qa)
+  let num : Int := (if na then -(pa : Int) else pa) * qb
+  let den : Int := (if nb then -(pb : Int) else pb) * qa
+  let q := Int.fdiv num den
+  let r : Int := num - q * den  -- a - q*b = r / (qa*qb)
+  let modv := ratToFloat (r < 0) r.natAbs (qa * qb)
+  -- Python: the remainder takes the sign of b (and -0.0 / 0.0 per sign of b)
+  let modv := if modv == 0 then (if nb then -0.0 else 0.0) else modv
+  (intToFloat q, modv)
+
+def isOpaqueOrUndef (v : Value) : Bool :=
+  match v with | .undef _ | .opaque _ => true | _ => false
+
+def arith (op : String) (a b : Value) : R Value := do
+  if let .undef _ := a then undefErr a
+  if let .undef _ := b then undefErr b
+  if let .opaque w := a then throw s!"{w} values are not supported by HALean"
+  if let .opaque w := b then throw s!"{w} values are not supported by HALean"
+  let tyErr : R Value := throw s!"unsupported operand type(s) for {op}: '{typeName a}' and '{typeName b}'"
+  match op, a, b with
+  | "+", .str x, .str y => return .str (x ++ y)
+  | "+", .list x, .list y => return .list (x ++ y)
+  | "+", .tuple x, .tuple y => return .tuple (x ++ y)
+  | "*", .str s, n | "*", n, .str s =>
+    match n with
+    | .int k => return .str (String.join (List.replicate k.toNat s))
+    | .bool k => return .str (if k then s else "")
+    | _ => tyErr
+  | "*", .list s, n | "*", n, .list s =>
+    match n with
+    | .int k => return .list ((List.replicate k.toNat s).flatten)
+    | _ => tyErr
+  | "%", .str _, _ => throw "string formatting with % is not supported by HALean"
+  | _, _, _ =>
+  let some x := a.num? | tyErr
+  let some y := b.num? | tyErr
+  match op, x, y with
+  | "+", .i p, .i q => return .int (p + q)
+  | "-", .i p, .i q => return .int (p - q)
+  | "*", .i p, .i q => return .int (p * q)
+  | "/", .i p, .i q =>
+    if q == 0 then throw "ZeroDivisionError: division by zero"
+    return .float (ratToFloat ((p < 0) != (q < 0)) p.natAbs q.natAbs)
+  | "//", .i p, .i q =>
+    if q == 0 then throw "ZeroDivisionError: integer division or modulo by zero"
+    return .int (Int.fdiv p q)
+  | "%", .i p, .i q =>
+    if q == 0 then throw "ZeroDivisionError: integer modulo by zero"
+    return .int (Int.fmod p q)
+  | "**", .i p, .i q =>
+    if q ≥ 0 then
+      if q > 100000 then throw "exponent too large for HALean" else return .int (p ^ q.toNat)
+    else
+      if p == 0 then throw "ZeroDivisionError: 0.0 cannot be raised to a negative power"
+      return .float (Float.pow (intToFloat p) (intToFloat q))
+  | _, _, _ =>
+  let p := x.toFloat
+  let q := y.toFloat
+  match op with
+  | "+" => return .float (p + q)
+  | "-" => return .float (p - q)
+  | "*" => return .float (p * q)
+  | "/" => if q == 0 then throw "ZeroDivisionError: float division by zero" else return .float (p / q)
+  | "//" => if q == 0 then throw "ZeroDivisionError: float floor division by zero"
+            else return .float (floatFloorDivMod p q).1
+  | "%" => if q == 0 then throw "ZeroDivisionError: float modulo by zero"
+           else return .float (floatFloorDivMod p q).2
+  | "**" =>
+    if p == 0 && q < 0 then throw "ZeroDivisionError: 0.0 cannot be raised to a negative power"
+    if p < 0 && Float.floor q != q then throw "complex results are not supported by HALean"
+    return .float (Float.pow p q)
+  | _ => tyErr
+
+def cmpOp (op : String) (a b : Value) : R Bool := do
+  let lt (x y : Value) : R Bool :=
+    if isOpaqueOrUndef x || isOpaqueOrUndef y then
+      throw s!"'{op}' not supported between instances of '{typeName x}' and '{typeName y}'"
+    else match pyLt x y with
+      | .ok r => pure r
+      | .error e => throw e
+  if let .opaque w := a then throw s!"{w} values are not supported by HALean"
+  if let .opaque w := b then throw s!"{w} values are not supported by HALean"
+  match op with
+  | "==" => pure (pyEq a b)
+  | "!=" => pure (!pyEq a b)
+  | "<" => lt a b
+  | ">" => lt b a
+  | "<=" => do pure ((← lt a b) || (pyEq a b && a.num?.isSome == b.num?.isSome))
+  | ">=" => do pure ((← lt b a) || (pyEq a b && a.num?.isSome == b.num?.isSome))
+  | "in" => containsV b a
+  | "notin" => do pure (!(← containsV b a))
+  | _ => throw s!"unknown comparison {op}"
+
+/-! ## Python str methods (ASCII only: anything else is rejected) -/
+
+def asciiOnly (fn : String) (s : String) : R Unit :=
+  if s.toList.all (fun (c : Char) => c.toNat < 128) then pure () else throw s!"{fn} on non-ASCII text is not supported by HALean"
+
+def pyTitle (s : String) : String := Id.run do
+  let mut out := ""
+  let mut prevCased := false
+  for c in s.toList do
+    if c.isAlpha then
+      out := out.push (if prevCased then c.toLower else c.toUpper)
+      prevCased := true
+    else
+      out := out.push c
+      prevCased := false
+  return out
+
+def pyCapitalize (s : String) : String :=
+  match s.toList with
+  | [] => ""
+  | c :: cs => String.ofList (c.toUpper :: cs.map Char.toLower)
+
+def isPyWs (c : Char) : Bool := c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\x0b' || c == '\x0c'
+
+def pyStrip (s : String) (chars : Option String) (left right : Bool) : String :=
+  let p : Char → Bool := match chars with
+    | some cs => fun c => cs.contains c
+    | none => isPyWs
+  let l := s.toList
+  let l := if left then l.dropWhile p else l
+  let l := if right then (l.reverse.dropWhile p).reverse else l
+  String.ofList l
+
+/-- `str.split(sep=None, maxsplit=-1)` -/
+def pySplit (s : String) (sep : Option String) (maxsplit : Int) : R (List String) := do
+  match sep with
+  | some "" => throw "ValueError: empty separator"
+  | some sp =>
+    let parts := s.splitOn sp
+    if maxsplit < 0 || parts.length ≤ maxsplit.toNat + 1 then return parts
+    let k := maxsplit.toNat
+    return parts.take k ++ [sp.intercalate (parts.drop k)]
+  | none =>
+    -- runs of whitespace, no empty strings
+    let mut out : Array String := #[]
+    let mut cur := ""
+    let mut rest := s.toList.dropWhile isPyWs
+    while !rest.isEmpty do
+      if maxsplit ≥ 0 && out.size == maxsplit.toNat then
+        out := out.push (pyStrip (String.ofList rest) none false true); rest := []; cur := ""; break
+      match rest with
+      | c :: r =>
+        if isPyWs c then
+          out := out.push cur; cur := ""; rest := r.dropWhile isPyWs
+        else cur := cur.push c; rest := r
+      | [] => pure ()
+    if !cur.isEmpty then out := out.push cur
+    return out.toList
+
+/-- `str.replace(old, new, count=-1)` -/
+def pyReplace (s old new : String) (count : Int) : String :=
+  if old.isEmpty then
+    -- Python inserts `new` between every character (and at both ends)
+    let cs := s.toList.map toString
+    let n := if count < 0 then cs.length + 1 else min count.toNat (cs.length + 1)
+    let rec go : List String → Nat → String
+      | [], k => if k > 0 then new else ""
+      | c :: r, k => if k > 0 then new ++ c ++ go r (k - 1) else String.join (c :: r)
+    go cs n
+  else
+    let parts := s.splitOn old
+    if count < 0 || parts.length ≤ count.toNat + 1 then new.intercalate parts
+    else
+      let k := count.toNat
+      new.intercalate (parts.take (k + 1)) |> fun head =>
+        head ++ old ++ old.intercalate (parts.drop (k + 1))
+
+/-! ## Calls -/
+
+structure Args where
+  pos : List Value
+  kw : List (String × Value)
+
+def Args.get (a : Args) (i : Nat) (k : String) : Option Value :=
+  match a.pos[i]? with
+  | some v => some v
+  | none => (a.kw.find? (·.1 == k)).map (·.2)
+
+def Args.check (a : Args) (fn : String) (names : List String) : R Unit := do
+  if a.pos.length > names.length then throw s!"{fn}() takes at most {names.length} arguments"
+  for (k, _) in a.kw do
+    if !names.contains k then throw s!"{fn}() got an unexpected keyword argument '{k}'"
+
+def needStr (fn : String) (v : Value) : R String :=
+  match v with
+  | .str s => pure s
+  | v => throw s!"{fn} expects a string, got {typeName v}"
+
+/-- `is_state` -/
+def isState (ctx : Ctx) (eid state : Value) : R Bool := do
+  let .str e := eid | return false
+  let some s := ctx.states.get? e | return false
+  return pyEq (.str s.state) state ||
+    (match state with
+     | .list xs => xs.any (pyEq (.str s.state))
+     | _ => false)
+
+/-- `state_attr` -/
+def stateAttrFn (ctx : Ctx) (eid name : Value) : R Value := do
+  let .str e := eid | return .none
+  let .str n := name | return .none
+  let some s := ctx.states.get? e | return .none
+  return (s.attr? n).map Value.ofJson |>.getD .none
+
+/-- `has_value` -/
+def hasValue (ctx : Ctx) (eid : Value) : Bool :=
+  match eid with
+  | .str e => match ctx.states.get? e with
+    | some s => s.state != STATE_UNAVAILABLE && s.state != STATE_UNKNOWN
+    | none => false
+  | _ => false
+
+/-- `forgiving_float` -/
+def forgivingFloat (v : Value) (dflt : Option Value) : R Value := do
+  match ← toFloat? v with
+  | some f => return .float f
+  | none => match dflt with
+    | some d => return d
+    | none => noDefault "float" v
+
+/-- `forgiving_int` -/
+def forgivingInt (v : Value) (dflt : Option Value) (base : Option Value) : R Value := do
+  match base with
+  | none | some (.int 10) => pure ()
+  | some _ => throw "int() with a base other than 10 is not supported by HALean"
+  match ← doInt v with
+  | some i => return .int i
+  | none => match dflt with
+    | some d => return d
+    | none => noDefault "int" v
+
+/-- `forgiving_boolean` -/
+def forgivingBool (v : Value) (dflt : Option Value) : R Value := do
+  if let .opaque w := v then throw s!"{w} values are not supported by HALean"
+  match cvBoolean v with
+  | some b => return .bool b
+  | none => match dflt with
+    | some d => return d
+    | none => noDefault "bool" v
+
+/-- `is_number` -/
+def isNumber (v : Value) : R Bool := do
+  match ← toFloat? v with
+  | some f => return Float.isFinite' f
+  | none => return false
+
+/-- `forgiving_round` -/
+def forgivingRound (v : Value) (precision method dflt : Option Value) : R Value := do
+  let prec : Int ← match precision with
+    | none => pure 0
+    | some (.int p) => pure p
+    | some (.bool b) => pure (if b then 1 else 0)
+    | some p => throw s!"round precision {typeName p} is not supported by HALean"
+  let meth ← match method with
+    | none => pure "common"
+    | some (.str m) => pure m
+    | some _ => pure "common"
+  let fail : R Value := match dflt with
+    | some d => pure d
+    | none => noDefault "round" v
+  let some f ← toFloat? v | fail
+  -- `multiplier = float(10**precision)`
+  let mult : Float := if prec ≥ 0 then intToFloat (10 ^ prec.toNat) else ratToFloat false 1 (10 ^ (-prec).toNat)
+  let res? : Option Float := match meth with
+    | "ceil" => (ceilF (f * mult)).map fun i => intToFloat i / mult
+    | "floor" => (floorF (f * mult)).map fun i => intToFloat i / mult
+    | "half" => some (pyRound (f * 2) 0 / 2)
+    | _ => some (pyRound f prec)
+  let some r := res? | throw "OverflowError: cannot convert float infinity to integer"
+  if prec != 0 then return .float r
+  match floatToInt? r with
+  | some i => return .int i
+  | none => if r.isNaN then fail else throw "OverflowError: cannot convert float infinity to integer"
+
+/-- `iif` -/
+def iif (v : Value) (t f n : Option Value) : Value :=
+  match v, n with
+  | .none, some x => x
+  | _, _ => if truthy v then t.getD (.bool true) else f.getD (.bool false)
+
+/-! ## The evaluator -/
+
+mutual
+partial def eval (ctx : Ctx) (e : Expr) : R Value := do
+  match e with
+  | .lit v => pure v
+  | .name n =>
+    match ctx.vars.find? (·.1 == n) with
+    | some (_, v) => pure v
+    | none =>
+      if n == "states" then pure .allStates
+      else if GLOBALS.contains n then pure (.func n none)
+      else pure (.undef s!"'{n}'")
+  | .list xs => return .list (← xs.mapM (eval ctx))
+  | .tuple xs => return .tuple (← xs.mapM (eval ctx))
+  | .dict kvs => return .dict (← kvs.mapM fun (k, v) => do pure (← eval ctx k, ← eval ctx v))
+  | .getattr x a => getattrV ctx (← eval ctx x) a
+  | .getitem x k => getitemV ctx (← eval ctx x) (← eval ctx k)
+  | .slice x a b c =>
+    let v ← eval ctx x
+    let idx (o : Option Expr) : R (Option Int) := do
+      match o with
+      | none => pure none
+      | some ex => match ← eval ctx ex with
+        | .int i => pure (some i)
+        | .none => pure none
+        | v => throw s!"slice indices must be integers, not {typeName v}"
+    let (a, b, c) := (← idx a, ← idx b, ← idx c)
+    match v with
+    | .list xs => match sliceList xs a b c with
+      | .ok r => pure (.list r) | .error m => throw m
+    | .tuple xs => match sliceList xs a b c with
+      | .ok r => pure (.tuple r) | .error m => throw m
+    | .str s => match sliceList s.toList a b c with
+      | .ok r => pure (.str (String.ofList r)) | .error m => throw m
+    | .undef _ => undefErr v
+    | v => throw s!"slicing {typeName v} is not supported by HALean"
+  | .call f args kwargs =>
+    let fv ← eval ctx f
+    let a : Args := { pos := ← args.mapM (eval ctx), kw := ← kwargs.mapM fun (k, x) => do pure (k, ← eval ctx x) }
+    callV ctx fv a
+  | .filter x n args kwargs =>
+    -- `default` must see Undefined without failing on it
+    let v ← eval ctx x
+    let a : Args := { pos := ← args.mapM (eval ctx), kw := ← kwargs.mapM fun (k, x) => do pure (k, ← eval ctx x) }
+    applyFilter ctx n v a
+  | .test x n args negated =>
+    let v ← eval ctx x
+    let a ← args.mapM (eval ctx)
+    let r ← applyTest ctx n v a
+    pure (.bool (if negated then !r else r))
+  | .neg x =>
+    let v ← eval ctx x
+    match v with
+    | .int i => pure (.int (-i))
+    | .bool b => pure (.int (if b then -1 else 0))
+    | .float f => pure (.float (-f))
+    | .undef _ => undefErr v
+    | v => throw s!"bad operand type for unary -: '{typeName v}'"
+  | .pos x =>
+    let v ← eval ctx x
+    match v with
+    | .int _ | .float _ => pure v
+    | .bool b => pure (.int (if b then 1 else 0))
+    | .undef _ => undefErr v
+    | v => throw s!"bad operand type for unary +: '{typeName v}'"
+  | .binop op a b => do arith op (← eval ctx a) (← eval ctx b)
+  | .concat a b => do pure (.str ((← strOf (← eval ctx a)) ++ (← strOf (← eval ctx b))))
+  | .compare first rest =>
+    let mut left ← eval ctx first
+    for (op, ex) in rest do
+      let right ← eval ctx ex
+      if !(← cmpOp op left right) then return .bool false
+      left := right
+    pure (.bool true)
+  | .and a b =>
+    let x ← eval ctx a
+    if let .opaque w := x then throw s!"{w} values are not supported by HALean"
+    if truthy x then eval ctx b else pure x
+  | .or a b =>
+    let x ← eval ctx a
+    if let .opaque w := x then throw s!"{w} values are not supported by HALean"
+    if truthy x then pure x else eval ctx b
+  | .not a =>
+    let x ← eval ctx a
+    if let .opaque w := x then throw s!"{w} values are not supported by HALean"
+    pure (.bool (!truthy x))
+  | .cond c a b =>
+    let cv ← eval ctx c
+    if let .opaque w := cv then throw s!"{w} values are not supported by HALean"
+    if truthy cv then eval ctx a
+    else match b with
+      | some b => eval ctx b
+      | none => pure (.undef "the inline if-expression on the else branch")
+
+partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
+  tick
+  match f with
+  | .undef _ => undefErr f
+  | .allStates =>
+    -- `states(entity_id, rounded=..., with_unit=...)`
+    if a.pos.length > 1 || !a.kw.isEmpty then
+      throw "states() with rounded/with_unit is not supported by HALean"
+    let some (.str e) := a.get 0 "entity_id" | throw "states() needs an entity id"
+    match ctx.states.get? e with
+    | some s => pure (.str s.state)
+    | none => pure (.str STATE_UNKNOWN)
+  | .func n self =>
+    match n, self with
+    | "is_state", _ => do
+      a.check n ["entity_id", "state"]
+      pure (.bool (← isState ctx ((a.get 0 "entity_id").getD .none) ((a.get 1 "state").getD .none)))
+    | "state_attr", _ => do
+      a.check n ["entity_id", "name"]
+      stateAttrFn ctx ((a.get 0 "entity_id").getD .none) ((a.get 1 "name").getD .none)
+    | "is_state_attr", _ => do
+      a.check n ["entity_id", "name", "value"]
+      let .str e := (a.get 0 "entity_id").getD .none | return .bool false
+      let .str nm := (a.get 1 "name").getD .none | return .bool false
+      let some s := ctx.states.get? e | return .bool false
+      match s.attr? nm with
+      | none => return .bool false
+      | some j => return .bool (pyEq (Value.ofJson j) ((a.get 2 "value").getD .none))
+    | "has_value", _ => do
+      a.check n ["entity_id"]
+      pure (.bool (hasValue ctx ((a.get 0 "entity_id").getD .none)))
+    | "float", _ => do
+      a.check n ["value", "default"]
+      forgivingFloat ((a.get 0 "value").getD .none) (a.get 1 "default")
+    | "int", _ => do
+      a.check n ["value", "default", "base"]
+      forgivingInt ((a.get 0 "value").getD .none) (a.get 1 "default") (a.get 2 "base")
+    | "bool", _ => do
+      a.check n ["value", "default"]
+      forgivingBool ((a.get 0 "value").getD .none) (a.get 1 "default")
+    | "is_number", _ => do
+      a.check n ["value"]
+      pure (.bool (← isNumber ((a.get 0 "value").getD .none)))
+    | "iif", _ => do
+      a.check n ["value", "if_true", "if_false", "if_none"]
+      pure (iif ((a.get 0 "value").getD .none) (a.get 1 "if_true") (a.get 2 "if_false") (a.get 3 "if_none"))
+    | "namespace", _ => do
+      if !a.pos.isEmpty then throw "namespace() with positional arguments is not supported by HALean"
+      let s ← get
+      set { s with heap := s.heap.push a.kw }
+      pure (.ns s.heap.size)
+    | "dict", _ => do
+      if !a.pos.isEmpty then throw "dict() with positional arguments is not supported by HALean"
+      pure (.dict (a.kw.map fun (k, v) => (.str k, v)))
+    | "dict.items", some (.dict kvs) => pure (.list (kvs.map fun (k, v) => .tuple [k, v]))
+    | "dict.keys", some (.dict kvs) => pure (.list (kvs.map (·.1)))
+    | "dict.values", some (.dict kvs) => pure (.list (kvs.map (·.2)))
+    | "dict.get", some (.dict kvs) => do
+      let some k := (a.pos[0]? : Option Value) | throw "get expected at least 1 argument"
+      pure ((lookupKV kvs k).getD ((a.pos[1]?).getD .none))
+    | m, some (.str s) => strMethod m s a
+    | _, _ => throw s!"calling {n} is not supported by HALean"
+  | .opaque w => throw s!"{w} values are not supported by HALean"
+  | v => throw s!"'{typeName v}' object is not callable"
+
+partial def strMethod (m : String) (s : String) (a : Args) : R Value := do
+  let optStr (i : Nat) (k : String) : R (Option String) := do
+    match a.get i k with
+    | none | some .none => pure none
+    | some (.str x) => pure (some x)
+    | some v => throw s!"{m} expects a string argument, got {typeName v}"
+  match m with
+  | "str.lower" => asciiOnly "lower" s; pure (.str s.toLower)
+  | "str.upper" => asciiOnly "upper" s; pure (.str s.toUpper)
+  | "str.title" => asciiOnly "title" s; pure (.str (pyTitle s))
+  | "str.capitalize" => asciiOnly "capitalize" s; pure (.str (pyCapitalize s))
+  | "str.strip" => pure (.str (pyStrip s (← optStr 0 "chars") true true))
+  | "str.lstrip" => pure (.str (pyStrip s (← optStr 0 "chars") true false))
+  | "str.rstrip" => pure (.str (pyStrip s (← optStr 0 "chars") false true))
+  | "str.split" =>
+    let mx ← match a.get 1 "maxsplit" with
+      | none => pure (-1 : Int)
+      | some (.int i) => pure i
+      | some v => throw s!"maxsplit must be an int, not {typeName v}"
+    pure (.list ((← pySplit s (← optStr 0 "sep") mx).map Value.str))
+  | "str.startswith" | "str.endswith" =>
+    let test (p : String) : Bool := if m == "str.startswith" then s.startsWith p else s.endsWith p
+    match (a.pos[0]? : Option Value) with
+    | some (.str p) => pure (.bool (test p))
+    | some (.tuple ps) => pure (.bool (ps.any fun (p : Value) => match p with | Value.str q => test q | _ => false))
+    | _ => throw s!"{m} expects a string or tuple"
+  | "str.replace" =>
+    let some (Value.str old) := (a.pos[0]? : Option Value) | throw "replace expects strings"
+    let some (Value.str new) := (a.pos[1]? : Option Value) | throw "replace expects strings"
+    let cnt ← match a.get 2 "count" with
+      | none => pure (-1 : Int)
+      | some (.int i) => pure i
+      | some v => throw s!"count must be an int, not {typeName v}"
+    pure (.str (pyReplace s old new cnt))
+  | _ => throw s!"{m} is not supported by HALean"
+
+partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Value := do
+  tick
+  let arg (i : Nat) (k : String) := a.get i k
+  match n with
+  | "float" => forgivingFloat v (arg 0 "default")
+  | "int" => forgivingInt v (arg 0 "default") (arg 1 "base")
+  | "bool" => forgivingBool v (arg 0 "default")
+  | "is_number" => pure (.bool (← isNumber v))
+  | "iif" => pure (iif v (arg 0 "if_true") (arg 1 "if_false") (arg 2 "if_none"))
+  | "has_value" => pure (.bool (hasValue ctx v))
+  | "state_attr" => stateAttrFn ctx v ((arg 0 "name").getD .none)
+  | "states" => callV ctx .allStates { pos := v :: a.pos, kw := a.kw }
+  | "round" => forgivingRound v (arg 0 "precision") (arg 1 "method") (arg 2 "default")
+  | "default" | "d" =>
+    let dflt := (arg 0 "default_value").getD (.str "")
+    let boolean := truthy ((arg 1 "boolean").getD (.bool false))
+    match v with
+    | .undef _ => pure dflt
+    | v => if boolean && !truthy v then pure dflt else pure v
+  | "lower" => do let s ← strOf v; asciiOnly "lower" s; pure (.str s.toLower)
+  | "upper" => do let s ← strOf v; asciiOnly "upper" s; pure (.str s.toUpper)
+  | "capitalize" => do let s ← strOf v; asciiOnly "capitalize" s; pure (.str (pyCapitalize s))
+  | "title" =>
+    -- jinja's do_title capitalises words split on spaces, brackets and braces
+    do let s ← strOf v; asciiOnly "title" s
+       let mut out := ""
+       let mut start := true
+       for c in s.toList do
+         if c.isWhitespace || "-([{<".contains c then out := out.push c; start := true
+         else if start then out := out.push c.toUpper; start := false
+         else out := out.push c.toLower
+       pure (.str out)
+  | "trim" => do
+    let s ← strOf v
+    let chars ← match arg 0 "chars" with
+      | none | some .none => pure none
+      | some (.str c) => pure (some c)
+      | some x => throw s!"trim chars must be a string, not {typeName x}"
+    pure (.str (pyStrip s chars true true))
+  | "replace" => do
+    let s ← strOf v
+    let some old := arg 0 "old" | throw "replace needs old and new"
+    let some new := arg 1 "new" | throw "replace needs old and new"
+    let cnt ← match arg 2 "count" with
+      | none | some .none => pure (-1 : Int)
+      | some (.int i) => pure i
+      | some x => throw s!"count must be an int, not {typeName x}"
+    pure (.str (pyReplace s (← strOf old) (← strOf new) cnt))
+  | "length" | "count" => pure (.int (← lenV v))
+  | "first" =>
+    match v with
+    | .undef _ => undefErr v
+    | _ => pure ((← iterV v).head?.getD (.undef "No first item, sequence was empty."))
+  | "last" =>
+    match v with
+    | .undef _ => undefErr v
+    | .dict _ => throw "last on a dict is not supported by HALean"
+    | _ => pure ((← iterV v).getLast?.getD (.undef "No last item, sequence was empty."))
+  | "join" => do
+    if (arg 1 "attribute").isSome then throw "join(attribute=...) is not supported by HALean"
+    let sep ← strOf ((arg 0 "d").getD (.str ""))
+    let items ← (← iterV v).mapM strOf
+    pure (.str (sep.intercalate items))
+  | "list" => pure (.list (← iterV v))
+  | "string" => pure (.str (← strOf v))
+  | "abs" =>
+    match v with
+    | .int i => pure (.int i.natAbs)
+    | .bool b => pure (.int (if b then 1 else 0))
+    | .float f => pure (.float f.abs)
+    | .undef _ => undefErr v
+    | v => throw s!"bad operand type for abs(): '{typeName v}'"
+  | "sum" => do
+    if (arg 0 "attribute").isSome then throw "sum(attribute=...) is not supported by HALean"
+    let mut acc := (arg 1 "start").getD (.int 0)
+    for x in ← iterV v do acc ← arith "+" acc x
+    pure acc
+  | _ => throw s!"filter '{n}' is not supported by HALean"
+
+partial def applyTest (ctx : Ctx) (n : String) (v : Value) (args : List Value) : R Bool := do
+  let a0 := args.headD .none
+  if let .opaque w := v then
+    if n != "defined" && n != "undefined" then throw s!"{w} values are not supported by HALean"
+  match n with
+  | "defined" => pure !(isUndef v)
+  | "undefined" => pure (isUndef v)
+  | "none" => pure (match v with | .none => true | _ => false)
+  | "number" => pure v.num?.isSome
+  | "string" => pure (match v with | .str _ => true | _ => false)
+  | "boolean" => pure (match v with | .bool _ => true | _ => false)
+  | "integer" => pure (match v with | .int _ => true | _ => false)
+  | "float" => pure (match v with | .float _ => true | _ => false)
+  | "mapping" => pure (match v with | .dict _ => true | _ => false)
+  | "sequence" => pure (match v with | .list _ | .tuple _ | .str _ | .dict _ => true | _ => false)
+  | "iterable" => pure (match v with | .list _ | .tuple _ | .str _ | .dict _ | .undef _ => true | _ => false)
+  | "true" => pure (match v with | .bool true => true | _ => false)
+  | "false" => pure (match v with | .bool false => true | _ => false)
+  | "eq" | "equalto" | "==" => cmpOp "==" v a0
+  | "ne" | "!=" => cmpOp "!=" v a0
+  | "lt" | "<" | "lessthan" => cmpOp "<" v a0
+  | "le" | "<=" => cmpOp "<=" v a0
+  | "gt" | ">" | "greaterthan" => cmpOp ">" v a0
+  | "ge" | ">=" => cmpOp ">=" v a0
+  | "in" => containsV a0 v
+  | "divisibleby" => do pure (pyEq (← arith "%" v a0) (.int 0))
+  | "even" => do pure (pyEq (← arith "%" v (.int 2)) (.int 0))
+  | "odd" => do pure (pyEq (← arith "%" v (.int 2)) (.int 1))
+  | "is_state" => isState ctx v a0
+  | "is_state_attr" =>
+    match (← callV ctx (.func "is_state_attr" none) { pos := v :: args, kw := [] }) with
+    | .bool b => pure b
+    | _ => pure false
+  | "has_value" => pure (hasValue ctx v)
+  | "is_number" => isNumber v
+  | _ => throw s!"test '{n}' is not supported by HALean"
+
+partial def isUndef (v : Value) : Bool :=
+  match v with | .undef _ => true | _ => false
+
+partial def emitOut (s : String) : R Unit := do
+  let st ← get
+  let out := st.out ++ s
+  if out.length > MAX_TEMPLATE_OUTPUT then
+    throw s!"Template output exceeded maximum size of {MAX_TEMPLATE_OUTPUT} characters"
+  set { st with out }
+
+/-- Render nodes. `vars` is the current scope; returns the updated scope (set
+statements) and the control signal. -/
+partial def renderNodes (ctx : Ctx) (nodes : List Node) : R (Ctx × Signal) := do
+  let mut ctx := ctx
+  for n in nodes do
+    match n with
+    | .text t => emitOut t
+    | .output e => emitOut (← strOf (← eval ctx e))
+    | .ifs branches el =>
+      let mut taken := false
+      for (c, body) in branches do
+        let cv ← eval ctx c
+        if let .opaque w := cv then throw s!"{w} values are not supported by HALean"
+        if truthy cv then
+          let (ctx', sig) ← renderNodes ctx body
+          ctx := ctx'
+          if sig != .normal then return (ctx, sig)
+          taken := true
+          break
+      if !taken then
+        let (ctx', sig) ← renderNodes ctx el
+        ctx := ctx'
+        if sig != .normal then return (ctx, sig)
+    | .set ts e =>
+      let v ← eval ctx e
+      ctx := { ctx with vars := (← bindTargets ts v) ++ ctx.vars }
+    | .setAttr obj attr e =>
+      let v ← eval ctx e
+      match ctx.vars.find? (·.1 == obj) with
+      | some (_, .ns id) =>
+        modify fun s => { s with heap := s.heap.modify id fun fs => (attr, v) :: fs.filter (·.1 != attr) }
+      | _ => throw s!"can only assign attributes of a namespace ('{obj}')"
+    | .brk => return (ctx, .brk)
+    | .cont => return (ctx, .cont)
+    | .for ts it flt body el =>
+      let items ← iterV (← eval ctx it)
+      -- `for x in xs if cond`: filter first, so `loop` counts filtered items
+      let mut kept : Array (Value × List (String × Value)) := #[]
+      for x in items do
+        tick
+        let b ← bindTargets ts x
+        match flt with
+        | none => kept := kept.push (x, b)
+        | some f =>
+          if truthy (← eval { ctx with vars := b ++ ctx.vars } f) then kept := kept.push (x, b)
+      let len := kept.size
+      for h : i in [0:len] do
+        tick
+        let (_, b) := kept[i]
+        let loop : Value := .dict [
+          (.str "index", .int (i + 1)), (.str "index0", .int i),
+          (.str "revindex", .int (len - i)), (.str "revindex0", .int (len - i - 1)),
+          (.str "first", .bool (i == 0)), (.str "last", .bool (i + 1 == len)),
+          (.str "length", .int len),
+          (.str "previtem", if i == 0 then .undef "there is no previous item" else (kept[i - 1]!).1),
+          (.str "nextitem", if i + 1 == len then .undef "there is no next item" else (kept[i + 1]!).1)]
+        -- each iteration starts from the outer scope (Jinja's loop scoping)
+        let (_, sig) ← renderNodes { ctx with vars := b ++ ("loop", loop) :: ctx.vars } body
+        if sig == .brk then break
+      if len == 0 then
+        let (_, sig) ← renderNodes ctx el
+        if sig != .normal then return (ctx, sig)
+  return (ctx, .normal)
+
+partial def bindTargets (ts : List String) (v : Value) : R (List (String × Value)) := do
+  match ts with
+  | [t] => pure [(t, v)]
+  | _ =>
+    let xs ← iterV v
+    if xs.length != ts.length then
+      throw s!"cannot unpack {xs.length} values into {ts.length} names"
+    pure (ts.zip xs)
+end
+
+/-! ## Load-time check -/
+
+partial def exprNames : Expr → List String × List String × List String
+  -- (names, filters, tests)
+  | .lit _ => ([], [], [])
+  | .name n => ([n], [], [])
+  | .list xs | .tuple xs => cat (xs.map exprNames)
+  | .dict kvs => cat (kvs.flatMap fun (k, v) => [exprNames k, exprNames v])
+  | .getattr e _ | .neg e | .pos e | .not e => exprNames e
+  | .getitem a b | .binop _ a b | .concat a b | .and a b | .or a b => cat [exprNames a, exprNames b]
+  | .slice e a b c => cat (exprNames e :: ([a, b, c].filterMap id).map exprNames)
+  | .call f args kw => cat (exprNames f :: args.map exprNames ++ kw.map (exprNames ·.2))
+  | .filter e n args kw =>
+    let (ns, fs, ts) := cat (exprNames e :: args.map exprNames ++ kw.map (exprNames ·.2))
+    (ns, n :: fs, ts)
+  | .test e n args _ =>
+    let (ns, fs, ts) := cat (exprNames e :: args.map exprNames)
+    (ns, fs, n :: ts)
+  | .compare a rest => cat (exprNames a :: rest.map (exprNames ·.2))
+  | .cond c a b => cat ([exprNames c, exprNames a] ++ (b.map exprNames).toList)
+where
+  cat (xs : List (List String × List String × List String)) : List String × List String × List String :=
+    (xs.flatMap (·.1), xs.flatMap (·.2.1), xs.flatMap (·.2.2))
+
+partial def nodeNames : Node → (List String × List String × List String) × List String
+  -- (used, bound)
+  | .text _ => (([], [], []), [])
+  | .output e => (exprNames e, [])
+  | .ifs bs el =>
+    let parts := bs.flatMap (fun (c, body) => (exprNames c, []) :: body.map nodeNames) ++ el.map nodeNames
+    merge parts
+  | .for ts it f body el =>
+    let parts := (exprNames it, ts ++ ["loop"]) :: ((f.map fun f => (exprNames f, [])).toList ++ body.map nodeNames ++ el.map nodeNames)
+    merge parts
+  | .set ts e => (exprNames e, ts)
+  | .setAttr o _ e => let (ns, fs, tss) := exprNames e; ((o :: ns, fs, tss), [])
+  | .brk | .cont => (([], [], []), [])
+where
+  merge (ps : List ((List String × List String × List String) × List String)) :=
+    ((ps.flatMap (·.1.1), ps.flatMap (·.1.2.1), ps.flatMap (·.1.2.2)), ps.flatMap (·.2))
+
+/-- Reject templates that use names, filters or tests HALean does not
+implement. `vars` are the variables the caller passes (e.g. `trigger`). -/
+def check (t : Tmpl) (vars : List String) : Except String Unit := do
+  let parts := t.nodes.map nodeNames
+  let used := parts.flatMap (·.1.1)
+  let filters := parts.flatMap (·.1.2.1)
+  let tests := parts.flatMap (·.1.2.2)
+  let bound := parts.flatMap (·.2)
+  for n in used do
+    if !(GLOBALS.contains n || vars.contains n || bound.contains n
+         || ["true", "false", "none", "True", "False", "None"].contains n) then
+      throw s!"template uses '{n}', which HALean does not support"
+  for f in filters do
+    if !FILTERS.contains f then throw s!"template filter '{f}' is not supported by HALean"
+  for x in tests do
+    if !TESTS.contains x then throw s!"template test '{x}' is not supported by HALean"
+
+/-! ## Results -/
+
+/-- `_IS_NUMERIC = ^[+-]?(?!0\d)\d*(?:\.\d*)?$` -/
+def isNumericStr (s : String) : Bool :=
+  let cs := s.toList
+  let cs := match cs with | '+' :: r | '-' :: r => r | r => r
+  let noLeadingZero := match cs with | '0' :: d :: _ => !d.isDigit | _ => true
+  let ip := cs.takeWhile Char.isDigit
+  let rest := cs.drop ip.length
+  let ok := match rest with
+    | [] => true
+    | '.' :: fs => fs.all Char.isDigit
+    | _ => false
+  noLeadingZero && ok
+
+/-! ### `ast.literal_eval` -/
+
+inductive LTok where
+  | num (v : Value) | cplx | str (s : String) | name (n : String) | op (c : Char)
+  deriving Inhabited
+
+/-- Tokenize a Python literal. `none` = SyntaxError. -/
+partial def litLex (cs : List Char) (depth : Nat) (acc : Array LTok) : Option (List LTok) :=
+  match cs with
+  | [] => if depth == 0 then some acc.toList else none
+  | c :: rest =>
+    if c == ' ' || c == '\t' || c == '\x0c' then litLex rest depth acc
+    else if c == '\n' || c == '\r' then
+      if depth > 0 || (rest.all fun x => x == '\n' || x == '\r' || x == ' ' || x == '\t') then litLex rest depth acc
+      else none
+    else if c == '#' then litLex (cs.dropWhile (· != '\n')) depth acc
+    else if "([{".contains c then litLex rest (depth + 1) (acc.push (.op c))
+    else if ")]}".contains c then (if depth == 0 then none else litLex rest (depth - 1) (acc.push (.op c)))
+    else if ",:+-".contains c then litLex rest depth (acc.push (.op c))
+    else if c.isDigit || (c == '.' && (rest.headD ' ').isDigit) then
+      let word := cs.takeWhile fun x => x.isAlphanum || x == '_' || x == '.'
+      -- exponent signs: 1e-5
+      let rec grab (w : List Char) (r : List Char) : List Char × List Char :=
+        match r with
+        | s :: r' => if (s == '+' || s == '-') && (w.getLast?.map (fun x => x == 'e' || x == 'E')).getD false
+                       && !(w.take 2 == ['0', 'x'] || w.take 2 == ['0', 'X']) then
+                       let more := r'.takeWhile fun x => x.isAlphanum || x == '_' || x == '.'
+                       grab (w ++ [s] ++ more) (r'.drop more.length)
+                     else (w, r)
+        | [] => (w, r)
+      let (word, rest') := grab word (cs.drop word.length)
+      let w := String.ofList word
+      let lw := w.toLower
+      if lw.endsWith "j" then litLex rest' depth (acc.push .cplx)
+      else if lw.startsWith "0x" || lw.startsWith "0o" || lw.startsWith "0b" then
+        let base := if lw.startsWith "0x" then 16 else if lw.startsWith "0o" then 8 else 2
+        let ds := (lw.dropS 2).replace "_" ""
+        let dv (ch : Char) : Option Nat :=
+          if ch.isDigit then some (ch.toNat - '0'.toNat)
+          else if 'a' ≤ ch && ch ≤ 'f' then some (ch.toNat - 'a'.toNat + 10) else none
+        if ds.isEmpty then none else
+        match ds.toList.foldlM (fun (n : Nat) ch => do
+            let d ← dv ch
+            if d ≥ base then none else some (n * base + d)) 0 with
+        | some n => litLex rest' depth (acc.push (.num (.int n)))
+        | none => none
+      else if w.contains '.' || lw.contains 'e' then
+        match parseFloatStr w with
+        | some f => litLex rest' depth (acc.push (.num (.float f)))
+        | none => none
+      else
+        -- decimal int: no leading zeros unless all zeros
+        let d := w.replace "_" ""
+        if d.length > 1 && d.startsWith "0" && !d.all (· == '0') then none
+        else match parseIntStr w with
+          | some i => litLex rest' depth (acc.push (.num (.int i)))
+          | none => none
+    else if c.isAlpha || c == '_' then
+      let word := cs.takeWhile fun x => x.isAlphanum || x == '_'
+      let rest' := cs.drop word.length
+      let w := String.ofList word
+      match rest' with
+      | q :: _ =>
+        if (q == '\'' || q == '"') && ["r", "u", "R", "U", "b", "B", "br", "rb", "f", "F", "rf", "fr"].contains w then
+          if w.toLower.contains 'u' || w.toLower == "r" then
+            match litString rest' (w.toLower.contains 'r') with
+            | some (s, r) => litLex r depth (acc.push (.str s))
+            | none => none
+          else none  -- bytes / f-strings: not a str literal HALean models
+        else litLex rest' depth (acc.push (.name w))
+      | [] => litLex rest' depth (acc.push (.name w))
+    else if c == '\'' || c == '"' then
+      match litString cs false with
+      | some (s, r) => litLex r depth (acc.push (.str s))
+      | none => none
+    else none
+where
+  litString (cs : List Char) (raw : Bool) : Option (String × List Char) := do
+    let q ← cs.head?
+    let triple := cs.take 3 == [q, q, q]
+    let body := if triple then cs.drop 3 else cs.drop 1
+    let rec scan (xs : List Char) (out : Array Char) : Option (List Char × List Char) :=
+      match xs with
+      | [] => none
+      | '\\' :: x :: r => scan r (out.push '\\' |>.push x)
+      | x :: r =>
+        if triple then
+          if xs.take 3 == [q, q, q] then some (out.toList, xs.drop 3) else scan r (out.push x)
+        else if x == q then some (out.toList, r)
+        else if x == '\n' then none
+        else scan r (out.push x)
+    let (raw', r) ← scan body #[]
+    let s ← if raw then some (String.ofList raw') else (unescape raw').toOption
+    return (s, r)
+
+mutual
+/-- Parse a token list as one literal. -/
+partial def litParse (ts : List LTok) : Option (Value × List LTok) := do
+  match ts with
+  | .op '-' :: rest | .op '+' :: rest =>
+    let neg := match ts with | .op '-' :: _ => true | _ => false
+    match rest with
+    | .num v :: r =>
+      let v' ← match v, neg with
+        | .int i, true => some (Value.int (-i))
+        | .float f, true => some (Value.float (-f))
+        | v, false => some v
+        | _, _ => none
+      complexTail v' r
+    | .cplx :: r => some (.opaque "complex", r)
+    | .op '-' :: _ | .op '+' :: _ => do
+      -- `--1` is UnaryOp(UnaryOp(1)): literal_eval allows nested unary on numbers
+      let (v, r) ← litParse rest
+      match v, neg with
+      | .int i, true => some (.int (-i), r)
+      | .float f, true => some (.float (-f), r)
+      | .int _, false | .float _, false => some (v, r)
+      | _, _ => none
+    | _ => none
+  | .num v :: r => complexTail v r
+  | .cplx :: r => some (.opaque "complex", r)
+  | .str s :: r =>
+    -- adjacent literals concatenate
+    let rec more (acc : String) : List LTok → String × List LTok
+      | .str t :: r => more (acc ++ t) r
+      | r => (acc, r)
+    let (s, r) := more s r
+    some (.str s, r)
+  | .name "True" :: r => some (.bool true, r)
+  | .name "False" :: r => some (.bool false, r)
+  | .name "None" :: r => some (.none, r)
+  | .op '[' :: r => do
+    let (xs, r) ← litItems r ']' #[]
+    some (.list xs, r)
+  | .op '(' :: .op ')' :: r => some (.tuple [], r)
+  | .op '(' :: r => do
+    let (first, r1) ← litParse r
+    match r1 with
+    | .op ')' :: r2 => some (first, r2)
+    | .op ',' :: r2 => do
+      let (xs, r3) ← litItems r2 ')' #[]
+      some (.tuple (first :: xs), r3)
+    | _ => none
+  | .op '{' :: .op '}' :: r => some (.dict [], r)
+  | .op '{' :: r => do
+    let (k, r1) ← litParse r
+    match r1 with
+    | .op ':' :: r2 => do
+      let (v, r3) ← litParse r2
+      let rec kvs (acc : Array (Value × Value)) : List LTok → Option (List (Value × Value) × List LTok)
+        | .op '}' :: r => some (acc.toList, r)
+        | .op ',' :: .op '}' :: r => some (acc.toList, r)
+        | .op ',' :: r => do
+          let (k, r1) ← litParse r
+          let .op ':' :: r2 := r1 | none
+          let (v, r3) ← litParse r2
+          kvs (acc.push (k, v)) r3
+        | _ => none
+      let (rest, r4) ← kvs #[(k, v)] r3
+      some (.dict rest, r4)
+    | _ => do
+      -- a set: HALean hands it on as a list
+      let (xs, r2) ← match r1 with
+        | .op '}' :: r => some ([], r)
+        | .op ',' :: r => litItems r '}' #[]
+        | _ => none
+      some (Value.list (k :: xs), r2)
+  | _ => none
+where
+  complexTail (v : Value) (r : List LTok) : Option (Value × List LTok) :=
+    match r with
+    | .op '+' :: .cplx :: r' | .op '-' :: .cplx :: r' => some (.opaque "complex", r')
+    | _ => some (v, r)
+
+/-- Items of a bracketed literal after its first element (or from the start):
+`x, y, z]` with an optional trailing comma. -/
+partial def litItems (r : List LTok) (close : Char) (acc : Array Value) :
+    Option (List Value × List LTok) :=
+  match r with
+  | .op c :: r' =>
+    if c == close then some (acc.toList, r')
+    else if ")]}".contains c then none
+    else litElem r close acc
+  | _ => litElem r close acc
+
+partial def litElem (r : List LTok) (close : Char) (acc : Array Value) :
+    Option (List Value × List LTok) := do
+  let (v, r1) ← litParse r
+  let acc := acc.push v
+  match r1 with
+  | .op ',' :: r2 => litItems r2 close acc
+  | .op c :: r2 => if c == close then some (acc.toList, r2) else none
+  | _ => none
+end
+
+partial def litTupleRest (acc : Array Value) : List LTok → Option (List Value)
+  | [] => some acc.toList
+  | [.op ','] => some acc.toList
+  | .op ',' :: r => do
+    let (x, r') ← litParse r
+    litTupleRest (acc.push x) r'
+  | _ => none
+
+/-- `ast.literal_eval`: `none` = it raised. A bare `1, 2` is a tuple. -/
+def literalEval (s : String) : Option Value := do
+  let s := String.ofList (s.toList.dropWhile fun c => c == ' ' || c == '\t')
+  let toks ← litLex s.toList 0 #[]
+  let (v, rest) ← litParse toks
+  match rest with
+  | [] => some v
+  | .op ',' :: _ =>
+    -- top-level tuple without parentheses
+    let xs ← litTupleRest #[v] rest
+    some (.tuple xs)
+  | _ => none
+
+def isComplexOrStr : Value → Bool
+  | .opaque "complex" => true
+  | .str _ => true
+  | _ => false
+
+/-- `_parse_result` (fast numeric path + `_cached_parse_result`). -/
+def parseResult (r : String) : Value :=
+  let fast : Option Value :=
+    if isNumericStr r then
+      if r.contains '.' then (parseFloatStr r).map Value.float
+      else (parseIntStr r).map Value.int
+    else none
+  match fast with
+  | some v => v
+  | none =>
+    match literalEval r with
+    | none => .str r
+    | some v =>
+      if isComplexOrStr v then .str r
+      else match v with
+        | .int _ | .float _ => if isNumericStr r then v else .str r
+        | v => v
+
+/-- Render to the stripped output string (`render_with_context` + `.strip()`). -/
+def renderString (t : Tmpl) (ctx : Ctx) : Except String String :=
+  if t.isStatic then .ok t.src else
+  match ((renderNodes ctx t.nodes).run {}).run with
+  | (.ok _, st) => .ok (pyStrip st.out none true true)
+  | (.error e, _) => .error e
+
+/-- `Template.async_render(variables, parse_result)` -/
+def render (t : Tmpl) (ctx : Ctx) (parse : Bool := true) : Except String Value :=
+  if t.isStatic then .ok (if parse then parseResult t.src else .str t.src) else do
+  let s ← renderString t ctx
+  return if parse then parseResult s else .str s
+
+end HALean.Template

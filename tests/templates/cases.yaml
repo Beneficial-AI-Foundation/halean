@@ -1,0 +1,184 @@
+# Template cases for tests/differential/test_templates.py. Each is rendered by
+# Home Assistant and by HALean; results must match exactly (type + repr).
+#   template, states, variables, parse_result (default true), condition,
+#   unsupported (HALean must reject it at load time)
+
+# --- static templates and _parse_result -------------------------------------
+- {template: "on"}
+- {template: "42"}
+- {template: "  42  "}
+- {template: "-3.50"}
+- {template: "007"}
+- {template: "1e3"}
+- {template: "True"}
+- {template: "None"}
+- {template: "[1, 2]"}
+- {template: "42", parse_result: false}
+
+# --- literals and arithmetic --------------------------------------------------
+- {template: "{{ 1 + 1 }}"}
+- {template: "{{ 0.1 + 0.2 }}"}
+- {template: "{{ 10 / 4 }}"}
+- {template: "{{ 10 / 5 }}"}
+- {template: "{{ 7 // 2 }} {{ -7 // 2 }} {{ -7 % 3 }} {{ 7 % -3 }}"}
+- {template: "{{ 7.5 // 2 }} {{ -7.5 % 2 }}"}
+- {template: "{{ 2 ** 10 }} {{ 2 ** -1 }} {{ 2.0 ** 0.5 }}"}
+- {template: "{{ 1 / 0 }}"}
+- {template: "{{ 1e16 }} {{ 1e-5 }} {{ 123456789.0 * 1000 }}"}
+- {template: "{{ 3 * 'ab' }}{{ [1] * 2 }}"}
+- {template: "{{ 'a' + 1 }}"}
+- {template: "{{ 1 + true }}"}
+- {template: "{{ -(3) }} {{ +4 }} {{ - 2 ** 2 }}"}
+- {template: "{{ 'x' ~ 1 ~ none ~ 2.50 }}"}
+- {template: "{{ 1, 2 }}"}
+- {template: "{{ (1,) }}"}
+- {template: "{{ {'a': 1, 'b': [true, none]} }}"}
+- {template: "{{ {'a': 1}}}"}
+- {template: "{{ [1, 'it''s', \"q\\\"uote\"] }}"}
+- {template: "{{ 'line\\nbreak' }}"}
+
+# --- comparisons and logic ----------------------------------------------------
+- {template: "{{ 1 == 1.0 }} {{ 1 == true }} {{ 'a' < 'b' }} {{ [1, 2] < [1, 3] }}"}
+- {template: "{{ 1 < 2 < 3 }} {{ 3 > 2 > 2 }}"}
+- {template: "{{ 1 < 'a' }}"}
+- {template: "{{ 'b' in 'abc' }} {{ 2 in [1, 2] }} {{ 'k' in {'k': 1} }} {{ 3 not in [1] }}"}
+- {template: "{{ 0 or 'x' }} {{ '' and 1 }} {{ not none }}"}
+- {template: "{{ 'yes' if 1 > 2 else 'no' }}"}
+- {template: "{{ 'yes' if false }}"}
+
+# --- statements -------------------------------------------------------------
+- {template: "{% if 1 %}a{% elif 2 %}b{% else %}c{% endif %}"}
+- {template: "{% if 0 %}a{% elif 2 %}b{% else %}c{% endif %}"}
+- {template: "{% for x in [3, 4, 5] %}{{ loop.index }}:{{ x }}{% if not loop.last %},{% endif %}{% endfor %}"}
+- {template: "{% for x in [] %}{{ x }}{% else %}empty{% endfor %}"}
+- {template: "{% for x in [1, 2, 3, 4] if x is even %}{{ x }}{% endfor %}"}
+- {template: "{% for k, v in {'a': 1, 'b': 2}.items() %}{{ k }}={{ v }};{% endfor %}"}
+- {template: "{% for x in range(3) %}{{ x }}{% endfor %}", unsupported: true}
+- {template: "{% for x in [1, 2, 3] %}{% if x == 2 %}{% break %}{% endif %}{{ x }}{% endfor %}"}
+- {template: "{% for x in [1, 2, 3] %}{% if x == 2 %}{% continue %}{% endif %}{{ x }}{% endfor %}"}
+- {template: "{% set x = 5 %}{% set y = x * 2 %}{{ y }}"}
+- {template: "{% set a, b = 1, 2 %}{{ a + b }}"}
+- {template: "{% set x = 1 %}{% for i in [1, 2] %}{% set x = x + i %}{% endfor %}{{ x }}"}
+- {template: "{% set ns = namespace(total=0) %}{% for i in [1, 2, 3] %}{% set ns.total = ns.total + i %}{% endfor %}{{ ns.total }}"}
+- {template: "a {#- comment -#} b"}
+- {template: "  {%- if true -%}  x  {%- endif -%}  "}
+- {template: "{{ x }}", unsupported: true}
+- template: "{{ trigger.nope }}|{{ trigger.nope is defined }}|{{ trigger.nope | default('d') }}|{{ trigger.nope | length }}"
+  variables: {trigger: {id: "t"}}
+- template: "{{ trigger.nope.deeper }}"
+  variables: {trigger: {id: "t"}}
+- {template: "{% macro m() %}{% endmacro %}", unsupported: true}
+
+# --- states -----------------------------------------------------------------
+- template: "{{ states('sensor.temp') }}"
+  states: [{entity_id: sensor.temp, state: "21.5"}]
+- {template: "{{ states('sensor.missing') }}"}
+- template: "{{ states('sensor.temp') | float + 1 }}"
+  states: [{entity_id: sensor.temp, state: "21.5"}]
+- template: "{{ states('sensor.temp') | float(0) }}"
+  states: [{entity_id: sensor.temp, state: "unavailable"}]
+- template: "{{ states('sensor.temp') | float }}"
+  states: [{entity_id: sensor.temp, state: "unavailable"}]
+- template: "{{ states('sensor.temp') | int }} {{ '42.9' | int }} {{ ' 7 ' | int }} {{ 'x' | int(-1) }}"
+  states: [{entity_id: sensor.temp, state: "3"}]
+- template: "{{ states.sensor.temp.state }}"
+  states: [{entity_id: sensor.temp, state: "21.5"}]
+- template: "{{ states.sensor.temp.attributes.unit_of_measurement }}"
+  states: [{entity_id: sensor.temp, state: "21.5", attributes: {unit_of_measurement: "°C"}}]
+- template: "{{ states.sensor.temp.name }} / {{ states.sensor.other.name }}"
+  states:
+    - {entity_id: sensor.temp, state: "1", attributes: {friendly_name: Living room}}
+    - {entity_id: sensor.other, state: "1"}
+- template: "{{ states.sensor.temp.domain }} {{ states.sensor.temp.object_id }} {{ states.sensor.temp.entity_id }}"
+  states: [{entity_id: sensor.temp, state: "1"}]
+- {template: "{{ states.sensor.missing }}"}
+- {template: "{{ states.sensor.missing.state }}"}
+- {template: "{{ states['sensor.missing'] }}"}
+- {template: "{{ states.Bad }}"}
+- template: "{{ states['sensor.temp'].state }}"
+  states: [{entity_id: sensor.temp, state: "5"}]
+- template: "{{ states.sensor.temp.last_changed }}"
+  states: [{entity_id: sensor.temp, state: "5"}]
+  # HA prints a datetime; HALean refuses at render time, so this must error
+  expect_error_in_halean_only: true
+- template: "{{ is_state('light.x', 'on') }} {{ is_state('light.x', ['off', 'on']) }} {{ is_state('light.y', 'on') }}"
+  states: [{entity_id: light.x, state: "on"}]
+- template: "{{ state_attr('light.x', 'brightness') }} {{ state_attr('light.x', 'nope') }} {{ state_attr('light.z', 'a') }}"
+  states: [{entity_id: light.x, state: "on", attributes: {brightness: 128}}]
+- template: "{{ is_state_attr('light.x', 'brightness', 128) }} {{ is_state_attr('light.x', 'brightness', '128') }}"
+  states: [{entity_id: light.x, state: "on", attributes: {brightness: 128}}]
+- template: "{{ has_value('sensor.a') }} {{ has_value('sensor.b') }} {{ has_value('sensor.c') }}"
+  states:
+    - {entity_id: sensor.a, state: "1"}
+    - {entity_id: sensor.b, state: "unknown"}
+- template: "{{ 'light.x' is is_state('on') }} {{ 'sensor.a' | has_value }} {{ 'light.x' | state_attr('brightness') }}"
+  states:
+    - {entity_id: light.x, state: "on", attributes: {brightness: 1}}
+    - {entity_id: sensor.a, state: "1"}
+- template: "{{ 'sensor.a' | states }}"
+  states: [{entity_id: sensor.a, state: "on"}]
+- template: "{{ state_attr('light.x', 'rgb') }}"
+  states: [{entity_id: light.x, state: "on", attributes: {rgb: [255, 0, 10]}}]
+
+# --- HA filters and functions -------------------------------------------------
+- {template: "{{ 2.675 | round(2) }} {{ 2.5 | round }} {{ 3.5 | round }} {{ 1.23456 | round(3) }}"}
+- {template: "{{ 2.4 | round(0, 'ceil') }} {{ 2.6 | round(0, 'floor') }} {{ 2.3 | round(1, 'half') }}"}
+- {template: "{{ 'x' | round }}"}
+- {template: "{{ 'x' | round(default=0) }}"}
+- {template: "{{ 'on' | bool }} {{ 'nope' | bool(false) }} {{ 0 | bool }} {{ bool('yes') }}"}
+- {template: "{{ 'nope' | bool }}"}
+- {template: "{{ '1.5' | is_number }} {{ 'nan' | is_number }} {{ is_number('x') }} {{ 3 is is_number }}"}
+- {template: "{{ float('1_000.5') }} {{ int(2.9) }} {{ int(-2.9) }} {{ float(true) }}"}
+- {template: "{{ (1 > 2) | iif('yes', 'no') }} {{ iif(none, 'y', 'n', 'none') }} {{ iif(1) }}"}
+- {template: "{{ '' | default('d') }} {{ '' | default('d', true) }} {{ none | d('n') }}"}
+- {template: "{{ 'Hello World' | lower }} {{ 'abc' | upper }} {{ 'hello world' | title }} {{ 'hELLO' | capitalize }}"}
+- {template: "{{ '  pad  ' | trim }}|{{ 'xxhixx' | trim('x') }}"}
+- {template: "{{ 'a-b-c' | replace('-', '+') }} {{ 'aaa' | replace('a', 'b', 2) }}"}
+- {template: "{{ [1, 2, 3] | length }} {{ 'abcd' | count }} {{ {'a': 1} | length }}"}
+- {template: "{{ [1, 2, 3] | first }} {{ [1, 2, 3] | last }} {{ 'xyz' | first }} {{ [] | first }}"}
+- {template: "{{ [1, 'a', none] | join(', ') }} {{ 'abc' | list }} {{ 5 | string }}"}
+- {template: "{{ -3 | abs }} {{ (-3) | abs }} {{ [1, 2.5, 3] | sum }}"}
+- {template: "{{ [3, 1] | sort }}", unsupported: true}
+- {template: "{{ now() }}", unsupported: true}
+
+# --- str methods, items and slices ------------------------------------------
+- {template: "{{ 'a,b,,c'.split(',') }} {{ ' x  y '.split() }} {{ 'a b c'.split(' ', 1) }}"}
+- {template: "{{ 'Hello'.startswith('He') }} {{ 'Hello'.endswith(('x', 'lo')) }} {{ ' hi '.strip() }}"}
+- {template: "{{ 'abc'.upper() }} {{ 'a_b'.replace('_', ' ') }}"}
+- {template: "{{ 'abcdef'[1:4] }} {{ [1, 2, 3, 4][::2] }} {{ 'abc'[::-1] }} {{ [1, 2, 3][-1] }}"}
+- {template: "{{ {'a': 1}.get('a') }} {{ {'a': 1}.get('b', 2) }} {{ {'a': 1}['a'] }} {{ {'a': 1}.a }}"}
+- {template: "{{ [1, 2][5] }}"}
+
+# --- tests --------------------------------------------------------------------
+- {template: "{{ none is none }} {{ 1 is number }} {{ 'a' is string }}"}
+- {template: "{{ 1 is integer }} {{ 1.0 is float }} {{ true is boolean }} {{ {} is mapping }} {{ [] is sequence }}"}
+- {template: "{{ 4 is divisibleby 2 }} {{ 3 is odd }} {{ 3 is eq 3 }} {{ 3 is gt 2 }} {{ 2 is in [1, 2] }}"}
+- {template: "{{ 3 is not even }}"}
+
+# --- variables ----------------------------------------------------------------
+- template: "{{ trigger.id }} {{ trigger.event.data.x }}"
+  variables: {trigger: {id: "t1", event: {data: {x: 5}}}}
+- template: "{{ trigger.missing }}"
+  variables: {trigger: {id: "t1"}}
+- {template: "{{ this.state }}", unsupported: true}
+
+# --- template conditions (condition.async_template) ---------------------------
+- template: "{{ is_state('light.x', 'on') }}"
+  states: [{entity_id: light.x, state: "on"}]
+  condition: true
+- {template: "{{ 'TRUE' }}", condition: true}
+- {template: "{{ 1 }}", condition: true}
+- {template: "{{ 'yes' }}", condition: true}
+- {template: "{{ 1 / 0 }}", condition: true}
+
+# --- the demo's room report (demo/automations.yaml) ---------------------------
+- name: demo room report
+  template: "{% set t = states('sensor.living_room_temperature') | float(0) %} {{ t | round(1) }} °C, heater {{ states('switch.heater') }}, {{ 'cold' if t < 19.5 else 'comfortable' if t <= 21.5 else 'warm' }} (last: {{ trigger.to_state.name }} is {{ trigger.to_state.state }})"
+  states:
+    - {entity_id: sensor.living_room_temperature, state: "19.26"}
+    - {entity_id: switch.heater, state: "off"}
+  variables: {trigger: {to_state: {name: Living room temperature, state: "19.26"}}}
+- name: demo room report condition
+  template: "{{ trigger.to_state is not none and trigger.to_state.state not in ['unknown', 'unavailable'] }}"
+  variables: {trigger: {to_state: {state: "unknown"}}}
+  condition: true

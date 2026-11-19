@@ -2,6 +2,7 @@ upstream:
   repo: https://github.com/home-assistant/core
   commit: 357cae5c598dfcd7a0ea7dc5b1facccd4ec6037b
   tag: 2026.10.4
+  jinja2: 3.1.6
 entries:
 - python: helpers/condition.py::AndConditionChecker._async_check
   lean:
@@ -142,12 +143,14 @@ entries:
   - HALean.Automation.step
   - HALean.Automation.resumeService
   status: translated
-  notes: blocking call delegated to the shell; templated data and response_variable rejected
+  notes: blocking call delegated to the shell; data/target templates rendered first (a render error is
+    a HomeAssistantError of the step); response_variable rejected
   hash: 2c9a2006b53f8036
 - python: helpers/script.py::_ScriptRun._async_step_event
   lean:
   - HALean.Automation.step
   status: translated
+  notes: event_data templates rendered; a render error is logged and the event fires with {}
   hash: 85634df408825aaf
 - python: helpers/script.py::_ScriptRun._async_step_delay
   lean:
@@ -230,3 +233,170 @@ entries:
   status: translated
   notes: conditions checked before mode admission; variables/this not supported
   hash: 66efc46d16ebe326
+- python: helpers/template/__init__.py::Template.__init__
+  lean:
+  - HALean.Template.compile
+  status: translated
+  notes: source stripped; is_static decided on the unstripped text
+  hash: 7c09e625c3ff46d4
+- python: helpers/template/__init__.py::Template.async_render
+  lean:
+  - HALean.Template.render
+  - HALean.Template.renderString
+  status: translated
+  notes: output stripped, MAX_TEMPLATE_OUTPUT enforced; limited/strict modes not modelled
+  hash: 154a643a16a1e83e
+- python: helpers/template/__init__.py::_parse_result
+  lean:
+  - HALean.Template.parseResult
+  - HALean.Template.isNumericStr
+  status: translated
+  notes: fast numeric path
+  hash: cd66900f121f5cca
+- python: helpers/template/__init__.py::_cached_parse_result
+  lean:
+  - HALean.Template.parseResult
+  - HALean.Template.literalEval
+  status: translated
+  notes: ast.literal_eval translated for numbers, strings, True/False/None, lists, tuples, dicts; sets
+    become lists, bytes stay strings
+  hash: 4acea10c6028c660
+- python: helpers/template/__init__.py::render_complex
+  lean:
+  - HALean.Automation.renderComplex
+  status: translated
+  notes: keys and values rendered with parse_result=True
+  hash: 6e8402cfbd7f390f
+- python: helpers/template/__init__.py::is_template_string
+  lean:
+  - HALean.Template.isTemplateString
+  status: translated
+  hash: 14606093095e7d2f
+- python: helpers/template/states.py::AllStates.__getattr__
+  lean:
+  - HALean.Template.getattrV
+  status: translated
+  hash: 2fe0b454dcd80b05
+- python: helpers/template/states.py::AllStates.__call__
+  lean:
+  - HALean.Template.callV
+  status: translated
+  notes: rounded/with_unit rejected
+  hash: a94feb304402393b
+- python: helpers/template/states.py::DomainStates.__getattr__
+  lean:
+  - HALean.Template.getattrV
+  status: translated
+  notes: iterating a domain is not supported yet
+  hash: fe4d0a07b0e0fb17
+- python: helpers/template/states.py::TemplateStateBase.__getitem__
+  lean:
+  - HALean.Template.stateAttr
+  status: translated
+  notes: 'last_changed/last_updated/context are opaque: using them is a render error'
+  hash: 11b17b4224967abf
+- python: helpers/template/states.py::_get_state_if_valid
+  lean:
+  - HALean.Template.stateIfValid
+  status: translated
+  hash: a2bd423e61b7c4a2
+- python: helpers/template/extensions/state.py::StateExtension.is_state
+  lean:
+  - HALean.Template.isState
+  status: translated
+  hash: c9ca1f55904ec368
+- python: helpers/template/extensions/state.py::StateExtension.is_state_attr
+  lean:
+  - HALean.Template.callV
+  status: translated
+  hash: 172bc64421c760af
+- python: helpers/template/extensions/state.py::StateExtension.state_attr
+  lean:
+  - HALean.Template.stateAttrFn
+  status: translated
+  hash: b0e626156b9889c7
+- python: helpers/template/extensions/state.py::StateExtension.has_value
+  lean:
+  - HALean.Template.hasValue
+  status: translated
+  hash: c30874eac0cba910
+- python: helpers/template/extensions/type_cast.py::TypeCastExtension.forgiving_float
+  lean:
+  - HALean.Template.forgivingFloat
+  status: translated
+  hash: 508c79a95cec6154
+- python: helpers/template/extensions/type_cast.py::TypeCastExtension.forgiving_int
+  lean:
+  - HALean.Template.forgivingInt
+  - HALean.Template.doInt
+  status: translated
+  notes: base other than 10 rejected
+  hash: 40c142d29952cac7
+- python: helpers/template/extensions/type_cast.py::TypeCastExtension.is_number
+  lean:
+  - HALean.Template.isNumber
+  status: translated
+  hash: 51ff4d5ecc8967e1
+- python: helpers/template/extensions/math.py::MathExtension.forgiving_round
+  lean:
+  - HALean.Template.forgivingRound
+  - HALean.Template.pyRound
+  status: translated
+  notes: Python's correctly rounded round() on the exact binary value
+  hash: 7e6dafcb33d77f8c
+- python: helpers/template/extensions/functional.py::FunctionalExtension.iif
+  lean:
+  - HALean.Template.iif
+  status: translated
+  hash: f411ee7f2dcdc9f0
+- python: helpers/template/helpers.py::forgiving_boolean
+  lean:
+  - HALean.Template.forgivingBool
+  - HALean.Template.cvBoolean
+  status: translated
+  hash: 1dc34205c0a38e69
+- python: helpers/template/helpers.py::result_as_boolean
+  lean:
+  - HALean.Template.resultAsBoolean
+  status: translated
+  hash: b93c6aabadc5c2d1
+- python: helpers/condition.py::async_template
+  lean:
+  - HALean.Automation.templateCond
+  status: translated
+  notes: render without parse_result, then value.lower() == 'true'
+  hash: c754645aac65b90f
+- python: helpers/condition.py::async_template_from_config
+  lean:
+  - HALean.Automation.evalCond
+  status: translated
+  hash: 30b5004c3b120964
+- python: helpers/service.py::async_prepare_call_from_config
+  lean:
+  - HALean.Automation.step
+  - HALean.Automation.normalizeTarget
+  status: translated
+  notes: templated action names and whole-data templates rejected; templated entity_id normalised like
+    comp_entity_ids_or_uuids (no registry UUIDs)
+  hash: bacbd2c6d576e1d4
+- python: helpers/config_validation.py::template_complex
+  lean:
+  - HALean.Automation.decodeComplex
+  status: translated
+  hash: 64e9ed0ed50afea7
+- python: helpers/config_validation.py::boolean
+  lean:
+  - HALean.Template.cvBoolean
+  status: translated
+  hash: 228619f46826b358
+- python: core.py::valid_entity_id
+  lean:
+  - HALean.Template.validEntityId
+  status: translated
+  notes: ASCII digits only (Python's \d also matches other Unicode digits)
+  hash: c35f0c404975c6ca
+- python: core.py::valid_domain
+  lean:
+  - HALean.Template.validDomain
+  status: translated
+  hash: 5711c45cc3274624

@@ -7,9 +7,22 @@
   supported subset is rejected with a message, never silently approximated.
 -/
 import HALean.Core.Types
+import HALean.Template
 open Lean
 
 namespace HALean.Automation
+
+instance : Repr Template.Tmpl := ⟨fun t _ => repr t.src⟩
+
+/-- A config value that may contain templates (`cv.template_complex`):
+strings that are template strings become templates, everything else stays
+as it is. -/
+inductive Complex where
+  | lit (j : Json)
+  | tmpl (t : Template.Tmpl)
+  | arr (xs : List Complex)
+  | obj (kvs : List (Complex × Complex))
+  deriving Repr, Inhabited
 
 /-- A `below`/`above` bound: a literal number or another entity's state. -/
 inductive Bound where
@@ -36,6 +49,8 @@ inductive Condition where
       (attr : Option String)
   | time (before after : Option TimeBound) (weekday : Option (List String))
   | trigger (ids : List String)
+  /-- `condition: template` and the string shorthand. -/
+  | template (t : Template.Tmpl)
   /-- `enabled: false`: `DisabledConditionChecker`, which returns `None`. -/
   | disabled
   deriving Repr, Inhabited
@@ -71,11 +86,12 @@ inductive TriggerKind where
 structure Trigger where
   id : String
   idx : Nat
+  alias : Option String := none
   kind : TriggerKind
   deriving Repr, Inhabited
 
 inductive Action where
-  | service (domain service : String) (data target : Json)
+  | service (domain service : String) (data target : Complex)
   | delay (ms : Nat)
   | condition (c : Condition)
   | choose (options : List (List Condition × List Action)) (default : Option (List Action))
@@ -84,7 +100,7 @@ inductive Action where
   | repeatWhile (conds : List Condition) (body : List Action)
   | repeatUntil (conds : List Condition) (body : List Action)
   | stop (reason : String) (error : Bool)
-  | event (eventType : String) (data : Json)
+  | event (eventType : String) (data : Complex)
   | sequence (body : List Action)
   /-- `continue_on_error: true` on the wrapped step. -/
   | continueOnError (a : Action)
@@ -215,6 +231,26 @@ def weekday? (j : Json) : D (Option (List String)) :=
   | none => pure none
   | some v => some <$> strList v
 
+/-- The variables HALean passes to templates. Templates using anything else
+(`this`, `now()`, ...) are rejected at load time. -/
+def TEMPLATE_VARS : List String := ["trigger"]
+
+def compileTemplate (s : String) : D Template.Tmpl := do
+  let t ← match Template.compile s with
+    | .ok t => pure t
+    | .error e => throw s!"invalid template ({e}): {s}"
+  match Template.check t TEMPLATE_VARS with
+  | .ok () => pure t
+  | .error e => throw e
+
+/-- `cv.template_complex` -/
+partial def decodeComplex (j : Json) : D Complex := do
+  match j with
+  | .str s => if Template.isTemplateString s then return .tmpl (← compileTemplate s) else return .lit j
+  | .arr xs => return .arr (← xs.toList.mapM decodeComplex)
+  | .obj kvs => return .obj (← kvs.toList.mapM fun (k, v) => do pure (← decodeComplex (.str k), ← decodeComplex v))
+  | _ => return .lit j
+
 def noTemplate (j : Json) (k : String) : D Unit :=
   if has j k then throw s!"'{k}' (templates) is not supported" else pure ()
 
@@ -227,7 +263,10 @@ partial def decodeCondition (j : Json) : D Condition := do
         let cs ← (ensureList cs).mapM decodeCondition
         return match k with | "and" => .and cs | "or" => .or cs | _ => .not cs
   match j with
-  | .str _ => throw "template condition shorthand is not supported"
+  | .str s =>
+    -- `dynamic_template_condition`: the shorthand must be a real template
+    if !Template.isTemplateString s then throw s!"invalid condition: {s}"
+    return .template (← compileTemplate s)
   | _ => pure ()
   let some kind := str? j "condition" | throw s!"condition without 'condition' key: {j.compress}"
   let sub : D (List Condition) :=
@@ -249,6 +288,10 @@ partial def decodeCondition (j : Json) : D Condition := do
       (str? j "attribute")
   | "time" => return .time (← timeBound? j "before") (← timeBound? j "after") (← weekday? j)
   | "trigger" => return .trigger (← strList ((field? j "id").getD .null))
+  | "template" =>
+    match field? j "value_template" with
+    | some (.str s) => return .template (← compileTemplate s)
+    | _ => throw "template condition needs a value_template string"
   | other => throw s!"condition '{other}' is not supported"
 
 def stateMatch (j : Json) (pos neg : String) : StateMatch :=
@@ -322,7 +365,7 @@ def decodeTrigger (idx : Nat) (j : Json) : D (Option Trigger) := do
       noTemplate j "context"
       pure <| TriggerKind.event types data
     | p => throw s!"trigger platform '{p}' is not supported"
-  return some { id, idx, kind }
+  return some { id, idx, alias := str? j "alias", kind }
 
 partial def decodeAction (j : Json) : D (Option Action) := do
   if !(← isEnabled j) then return none
@@ -336,14 +379,20 @@ partial def decodeAction (j : Json) : D (Option Action) := do
     pure (xs.filterMap (fun x => x))
   let conds (v : Json) : D (List Condition) := (ensureList v).mapM decodeCondition
   if let some svc := (str? j "action").orElse (fun _ => str? j "service") then
+    if Template.isTemplateString svc then throw s!"templated action names are not supported: {svc}"
     match svc.splitOn "." with
     | [d, s] =>
       noTemplate j "data_template"
       noTemplate j "response_variable"
-      let data := (field? j "data").getD (Json.mkObj [])
-      if data.compress.contains '{' && (data.compress.splitOn "{{").length > 1 then
-        throw "templated service data is not supported"
-      return wrap (.service d s data ((field? j "target").getD (Json.mkObj [])))
+      let data ← match field? j "data" with
+        | none => pure (Json.mkObj [])
+        | some d@(.obj _) => pure d
+        | some _ => throw "service data must be a mapping (a whole-data template is not supported)"
+      let target ← match field? j "target" with
+        | none => pure (Json.mkObj [])
+        | some t@(.obj _) => pure t
+        | some _ => throw "target must be a mapping (a whole-target template is not supported)"
+      return wrap (.service d s (← decodeComplex data) (← decodeComplex target))
     | _ => throw s!"bad service name {svc}"
   if let some d := field? j "delay" then return wrap (.delay (← durationMs d))
   if has j "condition" then return wrap (.condition (← decodeCondition j))
@@ -374,7 +423,11 @@ partial def decodeAction (j : Json) : D (Option Action) := do
     return wrap (.stop s err)
   if let some e := str? j "event" then
     noTemplate j "event_data_template"
-    return wrap (.event e ((field? j "event_data").getD (Json.mkObj [])))
+    let data ← match field? j "event_data" with
+      | none => pure (Json.mkObj [])
+      | some d@(.obj _) => pure d
+      | some _ => throw "event_data must be a mapping"
+    return wrap (.event e (← decodeComplex data))
   if has j "sequence" then return wrap (.sequence (← seq "sequence"))
   throw s!"action not supported: {j.compress}"
 

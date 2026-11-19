@@ -1,0 +1,101 @@
+# Templates inside automations: template conditions (full form and
+# shorthand), templated service data and targets, templated event data,
+# the `trigger` variable, and what a template error does to a run.
+automations:
+  - id: motion_dim                        # condition + data from states and trigger
+    triggers: [{trigger: state, entity_id: input_boolean.motion, to: "on"}]
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.to_state.state == 'on' and states('input_number.level') | float > 3 }}"
+    actions:
+      - action: light.turn_on
+        target: {entity_id: light.hall}
+        data:
+          brightness: "{{ (states('input_number.level') | float * 10) | int }}"
+          transition: "{{ 2.5 }}"
+          note: "{{ trigger.entity_id }} went {{ trigger.from_state.state }} -> {{ trigger.to_state.state }}"
+          flags: "{{ [1, 'two', none] }}"
+          static: "{{ 'as is' }}"
+  - id: room_target                       # target rendered from the event, comma list
+    triggers: [{trigger: event, event_type: lights}]
+    actions:
+      - action: light.turn_off
+        target: {entity_id: "light.{{ trigger.event.data.room }}, LIGHT.Extra"}
+      - event: done
+        event_data:
+          idx: "{{ trigger.idx }}"
+          id: "{{ trigger.id }}"
+          platform: "{{ trigger.platform }}"
+          rooms: "{{ trigger.event.data.room | upper }}"
+          n: "{{ trigger.event.data.n * 2 }}"
+  - id: shorthand                         # string shorthand inside if / choose
+    triggers: [{trigger: event, event_type: check}]
+    actions:
+      - if: "{{ trigger.event.data.x > 2 }}"
+        then: [{event: big}]
+        else: [{event: small}]
+      - choose:
+          - conditions: ["{{ is_state('input_boolean.motion', 'on') }}"]
+            sequence: [{event: motion_on}]
+        default: [{event: motion_off}]
+  - id: render_error_coe                  # a template error is a HomeAssistantError
+    triggers: [{trigger: event, event_type: oops}]
+    actions:
+      - {action: a.never, data: {x: "{{ 1 / 0 }}"}, continue_on_error: true}
+      - {action: a.after}
+  - id: render_error                      # ... which ends the run without continue_on_error
+    triggers: [{trigger: event, event_type: oops2}]
+    actions:
+      - {action: b.never, data: {x: "{{ trigger.nope.attr }}"}}
+      - {action: b.after}
+  - id: event_error                       # event data errors are logged, the event still fires
+    triggers: [{trigger: event, event_type: oops3}]
+    actions:
+      - {event: fired_anyway, event_data: {x: "{{ 'a' + 1 }}"}}
+  - id: numeric                           # numeric_state trigger variables
+    triggers: [{trigger: numeric_state, entity_id: input_number.level, above: 7, id: high}]
+    actions:
+      - event: level
+        event_data:
+          above: "{{ trigger.above }}"
+          below: "{{ trigger.below }}"
+          from: "{{ trigger.from_state.state | float }}"
+          to: "{{ trigger.to_state.state }}"
+          id: "{{ trigger.id }}"
+states:
+  - {entity_id: input_boolean.motion, state: "off"}
+  - {entity_id: input_number.level, state: "4.0"}
+steps:
+  - {at: 1, set: [input_boolean.motion, "on"],
+     expect: [{type: automation_triggered, id: motion_dim},
+              {type: call_service, domain: light, service: turn_on, call_id: 0,
+               data: {brightness: 40, transition: 2.5, note: "input_boolean.motion went off -> on",
+                      flags: [1, "two", null], static: "as is"}}]}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: true}}
+  - {at: 3, send: {type: event, event_type: lights, data: {room: kitchen, n: 3}},
+     expect: [{type: automation_triggered, id: room_target},
+              {type: call_service, service: turn_off, call_id: 1,
+               target: {entity_id: [light.kitchen, light.extra]}}]}
+  - {at: 4, send: {type: service_result, call_id: 1, ok: true},
+     expect: [{type: fire_event, event_type: done,
+               data: {idx: 0, id: 0, platform: event, rooms: KITCHEN, n: 6}}]}
+  - {at: 5, send: {type: event, event_type: check, data: {x: 3}},
+     expect: [{type: automation_triggered, id: shorthand}, {type: fire_event, event_type: big},
+              {type: fire_event, event_type: motion_on}]}
+  - {at: 6, send: {type: event, event_type: oops},
+     expect: [{type: automation_triggered, id: render_error_coe},
+              {type: call_service, domain: a, service: after, call_id: 2}]}
+  - {at: 7, send: {type: service_result, call_id: 2, ok: true}}
+  - {at: 8, send: {type: event, event_type: oops2}, expect: [{type: automation_triggered, id: render_error}]}
+  - {at: 9, send: {type: event, event_type: oops3},
+     expect: [{type: automation_triggered, id: event_error}, {type: fire_event, event_type: fired_anyway, data: {}}]}
+  - {at: 10, set: [input_boolean.motion, "off"]}
+  - {at: 11, send: {type: event, event_type: check, data: {x: 1}},
+     expect: [{type: automation_triggered, id: shorthand}, {type: fire_event, event_type: small},
+              {type: fire_event, event_type: motion_off}]}
+  - {at: 12, set: [input_number.level, "8.5"],
+     expect: [{type: automation_triggered, id: numeric},
+              {type: fire_event, event_type: level,
+               data: {above: 7.0, below: null, from: 4.0, to: 8.5, id: high}}]}
+  - {at: 13, set: [input_number.level, "2"]}
+  - {at: 14, set: [input_boolean.motion, "on"]}

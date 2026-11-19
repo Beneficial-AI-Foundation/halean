@@ -23,6 +23,71 @@ structure CondEnv where
   states : States
   now : Instant
   triggerId : Option String := none
+  /-- The `trigger` variable templates see. -/
+  trigger : Template.Value := .undef "'trigger'"
+
+def CondEnv.tmplCtx (env : CondEnv) : Template.Ctx :=
+  { states := env.states, vars := [("trigger", env.trigger)] }
+
+/-- `condition.async_template`: render without parsing the result, then
+`value.lower() == "true"`. A `TemplateError` is a `ConditionError`. -/
+def templateCond (env : CondEnv) (t : Template.Tmpl) : Except String Bool :=
+  match Template.render t env.tmplCtx false with
+  | .ok (.str s) => .ok (s.toLower == "true")
+  | .ok _ => .ok false
+  | .error e => .error s!"Error in 'template' condition: {e}"
+
+/-- `template.render_complex(value, variables)` (parse_result=True), as the
+JSON HA would send on. -/
+partial def renderComplex (env : CondEnv) : Complex → Except String Json
+  | .lit j => pure j
+  | .tmpl t => do
+    let v ← Template.render t env.tmplCtx true
+    v.toJson
+  | .arr xs => do pure (.arr (← xs.mapM (renderComplex env)).toArray)
+  | .obj kvs => do
+    let fields ← kvs.mapM fun (k, v) => do
+      let key ← match k with
+        | .lit (.str s) => pure s
+        | .tmpl t => do
+          let kv ← Template.render t env.tmplCtx true
+          match kv with
+          | .str s => pure s
+          | kv => Template.pyStr kv
+        | other => match renderComplex env other with
+          | .ok j => pure j.compress
+          | .error e => throw e
+      pure (key, ← renderComplex env v)
+    pure (Json.mkObj fields)
+
+partial def Complex.hasTemplate : Complex → Bool
+  | .lit _ => false
+  | .tmpl _ => true
+  | .arr xs => xs.any Complex.hasTemplate
+  | .obj kvs => kvs.any fun (k, v) => k.hasTemplate || v.hasTemplate
+
+/-- `cv.comp_entity_ids_or_uuids` on a rendered target's `entity_id`
+(`ensure_list_csv`, lower-case, validate). -/
+def normalizeTarget (j : Json) : Except String Json := do
+  let .obj _ := j | throw "Error rendering service target template: not a mapping"
+  match field? j "entity_id" with
+  | none => pure j
+  | some v =>
+    let items ← match v with
+      | .str s =>
+        if s.toLower == "all" || s.toLower == "none" then pure none
+        else pure (some ((s.splitOn ",").map String.trim))
+      | .arr xs => some <$> xs.toList.mapM fun x => match x with
+        | .str s => pure s
+        | x => throw s!"Template rendered invalid entity IDs: {x.compress}"
+      | x => throw s!"Template rendered invalid entity IDs: {x.compress}"
+    match items with
+    | none => pure (j.setObjVal! "entity_id" (.str (match v with | .str s => s.toLower | _ => "")))
+    | some ids =>
+      let ids := ids.map String.toLower
+      for e in ids do
+        if !Template.validEntityId e then throw s!"Template rendered invalid entity IDs: {e}"
+      pure (j.setObjVal! "entity_id" (.arr (ids.map Json.str).toArray))
 
 /-- `cv.INPUT_ENTITY_ID`:
 `^input_(?:select|text|number|boolean|datetime)\.(?!.+__)(?!_)[\da-z_]+(?<!_)$` -/
@@ -179,6 +244,10 @@ def evalCond (env : CondEnv) : Condition → CondResult
       .ok (some (match env.triggerId with
         | some t => ids.contains t
         | none => false))
+  | .template t =>
+      match templateCond env t with
+      | .ok b => .ok (some b)
+      | .error e => .err e
 
 /-- `AndConditionChecker._async_check` -/
 def evalAnd (env : CondEnv) : List Condition → List String → CondResult

@@ -2,6 +2,7 @@
   First theorems about the translated engine.
 -/
 import HALean.Automation.Engine
+import HALean.Template.Proofs
 open Lean
 
 namespace HALean.Automation
@@ -82,5 +83,18 @@ theorem admit_bounded (mode : Mode) (m n : Nat) (hm : 1 ≤ m) (hn : n ≤ m)
 theorem queued_waits (m n : Nat) (h0 : n ≠ 0) (hm : n ≠ m) :
     admit .queued m n = .enqueue := by
   unfold admit; simp [h0, hm]
+
+end HALean.Automation
+
+/-! ### Template conditions -/
+
+namespace HALean.Automation
+
+/-- A template condition whose template is static (e.g. `value_template: "true"`)
+is decided by its text alone, case-insensitively, as `condition.async_template`
+does. -/
+theorem templateCond_static (env : CondEnv) (t : Template.Tmpl) (h : t.isStatic = true) :
+    templateCond env t = .ok (t.src.toLower == "true") := by
+  simp [templateCond, Template.render_static t _ h]
 
 end HALean.Automation

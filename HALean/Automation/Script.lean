@@ -40,6 +40,8 @@ structure Run where
   id : Nat
   autoIdx : Nat
   triggerId : String
+  /-- The run's `trigger` variable. -/
+  trigger : Template.Value := .none
   frames : List Frame
   wait : Wait := .ready
   deriving Repr, Inhabited
@@ -106,7 +108,7 @@ def unwindError (r : Run) (k : ErrKind) (msg : String) : StepOut :=
 
 /-- Execute one step of the top frame. `cmds` are emitted commands. -/
 def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
-  let env : CondEnv := { ctx.env with triggerId := some r.triggerId }
+  let env : CondEnv := { ctx.env with triggerId := some r.triggerId, trigger := r.trigger }
   let push (f : Frame) (rest : List Frame) : Run := { r with frames := f :: rest }
   match r.frames with
   | [] => (.done .finished, [], ctx)
@@ -119,9 +121,21 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
     let rec run (coe : Bool) : Action → StepOut × List Cmd × ExecCtx
       | .continueOnError a => run true a
       | .service d s data tgt =>
-        let cid := ctx.nextCallId
-        (.blocked { r' with wait := .service cid coe },
-         [.callService cid r.id d s data tgt], { ctx with nextCallId := cid + 1 })
+        -- `async_prepare_call_from_config` runs inside the step: a template
+        -- error is a HomeAssistantError raised by the step itself.
+        let prepared : Except String (Json × Json) := do
+          let tj ← renderComplex env tgt
+          let tj ← if tgt.hasTemplate then normalizeTarget tj else pure tj
+          let dj ← renderComplex env data
+          pure (dj, tj)
+        match prepared with
+        | .error msg =>
+          let out := if coe then StepOut.next r' else unwindError r' .haError msg
+          (out, [.log "error" msg], ctx)
+        | .ok (dj, tj) =>
+          let cid := ctx.nextCallId
+          (.blocked { r' with wait := .service cid coe },
+           [.callService cid r.id d s dj tj], { ctx with nextCallId := cid + 1 })
       | .delay ms =>
         if ms == 0 then (.next r', [], ctx)
         else (.blocked { r' with wait := .delayUntil (env.now.utc + ms) }, [], ctx)
@@ -150,7 +164,13 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
         -- `_AbortScript` / `_StopScript` are not HomeAssistantErrors: they
         -- reach the top whatever `continue_on_error` says.
         if err then (.done (.aborted reason), [], ctx) else (.done .finished, [], ctx)
-      | .event t data => (.next r', [.fireEvent t data], ctx)
+      | .event t data =>
+        -- `_async_step_event`: a template error is logged and the event is
+        -- fired with the data rendered so far (none).
+        match renderComplex env data with
+        | .ok dj => (.next r', [.fireEvent t dj], ctx)
+        | .error e => (.next r', [.log "error" s!"Error rendering event data template: {e}",
+                                  .fireEvent t (Json.mkObj [])], ctx)
       | .sequence body => (.next (push (.seq body coe) cur), [], ctx)
     run false a
   | .repeatCount i n body c :: rest =>

@@ -54,11 +54,22 @@ def http(method: str, path: str, data: dict | None = None, token: str | None = N
     return json.loads(raw) if raw else {}
 
 
+def onboarding_steps() -> list:
+    """The onboarding steps; HA removes the endpoint (404) once it is done."""
+    try:
+        return http("GET", "/api/onboarding")  # type: ignore[return-value]
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return [{"step": s, "done": True}
+                    for s in ("user", "core_config", "analytics", "integration")]
+        raise
+
+
 def wait_for_ha() -> list:
     print(f"waiting for Home Assistant at {HTTP} ...", flush=True)
     for _ in range(600):
         try:
-            return http("GET", "/api/onboarding")  # type: ignore[return-value]
+            return onboarding_steps()
         except Exception:
             time.sleep(1)
     raise SystemExit("Home Assistant did not come up")
@@ -86,7 +97,7 @@ def onboard_user() -> str:
                                        "client_id": CLIENT_ID}, form=True)
     access = tok["access_token"]  # type: ignore[index]
     # The integration step needs a login session token, not a long-lived one.
-    finish_onboarding(http("GET", "/api/onboarding"), access)  # type: ignore[arg-type]
+    finish_onboarding(onboarding_steps(), access)
     token = asyncio.run(long_lived_token(access))
     SHARED.mkdir(parents=True, exist_ok=True)
     (SHARED / "login.txt").write_text(
@@ -119,7 +130,6 @@ def main() -> None:
     user_done = any(s["step"] == "user" and s.get("done") for s in steps)
     if not user_done:
         token = onboard_user()
-        steps = http("GET", "/api/onboarding")  # type: ignore[assignment]
     elif TOKEN_FILE.exists():
         token = TOKEN_FILE.read_text().strip()
     else:
@@ -130,7 +140,7 @@ def main() -> None:
     except urllib.error.HTTPError as e:
         raise SystemExit(f"the saved token is not accepted ({e.code}). Start over with:\n"
                          "  docker compose down -v && docker compose up --build")
-    finish_onboarding(http("GET", "/api/onboarding"), token)  # type: ignore[arg-type]
+    finish_onboarding(onboarding_steps(), token)
     if "--then-bridge" in sys.argv:
         os.environ["HA_TOKEN"] = token
         os.execvp(sys.executable, [sys.executable, "bridge/bridge.py", "demo/automations.yaml",
