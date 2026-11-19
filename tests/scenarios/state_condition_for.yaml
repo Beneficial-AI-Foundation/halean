@@ -1,0 +1,10 @@
+# state condition with `for`: utcnow() - for > last_changed
+automations:
+  - id: held
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: state, entity_id: switch.s, state: "on", for: {seconds: 10}}]
+    actions: [{event: held}]
+states: [{entity_id: switch.s, state: "on"}]
+steps:
+  - {at: 5, send: {type: event, event_type: go}}
+  - {at: 11, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: fire_event, event_type: held}]}

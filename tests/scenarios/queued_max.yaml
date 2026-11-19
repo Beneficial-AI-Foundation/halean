@@ -1,0 +1,13 @@
+# queued with max 2: a waiting run counts toward max
+automations:
+  - id: qm
+    mode: queued
+    max: 2
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: x.y}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: call_service, call_id: 0}]}
+  - {at: 2, send: {type: event, event_type: go}, expect: [{type: automation_triggered}]}
+  - {at: 3, send: {type: event, event_type: go}}
+  - {at: 4, send: {type: service_result, call_id: 0, ok: true}, expect: [{type: call_service, call_id: 1}]}
+  - {at: 5, send: {type: event, event_type: go}, expect: [{type: automation_triggered}]}

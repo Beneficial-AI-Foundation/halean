@@ -1,0 +1,10 @@
+automations:
+  - id: s
+    mode: single
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: x.y}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: call_service, call_id: 0}]}
+  - {at: 2, send: {type: event, event_type: go}, logs: true, expect: [{type: log, level: warning, message: "s: Already running"}]}
+  - {at: 3, send: {type: service_result, call_id: 0, ok: true}}
+  - {at: 4, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: call_service, call_id: 1}]}

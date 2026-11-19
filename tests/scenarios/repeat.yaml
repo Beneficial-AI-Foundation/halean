@@ -1,0 +1,30 @@
+automations:
+  - id: until
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - repeat:
+          until: [{condition: state, entity_id: binary_sensor.door, state: "off"}]
+          sequence: [{action: a.ping}]
+      - {action: a.done}
+  - id: count
+    triggers: [{trigger: event, event_type: count}]
+    actions:
+      - repeat: {count: 3, sequence: [{event: tick_evt}]}
+      - {event: finished}
+  - id: while_false
+    triggers: [{trigger: event, event_type: wf}]
+    actions:
+      - repeat:
+          while: [{condition: state, entity_id: binary_sensor.door, state: "on"}]
+          sequence: [{event: never}]
+      - {event: after_while}
+states: [{entity_id: binary_sensor.door, state: "on"}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: call_service, service: ping, call_id: 0}]}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: true}, expect: [{type: call_service, service: ping, call_id: 1}]}
+  - {at: 3, set: [binary_sensor.door, "off"]}
+  - {at: 4, send: {type: service_result, call_id: 1, ok: true}, expect: [{type: call_service, service: done}]}
+  - at: 5
+    send: {type: event, event_type: count}
+    expect: [{type: automation_triggered}, {type: fire_event, event_type: tick_evt}, {type: fire_event, event_type: tick_evt}, {type: fire_event, event_type: tick_evt}, {type: fire_event, event_type: finished}]
+  - {at: 6, send: {type: event, event_type: wf}, expect: [{type: automation_triggered}, {type: fire_event, event_type: after_while}]}

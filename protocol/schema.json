@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "halean/protocol/v1",
+  "title": "HALean engine protocol v1 (JSON lines over stdin/stdout)",
+  "description": "Every input line gets exactly one output line: a batch of commands. All times are Unix milliseconds (UTC); 'tz' is the local UTC offset in seconds at 'now'. The engine never reads a clock.",
+  "$defs": {
+    "clock": {
+      "type": "object",
+      "required": ["now"],
+      "properties": {
+        "now": {"type": "integer", "minimum": 0},
+        "tz": {"type": "integer", "default": 0}
+      }
+    },
+    "state": {
+      "type": "object",
+      "required": ["entity_id", "state"],
+      "properties": {
+        "entity_id": {"type": "string"},
+        "state": {"type": "string"},
+        "attributes": {"type": "object"},
+        "last_changed": {"type": "integer", "description": "Unix ms"}
+      }
+    },
+    "init": {
+      "allOf": [{"$ref": "#/$defs/clock"}],
+      "properties": {
+        "type": {"const": "init"},
+        "automations": {"type": "array", "description": "HA automation configs (automations.yaml entries) as JSON"},
+        "states": {"type": "array", "items": {"$ref": "#/$defs/state"}}
+      }
+    },
+    "state_changed": {
+      "allOf": [{"$ref": "#/$defs/clock"}],
+      "required": ["entity_id"],
+      "properties": {
+        "type": {"const": "state_changed"},
+        "entity_id": {"type": "string"},
+        "old_state": {"oneOf": [{"$ref": "#/$defs/state"}, {"type": "null"}]},
+        "new_state": {"oneOf": [{"$ref": "#/$defs/state"}, {"type": "null"}]}
+      }
+    },
+    "event": {
+      "allOf": [{"$ref": "#/$defs/clock"}],
+      "required": ["event_type"],
+      "properties": {"type": {"const": "event"}, "event_type": {"type": "string"}, "data": {"type": "object"}}
+    },
+    "tick": {
+      "allOf": [{"$ref": "#/$defs/clock"}],
+      "properties": {"type": {"const": "tick"}},
+      "description": "Send at least once per second; time triggers, for-timers and delays only advance on input."
+    },
+    "service_result": {
+      "allOf": [{"$ref": "#/$defs/clock"}],
+      "required": ["call_id", "ok"],
+      "properties": {
+        "type": {"const": "service_result"},
+        "call_id": {"type": "integer"},
+        "ok": {"type": "boolean"},
+        "error_kind": {"enum": ["invalid", "ha_error", "other"],
+          "description": "invalid = vol.Invalid/config errors (never swallowed); ha_error = HomeAssistantError; other = any other exception"},
+        "message": {"type": "string"}
+      }
+    },
+    "batch": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "batch"},
+        "cmds": {"type": "array", "items": {"oneOf": [
+          {"properties": {"type": {"const": "call_service"}, "call_id": {"type": "integer"}, "run_id": {"type": "integer"},
+            "domain": {"type": "string"}, "service": {"type": "string"}, "data": {"type": "object"}, "target": {"type": "object"}},
+           "description": "Blocking call: answer with service_result carrying the same call_id."},
+          {"properties": {"type": {"const": "fire_event"}, "event_type": {"type": "string"}, "data": {"type": "object"}}},
+          {"properties": {"type": {"const": "automation_triggered"}, "id": {"type": "string"}, "name": {"type": "string"}, "source": {"type": "string"}}},
+          {"properties": {"type": {"const": "log"}, "level": {"enum": ["debug", "warning", "error"]}, "message": {"type": "string"}}},
+          {"properties": {"type": {"const": "unsupported"}, "id": {"type": "string"}, "reason": {"type": "string"}},
+           "description": "Only in the reply to init: this automation was not loaded and should stay in HA."}
+        ]}}
+      }
+    },
+    "error": {
+      "properties": {"type": {"const": "error"}, "message": {"type": "string"}},
+      "description": "The input line could not be decoded; engine state is unchanged."
+    }
+  },
+  "oneOf": [
+    {"$ref": "#/$defs/init"}, {"$ref": "#/$defs/state_changed"}, {"$ref": "#/$defs/event"},
+    {"$ref": "#/$defs/tick"}, {"$ref": "#/$defs/service_result"}
+  ]
+}

@@ -1,0 +1,13 @@
+# queued: started_action fires on admission; the run waits for the lock (FIFO)
+automations:
+  - id: q
+    mode: queued
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: x.y}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: call_service, call_id: 0, run_id: 0}]}
+  - {at: 2, send: {type: event, event_type: go}, expect: [{type: automation_triggered}]}
+  - {at: 3, send: {type: event, event_type: go}, expect: [{type: automation_triggered}]}
+  - {at: 4, send: {type: service_result, call_id: 0, ok: true}, expect: [{type: call_service, call_id: 1, run_id: 1}]}
+  - {at: 5, send: {type: service_result, call_id: 1, ok: true}, expect: [{type: call_service, call_id: 2, run_id: 2}]}
+  - {at: 6, send: {type: service_result, call_id: 2, ok: true}}

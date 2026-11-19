@@ -1,0 +1,8 @@
+automations:
+  - id: d
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{event: before}, {delay: {seconds: 5}}, {event: after}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: fire_event, event_type: before}]}
+  - {at: 5, send: {type: tick}}
+  - {at: 6, send: {type: tick}, expect: [{type: fire_event, event_type: after}]}

@@ -1,0 +1,14 @@
+automations:
+  - id: updown
+    triggers:
+      - {trigger: event, event_type: up, id: up}
+      - {trigger: event, event_type: down}          # id defaults to its index "1"
+    actions:
+      - choose:
+          - conditions: [{condition: trigger, id: up}]
+            sequence: [{event: went_up}]
+          - conditions: [{condition: trigger, id: "1"}]
+            sequence: [{event: went_down}]
+steps:
+  - {at: 1, send: {type: event, event_type: up}, expect: [{type: automation_triggered}, {type: fire_event, event_type: went_up}]}
+  - {at: 2, send: {type: event, event_type: down}, expect: [{type: automation_triggered}, {type: fire_event, event_type: went_down}]}

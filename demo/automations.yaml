@@ -1,0 +1,84 @@
+# Automations run by the Lean engine (HALean.Automation), not by Home Assistant.
+# Plain HA automation syntax: you could paste these into HA unchanged.
+
+- id: hallway_motion_on
+  alias: Hallway motion -> light on
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.hallway_motion
+      to: "on"
+  actions:
+    - action: light.turn_on
+      target: { entity_id: light.hallway_light }
+
+- id: hallway_motion_off
+  alias: No hallway motion for 10 s -> light off
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.hallway_motion
+      to: "off"
+      for: { seconds: 10 }
+  actions:
+    - action: light.turn_off
+      target: { entity_id: light.hallway_light }
+
+- id: heater_on
+  alias: Cold -> heater on
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.living_room_temperature
+      below: 19
+  conditions:
+    - condition: state
+      entity_id: switch.heater
+      state: "off"
+  actions:
+    - action: switch.turn_on
+      target: { entity_id: switch.heater }
+
+- id: heater_off
+  alias: Warm -> heater off
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.living_room_temperature
+      above: 22
+  actions:
+    - action: switch.turn_off
+      target: { entity_id: switch.heater }
+
+- id: good_night
+  alias: Good night
+  mode: single
+  triggers:
+    - trigger: state
+      entity_id: input_button.good_night
+  actions:
+    - action: light.turn_off
+      target: { entity_id: light.living_room_light }
+    - delay: { seconds: 2 }
+    - action: light.turn_off
+      target: { entity_id: light.hallway_light }
+    - if:
+        - condition: state
+          entity_id: switch.heater
+          state: "on"
+      then:
+        - action: switch.turn_off
+          target: { entity_id: switch.heater }
+
+- id: party
+  alias: Party mode
+  mode: restart
+  triggers:
+    - trigger: state
+      entity_id: input_button.party
+  actions:
+    - repeat:
+        count: 3
+        sequence:
+          - action: light.turn_on
+            target: { entity_id: light.living_room_light }
+          - delay: { seconds: 1 }
+          - action: light.turn_off
+            target: { entity_id: light.living_room_light }
+          - delay: { seconds: 1 }

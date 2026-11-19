@@ -1,0 +1,102 @@
+# HALean demo: a stock Home Assistant with a few dummy devices.
+# HA itself has NO automations here; the Lean engine runs them all
+# (demo/automations.yaml) through the bridge.
+default_config:
+
+homeassistant:
+  name: HALean demo
+  unit_system: metric
+  temperature_unit: C
+
+lovelace:
+  dashboards:
+    halean-demo:
+      mode: yaml
+      filename: ui-lovelace.yaml
+      title: HALean demo
+      icon: mdi:function-variant
+      show_in_sidebar: true
+      require_admin: false
+
+# --- what you (or the simulator) poke ---------------------------------------
+input_boolean:
+  hallway_motion_raw:
+    name: Simulate hallway motion
+    icon: mdi:walk
+  simulator:
+    name: Random activity simulator
+    icon: mdi:dice-multiple
+    initial: true
+  # backing state of the dummy devices below
+  hallway_light_power:
+  living_room_light_power:
+  heater_power:
+
+input_number:
+  living_room_temperature_raw:
+    name: Set living room temperature
+    min: 14
+    max: 26
+    step: 0.5
+    initial: 20
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer
+
+input_button:
+  good_night:
+    name: Good night
+    icon: mdi:weather-night
+  party:
+    name: Party mode
+    icon: mdi:party-popper
+
+# Shows what the Lean engine is doing (written by the bridge, --status-entity)
+input_text:
+  halean_status:
+    name: Lean engine
+    icon: mdi:function-variant
+    max: 255
+
+# --- the dummy devices -------------------------------------------------------
+template:
+  - binary_sensor:
+      - name: Hallway motion
+        unique_id: demo_hallway_motion
+        device_class: motion
+        state: "{{ is_state('input_boolean.hallway_motion_raw', 'on') }}"
+  - sensor:
+      - name: Living room temperature
+        unique_id: demo_living_room_temperature
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ states('input_number.living_room_temperature_raw') }}"
+  - light:
+      - name: Hallway light
+        unique_id: demo_hallway_light
+        state: "{{ is_state('input_boolean.hallway_light_power', 'on') }}"
+        turn_on:
+          action: input_boolean.turn_on
+          target: { entity_id: input_boolean.hallway_light_power }
+        turn_off:
+          action: input_boolean.turn_off
+          target: { entity_id: input_boolean.hallway_light_power }
+      - name: Living room light
+        unique_id: demo_living_room_light
+        state: "{{ is_state('input_boolean.living_room_light_power', 'on') }}"
+        turn_on:
+          action: input_boolean.turn_on
+          target: { entity_id: input_boolean.living_room_light_power }
+        turn_off:
+          action: input_boolean.turn_off
+          target: { entity_id: input_boolean.living_room_light_power }
+  - switch:
+      - name: Heater
+        unique_id: demo_heater
+        state: "{{ is_state('input_boolean.heater_power', 'on') }}"
+        turn_on:
+          action: input_boolean.turn_on
+          target: { entity_id: input_boolean.heater_power }
+        turn_off:
+          action: input_boolean.turn_off
+          target: { entity_id: input_boolean.heater_power }

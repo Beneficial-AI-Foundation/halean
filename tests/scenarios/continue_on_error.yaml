@@ -1,0 +1,27 @@
+automations:
+  - id: own_coe            # the step's own continue_on_error swallows a HomeAssistantError
+    triggers: [{trigger: event, event_type: e1}]
+    actions: [{action: a.one, continue_on_error: true}, {action: a.two}]
+  - id: no_coe             # without it the run stops
+    triggers: [{trigger: event, event_type: e2}]
+    actions: [{action: b.one}, {action: b.two}]
+  - id: invalid            # configuration errors are never swallowed
+    triggers: [{trigger: event, event_type: e3}]
+    actions: [{action: c.one, continue_on_error: true}, {action: c.two}]
+  - id: enclosing          # an enclosing step with continue_on_error catches it
+    triggers: [{trigger: event, event_type: e4}]
+    actions: [{sequence: [{action: d.one}, {action: d.skipped}], continue_on_error: true}, {action: d.two}]
+  - id: other_enclosing    # non-HA exceptions are only converted by the step's own flag
+    triggers: [{trigger: event, event_type: e5}]
+    actions: [{sequence: [{action: f.one}], continue_on_error: true}, {action: f.two}]
+steps:
+  - {at: 1, send: {type: event, event_type: e1}, expect: [{type: automation_triggered}, {type: call_service, service: one, call_id: 0}]}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: false, error_kind: ha_error}, expect: [{type: call_service, domain: a, service: two}]}
+  - {at: 3, send: {type: event, event_type: e2}, expect: [{type: automation_triggered}, {type: call_service, domain: b, call_id: 2}]}
+  - {at: 4, send: {type: service_result, call_id: 2, ok: false, error_kind: ha_error}}
+  - {at: 5, send: {type: event, event_type: e3}, expect: [{type: automation_triggered}, {type: call_service, domain: c, call_id: 3}]}
+  - {at: 6, send: {type: service_result, call_id: 3, ok: false, error_kind: invalid}}
+  - {at: 7, send: {type: event, event_type: e4}, expect: [{type: automation_triggered}, {type: call_service, domain: d, service: one, call_id: 4}]}
+  - {at: 8, send: {type: service_result, call_id: 4, ok: false, error_kind: ha_error}, expect: [{type: call_service, domain: d, service: two}]}
+  - {at: 9, send: {type: event, event_type: e5}, expect: [{type: automation_triggered}, {type: call_service, domain: f, service: one, call_id: 6}]}
+  - {at: 10, send: {type: service_result, call_id: 6, ok: false, error_kind: other}}

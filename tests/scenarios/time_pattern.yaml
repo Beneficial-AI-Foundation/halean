@@ -1,0 +1,9 @@
+# t0 = 22:13:20 UTC; seconds "/15" fires at :30 and :45
+automations:
+  - id: tp
+    triggers: [{trigger: time_pattern, seconds: "/15"}]
+    actions: [{event: tp}]
+steps:
+  - {at: 5, send: {type: tick}}
+  - {at: 10, send: {type: tick}, expect: [{type: automation_triggered}, {type: fire_event, event_type: tp}]}
+  - {at: 26, send: {type: tick}, expect: [{type: automation_triggered}, {type: fire_event, event_type: tp}]}

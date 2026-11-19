@@ -1,0 +1,17 @@
+# t0 = Tuesday 22:13:20 UTC (tz 0). A window crossing midnight is tested as
+# "not (before <= now < after)".
+automations:
+  - id: night
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: time, after: "22:00:00", before: "06:00:00", weekday: [tue]}]
+    actions: [{event: night}]
+  - id: day
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: time, after: "06:00:00", before: "22:00:00"}]
+    actions: [{event: day}]
+  - id: monday
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: time, weekday: mon}]
+    actions: [{event: monday}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered, id: night}, {type: fire_event, event_type: night}]}

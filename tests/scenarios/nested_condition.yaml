@@ -1,0 +1,24 @@
+# A failing `condition` step ends only the (sub-)script it is in:
+# inside choose, the rest of the top-level sequence still runs;
+# at top level, the run ends.
+automations:
+  - id: nested
+    triggers: [{trigger: event, event_type: nested}]
+    actions:
+      - choose:
+          - conditions: [{condition: state, entity_id: input_boolean.y, state: "on"}]
+            sequence:
+              - {condition: state, entity_id: input_boolean.x, state: "on"}
+              - {action: a.inner}
+      - {action: a.after}
+  - id: top
+    triggers: [{trigger: event, event_type: top}]
+    actions:
+      - {condition: state, entity_id: input_boolean.x, state: "on"}
+      - {action: b.never}
+states:
+  - {entity_id: input_boolean.x, state: "off"}
+  - {entity_id: input_boolean.y, state: "on"}
+steps:
+  - {at: 1, send: {type: event, event_type: nested}, expect: [{type: automation_triggered, id: nested}, {type: call_service, service: after}]}
+  - {at: 2, send: {type: event, event_type: top}, expect: [{type: automation_triggered, id: top}]}

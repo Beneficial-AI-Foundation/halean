@@ -1,0 +1,232 @@
+upstream:
+  repo: https://github.com/home-assistant/core
+  commit: 357cae5c598dfcd7a0ea7dc5b1facccd4ec6037b
+  tag: 2026.10.4
+entries:
+- python: helpers/condition.py::AndConditionChecker._async_check
+  lean:
+  - HALean.Automation.evalAnd
+  status: proven
+  notes: errors are collected and raised only if no condition returned False; theorems evalAnd_nil, evalAnd_all_disabled
+  hash: 53c6a7358f42a0ab
+- python: helpers/condition.py::OrConditionChecker._async_check
+  lean:
+  - HALean.Automation.evalOr
+  status: proven
+  notes: theorem evalOr_nil
+  hash: 73f2bc1cc881a29f
+- python: helpers/condition.py::NotConditionChecker._async_check
+  lean:
+  - HALean.Automation.evalNot
+  status: proven
+  notes: truthiness test, so None (disabled) counts as false; theorem evalNot_disabled
+  hash: f860a47a4f8cb9a1
+- python: helpers/condition.py::DisabledConditionChecker._async_check
+  lean:
+  - HALean.Automation.evalCond
+  status: proven
+  notes: returns None (ok none); theorem evalCond_disabled
+  hash: ebbb1fbb2d69c186
+- python: helpers/condition.py::state
+  lean:
+  - HALean.Automation.stateOne
+  - HALean.Automation.isInputEntityId
+  status: translated
+  notes: templated 'for' not supported (rejected at decode)
+  hash: 504e153b6d897736
+- python: helpers/condition.py::async_numeric_state
+  lean:
+  - HALean.Automation.numericStateOf
+  - HALean.Automation.numericStateOne
+  - HALean.Automation.resolveBound
+  status: translated
+  notes: value_template not supported (rejected at decode)
+  hash: 374d77c1a17c5957
+- python: helpers/condition.py::time
+  lean:
+  - HALean.Automation.timeCond
+  - HALean.Automation.resolveTimeBound
+  status: translated
+  notes: timestamp/uptime sensor bounds raise 'unsupported'; local time comes from the shell's tz offset
+  hash: 75942a34ea3c0149
+- python: helpers/condition.py::state_from_config
+  lean:
+  - HALean.Automation.entityLoop
+  - HALean.Automation.evalCond
+  status: translated
+  hash: 214edb196fddd388
+- python: helpers/condition.py::async_numeric_state_from_config
+  lean:
+  - HALean.Automation.entityLoop
+  - HALean.Automation.evalCond
+  status: translated
+  hash: da9ee6ddc8bdee13
+- python: helpers/condition.py::async_trigger_from_config
+  lean:
+  - HALean.Automation.evalCond
+  status: translated
+  hash: 0f4ad0c1ab198c8d
+- python: helpers/condition.py::async_from_config
+  lean:
+  - HALean.Automation.decodeCondition
+  status: translated
+  notes: only and/or/not/state/numeric_state/time/trigger; platform conditions and templates rejected
+  hash: 5e83164fc7ee0e01
+- python: helpers/condition.py::ConditionsChecker.async_check
+  lean:
+  - HALean.Automation.checkAutomationConditions
+  status: proven
+  notes: errors count as False; theorem checkAutomationConditions_nil
+  hash: e5f40a144d81ca95
+- python: helpers/script.py::_ScriptRun._test_conditions
+  lean:
+  - HALean.Automation.testConditions
+  status: proven
+  notes: stops at first error and returns None; theorem testConditions_nil
+  hash: 2ab1cd9bdeedaed1
+- python: helpers/script.py::_ScriptRun.async_run
+  lean:
+  - HALean.Automation.exec
+  - HALean.Automation.conditionFail
+  status: translated
+  notes: _ConditionFail ends only the current (sub-)script; STEP_FUEL safety net is an addition
+  hash: f846f0d9db5311a4
+- python: helpers/script.py::_ScriptRun._async_step
+  lean:
+  - HALean.Automation.step
+  status: translated
+  notes: static enabled only; disabled steps are dropped at decode time
+  hash: 5b9e5850ea530a66
+- python: helpers/script.py::_ScriptRun._handle_exception
+  lean:
+  - HALean.Automation.unwindError
+  - HALean.Automation.resumeService
+  status: translated
+  hash: cac9da09de931b4e
+- python: helpers/script.py::_ScriptRun._async_run_script
+  lean:
+  - HALean.Automation.step
+  status: translated
+  notes: every sub-script is a seq frame
+  hash: 2dcf98873b00f951
+- python: helpers/script.py::_ScriptRun._async_step_choose
+  lean:
+  - HALean.Automation.step
+  status: translated
+  hash: b88406514489fe07
+- python: helpers/script.py::_ScriptRun._async_step_condition
+  lean:
+  - HALean.Automation.step
+  status: translated
+  hash: 8b81a5479454f422
+- python: helpers/script.py::_ScriptRun._async_step_if
+  lean:
+  - HALean.Automation.step
+  status: translated
+  hash: d1471f6f8c9ebc2c
+- python: helpers/script.py::_ScriptRun._async_do_step_repeat
+  lean:
+  - HALean.Automation.step
+  - HALean.Automation.REPEAT_TERMINATE_ITERATIONS
+  status: translated
+  notes: count/while/until; for_each and repeat variables not supported
+  hash: 8ae3b200144a1124
+- python: helpers/script.py::_ScriptRun._async_step_stop
+  lean:
+  - HALean.Automation.step
+  status: translated
+  notes: response_variable not supported
+  hash: a51acb4f9a47c972
+- python: helpers/script.py::_ScriptRun._async_step_call_service
+  lean:
+  - HALean.Automation.step
+  - HALean.Automation.resumeService
+  status: translated
+  notes: blocking call delegated to the shell; templated data and response_variable rejected
+  hash: 2c9a2006b53f8036
+- python: helpers/script.py::_ScriptRun._async_step_event
+  lean:
+  - HALean.Automation.step
+  status: translated
+  hash: 85634df408825aaf
+- python: helpers/script.py::_ScriptRun._async_step_delay
+  lean:
+  - HALean.Automation.step
+  - HALean.Automation.fireDue
+  status: translated
+  hash: e45905c85861f687
+- python: helpers/script.py::_ScriptRun._async_step_sequence
+  lean:
+  - HALean.Automation.step
+  status: translated
+  hash: 2c821ef801a93386
+- python: helpers/script.py::Script.async_run
+  lean:
+  - HALean.Automation.admit
+  - HALean.Automation.triggerAutomation
+  status: proven
+  notes: theorems single_exclusive, restart_never_rejects, admit_bounded, queued_waits
+  hash: de80e422d227b5fe
+- python: helpers/script.py::_QueuedScriptRun.async_run
+  lean:
+  - HALean.Automation.triggerAutomation
+  - HALean.Automation.finishRun
+  status: translated
+  hash: 7f4632a95505eb20
+- python: helpers/script.py::_QueuedScriptRun._finish
+  lean:
+  - HALean.Automation.finishRun
+  status: translated
+  hash: b1588007b28a8988
+- python: helpers/event.py::process_state_match
+  lean:
+  - HALean.Automation.StateMatch.matches
+  status: proven
+  notes: theorems match_invert, match_all
+  hash: dfe501b7ee7ebfd0
+- python: helpers/event.py::async_track_same_state
+  lean:
+  - HALean.Automation.PendingFor
+  - HALean.Automation.sameStillHolds
+  - HALean.Automation.fireDue
+  status: translated
+  hash: add0e1dcbce0c789
+- python: components/homeassistant/triggers/state.py::async_attach_trigger
+  lean:
+  - HALean.Automation.onStateTrigger
+  - HALean.Automation.decodeTrigger
+  status: translated
+  notes: templated 'for' rejected; matchAll is by key presence (so an explicit null 'to' works as upstream)
+  hash: 5e5087a8dc6161d9
+- python: components/homeassistant/triggers/numeric_state.py::async_attach_trigger
+  lean:
+  - HALean.Automation.onNumericTrigger
+  - HALean.Automation.initArmed
+  status: translated
+  hash: baa5c01dbce8b082
+- python: components/homeassistant/triggers/time.py::async_attach_trigger
+  lean:
+  - HALean.Automation.fireTimeTriggers
+  - HALean.Automation.decodeTrigger
+  status: translated
+  notes: fixed HH:MM[:SS] only; entity-based and offset times rejected
+  hash: 6f3973d45d42a3d4
+- python: components/homeassistant/triggers/time_pattern.py::async_attach_trigger
+  lean:
+  - HALean.Automation.fireTimeTriggers
+  - HALean.Automation.Pattern.matches
+  - HALean.Automation.decodeTrigger
+  status: translated
+  hash: 61270e2f0e6c06ac
+- python: components/homeassistant/triggers/event.py::async_attach_trigger
+  lean:
+  - HALean.Automation.onEvent
+  status: translated
+  notes: flat event_data only; context filter rejected
+  hash: 87152f92fcbc896a
+- python: components/automation/__init__.py::AutomationEntity.async_trigger
+  lean:
+  - HALean.Automation.triggerAutomation
+  status: translated
+  notes: conditions checked before mode admission; variables/this not supported
+  hash: 66efc46d16ebe326

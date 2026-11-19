@@ -1,0 +1,12 @@
+automations:
+  - id: p
+    mode: parallel
+    max: 2
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: x.y}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: call_service, call_id: 0}]}
+  - {at: 2, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: call_service, call_id: 1}]}
+  - {at: 3, send: {type: event, event_type: go}, logs: true, expect: [{type: log, level: warning, message: "p: Maximum number of runs exceeded"}]}
+  - {at: 4, send: {type: service_result, call_id: 1, ok: true}}
+  - {at: 5, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: call_service, call_id: 2}]}

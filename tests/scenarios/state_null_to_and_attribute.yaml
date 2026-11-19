@@ -1,0 +1,20 @@
+# `to: ~` (present but null) ignores attribute-only changes;
+# an `attribute` trigger fires only when that attribute changes.
+automations:
+  - id: any_state
+    triggers: [{trigger: state, entity_id: light.x, to: ~}]
+    actions: [{event: state_changed_evt}]
+  - id: brightness
+    triggers: [{trigger: state, entity_id: light.x, attribute: brightness}]
+    actions: [{event: brightness_evt}]
+states: [{entity_id: light.x, state: "off"}]
+steps:
+  - at: 1
+    set: [light.x, "on"]
+    attributes: {brightness: 10}
+    expect: [{type: automation_triggered, id: any_state}, {type: fire_event}, {type: automation_triggered, id: brightness}, {type: fire_event}]
+  - at: 2
+    set: [light.x, "on"]
+    attributes: {brightness: 20}
+    expect: [{type: automation_triggered, id: brightness}, {type: fire_event, event_type: brightness_evt}]
+  - {at: 3, set: [light.x, "on"], attributes: {brightness: 20, color: red}}

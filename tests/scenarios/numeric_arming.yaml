@@ -1,0 +1,13 @@
+# numeric_state fires on crossing into range, then must leave the range to re-arm
+automations:
+  - id: hot
+    triggers: [{trigger: numeric_state, entity_id: sensor.temp, above: 25}]
+    actions: [{action: fan.turn_on}]
+states: [{entity_id: sensor.temp, state: "18"}]
+steps:
+  - {at: 1, set: [sensor.temp, "26"], expect: [{type: automation_triggered}, {type: call_service, service: turn_on, call_id: 0}]}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: true}}
+  - {at: 3, set: [sensor.temp, "27"]}
+  - {at: 4, set: [sensor.temp, "unavailable"]}
+  - {at: 5, set: [sensor.temp, "20"]}
+  - {at: 6, set: [sensor.temp, "30"], expect: [{type: automation_triggered}, {type: call_service, call_id: 1}]}

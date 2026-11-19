@@ -1,0 +1,15 @@
+# `from` without `to` + `for`: the timer survives further changes as long as
+# the state does not return to the old value (`cur_value != old_value`).
+automations:
+  - id: left_on
+    triggers: [{trigger: state, entity_id: media_player.tv, from: "on", for: {seconds: 5}}]
+    actions: [{event: tv_left_on}]
+states: [{entity_id: media_player.tv, state: "on"}]
+steps:
+  - {at: 1, set: [media_player.tv, "off"]}
+  - {at: 3, set: [media_player.tv, "idle"]}
+  - {at: 6, send: {type: tick}, expect: [{type: automation_triggered}, {type: fire_event, event_type: tv_left_on}]}
+  - {at: 7, set: [media_player.tv, "on"]}
+  - {at: 8, set: [media_player.tv, "off"]}
+  - {at: 10, set: [media_player.tv, "on"]}
+  - {at: 20, send: {type: tick}}

@@ -1,0 +1,15 @@
+# Automations outside the supported subset are reported, not approximated
+differential: false
+differential_reason: "HA runs template automations; this scenario only checks that the engine refuses them"
+automations:
+  - id: tpl
+    triggers: [{trigger: template, value_template: "{{ true }}"}]
+    actions: []
+  - id: tpl_data
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: notify.me, data: {message: "{{ now() }}"}}]
+expect_init:
+  - {type: unsupported, id: tpl}
+  - {type: unsupported, id: tpl_data}
+steps:
+  - {at: 1, send: {type: event, event_type: go}}

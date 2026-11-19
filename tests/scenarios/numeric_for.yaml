@@ -1,0 +1,13 @@
+# numeric_state + for: leaving the range cancels and re-arms
+automations:
+  - id: hot_for
+    triggers: [{trigger: numeric_state, entity_id: sensor.t, above: 25, for: {seconds: 5}}]
+    actions: [{event: hot_for}]
+states: [{entity_id: sensor.t, state: "20"}]
+steps:
+  - {at: 1, set: [sensor.t, "26"]}
+  - {at: 3, set: [sensor.t, "24"]}
+  - {at: 4, set: [sensor.t, "27"]}
+  - {at: 5, set: [sensor.t, "28"]}
+  - {at: 8, send: {type: tick}}
+  - {at: 9, send: {type: tick}, expect: [{type: automation_triggered}, {type: fire_event, event_type: hot_for}]}

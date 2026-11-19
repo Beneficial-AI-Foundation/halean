@@ -1,0 +1,70 @@
+title: HALean demo
+views:
+  - title: Home
+    path: home
+    icon: mdi:home
+    cards:
+      - type: markdown
+        content: |
+          ## Every automation here runs in Lean
+          This Home Assistant has **no automations of its own**. The Lean engine
+          receives every state change over the WebSocket API and decides what to do;
+          the bridge only carries out the service calls it asks for.
+
+          * **Motion** in the hallway turns the hallway light on; 10 s without motion turns it off.
+          * **Below 19 °C** the heater turns on, **above 22 °C** it turns off.
+          * **Good night** turns the living room light off, waits 2 s, then the rest.
+          * **Party mode** blinks the living room light 3 times.
+
+          Toggle things yourself, or leave the simulator on and watch.
+      - type: entities
+        title: Lean engine
+        state_color: true
+        entities:
+          - entity: input_text.halean_status
+            name: Last run
+          - input_boolean.simulator
+      - type: horizontal-stack
+        cards:
+          - type: light
+            entity: light.hallway_light
+          - type: light
+            entity: light.living_room_light
+      - type: entities
+        title: Hallway
+        state_color: true
+        entities:
+          - binary_sensor.hallway_motion
+          - input_boolean.hallway_motion_raw
+          - light.hallway_light
+      - type: entities
+        title: Living room
+        state_color: true
+        entities:
+          - sensor.living_room_temperature
+          - input_number.living_room_temperature_raw
+          - switch.heater
+          - light.living_room_light
+      - type: horizontal-stack
+        cards:
+          - type: button
+            entity: input_button.good_night
+            tap_action: { action: toggle }
+          - type: button
+            entity: input_button.party
+            tap_action: { action: toggle }
+      - type: history-graph
+        title: Last 15 minutes
+        hours_to_show: 0.25
+        entities:
+          - binary_sensor.hallway_motion
+          - light.hallway_light
+          - light.living_room_light
+          - switch.heater
+          - sensor.living_room_temperature
+      - type: logbook
+        title: What the Lean engine did
+        hours_to_show: 2
+        target:
+          entity_id:
+            - input_text.halean_status

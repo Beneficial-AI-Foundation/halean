@@ -1,0 +1,44 @@
+# HALean demo: a stock Home Assistant whose automations all run in Lean.
+#
+#   cd demo && docker compose up --build
+#   open http://localhost:8124   (login details: demo/.run/login.txt)
+#
+# Fully isolated: its own containers, its own volume, port 8124.
+name: halean-demo
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2026.10.4  # the release manifest.yaml is pinned to
+    ports: ["127.0.0.1:${DEMO_PORT:-8124}:8123"]
+    volumes:
+      - ha-config:/config
+      - ./ha/configuration.yaml:/config/configuration.yaml:ro
+      - ./ha/ui-lovelace.yaml:/config/ui-lovelace.yaml:ro
+    restart: unless-stopped
+
+  # The Lean engine + bridge. On first start it also onboards HA and creates
+  # the demo login (demo/.run/login.txt) and an access token.
+  halean:
+    build: { context: .., dockerfile: demo/Dockerfile }
+    image: halean-demo:latest
+    environment:
+      HA_HTTP: http://homeassistant:8123
+      HA_URL: ws://homeassistant:8123/api/websocket
+      DEMO_PORT: ${DEMO_PORT:-8124}
+    volumes: ["./.run:/shared"]
+    depends_on: [homeassistant]
+    restart: unless-stopped
+
+  # Plays the role of the people in the house: random motion and temperature
+  # drift. Switch it off from the dashboard ("Random activity simulator").
+  simulator:
+    image: halean-demo:latest
+    command: ["python", "demo/simulator.py"]
+    environment:
+      HA_URL: ws://homeassistant:8123/api/websocket
+    volumes: ["./.run:/shared"]
+    depends_on: [halean]
+    restart: unless-stopped
+
+volumes:
+  ha-config:

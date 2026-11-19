@@ -1,0 +1,34 @@
+# A condition that raises (non-numeric state) is an error, not False:
+# `if` treats it as falsy -> else; `until` treats it like True -> stop;
+# automation-level conditions treat it as False.
+automations:
+  - id: if_err
+    triggers: [{trigger: event, event_type: e1}]
+    actions:
+      - if: [{condition: numeric_state, entity_id: sensor.text, above: 1}]
+        then: [{event: then_branch}]
+        else: [{event: else_branch}]
+  - id: until_err
+    triggers: [{trigger: event, event_type: e2}]
+    actions:
+      - repeat:
+          until: [{condition: numeric_state, entity_id: sensor.text, above: 1}]
+          sequence: [{event: loop_body}]
+      - {event: after_until}
+  - id: auto_cond_err
+    triggers: [{trigger: event, event_type: e3}]
+    conditions: [{condition: numeric_state, entity_id: sensor.text, above: 1}]
+    actions: [{event: never}]
+  - id: or_err
+    triggers: [{trigger: event, event_type: e4}]
+    conditions:
+      - or:
+          - {condition: numeric_state, entity_id: sensor.text, above: 1}
+          - {condition: state, entity_id: sensor.text, state: hello}
+    actions: [{event: or_passed}]
+states: [{entity_id: sensor.text, state: hello}]
+steps:
+  - {at: 1, send: {type: event, event_type: e1}, expect: [{type: automation_triggered}, {type: fire_event, event_type: else_branch}]}
+  - {at: 2, send: {type: event, event_type: e2}, expect: [{type: automation_triggered}, {type: fire_event, event_type: loop_body}, {type: fire_event, event_type: after_until}]}
+  - {at: 3, send: {type: event, event_type: e3}}
+  - {at: 4, send: {type: event, event_type: e4}, expect: [{type: automation_triggered}, {type: fire_event, event_type: or_passed}]}

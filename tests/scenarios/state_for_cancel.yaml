@@ -1,0 +1,16 @@
+# state trigger with `for:` – a change back before the period cancels the timer
+automations:
+  - id: motion_light
+    triggers: [{trigger: state, entity_id: binary_sensor.motion, to: "on", for: "00:00:05"}]
+    actions: [{action: light.turn_on, target: {entity_id: light.hall}}]
+states: [{entity_id: binary_sensor.motion, state: "off"}]
+steps:
+  - {at: 1, set: [binary_sensor.motion, "on"]}
+  - {at: 3, set: [binary_sensor.motion, "off"]}
+  - {at: 10, send: {type: tick}}
+  - {at: 11, set: [binary_sensor.motion, "on"]}
+  - at: 16
+    send: {type: tick}
+    expect:
+      - {type: automation_triggered, id: motion_light}
+      - {type: call_service, domain: light, service: turn_on, target: {entity_id: light.hall}}

@@ -1,0 +1,11 @@
+# restart: the old run is stopped; a late result for it is ignored
+automations:
+  - id: r
+    mode: restart
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: a.one}, {action: a.two}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: call_service, service: one, call_id: 0}]}
+  - {at: 2, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: call_service, service: one, call_id: 1}]}
+  - {at: 3, send: {type: service_result, call_id: 0, ok: true}}
+  - {at: 4, send: {type: service_result, call_id: 1, ok: true}, expect: [{type: call_service, service: two, call_id: 2}]}
