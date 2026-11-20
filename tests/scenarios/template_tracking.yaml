@@ -1,0 +1,50 @@
+# How HA's template tracker decides when to re-render a template trigger
+# (async_track_template_result): only for entities/domains the last render
+# read, every minute while it used now(), and at most once a second for
+# templates that loop over a domain (the deferred change is replayed).
+# The clock starts at 2023-11-14 22:13:20 UTC.
+automations:
+  - id: even_minute                       # re-rendered by the minute timer only
+    triggers: [{trigger: template, value_template: "{{ now().minute % 2 == 0 }}"}]
+    actions:
+      - event: even_minute
+        event_data: {entity: "{{ trigger.entity_id }}", desc: "{{ trigger.description }}", from: "{{ trigger.from_state }}"}
+  - id: late_half                         # reads input_boolean.a, and now() only when a is on
+    triggers:
+      - trigger: template
+        value_template: "{{ is_state('input_boolean.a', 'on') and now().second >= 30 }}"
+    actions: [{event: late_half, event_data: {entity: "{{ trigger.entity_id }}"}}]
+  - id: two_lights                        # loops over a domain: rate limited to 1/s
+    triggers:
+      - trigger: template
+        value_template: "{{ states.light | selectattr('state', 'eq', 'on') | list | count >= 2 }}"
+    actions: [{event: two_lights, event_data: {entity: "{{ trigger.entity_id }}", to: "{{ trigger.to_state.state }}"}}]
+states:
+  - {entity_id: input_boolean.a, state: "off"}
+  - {entity_id: sensor.other, state: "0"}
+  - {entity_id: light.a, state: "off"}
+  - {entity_id: light.b, state: "off"}
+  - {entity_id: light.c, state: "off"}
+steps:
+  - {at: 1, set: [light.a, "on"]}
+  - {at: 1.3, set: [light.b, "on"]}
+  # the differential harness fires timers up to 0.5 s early (slack for HA's
+  # random time-change offsets); a step inside that window would fire the
+  # rate-limit timer before it is due, which real HA never does
+  - {at: 1.4, set: [light.c, "on"]}
+  - {at: 2, send: {type: tick},
+     expect: [{type: automation_triggered, id: two_lights},
+              {type: fire_event, event_type: two_lights, data: {entity: light.b, to: "on"}}]}
+  - {at: 5, set: [input_boolean.a, "on"]}
+  - {at: 15, set: [sensor.other, "1"]}
+  - {at: 40, send: {type: tick},
+     expect: [{type: automation_triggered, id: even_minute},
+              {type: fire_event, event_type: even_minute,
+               data: {entity: null, desc: "time change or manual update via template", from: null}}]}
+  - {at: 45, set: [sensor.other, "2"]}
+  - {at: 70, set: [input_boolean.a, "off"]}
+  - {at: 72, set: [input_boolean.a, "on"],
+     expect: [{type: automation_triggered, id: late_half}, {type: fire_event, event_type: late_half, data: {entity: input_boolean.a}}]}
+  - {at: 100, send: {type: tick}}
+  - {at: 160, send: {type: tick},
+     expect: [{type: automation_triggered, id: even_minute}, {type: fire_event, event_type: even_minute}]}

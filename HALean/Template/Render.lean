@@ -33,7 +33,52 @@ inductive Signal where
   | normal | brk | cont
   deriving BEq, Inhabited
 
+/-- `RenderInfo`: what a render read, so the template tracker knows when to
+render again (`helpers/template/render_info.py`). -/
+structure RInfo where
+  entities : List String := []
+  domains : List String := []
+  domainsLifecycle : List String := []
+  allStates : Bool := false
+  allStatesLifecycle : Bool := false
+  hasTime : Bool := false
+  exception : Bool := false
+  isStatic : Bool := false
+  deriving Repr, Inhabited
+
+def ALL_STATES_RATE_LIMIT : Nat := 60
+def DOMAIN_STATES_RATE_LIMIT : Nat := 1
+
+/-- `RenderInfo._freeze`: the rate limit in seconds. -/
+def RInfo.rateLimit (i : RInfo) : Option Nat :=
+  if i.isStatic then none
+  else if i.allStates || i.exception then some ALL_STATES_RATE_LIMIT
+  else if !i.domains.isEmpty || !i.domainsLifecycle.isEmpty then some DOMAIN_STATES_RATE_LIMIT
+  else none
+
+def domainOf (eid : String) : String := (eid.splitOn ".").headD ""
+
+/-- `RenderInfo.filter` after `_freeze`. -/
+def RInfo.filter (i : RInfo) (eid : String) : Bool :=
+  if i.isStatic || i.exception || i.allStates then true
+  else if !i.domains.isEmpty then i.domains.contains (domainOf eid) || i.entities.contains eid
+  else i.entities.contains eid
+
+/-- `RenderInfo.filter_lifecycle` after `_freeze`. -/
+def RInfo.filterLifecycle (i : RInfo) (eid : String) : Bool :=
+  if i.isStatic || i.exception || i.allStatesLifecycle then true
+  else i.domainsLifecycle.contains (domainOf eid)
+
+/-- Whether the tracker's state listeners (`_render_infos_to_track_states`)
+deliver a change of `eid` at all. While a rate-limit timer is pending the
+domain and all-states listeners are suppressed. -/
+def RInfo.listens (i : RInfo) (eid : String) (rateLimited : Bool) : Bool :=
+  if rateLimited then i.entities.contains eid
+  else i.allStates || i.allStatesLifecycle || i.entities.contains eid
+    || i.domains.contains (domainOf eid) || i.domainsLifecycle.contains (domainOf eid)
+
 structure RS where
+  info : RInfo := {}
   /-- `namespace()` objects. -/
   heap : Array (List (String × Value)) := #[]
   out : String := ""
@@ -48,6 +93,21 @@ def MAX_TEMPLATE_OUTPUT : Nat := 256 * 1024
 /-- Upper bound on loop iterations per render. HA has a render timeout
 instead; a template hitting this would be rejected by HA's own checks. -/
 def MAX_STEPS : Nat := 1000000
+
+def collect (eid : String) : R Unit :=
+  modify fun s => if s.info.entities.contains eid then s
+    else { s with info := { s.info with entities := s.info.entities ++ [eid] } }
+
+def collectDomain (d : String) (lifecycle : Bool) : R Unit :=
+  modify fun s => if lifecycle then
+      { s with info := { s.info with domainsLifecycle := s.info.domainsLifecycle ++ [d] } }
+    else { s with info := { s.info with domains := s.info.domains ++ [d] } }
+
+def collectAll (lifecycle : Bool) : R Unit :=
+  modify fun s => if lifecycle then { s with info := { s.info with allStatesLifecycle := true } }
+    else { s with info := { s.info with allStates := true } }
+
+def collectTime : R Unit := modify fun s => { s with info := { s.info with hasTime := true } }
 
 def tick : R Unit := do
   let s ← get
@@ -188,8 +248,13 @@ def STATE_OPAQUE : List String :=
    "format_state", "as_dict", "as_compressed_state", "json_fragment", "expire", "last_changed_timestamp",
    "last_updated_timestamp", "last_reported_timestamp", "as_dict_json", "as_compressed_state_json"]
 
+def COLLECTABLE_STATE_ATTRIBUTES : List String :=
+  ["state", "attributes", "last_changed", "last_updated", "context", "domain", "object_id", "name",
+   "last_reported"]
+
 /-- `TemplateStateBase` attributes (`__getitem__` + properties). -/
-def stateAttr (s : EntityState) (a : String) : R Value :=
+def stateAttr (s : EntityState) (collectIt : Bool) (a : String) : R Value := do
+  if collectIt && COLLECTABLE_STATE_ATTRIBUTES.contains a then collect s.entityId
   match a with
   | "state" => pure (.str s.state)
   | "entity_id" => pure (.str s.entityId)
@@ -213,8 +278,10 @@ def stateAttr (s : EntityState) (a : String) : R Value :=
 /-- `_get_state_if_valid` -/
 def stateIfValid (ctx : Ctx) (eid : String) : R Value :=
   match ctx.states.get? eid with
-  | some s => pure (.state s)
-  | none => if validEntityId eid then pure .none else throw s!"Invalid entity ID '{eid}'"
+  | some s => pure (.state s true)
+  | none =>
+    if validEntityId eid then do collect eid; pure .none
+    else throw s!"Invalid entity ID '{eid}'"
 
 def RESERVED_NAMES : List String :=
   ["contextfunction", "evalcontextfunction", "environmentfunction", "jinja_pass_arg"]
@@ -233,7 +300,7 @@ def getattrV (ctx : Ctx) (v : Value) (a : String) : R Value := do
     else if !validDomain a then throw s!"Invalid domain name '{a}'"
     else pure (.domain a)
   | .domain d => stateIfValid ctx s!"{d}.{a}"
-  | .state s => stateAttr s a
+  | .state s c => stateAttr s c a
   | .dict kvs =>
     if ["items", "keys", "values", "get"].contains a then pure (.func s!"dict.{a}" (some v))
     else pure ((lookupKV kvs (.str a)).getD (.undef s!"'dict object' has no attribute '{a}'"))
@@ -295,7 +362,7 @@ def getitemV (ctx : Ctx) (v : Value) (k : Value) : R Value := do
     | .int i => pure ((seqIndex s.toList i).map (fun c => Value.str (toString c)) |>.getD (.undef "string index out of range"))
     | .str a => getattrV ctx v a
     | _ => pure (.undef "invalid string index")
-  | .state _ | .allStates | .domain _ | .ns _ | .pyobj _ _ =>
+  | .state .. | .allStates | .domain _ | .ns _ | .pyobj _ _ =>
     match k with
     | .str a => getattrV ctx v a
     | _ => pure (.undef "invalid key")
@@ -329,15 +396,15 @@ def sliceList (xs : List α) (a b c : Option Int) : Except String (List α) := d
 def statesOf (ctx : Ctx) (dom : Option String) : List Value :=
   (ctx.states.filter fun (_, s) => match dom with
     | some d => s.domain == d
-    | none => true).map fun (_, s) => .state s
+    | none => true).map fun (_, s) => .state s false
 
 /-- Python iteration. -/
 def iterV (ctx : Ctx) (v : Value) : R (List Value) :=
   match v with
   | .range a b c => pure ((rangeItems a b c).map Value.int)
   | .gen _ xs => pure xs
-  | .domain d => pure (statesOf ctx (some d))
-  | .allStates => pure (statesOf ctx none)
+  | .domain d => do collectDomain d false; pure (statesOf ctx (some d))
+  | .allStates => do collectAll false; pure (statesOf ctx none)
   | .list xs | .tuple xs => pure xs
   | .str s => pure (s.toList.map fun c => .str (toString c))
   | .dict kvs => pure (kvs.map (·.1))
@@ -348,8 +415,8 @@ def iterV (ctx : Ctx) (v : Value) : R (List Value) :=
 def lenV (ctx : Ctx) (v : Value) : R Int :=
   match v with
   | .range a b c => pure (rangeItems a b c).length
-  | .domain d => pure (statesOf ctx (some d)).length
-  | .allStates => pure ctx.states.length
+  | .domain d => do collectDomain d true; pure (statesOf ctx (some d)).length
+  | .allStates => do collectAll true; pure ctx.states.length
   | .list xs | .tuple xs => pure xs.length
   | .str s => pure s.length
   | .dict kvs => pure kvs.length
@@ -737,6 +804,7 @@ def needStr (fn : String) (v : Value) : R String :=
 /-- `is_state` -/
 def isState (ctx : Ctx) (eid state : Value) : R Bool := do
   let .str e := eid | return false
+  collect e
   let some s := ctx.states.get? e | return false
   return pyEq (.str s.state) state ||
     (match state with
@@ -746,17 +814,20 @@ def isState (ctx : Ctx) (eid state : Value) : R Bool := do
 /-- `state_attr` -/
 def stateAttrFn (ctx : Ctx) (eid name : Value) : R Value := do
   let .str e := eid | return .none
+  collect e
   let .str n := name | return .none
   let some s := ctx.states.get? e | return .none
   return (s.attr? n).map Value.ofJson |>.getD .none
 
 /-- `has_value` -/
-def hasValue (ctx : Ctx) (eid : Value) : Bool :=
+def hasValue (ctx : Ctx) (eid : Value) : R Bool := do
   match eid with
-  | .str e => match ctx.states.get? e with
-    | some s => s.state != STATE_UNAVAILABLE && s.state != STATE_UNKNOWN
-    | none => false
-  | _ => false
+  | .str e =>
+    collect e
+    match ctx.states.get? e with
+    | some s => pure (s.state != STATE_UNAVAILABLE && s.state != STATE_UNKNOWN)
+    | none => pure false
+  | _ => pure false
 
 /-- `forgiving_float` -/
 def forgivingFloat (v : Value) (dflt : Option Value) : R Value := do
@@ -931,6 +1002,7 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
     if a.pos.length > 1 || !a.kw.isEmpty then
       throw "states() with rounded/with_unit is not supported by HALean"
     let some (.str e) := a.get 0 "entity_id" | throw "states() needs an entity id"
+    collect e
     match ctx.states.get? e with
     | some s => pure (.str s.state)
     | none => pure (.str STATE_UNKNOWN)
@@ -945,6 +1017,7 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
     | "is_state_attr", _ => do
       a.check n ["entity_id", "name", "value"]
       let .str e := (a.get 0 "entity_id").getD .none | return .bool false
+      collect e
       let .str nm := (a.get 1 "name").getD .none | return .bool false
       let some s := ctx.states.get? e | return .bool false
       match s.attr? nm with
@@ -952,7 +1025,7 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
       | some j => return .bool (pyEq (Value.ofJson j) ((a.get 2 "value").getD .none))
     | "has_value", _ => do
       a.check n ["entity_id"]
-      pure (.bool (hasValue ctx ((a.get 0 "entity_id").getD .none)))
+      pure (.bool (← hasValue ctx ((a.get 0 "entity_id").getD .none)))
     | "float", _ => do
       a.check n ["value", "default"]
       forgivingFloat ((a.get 0 "value").getD .none) (a.get 1 "default")
@@ -973,10 +1046,11 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
       let s ← get
       set { s with heap := s.heap.push a.kw }
       pure (.ns s.heap.size)
-    | "now", _ => do a.check n []; pure ctx.nowDT
-    | "utcnow", _ => do a.check n []; pure (.datetime (ctx.now.utc * 1000) (some 0))
+    | "now", _ => do a.check n []; collectTime; pure ctx.nowDT
+    | "utcnow", _ => do a.check n []; collectTime; pure (.datetime (ctx.now.utc * 1000) (some 0))
     | "today_at", _ => do
       a.check n ["time_str"]
+      collectTime
       -- `start_of_local_day()`, then the parsed time of day
       let off := ctx.now.tzOffsetSec
       let wall := ctx.now.utc * 1000 + off * US_PER_SEC
@@ -1187,7 +1261,7 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
   | "bool" => forgivingBool v (arg 0 "default")
   | "is_number" => pure (.bool (← isNumber v))
   | "iif" => pure (iif v (arg 0 "if_true") (arg 1 "if_false") (arg 2 "if_none"))
-  | "has_value" => pure (.bool (hasValue ctx v))
+  | "has_value" => pure (.bool (← hasValue ctx v))
   | "state_attr" => stateAttrFn ctx v ((arg 0 "name").getD .none)
   | "states" => callV ctx .allStates { pos := v :: a.pos, kw := a.kw }
   | "round" => forgivingRound v (arg 0 "precision") (arg 1 "method") (arg 2 "default")
@@ -1336,7 +1410,7 @@ partial def applyTest (ctx : Ctx) (n : String) (v : Value) (args : List Value) :
     match (← callV ctx (.func "is_state_attr" none) { pos := v :: args, kw := [] }) with
     | .bool b => pure b
     | _ => pure false
-  | "has_value" => pure (hasValue ctx v)
+  | "has_value" => hasValue ctx v
   | "is_number" => isNumber v
   | _ => throw s!"test '{n}' is not supported by HALean"
 
@@ -1771,6 +1845,15 @@ def renderString (t : Tmpl) (ctx : Ctx) : Except String String :=
   match ((renderNodes ctx t.nodes).run {}).run with
   | (.ok _, st) => .ok (pyStrip st.out none true true)
   | (.error e, _) => .error e
+
+/-- `Template.async_render_to_info`: the result and what the render read. -/
+def renderWithInfo (t : Tmpl) (ctx : Ctx) (parse : Bool := true) : Except String Value × RInfo :=
+  if t.isStatic then (.ok (if parse then parseResult t.src else .str t.src), { isStatic := true }) else
+  match ((renderNodes ctx t.nodes).run {}).run with
+  | (.ok _, st) =>
+    let out := pyStrip st.out none true true
+    (.ok (if parse then parseResult out else .str out), st.info)
+  | (.error e, st) => (.error e, { st.info with exception := true })
 
 /-- `Template.async_render(variables, parse_result)` -/
 def render (t : Tmpl) (ctx : Ctx) (parse : Bool := true) : Except String Value :=

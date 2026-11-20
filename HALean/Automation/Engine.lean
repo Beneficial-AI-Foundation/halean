@@ -34,7 +34,7 @@ def triggerValue (t : Trigger) (platform : String) (fields : List (String × Val
            ("platform", .str platform)] : List (String × Value)) ++ fields).map fun (k, v) => (.str k, v))
 
 def stateVal : Option EntityState → Template.Value
-  | some s => .state s
+  | some s => .state s false
   | none => .none
 
 def forVal : Option Nat → Template.Value
@@ -72,14 +72,22 @@ inductive TmplResult where
   | err
   deriving Repr, Inhabited
 
-/-- State of one `template` trigger (`async_attach_trigger`'s closure:
-`armed`, `delay_cancel`, plus the tracker's `_last_result`). -/
+/-- A state change the rate limiter deferred: entity, old, new. -/
+abbrev Deferred := String × Option EntityState × Option EntityState
+
+/-- State of one `template` trigger: the trigger's closure (`armed`,
+`delay_cancel`) and its `TrackTemplateResultInfo` (`_info`, `_last_result`,
+the `KeyedRateLimit`, the time listener is `info.hasTime`). -/
 structure TmplTrig where
   autoIdx : Nat
   trigIdx : Nat
   armed : Bool := false
   last : Option TmplResult := none
   pending : Option Nat := none
+  info : Template.RInfo := {}
+  lastTriggered : Option Millis := none
+  /-- The rate limiter's timer: when it fires and the event it replays. -/
+  rlTimer : Option (Millis × Deferred) := none
   deriving Repr, Inhabited
 
 /-- A pending `for:` timer created by `async_track_same_state`. -/
@@ -311,62 +319,95 @@ def sameStillHolds (env : CondEnv) (c : SameCheck) (new : Option EntityState) : 
     | .always => true
 
 
-/-- `template/trigger.py::template_listener`, driven the way
-`async_track_template_result` drives it. The tracker re-renders when an
-entity the last render read changes, and calls the listener only when the
-parsed result differs from the last one (the first re-render always counts;
-error → error does not). Re-rendering on every state change is equivalent:
-a change to an entity the template did not read cannot change its result. -/
-def onTemplateTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option EntityState) :
-    EM Unit := do
-  let .template tm forMs := t.kind | return
+def getTT (ai idx : Nat) : EM (Option TmplTrig) := do
+  return (← getE).tmplTrigs.find? (fun x => x.autoIdx == ai && x.trigIdx == idx)
+
+def saveTT (st : TmplTrig) : EM Unit := do
   let e ← getE
-  let some st := e.tmplTrigs.find? (fun x => x.autoIdx == ai && x.trigIdx == t.idx) | return
-  let r := Template.render tm (tmplCtxOf e ai) true
-  let changed := match st.last, r with
-    | none, _ => true
-    | some (.ok a), .ok b => !Template.pyEq a b
-    | some .err, .error _ => false
-    | _, _ => true
-  if !changed then return
-  let save (st : TmplTrig) : EM Unit := do
-    let e ← getE
-    setE { e with tmplTrigs := e.tmplTrigs.map fun x =>
-      if x.autoIdx == ai && x.trigIdx == t.idx then st else x }
+  setE { e with tmplTrigs := e.tmplTrigs.map fun x =>
+    if x.autoIdx == st.autoIdx && x.trigIdx == st.trigIdx then st else x }
+
+/-- `template/trigger.py::template_listener`, called with the tracker's
+update. `ev` is the state change that caused it (`none` for the time
+listener). -/
+def templateListener (ai : Nat) (t : Trigger) (forMs : Option Nat) (st : TmplTrig)
+    (r : Except String Template.Value) (ev : Option Deferred) : EM Unit := do
   match r with
   | .error msg =>
-    save { st with last := some .err }
+    saveTT st
     emit [.log "warning" s!"Error evaluating 'template' trigger: {msg}"]
   | .ok v =>
     -- `delay_cancel()`
     if let some pid := st.pending then
       let e ← getE
       setE { e with pendings := e.pendings.filter (·.id != pid) }
-    let st := { st with last := some (.ok v), pending := none }
+    let st := { st with pending := none }
     if !Template.resultAsBoolean v then
-      save { st with armed := true }
+      saveTT { st with armed := true }
       return
     if !st.armed then
-      save st
+      saveTT st
       return
     let st := { st with armed := false }
-    let desc := s!"{eid} via template"
+    let (eidV, oldV, newV, desc) := match ev with
+      | some (eid, old, new) => (Template.Value.str eid, stateVal old, stateVal new, s!"{eid} via template")
+      | none => (.none, .none, .none, "time change or manual update via template")
     let tv : TriggerVars := {
-      id := t.id, idx := t.idx, platform := "template", entityId := some eid,
+      id := t.id, idx := t.idx, platform := "template", entityId := ev.map (·.1),
       description := desc,
       value := triggerValue t "template" [
-        ("entity_id", .str eid), ("from_state", stateVal old), ("to_state", stateVal new),
+        ("entity_id", eidV), ("from_state", oldV), ("to_state", newV),
         ("for", forVal forMs), ("description", .str desc)] }
     match forMs with
     | none | some 0 =>
-      save st
+      saveTT st
       triggerAutomation ai tv
     | some p =>
       let e ← getE
       let pid := e.nextPendingId
       setE { e with nextPendingId := pid + 1, pendings := e.pendings ++
         [{ id := pid, autoIdx := ai, entity := "", fireAt := e.now.utc + p, check := .always, vars := tv }] }
-      save { st with pending := some pid }
+      saveTT { st with pending := some pid }
+
+/-- Render now (`_rate_limit.async_triggered` + `async_render_to_info`), and
+pass a changed result on to the listener. Error after error, or an equal
+result, is not a change; the first render after setup always is. -/
+def templateRefresh (ai : Nat) (t : Trigger) (ev : Option Deferred) : EM Unit := do
+  let .template tm forMs := t.kind | return
+  let some st ← getTT ai t.idx | return
+  let e ← getE
+  let (r, info) := Template.renderWithInfo tm (tmplCtxOf e ai) true
+  let st := { st with info, lastTriggered := some e.now.utc, rlTimer := none }
+  let changed := match st.last, r with
+    | none, _ => true
+    | some (.ok a), .ok b => !Template.pyEq a b
+    | some .err, .error _ => false
+    | _, _ => true
+  if !changed then
+    saveTT st
+    return
+  let st := { st with last := some (match r with | .ok v => .ok v | .error _ => .err) }
+  templateListener ai t forMs st r ev
+
+/-- `TrackTemplateResultInfo._refresh` for a state change (or the replay of
+one the rate limiter deferred): `_event_triggers_rerender`, then
+`KeyedRateLimit.async_schedule_action` (entities the template named are
+exempt), then render. -/
+def onTemplateTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option EntityState)
+    (replay : Bool := false) : EM Unit := do
+  let .template .. := t.kind | return
+  let some st ← getTT ai t.idx | return
+  if !replay && !st.info.listens eid st.rlTimer.isSome then return
+  let lifecycle := old.isNone || new.isNone
+  if !(st.info.filter eid || (lifecycle && st.info.filterLifecycle eid)) then return
+  let now := (← getE).now.utc
+  let limit := if st.info.entities.contains eid then none else st.info.rateLimit
+  if let (some secs, some last) := (limit, st.lastTriggered) then
+    let due := last + secs * 1000
+    if due > now then
+      if st.rlTimer.isNone then saveTT { st with rlTimer := some (due, (eid, old, new)) }
+      return
+  templateRefresh ai t (some (eid, old, new))
 
 def onStateChanged (eid : String) (old new : Option EntityState) : EM Unit := do
   -- the state machine is updated before listeners run
@@ -432,6 +473,11 @@ def fireTimeTriggers (sec : Nat) (tz : Int) : EM Unit := do
             description := "time",
             value := triggerValue t "time" [("now", .datetime (sec * 1000000 + TIME_CHANGE_MICROSECOND) (some tz)),
               ("description", .str "time"), ("entity_id", .none)] }
+      | .template .. =>
+        -- `async_track_utc_time_change(second=0)` while the last render used the clock
+        if sec % 60 == 0 then
+          if let some st ← getTT ai t.idx then
+            if st.info.hasTime then templateRefresh ai t none
       | .timePattern ph pm ps =>
         if ph.matches h && pm.matches m && ps.matches s then
           triggerAutomation ai {
@@ -452,6 +498,9 @@ partial def fireDue (t : Millis) : EM Unit := do
   let d? := e.runs.find? fun r => match r.wait with
     | .delayUntil w => w ≤ t
     | _ => false
+  let rl? := e.tmplTrigs.find? fun x => match x.rlTimer with
+    | some (due, _) => due ≤ t
+    | none => false
   match p?, d? with
   | some p, _ =>
     setE { e with pendings := e.pendings.filter (·.id != p.id) }
@@ -462,7 +511,17 @@ partial def fireDue (t : Millis) : EM Unit := do
     setE (replaceRun e r)
     drive r
     fireDue t
-  | none, none => pure ()
+  | none, none =>
+    match rl? with
+    | some x =>
+      -- the rate limiter's `call_later` replays the deferred event
+      let some (_, (eid, old, new)) := x.rlTimer | pure ()
+      saveTT { x with rlTimer := none }
+      let a := e.automations.getD x.autoIdx default
+      if let some t := a.triggers.find? (·.idx == x.trigIdx) then
+        onTemplateTrigger x.autoIdx t eid old new (replay := true)
+      fireDue t
+    | none => pure ()
 
 /-- Advance the clock to `now`, firing time triggers second by second. -/
 def advanceTo (now : Instant) : EM Unit := do
@@ -496,10 +555,12 @@ def initArmed : EM Unit := do
   for (a, ai) in e.automations.zipIdx do
     for t in a.triggers do
       if let .template tm _ := t.kind then
-        match Template.render tm (tmplCtxOf e ai) true with
-        | .ok v => tts := tts ++ [{ autoIdx := ai, trigIdx := t.idx, armed := !Template.resultAsBoolean v }]
-        | .error msg =>
-          tts := tts ++ [{ autoIdx := ai, trigIdx := t.idx }]
+        -- the trigger's own first render arms it; the tracker's setup render
+        -- (same template, same moment) gives the first render info
+        match Template.renderWithInfo tm (tmplCtxOf e ai) true with
+        | (.ok v, info) => tts := tts ++ [{ autoIdx := ai, trigIdx := t.idx, armed := !Template.resultAsBoolean v, info }]
+        | (.error msg, info) =>
+          tts := tts ++ [{ autoIdx := ai, trigIdx := t.idx, info }]
           logs := logs ++ [.log "warning" s!"Error initializing 'template' trigger for '{a.alias}': {msg}"]
   setE { e with armed, tmplTrigs := tts }
   emit logs

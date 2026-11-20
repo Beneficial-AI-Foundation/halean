@@ -412,10 +412,10 @@ entries:
 - python: helpers/event.py::TrackTemplateResultInfo._render_template_if_ready
   lean:
   - HALean.Automation.onTemplateTrigger
+  - HALean.Automation.templateRefresh
   status: translated
-  notes: re-render on every state change; listener only on a changed parsed result (first re-render always,
-    error->error never). Equivalent because results are deterministic in the states read; no rate limits
-    needed since now() is unsupported
+  notes: re-renders only for changes the last render info lets through, honouring the rate limit; listener
+    only on a changed parsed result (first re-render always, error->error never)
   hash: a9582098d045a9c1
 - python: helpers/template/states.py::_state_generator
   lean:
@@ -472,7 +472,7 @@ entries:
   lean:
   - HALean.Template.callV
   status: translated
-  notes: the engine's clock; rejected in template triggers (HA re-renders those on a timer)
+  notes: the engine's clock; sets has_time, so template triggers re-render every minute
   hash: 8c9d33dbc1a0e2ca
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.utcnow
   lean:
@@ -554,3 +554,58 @@ entries:
   notes: HA picks a random 50-500 ms offset per tracker; HALean uses 500 ms for trigger.now and runs at
     the whole-second tick
   hash: 30ef42fef2de827b
+- python: helpers/template/render_info.py::RenderInfo._freeze
+  lean:
+  - HALean.Template.RInfo.rateLimit
+  - HALean.Template.RInfo.filter
+  - HALean.Template.RInfo.filterLifecycle
+  status: translated
+  hash: 239c2e688ccd42f1
+- python: helpers/template/__init__.py::Template.async_render_to_info
+  lean:
+  - HALean.Template.renderWithInfo
+  status: translated
+  hash: 2f6575bf889de341
+- python: helpers/template/states.py::TemplateStateBase._collect_state
+  lean:
+  - HALean.Template.collect
+  - HALean.Template.stateAttr
+  status: translated
+  notes: iterated states and variables (trigger.to_state) do not collect
+  hash: 0ed6950d46c915e1
+- python: helpers/event.py::_event_triggers_rerender
+  lean:
+  - HALean.Automation.onTemplateTrigger
+  status: translated
+  hash: cef8c8090f19cf14
+- python: helpers/event.py::_rate_limit_for_event
+  lean:
+  - HALean.Automation.onTemplateTrigger
+  status: translated
+  hash: 224cc71866066fe3
+- python: helpers/event.py::_render_infos_to_track_states
+  lean:
+  - HALean.Template.RInfo.listens
+  status: translated
+  notes: domain/all listeners suppressed while a rate-limit timer is pending (_suppress_domain_all_in_render_info)
+  hash: 94c250d779bfe5f8
+- python: helpers/event.py::TrackTemplateResultInfo._refresh
+  lean:
+  - HALean.Automation.onTemplateTrigger
+  - HALean.Automation.templateRefresh
+  status: translated
+  notes: single template, no super template
+  hash: 2886a76d6014dfd6
+- python: helpers/event.py::TrackTemplateResultInfo._setup_time_listener
+  lean:
+  - HALean.Automation.fireTimeTriggers
+  status: translated
+  notes: re-render at second 0 of every UTC minute while the last render used the clock
+  hash: c141fc80eaae0715
+- python: helpers/ratelimit.py::KeyedRateLimit.async_schedule_action
+  lean:
+  - HALean.Automation.onTemplateTrigger
+  - HALean.Automation.fireDue
+  status: translated
+  notes: one timer at a time, replaying the first deferred change
+  hash: 24dd1e8302cf401e

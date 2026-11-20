@@ -118,7 +118,7 @@ git clone --depth 1 --filter=blob:none --sparse --branch 2026.10.4 \
 git -C upstream/ha-core sparse-checkout set --no-cone /homeassistant/components/automation/ \
   /homeassistant/helpers/ /homeassistant/components/homeassistant/triggers/ \
   /homeassistant/const.py /homeassistant/core.py /homeassistant/components/template/trigger.py \
-  /homeassistant/util/dt.py
+  /homeassistant/util/dt.py /homeassistant/helpers/ratelimit.py
 ```
 
 ## Tracking upstream
@@ -159,7 +159,7 @@ doesn't run twice.
 
 | Area | Supported | Rejected at load, stays in HA |
 |---|---|---|
-| Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, static `for`; no `now()`), `time` (fixed `at`, weekday), `time_pattern`, `event` (flat `event_data`) | templated `for`, `sun`, `zone`, `homeassistant`, `mqtt`, `webhook`, device triggers, entity-based or offset `time` |
+| Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, static `for`, re-rendered like HA's template tracker: only for what the last render read, every minute when it used `now()`, rate limits for loops over states), `time` (fixed `at`, weekday), `time_pattern`, `event` (flat `event_data`) | templated `for`, `sun`, `zone`, `homeassistant`, `mqtt`, `webhook`, device triggers, entity-based or offset `time` |
 | Conditions | `and`/`or`/`not` (incl. shorthand), `state` (match any/all, `for`, attribute, `input_*` references), `numeric_state` (incl. `value_template`), `time` (fixed, `input_datetime`, `time` entities, midnight crossing, weekday), `trigger`, `template` (incl. the `"{{ ... }}"` shorthand), `enabled: false` | platform conditions, timestamp-sensor bounds (error) |
 | Automations | automation `variables` (rendered in order before conditions) and static `trigger_variables` | `this`, templated `trigger_variables`, per-trigger `variables` |
 | Actions | service call (blocking; templates in `data` and `target`), `delay`, `condition`, `choose`, `if`/`else`, `repeat` count (incl. templated)/for_each/while/until with the `repeat` variable, `variables`, `stop` (+`error`), `event` (templates in `event_data`), `sequence`, `continue_on_error`, static `enabled` | templated action names, a whole-`data` template, `response_variable`, `wait_template`, `wait_for_trigger`, `parallel`, device actions, `scene` |
@@ -208,7 +208,7 @@ evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 
 ## Known gaps and deviations
 
-* **The translation is tested against Python, not proven equivalent.** All 24
+* **The translation is tested against Python, not proven equivalent.** All 25
   differential scenarios and all template cases match real HA at the pinned
   release, but they cover only the paths they exercise.
 * Lean's JSON objects are sorted by key. Where HA depends on the written
@@ -244,9 +244,8 @@ Properties worth proving or model-checking are collected in
 [PROPERTIES.md](PROPERTIES.md).
 
 
-1. Templates, part 5: `now()` in template triggers (the tracker's time-based
-   re-renders and rate limits), `this`, `expand`, `sort`, `min`/`max`,
-   `strptime`, `relative_time`, templated `for:`.
+1. Templates, part 6: `this`, `expand`, `sort`, `min`/`max`, `strptime`,
+   `relative_time`, templated `for:`.
 2. Generate differential scenarios automatically (random automations within the supported
    subset plus random event sequences) to cover far more paths than hand-written ones.
 3. Make the run loop total and prove run-level properties: a `single` automation never has

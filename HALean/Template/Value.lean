@@ -26,8 +26,11 @@ inductive Value where
   | tuple (xs : List Value)
   /-- Insertion-ordered, like Python's dict. -/
   | dict (kvs : List (Value × Value))
-  /-- `TemplateState`: one entity's state object. -/
-  | state (s : EntityState)
+  /-- A state object. `collect` is true for the `TemplateState`s that
+  `states(...)`/`states.x.y` hand out (reading them is recorded in the render
+  info) and false for iterated states and plain `State`s such as
+  `trigger.to_state`. -/
+  | state (s : EntityState) (collect : Bool)
   /-- `DomainStates`: `states.light`. -/
   | domain (d : String)
   /-- `AllStates`: `states`, both callable and subscriptable. -/
@@ -248,7 +251,7 @@ def pyRepr : Value → Except String String
     pure (if parts.length == 1 then "(" ++ parts.headD "" ++ ",)" else "(" ++ ", ".intercalate parts ++ ")")
   | .dict kvs => do pure ("{" ++ ", ".intercalate (← reprDict kvs) ++ "}")
   | .ns _ => pure "<Namespace>"
-  | .state s => throw s!"printing the state object of {s.entityId} is not supported by HALean"
+  | .state s _ => throw s!"printing the state object of {s.entityId} is not supported by HALean"
   | .domain d => throw s!"printing states.{d} is not supported by HALean"
   | .allStates => throw "printing `states` is not supported by HALean"
   | .func n _ => throw s!"printing the function {n} is not supported by HALean"
@@ -339,7 +342,7 @@ partial def pyEq : Value → Value → Bool
   | .list a, .list b => listEq a b
   | .tuple a, .tuple b => listEq a b
   | .dict a, .dict b => a.length == b.length && dictSub a b
-  | .state a, .state b => stateEq a b
+  | .state a _, .state b _ => stateEq a b
   | .domain a, .domain b => a == b
   | .allStates, .allStates => true
   | .ns a, .ns b => a == b
@@ -378,7 +381,7 @@ def typeName : Value → String
   | .list _ => "list"
   | .tuple _ => "tuple"
   | .dict _ => "dict"
-  | .state _ => "TemplateState"
+  | .state _ _ => "TemplateState"
   | .domain _ => "DomainStates"
   | .allStates => "AllStates"
   | .func _ _ => "function"
