@@ -41,7 +41,7 @@ entries:
   - HALean.Automation.numericStateOne
   - HALean.Automation.resolveBound
   status: translated
-  notes: value_template not supported (rejected at decode)
+  notes: value_template rendered with `state` and the run variables; None/unavailable/unknown results are False
   hash: 374d77c1a17c5957
 - python: helpers/condition.py::time
   lean:
@@ -206,6 +206,7 @@ entries:
   - HALean.Automation.onNumericTrigger
   - HALean.Automation.initArmed
   status: translated
+  notes: value_template sees `state` and a trigger dict (platform, entity_id, below, above, attribute)
   hash: baa5c01dbce8b082
 - python: components/homeassistant/triggers/time.py::async_attach_trigger
   lean:
@@ -287,7 +288,6 @@ entries:
   lean:
   - HALean.Template.getattrV
   status: translated
-  notes: iterating a domain is not supported yet
   hash: fe4d0a07b0e0fb17
 - python: helpers/template/states.py::TemplateStateBase.__getitem__
   lean:
@@ -400,3 +400,39 @@ entries:
   - HALean.Template.validDomain
   status: translated
   hash: 5711c45cc3274624
+- python: components/template/trigger.py::async_attach_trigger
+  lean:
+  - HALean.Automation.onTemplateTrigger
+  - HALean.Automation.initArmed
+  status: translated
+  notes: 'static for: only; trigger templates may not use variables (trigger_variables unsupported)'
+  hash: 30211567f29b293d
+- python: helpers/event.py::TrackTemplateResultInfo._render_template_if_ready
+  lean:
+  - HALean.Automation.onTemplateTrigger
+  status: translated
+  notes: re-render on every state change; listener only on a changed parsed result (first re-render always,
+    error->error never). Equivalent because results are deterministic in the states read; no rate limits
+    needed since now() is unsupported
+  hash: a9582098d045a9c1
+- python: helpers/template/states.py::_state_generator
+  lean:
+  - HALean.Template.statesOf
+  status: translated
+  notes: insertion order (States.set updates in place)
+  hash: b6336d35c02b8d4a
+- python: helpers/template/states.py::DomainStates.__iter__
+  lean:
+  - HALean.Template.iterV
+  status: translated
+  hash: c01406ea88212744
+- python: helpers/template/states.py::AllStates.__iter__
+  lean:
+  - HALean.Template.iterV
+  status: translated
+  hash: dbc63517fdb827fd
+- python: helpers/template/states.py::AllStates.__len__
+  lean:
+  - HALean.Template.lenV
+  status: translated
+  hash: 6239213356d5c60e

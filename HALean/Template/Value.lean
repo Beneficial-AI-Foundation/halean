@@ -35,6 +35,11 @@ inductive Value where
   | func (name : String) (self : Option Value)
   /-- A `namespace()` object; its fields live in the renderer's heap. -/
   | ns (id : Nat)
+  /-- `range(start, stop, step)` (Jinja's sandboxed `safe_range`). -/
+  | range (start stop step : Int)
+  /-- A one-shot iterator: what `map`, `select`, `reverse`... return. Printing
+  it is not supported (Python prints `<generator object ...>`). -/
+  | gen (kind : String) (xs : List Value)
   /-- A plain Python object exposing a few attributes (e.g. the `Event` in
   `trigger.event`). Printing it is not supported. -/
   | pyobj (cls : String) (fields : List (String × Value))
@@ -239,6 +244,8 @@ def pyRepr : Value → Except String String
   | .domain d => throw s!"printing states.{d} is not supported by HALean"
   | .allStates => throw "printing `states` is not supported by HALean"
   | .func n _ => throw s!"printing the function {n} is not supported by HALean"
+  | .range a b c => pure (if c == 1 then s!"range({a}, {b})" else s!"range({a}, {b}, {c})")
+  | .gen k _ => throw s!"printing a {k} object is not supported by HALean"
   | .pyobj c _ => throw s!"printing a {c} object is not supported by HALean"
   | .opaque w => throw s!"{w} values are not supported by HALean"
 
@@ -253,6 +260,12 @@ end
 
 /-! ## Truthiness, equality, ordering -/
 
+/-- The items of `range(a, b, c)`. -/
+def rangeItems (a b c : Int) : List Int :=
+  if c == 0 then [] else
+  let n : Int := if c > 0 then (b - a + c - 1) / c else (a - b - c - 1) / (-c)
+  (List.range n.toNat).map fun (i : Nat) => a + c * (i : Int)
+
 /-- `bool(x)` -/
 def truthy : Value → Bool
   | .none | .undef _ => false
@@ -262,6 +275,7 @@ def truthy : Value → Bool
   | .str s => !s.isEmpty
   | .list xs | .tuple xs => !xs.isEmpty
   | .dict kvs => !kvs.isEmpty
+  | .range a b c => !(rangeItems a b c).isEmpty
   | _ => true
 
 /-- Numbers as Python sees them (`bool` is an `int`). -/
@@ -318,6 +332,7 @@ partial def pyEq : Value → Value → Bool
   | .domain a, .domain b => a == b
   | .allStates, .allStates => true
   | .ns a, .ns b => a == b
+  | .range a b c, .range x y z => rangeItems a b c == rangeItems x y z
   | a, b => match a.num?, b.num? with
     | some x, some y => numEq x y
     | _, _ => false
@@ -353,6 +368,8 @@ def typeName : Value → String
   | .allStates => "AllStates"
   | .func _ _ => "function"
   | .ns _ => "Namespace"
+  | .range .. => "range"
+  | .gen k _ => k
   | .pyobj c _ => c
   | .opaque w => w
 

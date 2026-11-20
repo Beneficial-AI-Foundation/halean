@@ -53,8 +53,11 @@ abbrev States := List (String × EntityState)
 def States.get? (st : States) (eid : String) : Option EntityState :=
   (st.find? (·.1 == eid)).map (·.2)
 
+/-- Update in place, or append a new entity: HA's state machine is a dict,
+so iteration (`states`, `states.light`) follows first-insertion order. -/
 def States.set (st : States) (s : EntityState) : States :=
-  (s.entityId, s) :: st.filter (·.1 != s.entityId)
+  if st.any (·.1 == s.entityId) then st.map fun p => if p.1 == s.entityId then (s.entityId, s) else p
+  else st ++ [(s.entityId, s)]
 
 def States.remove (st : States) (eid : String) : States :=
   st.filter (·.1 != eid)

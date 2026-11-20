@@ -46,7 +46,7 @@ inductive Condition where
   | state (entityIds : List String) (states : List Json) (forMs : Option Nat)
       (attr : Option String) (matchAny : Bool)
   | numericState (entityIds : List String) (below above : Option Bound)
-      (attr : Option String)
+      (attr : Option String) (valueTemplate : Option Template.Tmpl := none)
   | time (before after : Option TimeBound) (weekday : Option (List String))
   | trigger (ids : List String)
   /-- `condition: template` and the string shorthand. -/
@@ -75,12 +75,14 @@ inductive TriggerKind where
       (attr : Option String) (forMs : Option Nat)
       (fromKeyOnly : Bool)  -- `from` present and `to` absent (for `_check_same_state`)
   | numericState (entityIds : List String) (below above : Option Bound)
-      (attr : Option String) (forMs : Option Nat)
+      (attr : Option String) (forMs : Option Nat) (valueTemplate : Option Template.Tmpl := none)
   /-- Fixed local times of day, in whole seconds. -/
   | time (ats : List Nat) (weekday : Option (List String))
   | timePattern (hours minutes seconds : Pattern)
   /-- Flat `event_data` only: every pair must be present and equal. -/
   | event (eventTypes : List String) (data : List (String × Json))
+  /-- `template` trigger (`components/template/trigger.py`), static `for:` only. -/
+  | template (t : Template.Tmpl) (forMs : Option Nat)
   deriving Repr, Inhabited
 
 structure Trigger where
@@ -235,11 +237,11 @@ def weekday? (j : Json) : D (Option (List String)) :=
 (`this`, `now()`, ...) are rejected at load time. -/
 def TEMPLATE_VARS : List String := ["trigger"]
 
-def compileTemplate (s : String) : D Template.Tmpl := do
+def compileTemplate (s : String) (vars : List String := TEMPLATE_VARS) : D Template.Tmpl := do
   let t ← match Template.compile s with
     | .ok t => pure t
     | .error e => throw s!"invalid template ({e}): {s}"
-  match Template.check t TEMPLATE_VARS with
+  match Template.check t vars with
   | .ok () => pure t
   | .error e => throw e
 
@@ -250,6 +252,14 @@ partial def decodeComplex (j : Json) : D Complex := do
   | .arr xs => return .arr (← xs.toList.mapM decodeComplex)
   | .obj kvs => return .obj (← kvs.toList.mapM fun (k, v) => do pure (← decodeComplex (.str k), ← decodeComplex v))
   | _ => return .lit j
+
+/-- numeric_state `value_template`: sees `state` (the entity's state object)
+next to the run variables. -/
+def valueTemplate? (j : Json) : D (Option Template.Tmpl) :=
+  match field? j "value_template" with
+  | none => pure none
+  | some (.str s) => some <$> compileTemplate s (TEMPLATE_VARS ++ ["state"])
+  | some v => throw s!"invalid value_template: {v.compress}"
 
 def noTemplate (j : Json) (k : String) : D Unit :=
   if has j k then throw s!"'{k}' (templates) is not supported" else pure ()
@@ -283,9 +293,8 @@ partial def decodeCondition (j : Json) : D Condition := do
     let matchAny := str? j "match" == some "any"
     return .state ids states forMs (str? j "attribute") matchAny
   | "numeric_state" =>
-    noTemplate j "value_template"
     return .numericState (← entityIds j) (← bound? j "below") (← bound? j "above")
-      (str? j "attribute")
+      (str? j "attribute") (← valueTemplate? j)
   | "time" => return .time (← timeBound? j "before") (← timeBound? j "after") (← weekday? j)
   | "trigger" => return .trigger (← strList ((field? j "id").getD .null))
   | "template" =>
@@ -315,12 +324,11 @@ def decodeTrigger (idx : Nat) (j : Json) : D (Option Trigger) := do
         (keys.all fun k => !has j k) (str? j "attribute") (← optDuration j "for")
         (has j "from" && !has j "to")
     | "numeric_state" => do
-      noTemplate j "value_template"
       let below ← bound? j "below"
       let above ← bound? j "above"
       if below.isNone && above.isNone then throw "numeric_state needs below or above"
       pure <| TriggerKind.numericState (← entityIds j) below above (str? j "attribute")
-        (← optDuration j "for")
+        (← optDuration j "for") (← valueTemplate? j)
     | "time" => do
       let ats ← (ensureList ((field? j "at").getD .null)).mapM fun v => match v with
         | .str s => match timeOfDaySec s with
@@ -364,6 +372,18 @@ def decodeTrigger (idx : Nat) (j : Json) : D (Option Trigger) := do
         | some v => throw s!"invalid event_data {v.compress}"
       noTemplate j "context"
       pure <| TriggerKind.event types data
+    | "template" => do
+      let some (.str src) := field? j "value_template"
+        | throw "template trigger needs a value_template string"
+      -- trigger templates only see `trigger_variables`, which HALean does not
+      -- support, so they may not use any variables at all
+      let t ← match Template.compile src with
+        | .ok t => pure t
+        | .error e => throw s!"invalid template ({e}): {src}"
+      match Template.check t [] with
+      | .ok () => pure ()
+      | .error e => throw e
+      pure <| TriggerKind.template t (← optDuration j "for")
     | p => throw s!"trigger platform '{p}' is not supported"
   return some { id, idx, alias := str? j "alias", kind }
 

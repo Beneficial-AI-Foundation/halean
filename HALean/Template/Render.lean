@@ -57,12 +57,13 @@ def tick : R Unit := do
 /-- Globals HALean implements, with HA's semantics. -/
 def GLOBALS : List String :=
   ["states", "is_state", "state_attr", "is_state_attr", "has_value", "float", "int", "bool",
-   "is_number", "iif", "namespace", "dict"]
+   "is_number", "iif", "namespace", "dict", "range"]
 
 def FILTERS : List String :=
   ["float", "int", "bool", "is_number", "iif", "has_value", "state_attr", "states", "round",
    "default", "d", "lower", "upper", "capitalize", "title", "trim", "replace", "length", "count",
-   "first", "last", "join", "list", "string", "abs", "sum"]
+   "first", "last", "join", "list", "string", "abs", "sum",
+   "map", "select", "reject", "selectattr", "rejectattr", "reverse"]
 
 def TESTS : List String :=
   ["defined", "undefined", "none", "number", "string", "boolean", "integer", "float",
@@ -288,20 +289,31 @@ def sliceList (xs : List α) (a b c : Option Int) : Except String (List α) := d
       if (k : Int) % (-step) == 0 then some (s - k) else none
     return idx.filterMap fun i => if i < 0 then none else xs[i.toNat]?
 
+/-- `hass.states.async_all(domain)` / all states, in insertion order. -/
+def statesOf (ctx : Ctx) (dom : Option String) : List Value :=
+  (ctx.states.filter fun (_, s) => match dom with
+    | some d => s.domain == d
+    | none => true).map fun (_, s) => .state s
+
 /-- Python iteration. -/
-def iterV (v : Value) : R (List Value) :=
+def iterV (ctx : Ctx) (v : Value) : R (List Value) :=
   match v with
+  | .range a b c => pure ((rangeItems a b c).map Value.int)
+  | .gen _ xs => pure xs
+  | .domain d => pure (statesOf ctx (some d))
+  | .allStates => pure (statesOf ctx none)
   | .list xs | .tuple xs => pure xs
   | .str s => pure (s.toList.map fun c => .str (toString c))
   | .dict kvs => pure (kvs.map (·.1))
   | .undef _ => pure []
-  | .domain d => throw s!"iterating states.{d} is not supported by HALean yet"
-  | .allStates => throw "iterating states is not supported by HALean yet"
   | .opaque w => throw s!"{w} values are not supported by HALean"
   | v => throw s!"'{typeName v}' object is not iterable"
 
-def lenV (v : Value) : R Int :=
+def lenV (ctx : Ctx) (v : Value) : R Int :=
   match v with
+  | .range a b c => pure (rangeItems a b c).length
+  | .domain d => pure (statesOf ctx (some d)).length
+  | .allStates => pure ctx.states.length
   | .list xs | .tuple xs => pure xs.length
   | .str s => pure s.length
   | .dict kvs => pure kvs.length
@@ -310,14 +322,14 @@ def lenV (v : Value) : R Int :=
   | v => throw s!"object of type '{typeName v}' has no len()"
 
 /-- Python `x in c` -/
-def containsV (c x : Value) : R Bool := do
+def containsV (ctx : Ctx) (c x : Value) : R Bool := do
   match c with
   | .str s => match x with
     | .str t => pure ((s.splitOn t).length > 1 || t.isEmpty)
     | _ => throw s!"'in <string>' requires string as left operand, not {typeName x}"
   | .dict kvs => pure ((lookupKV kvs x).isSome)
   | .undef _ => pure false
-  | c => do pure ((← iterV c).any (pyEq · x))
+  | c => do pure ((← iterV ctx c).any (pyEq · x))
 
 /-! ## Arithmetic -/
 
@@ -404,7 +416,7 @@ def arith (op : String) (a b : Value) : R Value := do
     return .float (Float.pow p q)
   | _ => tyErr
 
-def cmpOp (op : String) (a b : Value) : R Bool := do
+def cmpOp (ctx : Ctx) (op : String) (a b : Value) : R Bool := do
   let lt (x y : Value) : R Bool :=
     if isOpaqueOrUndef x || isOpaqueOrUndef y then
       throw s!"'{op}' not supported between instances of '{typeName x}' and '{typeName y}'"
@@ -420,8 +432,8 @@ def cmpOp (op : String) (a b : Value) : R Bool := do
   | ">" => lt b a
   | "<=" => do pure ((← lt a b) || (pyEq a b && a.num?.isSome == b.num?.isSome))
   | ">=" => do pure ((← lt b a) || (pyEq a b && a.num?.isSome == b.num?.isSome))
-  | "in" => containsV b a
-  | "notin" => do pure (!(← containsV b a))
+  | "in" => containsV ctx b a
+  | "notin" => do pure (!(← containsV ctx b a))
   | _ => throw s!"unknown comparison {op}"
 
 /-! ## Python str methods (ASCII only: anything else is rejected) -/
@@ -686,7 +698,7 @@ partial def eval (ctx : Ctx) (e : Expr) : R Value := do
     let mut left ← eval ctx first
     for (op, ex) in rest do
       let right ← eval ctx ex
-      if !(← cmpOp op left right) then return .bool false
+      if !(← cmpOp ctx op left right) then return .bool false
       left := right
     pure (.bool true)
   | .and a b =>
@@ -760,6 +772,22 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
       let s ← get
       set { s with heap := s.heap.push a.kw }
       pure (.ns s.heap.size)
+    | "range", _ => do
+      -- jinja2.sandbox.safe_range
+      if !a.kw.isEmpty then throw "range() takes no keyword arguments"
+      let ints ← a.pos.mapM fun v => match v with
+        | .int i => pure i
+        | .bool b => pure (if b then 1 else 0)
+        | v => throw s!"'{typeName v}' object cannot be interpreted as an integer"
+      let (x, y, z) ← match ints with
+        | [b] => pure (0, b, 1)
+        | [x, y] => pure (x, y, 1)
+        | [x, y, z] => pure (x, y, z)
+        | _ => throw "range expected 1 to 3 arguments"
+      if z == 0 then throw "range() arg 3 must not be zero"
+      if (rangeItems x y z).length > 100000 then
+        throw "Range too big. The sandbox blocks ranges larger than MAX_RANGE (100000)."
+      pure (.range x y z)
     | "dict", _ => do
       if !a.pos.isEmpty then throw "dict() with positional arguments is not supported by HALean"
       pure (.dict (a.kw.map fun (k, v) => (.str k, v)))
@@ -858,22 +886,26 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
       | some (.int i) => pure i
       | some x => throw s!"count must be an int, not {typeName x}"
     pure (.str (pyReplace s (← strOf old) (← strOf new) cnt))
-  | "length" | "count" => pure (.int (← lenV v))
+  | "length" | "count" =>
+    match v with
+    | .gen k _ => throw s!"object of type '{k}' has no len()"
+    | _ => pure (.int (← lenV ctx v))
   | "first" =>
     match v with
     | .undef _ => undefErr v
-    | _ => pure ((← iterV v).head?.getD (.undef "No first item, sequence was empty."))
+    | _ => pure ((← iterV ctx v).head?.getD (.undef "No first item, sequence was empty."))
   | "last" =>
     match v with
     | .undef _ => undefErr v
     | .dict _ => throw "last on a dict is not supported by HALean"
-    | _ => pure ((← iterV v).getLast?.getD (.undef "No last item, sequence was empty."))
+    | .gen k _ => throw s!"'{k}' object is not reversible"
+    | _ => pure ((← iterV ctx v).getLast?.getD (.undef "No last item, sequence was empty."))
   | "join" => do
     if (arg 1 "attribute").isSome then throw "join(attribute=...) is not supported by HALean"
     let sep ← strOf ((arg 0 "d").getD (.str ""))
-    let items ← (← iterV v).mapM strOf
+    let items ← (← iterV ctx v).mapM strOf
     pure (.str (sep.intercalate items))
-  | "list" => pure (.list (← iterV v))
+  | "list" => pure (.list (← iterV ctx v))
   | "string" => pure (.str (← strOf v))
   | "abs" =>
     match v with
@@ -885,8 +917,46 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
   | "sum" => do
     if (arg 0 "attribute").isSome then throw "sum(attribute=...) is not supported by HALean"
     let mut acc := (arg 1 "start").getD (.int 0)
-    for x in ← iterV v do acc ← arith "+" acc x
+    for x in ← iterV ctx v do acc ← arith "+" acc x
     pure acc
+  | "reverse" =>
+    match v with
+    | .str s => pure (.str (String.ofList s.toList.reverse))
+    | .undef _ => undefErr v
+    | v => pure (.gen "list_reverseiterator" (← iterV ctx v).reverse)
+  | "map" =>
+    let items ← iterV ctx v
+    match a.pos, (a.kw.find? (·.1 == "attribute")) with
+    | [], some (_, attr) =>
+      let dflt := (a.kw.find? (·.1 == "default")).map (·.2)
+      let out ← items.mapM fun x => do
+        let r ← attrGet ctx x attr
+        pure (match r, dflt with | .undef _, some d => d | r, _ => r)
+      pure (.gen "generator" out)
+    | (.str f) :: rest, _ =>
+      let out ← items.mapM fun x => applyFilter ctx f x { pos := rest, kw := a.kw }
+      pure (.gen "generator" out)
+    | _, _ => throw "map needs a filter name or attribute="
+  | "select" | "reject" =>
+    let items ← iterV ctx v
+    let keep ← items.filterM fun x => do
+      let r ← match a.pos with
+        | [] => pure (truthy x)
+        | (.str tn) :: rest => applyTest ctx tn x rest
+        | _ => throw s!"{n} needs a test name"
+      pure (if n == "select" then r else !r)
+    pure (.gen "generator" keep)
+  | "selectattr" | "rejectattr" =>
+    let items ← iterV ctx v
+    let some attr := a.pos.head? | throw s!"{n} needs an attribute"
+    let keep ← items.filterM fun x => do
+      let val ← attrGet ctx x attr
+      let r ← match a.pos.drop 1 with
+        | [] => pure (truthy val)
+        | (.str tn) :: rest => applyTest ctx tn val rest
+        | _ => throw s!"{n} needs a test name"
+      pure (if n == "selectattr" then r else !r)
+    pure (.gen "generator" keep)
   | _ => throw s!"filter '{n}' is not supported by HALean"
 
 partial def applyTest (ctx : Ctx) (n : String) (v : Value) (args : List Value) : R Bool := do
@@ -907,13 +977,13 @@ partial def applyTest (ctx : Ctx) (n : String) (v : Value) (args : List Value) :
   | "iterable" => pure (match v with | .list _ | .tuple _ | .str _ | .dict _ | .undef _ => true | _ => false)
   | "true" => pure (match v with | .bool true => true | _ => false)
   | "false" => pure (match v with | .bool false => true | _ => false)
-  | "eq" | "equalto" | "==" => cmpOp "==" v a0
-  | "ne" | "!=" => cmpOp "!=" v a0
-  | "lt" | "<" | "lessthan" => cmpOp "<" v a0
-  | "le" | "<=" => cmpOp "<=" v a0
-  | "gt" | ">" | "greaterthan" => cmpOp ">" v a0
-  | "ge" | ">=" => cmpOp ">=" v a0
-  | "in" => containsV a0 v
+  | "eq" | "equalto" | "==" => cmpOp ctx "==" v a0
+  | "ne" | "!=" => cmpOp ctx "!=" v a0
+  | "lt" | "<" | "lessthan" => cmpOp ctx "<" v a0
+  | "le" | "<=" => cmpOp ctx "<=" v a0
+  | "gt" | ">" | "greaterthan" => cmpOp ctx ">" v a0
+  | "ge" | ">=" => cmpOp ctx ">=" v a0
+  | "in" => containsV ctx a0 v
   | "divisibleby" => do pure (pyEq (← arith "%" v a0) (.int 0))
   | "even" => do pure (pyEq (← arith "%" v (.int 2)) (.int 0))
   | "odd" => do pure (pyEq (← arith "%" v (.int 2)) (.int 1))
@@ -925,6 +995,21 @@ partial def applyTest (ctx : Ctx) (n : String) (v : Value) (args : List Value) :
   | "has_value" => pure (hasValue ctx v)
   | "is_number" => isNumber v
   | _ => throw s!"test '{n}' is not supported by HALean"
+
+/-- `jinja2.filters.make_attrgetter`: dotted path, digit parts as indexes,
+each step through the sandboxed `getitem`. -/
+partial def attrGet (ctx : Ctx) (x : Value) (attr : Value) : R Value := do
+  match attr with
+  | .int i => getitemV ctx x (.int i)
+  | .str path =>
+    let mut cur := x
+    for part in path.splitOn "." do
+      let key : Value := match part.toNat? with
+        | some k => .int k
+        | none => .str part
+      cur ← getitemV ctx cur key
+    pure cur
+  | a => throw s!"attribute must be a string, not {typeName a}"
 
 partial def isUndef (v : Value) : Bool :=
   match v with | .undef _ => true | _ => false
@@ -971,7 +1056,7 @@ partial def renderNodes (ctx : Ctx) (nodes : List Node) : R (Ctx × Signal) := d
     | .brk => return (ctx, .brk)
     | .cont => return (ctx, .cont)
     | .for ts it flt body el =>
-      let items ← iterV (← eval ctx it)
+      let items ← iterV ctx (← eval ctx it)
       -- `for x in xs if cond`: filter first, so `loop` counts filtered items
       let mut kept : Array (Value × List (String × Value)) := #[]
       for x in items do
@@ -1004,7 +1089,7 @@ partial def bindTargets (ts : List String) (v : Value) : R (List (String × Valu
   match ts with
   | [t] => pure [(t, v)]
   | _ =>
-    let xs ← iterV v
+    let xs ← iterV {states := []} v
     if xs.length != ts.length then
       throw s!"cannot unpack {xs.length} values into {ts.length} names"
     pure (ts.zip xs)
@@ -1024,7 +1109,17 @@ partial def exprNames : Expr → List String × List String × List String
   | .call f args kw => cat (exprNames f :: args.map exprNames ++ kw.map (exprNames ·.2))
   | .filter e n args kw =>
     let (ns, fs, ts) := cat (exprNames e :: args.map exprNames ++ kw.map (exprNames ·.2))
-    (ns, n :: fs, ts)
+    -- the filter/test a higher-order filter applies is named by a string
+    let lit (i : Nat) : String := match args[i]? with
+      | some (.lit (.str x)) => x
+      | some _ => "<computed name>"
+      | none => ""
+    let extra : List String × List String := match n with
+      | "map" => if args.isEmpty then ([], []) else ([lit 0], [])
+      | "select" | "reject" => if args.isEmpty then ([], []) else ([], [lit 0])
+      | "selectattr" | "rejectattr" => if args.length < 2 then ([], []) else ([], [lit 1])
+      | _ => ([], [])
+    (ns, n :: extra.1 ++ fs, extra.2 ++ ts)
   | .test e n args _ =>
     let (ns, fs, ts) := cat (exprNames e :: args.map exprNames)
     (ns, fs, n :: ts)

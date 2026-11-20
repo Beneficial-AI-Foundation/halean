@@ -1,0 +1,56 @@
+# `template` triggers: armed at setup when false, fire only on false -> true,
+# re-arm on false, `for:` cancelled when the result changes, and the
+# trigger variables a template trigger provides.
+automations:
+  - id: hot
+    triggers: [{trigger: template, value_template: "{{ states('sensor.temp') | float(0) > 25 }}"}]
+    actions:
+      - event: hot
+        event_data:
+          entity: "{{ trigger.entity_id }}"
+          desc: "{{ trigger.description }}"
+          from: "{{ trigger.from_state.state }}"
+          to: "{{ trigger.to_state.state }}"
+          platform: "{{ trigger.platform }}"
+          for: "{{ trigger.for }}"
+  - id: starts_true                       # true at setup: not armed until it turns false
+    triggers: [{trigger: template, value_template: "{{ is_state('input_boolean.x', 'on') }}"}]
+    actions: [{event: x_on}]
+  - id: held                              # for: 3 s, cancelled by a result change
+    triggers: [{trigger: template, value_template: "{{ is_state('input_boolean.y', 'on') }}", for: 3}]
+    actions: [{event: y_held}]
+  - id: errors                            # errors log, never fire, never arm
+    triggers: [{trigger: template, value_template: "{{ states('sensor.n') | float > 5 }}"}]
+    actions: [{event: n_big}]
+states:
+  - {entity_id: sensor.temp, state: "20"}
+  - {entity_id: input_boolean.x, state: "on"}
+  - {entity_id: input_boolean.y, state: "off"}
+  - {entity_id: sensor.n, state: "1"}
+  - {entity_id: sensor.other, state: "a"}
+steps:
+  - {at: 1, set: [sensor.other, "b"]}
+  - {at: 2, set: [sensor.temp, "26"],
+     expect: [{type: automation_triggered, id: hot},
+              {type: fire_event, event_type: hot,
+               data: {entity: sensor.temp, desc: "sensor.temp via template", from: 20, to: 26,
+                      platform: template, for: null}}]}
+  - {at: 3, set: [sensor.temp, "27"]}
+  - {at: 4, set: [sensor.other, "c"]}
+  - {at: 5, set: [sensor.temp, "20"]}
+  - {at: 6, set: [sensor.temp, "30"], expect: [{type: automation_triggered, id: hot}, {type: fire_event, event_type: hot}]}
+  - {at: 7, set: [input_boolean.x, "off"]}
+  - {at: 8, set: [input_boolean.x, "on"], expect: [{type: automation_triggered, id: starts_true}, {type: fire_event, event_type: x_on}]}
+  - {at: 10, set: [input_boolean.y, "on"]}
+  - {at: 13, send: {type: tick}, expect: [{type: automation_triggered, id: held}, {type: fire_event, event_type: y_held}]}
+  - {at: 20, set: [input_boolean.y, "off"]}
+  - {at: 21, set: [input_boolean.y, "on"]}
+  - {at: 22, set: [input_boolean.y, "off"]}
+  - {at: 23, set: [input_boolean.y, "on"]}
+  - {at: 25, send: {type: tick}}
+  - {at: 26, send: {type: tick}, expect: [{type: automation_triggered, id: held}, {type: fire_event, event_type: y_held}]}
+  - {at: 27, set: [sensor.n, "x"]}
+  - {at: 28, set: [sensor.n, "y"]}
+  - {at: 29, set: [sensor.n, "9"], expect: [{type: automation_triggered, id: errors}, {type: fire_event, event_type: n_big}]}
+  - {at: 30, set: [sensor.n, "2"]}
+  - {at: 31, set: [sensor.n, "10"], expect: [{type: automation_triggered, id: errors}, {type: fire_event, event_type: n_big}]}

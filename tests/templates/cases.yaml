@@ -53,7 +53,7 @@
 - {template: "{% for x in [] %}{{ x }}{% else %}empty{% endfor %}"}
 - {template: "{% for x in [1, 2, 3, 4] if x is even %}{{ x }}{% endfor %}"}
 - {template: "{% for k, v in {'a': 1, 'b': 2}.items() %}{{ k }}={{ v }};{% endfor %}"}
-- {template: "{% for x in range(3) %}{{ x }}{% endfor %}", unsupported: true}
+- {template: "{% for x in range(3) %}{{ x }}{% endfor %}"}
 - {template: "{% for x in [1, 2, 3] %}{% if x == 2 %}{% break %}{% endif %}{{ x }}{% endfor %}"}
 - {template: "{% for x in [1, 2, 3] %}{% if x == 2 %}{% continue %}{% endif %}{{ x }}{% endfor %}"}
 - {template: "{% set x = 5 %}{% set y = x * 2 %}{{ y }}"}
@@ -182,3 +182,47 @@
   template: "{{ trigger.to_state is not none and trigger.to_state.state not in ['unknown', 'unavailable'] }}"
   variables: {trigger: {to_state: {state: "unknown"}}}
   condition: true
+
+# --- range, iteration over states, higher-order filters -----------------------
+- {template: "{{ range(3) }} {{ range(1, 10, 3) | list }} {{ range(5, 0, -2) | list }} {{ 2 in range(3) }}"}
+- {template: "{{ range(10) | length }} {{ range(0) | list }}"}
+- {template: "{{ range(200000) }}"}
+- {template: "{{ range(3, 1) | list }} {{ range(-3) | list }}"}
+- template: "{% for s in states.light %}{{ s.entity_id }}={{ s.state }};{% endfor %}"
+  states:
+    - {entity_id: light.b, state: "on"}
+    - {entity_id: switch.x, state: "off"}
+    - {entity_id: light.a, state: "off"}
+- template: "{{ states.light | list | length }} {{ states | count }}"
+  states:
+    - {entity_id: light.b, state: "on"}
+    - {entity_id: switch.x, state: "off"}
+    - {entity_id: light.a, state: "off"}
+- template: "{{ states.light | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.b, state: "on"}
+    - {entity_id: light.a, state: "off"}
+    - {entity_id: light.c, state: "on"}
+- template: "{{ states | selectattr('domain', 'in', ['light', 'switch']) | rejectattr('state', 'eq', 'off') | map(attribute='name') | join(', ') }}"
+  states:
+    - {entity_id: light.b, state: "on", attributes: {friendly_name: Bed light}}
+    - {entity_id: switch.fan, state: "on"}
+    - {entity_id: sensor.t, state: "on"}
+    - {entity_id: light.a, state: "off"}
+- template: "{{ states.sensor | map(attribute='state') | map('float', 0) | sum }}"
+  states:
+    - {entity_id: sensor.a, state: "1.5"}
+    - {entity_id: sensor.b, state: "unknown"}
+    - {entity_id: sensor.c, state: "2"}
+- template: "{{ states.light | map(attribute='attributes.brightness', default=0) | list }}"
+  states:
+    - {entity_id: light.a, state: "on", attributes: {brightness: 200}}
+    - {entity_id: light.b, state: "off"}
+- {template: "{{ [1, 0, 2, none] | select | list }} {{ [1, 2, 3, 4] | reject('odd') | list }} {{ [1, 5, 9] | select('gt', 4) | list }}"}
+- {template: "{{ ['a', 'B'] | map('upper') | join }} {{ [3, 1, 2] | reverse | list }} {{ 'abc' | reverse }}"}
+- {template: "{{ [{'n': 1}, {'n': 5}] | selectattr('n', 'ge', 2) | list }} {{ [[1, 2], [3, 4]] | map(attribute='1') | list }}"}
+- {template: "{{ [1, 2] | map('float') }}", expect_error_in_halean_only: true}
+- {template: "{{ [1, 2] | select | length }}"}
+- {template: "{{ [1, 2] | select | first }} {{ [] | select | first }}"}
+- {template: "{{ [1, 2] | map('sort') | list }}", unsupported: true}
+- {template: "{{ [1, 2] | select(test_name) | list }}", unsupported: true}

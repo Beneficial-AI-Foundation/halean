@@ -46,13 +46,40 @@ def boundVal : Option Bound → Template.Value
   | some (.num f) => .float f
   | some (.entity e) => .str e
 
+/-- `numeric_state.py::variables(entity_id)`: what a `value_template` sees
+as `trigger` (no trigger_data, no states). -/
+def numericTriggerVar (_t : Trigger) (eid : String) (below above : Option Bound)
+    (attr : Option String) : Template.Value :=
+  .dict [(.str "platform", .str "numeric_state"), (.str "entity_id", .str eid),
+         (.str "below", boundVal below), (.str "above", boundVal above),
+         (.str "attribute", match attr with | some a => .str a | none => .none)]
+
 /-- What keeps a `for:` timer alive (`_check_same_state` / numeric check). -/
 inductive SameCheck where
   /-- state trigger: `cur_value == new_value` -/
   | equalNew (attr : Option String) (v : Json)
   /-- state trigger with `from` but no `to`: `cur_value != old_value` -/
   | notEqualOld (attr : Option String) (v : Json)
-  | numeric (below above : Option Bound) (attr : Option String)
+  | numeric (below above : Option Bound) (attr : Option String) (vt : ValueTmpl := none)
+  /-- template trigger timers are cancelled by the trigger itself, not by
+  the entity they mention -/
+  | always
+  deriving Repr, Inhabited
+
+/-- The last result `async_track_template_result` saw. -/
+inductive TmplResult where
+  | ok (v : Template.Value)
+  | err
+  deriving Repr, Inhabited
+
+/-- State of one `template` trigger (`async_attach_trigger`'s closure:
+`armed`, `delay_cancel`, plus the tracker's `_last_result`). -/
+structure TmplTrig where
+  autoIdx : Nat
+  trigIdx : Nat
+  armed : Bool := false
+  last : Option TmplResult := none
+  pending : Option Nat := none
   deriving Repr, Inhabited
 
 /-- A pending `for:` timer created by `async_track_same_state`. -/
@@ -79,6 +106,7 @@ structure Engine where
   nextPendingId : Nat := 0
   /-- Second (UTC, whole seconds) up to which time triggers were evaluated. -/
   lastSec : Nat := 0
+  tmplTrigs : List TmplTrig := []
   deriving Inhabited
 
 inductive Input where
@@ -226,11 +254,12 @@ def onStateTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option Ent
 /-- `numeric_state.py::state_automation_listener` -/
 def onNumericTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option EntityState) :
     EM Unit := do
-  let .numericState eids below above attr forMs := t.kind | return
+  let .numericState eids below above attr forMs vtm := t.kind | return
+  let vt := vtm.map fun tm => (tm, [("trigger", numericTriggerVar t eid below above attr)])
   if !eids.contains eid then return
   let some to := new | return
   let e ← getE
-  match numericStateOf e.condEnv to below above attr with
+  match numericStateOf e.condEnv to below above attr vt with
   | .error m => emit [.log "warning" s!"Error in numeric_state trigger: {m}"]
   | .ok false =>
     if !e.armed.contains (ai, t.idx, eid) then
@@ -252,7 +281,7 @@ def onNumericTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option E
       | some p =>
         setE { e with nextPendingId := e.nextPendingId + 1, pendings := e.pendings ++
           [{ id := e.nextPendingId, autoIdx := ai, entity := eid, fireAt := e.now.utc + p,
-             check := .numeric below above attr, vars := tv }] }
+             check := .numeric below above attr vt, vars := tv }] }
 
 /-- `_check_same_state` / `check_numeric_state_no_raise` -/
 def sameStillHolds (env : CondEnv) (c : SameCheck) (new : Option EntityState) : Bool :=
@@ -262,10 +291,70 @@ def sameStillHolds (env : CondEnv) (c : SameCheck) (new : Option EntityState) : 
     match c with
     | .equalNew attr v => valueOf attr (some s) == v
     | .notEqualOld attr v => valueOf attr (some s) != v
-    | .numeric below above attr =>
-      match numericStateOf env s below above attr with
+    | .numeric below above attr vt =>
+      match numericStateOf env s below above attr vt with
       | .ok b => b
       | .error _ => false
+    | .always => true
+
+def tmplCtxOf (e : Engine) : Template.Ctx := { states := e.states }
+
+/-- `template/trigger.py::template_listener`, driven the way
+`async_track_template_result` drives it. The tracker re-renders when an
+entity the last render read changes, and calls the listener only when the
+parsed result differs from the last one (the first re-render always counts;
+error → error does not). Re-rendering on every state change is equivalent:
+a change to an entity the template did not read cannot change its result. -/
+def onTemplateTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option EntityState) :
+    EM Unit := do
+  let .template tm forMs := t.kind | return
+  let e ← getE
+  let some st := e.tmplTrigs.find? (fun x => x.autoIdx == ai && x.trigIdx == t.idx) | return
+  let r := Template.render tm (tmplCtxOf e) true
+  let changed := match st.last, r with
+    | none, _ => true
+    | some (.ok a), .ok b => !Template.pyEq a b
+    | some .err, .error _ => false
+    | _, _ => true
+  if !changed then return
+  let save (st : TmplTrig) : EM Unit := do
+    let e ← getE
+    setE { e with tmplTrigs := e.tmplTrigs.map fun x =>
+      if x.autoIdx == ai && x.trigIdx == t.idx then st else x }
+  match r with
+  | .error msg =>
+    save { st with last := some .err }
+    emit [.log "warning" s!"Error evaluating 'template' trigger: {msg}"]
+  | .ok v =>
+    -- `delay_cancel()`
+    if let some pid := st.pending then
+      let e ← getE
+      setE { e with pendings := e.pendings.filter (·.id != pid) }
+    let st := { st with last := some (.ok v), pending := none }
+    if !Template.resultAsBoolean v then
+      save { st with armed := true }
+      return
+    if !st.armed then
+      save st
+      return
+    let st := { st with armed := false }
+    let desc := s!"{eid} via template"
+    let tv : TriggerVars := {
+      id := t.id, idx := t.idx, platform := "template", entityId := some eid,
+      description := desc,
+      value := triggerValue t "template" [
+        ("entity_id", .str eid), ("from_state", stateVal old), ("to_state", stateVal new),
+        ("for", forVal forMs), ("description", .str desc)] }
+    match forMs with
+    | none | some 0 =>
+      save st
+      triggerAutomation ai tv
+    | some p =>
+      let e ← getE
+      let pid := e.nextPendingId
+      setE { e with nextPendingId := pid + 1, pendings := e.pendings ++
+        [{ id := pid, autoIdx := ai, entity := "", fireAt := e.now.utc + p, check := .always, vars := tv }] }
+      save { st with pending := some pid }
 
 def onStateChanged (eid : String) (old new : Option EntityState) : EM Unit := do
   -- the state machine is updated before listeners run
@@ -280,6 +369,7 @@ def onStateChanged (eid : String) (old new : Option EntityState) : EM Unit := do
       match t.kind with
       | .state .. => onStateTrigger ai t eid old new
       | .numericState .. => onNumericTrigger ai t eid old new
+      | .template .. => onTemplateTrigger ai t eid old new
       | _ => pure ()
   -- `state_for_cancel_listener`s: drop timers whose condition broke
   let e ← getE
@@ -376,12 +466,25 @@ def initArmed : EM Unit := do
   let mut armed := []
   for (a, ai) in e.automations.zipIdx do
     for t in a.triggers do
-      if let .numericState eids below above attr _ := t.kind then
+      if let .numericState eids below above attr _ vtm := t.kind then
         for eid in eids do
+          let vt := vtm.map fun tm => (tm, [("trigger", numericTriggerVar t eid below above attr)])
           -- "Each entity that starts outside the range is already armed"
-          if let .ok false := numericStateOne e.condEnv eid below above attr then
+          if let .ok false := numericStateOne e.condEnv eid below above attr vt then
             armed := armed ++ [(ai, t.idx, eid)]
-  setE { e with armed }
+  -- template triggers: "Arm at setup if the template is already false"
+  let mut tts : List TmplTrig := []
+  let mut logs : List Cmd := []
+  for (a, ai) in e.automations.zipIdx do
+    for t in a.triggers do
+      if let .template tm _ := t.kind then
+        match Template.render tm (tmplCtxOf e) true with
+        | .ok v => tts := tts ++ [{ autoIdx := ai, trigIdx := t.idx, armed := !Template.resultAsBoolean v }]
+        | .error msg =>
+          tts := tts ++ [{ autoIdx := ai, trigIdx := t.idx }]
+          logs := logs ++ [.log "warning" s!"Error initializing 'template' trigger for '{a.alias}': {msg}"]
+  setE { e with armed, tmplTrigs := tts }
+  emit logs
 
 def handle : Input → EM Unit
   | .init autos sts now => do

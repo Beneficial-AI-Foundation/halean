@@ -138,19 +138,44 @@ def resolveBound (env : CondEnv) (which : String) : Bound → Except String (Opt
     | some f => return some f
     | none => throw s!"the '{which}' entity {e} state '{be.state}' cannot be processed as a number"
 
-/-- `conditions.async_numeric_state` (without `value_template`). Takes the
-entity state directly so triggers can reuse it with `to_s`. -/
+/-- Python `float(x)` on a template result; `none` = ValueError/TypeError. -/
+def pyFloatV : Template.Value → Option Float
+  | .float f => some f
+  | .int i => some (Template.intToFloat i)
+  | .bool b => some (if b then 1.0 else 0.0)
+  | .str s => Template.parseFloatStr s
+  | _ => none
+
+/-- `value_template` plus the variables it sees (without `state`). -/
+abbrev ValueTmpl := Option (Template.Tmpl × List (String × Template.Value))
+
+/-- `conditions.async_numeric_state`. Takes the entity state directly so
+triggers can reuse it with `to_s`. -/
 def numericStateOf (env : CondEnv) (ent : EntityState) (below above : Option Bound)
-    (attr : Option String) : Except String Bool := do
+    (attr : Option String) (vt : ValueTmpl := none) : Except String Bool := do
   if let some a := attr then
     if !ent.hasAttr a then return false
-  let value : Json := match attr with
-    | none => .str ent.state
-    | some a => (ent.attr? a).getD .null
-  if value == .null || value == .str STATE_UNAVAILABLE || value == .str STATE_UNKNOWN then
-    return false
-  let some fv := pyFloat? value
-    | throw s!"entity {ent.entityId} state '{value.compress}' cannot be processed as a number"
+  let fv ← match vt with
+    | none => do
+      let value : Json := match attr with
+        | none => .str ent.state
+        | some a => (ent.attr? a).getD .null
+      if value == .null || value == .str STATE_UNAVAILABLE || value == .str STATE_UNKNOWN then
+        return false
+      let some fv := pyFloat? value
+        | throw s!"entity {ent.entityId} state '{value.compress}' cannot be processed as a number"
+      pure fv
+    | some (t, vars) => do
+      let ctx : Template.Ctx := { states := env.states, vars := ("state", .state ent) :: vars }
+      let value ← match Template.render t ctx true with
+        | .ok v => pure v
+        | .error e => throw s!"template error: {e}"
+      -- `if value in (None, STATE_UNAVAILABLE, STATE_UNKNOWN)`
+      if [Template.Value.none, .str STATE_UNAVAILABLE, .str STATE_UNKNOWN].any (Template.pyEq value) then
+        return false
+      let some fv := pyFloatV value
+        | throw s!"entity {ent.entityId} state '{(Template.pyStr value).toOption.getD "?"}' cannot be processed as a number"
+      pure fv
   if let some b := below then
     match ← resolveBound env "below" b with
     | none => return false
@@ -162,9 +187,9 @@ def numericStateOf (env : CondEnv) (ent : EntityState) (below above : Option Bou
   return true
 
 def numericStateOne (env : CondEnv) (eid : String) (below above : Option Bound)
-    (attr : Option String) : Except String Bool := do
+    (attr : Option String) (vt : ValueTmpl := none) : Except String Bool := do
   let some ent := env.states.get? eid | throw s!"unknown entity {eid}"
-  numericStateOf env ent below above attr
+  numericStateOf env ent below above attr vt
 
 /-- Resolve a `before`/`after` entity bound to µs since midnight.
 `.ok none` = the Python code returns False. -/
@@ -233,9 +258,10 @@ def evalCond (env : CondEnv) : Condition → CondResult
   | .not cs => evalNot env cs []
   | .state eids req forMs attr matchAny =>
       entityLoop eids (fun e => stateOne env e req forMs attr) matchAny
-  | .numericState eids below above attr =>
+  | .numericState eids below above attr vt =>
       -- `if_numeric_state` is the matchAll loop
-      entityLoop eids (fun e => numericStateOne env e below above attr) false
+      entityLoop eids (fun e => numericStateOne env e below above attr
+        (vt.map fun t => (t, [("trigger", env.trigger)]))) false
   | .time before after wd =>
       match timeCond env before after wd with
       | .ok b => .ok (some b)

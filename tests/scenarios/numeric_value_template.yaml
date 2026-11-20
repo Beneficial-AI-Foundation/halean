@@ -1,0 +1,54 @@
+# numeric_state with value_template: the template sees `state` (the entity's
+# state object) and `trigger`; "unknown"/None results are False; errors are
+# condition errors (and warnings in the trigger).
+automations:
+  - id: power                             # trigger: doubled power above 10
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.power
+        value_template: "{{ state.state | float(0) * 2 }}"
+        above: 10
+    actions:
+      - event: power_high
+        event_data: {entity: "{{ trigger.entity_id }}", to: "{{ trigger.to_state.state }}"}
+  - id: attr_temp                         # condition on an attribute via the template
+    triggers: [{trigger: event, event_type: check}]
+    conditions:
+      - condition: numeric_state
+        entity_id: climate.room
+        value_template: "{{ state.attributes.current_temperature + 1 }}"
+        below: 20
+    actions: [{event: cold}]
+  - id: unknown_is_false
+    triggers: [{trigger: event, event_type: check2}]
+    conditions:
+      - condition: numeric_state
+        entity_id: climate.room
+        value_template: "{{ 'unknown' if state.attributes.current_temperature > 100 else 5 }}"
+        above: 1
+    actions: [{event: ok2}]
+  - id: errors                            # template error -> condition false
+    triggers: [{trigger: event, event_type: check3}]
+    conditions:
+      - condition: numeric_state
+        entity_id: climate.room
+        value_template: "{{ state.attributes.missing.x }}"
+        above: 1
+    actions: [{event: never}]
+states:
+  - {entity_id: sensor.power, state: "3"}
+  - {entity_id: climate.room, state: "heat", attributes: {current_temperature: 17}}
+steps:
+  - {at: 1, set: [sensor.power, "4"]}
+  - {at: 2, set: [sensor.power, "6"],
+     expect: [{type: automation_triggered, id: power},
+              {type: fire_event, event_type: power_high, data: {entity: sensor.power, to: 6}}]}
+  - {at: 3, set: [sensor.power, "7"]}
+  - {at: 4, set: [sensor.power, "1"]}
+  - {at: 5, set: [sensor.power, "5.5"], expect: [{type: automation_triggered, id: power}, {type: fire_event, event_type: power_high}]}
+  - {at: 6, send: {type: event, event_type: check}, expect: [{type: automation_triggered, id: attr_temp}, {type: fire_event, event_type: cold}]}
+  - {at: 7, send: {type: event, event_type: check2}, expect: [{type: automation_triggered, id: unknown_is_false}, {type: fire_event, event_type: ok2}]}
+  - {at: 8, set: [climate.room, "heat"], attributes: {current_temperature: 150}}
+  - {at: 9, send: {type: event, event_type: check2}}
+  - {at: 10, send: {type: event, event_type: check}}
+  - {at: 11, send: {type: event, event_type: check3}}
