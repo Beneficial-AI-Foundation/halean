@@ -20,7 +20,7 @@ RUN lake build halean-automation
 FROM python:3.13-slim-bookworm
 RUN pip install --no-cache-dir "websockets>=13" pyyaml
 COPY --from=build /src/.lake/build/bin/halean-automation /usr/local/bin/halean-automation
-COPY bridge/bridge.py /app/bridge/bridge.py
+COPY bridge/bridge.py bridge/protocol.py /app/bridge/
 COPY demo/setup.py demo/simulator.py demo/automations.yaml /app/demo/
 ENV HALEAN_ENGINE=/usr/local/bin/halean-automation PYTHONUNBUFFERED=1
 WORKDIR /app

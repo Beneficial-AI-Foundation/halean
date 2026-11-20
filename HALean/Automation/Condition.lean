@@ -23,11 +23,19 @@ structure CondEnv where
   states : States
   now : Instant
   triggerId : Option String := none
-  /-- The `trigger` variable templates see. -/
-  trigger : Template.Value := .undef "'trigger'"
+  /-- The run variables templates see (`trigger`, `variables`, `repeat`),
+  innermost first. -/
+  vars : List (String × Template.Value) := []
 
 def CondEnv.tmplCtx (env : CondEnv) : Template.Ctx :=
-  { states := env.states, vars := [("trigger", env.trigger)] }
+  { states := env.states, vars := env.vars }
+
+/-- Set a variable: replace it where it is, or add it (`ScriptRunVariables`
+assigns to the scope that defines it, else to the top level). -/
+def setVar (vs : List (String × Template.Value)) (k : String) (v : Template.Value) :
+    List (String × Template.Value) :=
+  if vs.any (·.1 == k) then vs.map fun (k', v') => if k' == k then (k, v) else (k', v')
+  else vs ++ [(k, v)]
 
 /-- `condition.async_template`: render without parsing the result, then
 `value.lower() == "true"`. A `TemplateError` is a `ConditionError`. -/
@@ -59,6 +67,24 @@ partial def renderComplex (env : CondEnv) : Complex → Except String Json
           | .error e => throw e
       pure (key, ← renderComplex env v)
     pure (Json.mkObj fields)
+
+/-- `render_complex` as a template value (for variables). -/
+partial def renderComplexV (env : CondEnv) : Complex → Except String Template.Value
+  | .lit j => pure (Template.Value.ofJson j)
+  | .tmpl t => Template.render t env.tmplCtx true
+  | .arr xs => do pure (.list (← xs.mapM (renderComplexV env)))
+  | .obj kvs => do
+    pure (.dict (← kvs.mapM fun (k, v) => do pure (← renderComplexV env k, ← renderComplexV env v)))
+
+/-- `ScriptVariables.async_render`: render in order, each seeing the ones
+before it; keys that already exist are skipped (run variables win). -/
+def renderVariables (env : CondEnv) (defs : List (String × Complex)) :
+    Except String (List (String × Template.Value)) :=
+  defs.foldlM (fun vs (k, c) =>
+    if vs.any (·.1 == k) then pure vs
+    else do
+      let v ← renderComplexV { env with vars := vs } c
+      pure (vs ++ [(k, v)])) env.vars
 
 partial def Complex.hasTemplate : Complex → Bool
   | .lit _ => false
@@ -261,7 +287,7 @@ def evalCond (env : CondEnv) : Condition → CondResult
   | .numericState eids below above attr vt =>
       -- `if_numeric_state` is the matchAll loop
       entityLoop eids (fun e => numericStateOne env e below above attr
-        (vt.map fun t => (t, [("trigger", env.trigger)]))) false
+        (vt.map fun t => (t, env.vars))) false
   | .time before after wd =>
       match timeCond env before after wd with
       | .ok b => .ok (some b)

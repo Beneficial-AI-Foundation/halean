@@ -24,6 +24,9 @@ from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bridge"))
+from protocol import protocol_automations  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE = ROOT / ".lake" / "build" / "bin" / "halean-automation"
 T0 = 1_700_000_000_000  # 2023-11-14T22:13:20Z, a Tuesday
@@ -59,7 +62,7 @@ def build(sc: dict) -> tuple[list[dict], list, list[bool]]:
     tz = sc.get("tz", 0)
     current = {s["entity_id"]: state(s["entity_id"], s["state"], s.get("attributes"))
                for s in sc.get("states", [])}
-    lines = [{"type": "init", "now": T0, "tz": tz, "automations": sc["automations"],
+    lines = [{"type": "init", "now": T0, "tz": tz, "automations": protocol_automations(sc["automations"]),
               "states": list(current.values())}]
     expects = [sc.get("expect_init", [])]
     logs = [False]

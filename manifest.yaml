@@ -41,7 +41,8 @@ entries:
   - HALean.Automation.numericStateOne
   - HALean.Automation.resolveBound
   status: translated
-  notes: value_template rendered with `state` and the run variables; None/unavailable/unknown results are False
+  notes: value_template rendered with `state` and the run variables; None/unavailable/unknown results
+    are False
   hash: 374d77c1a17c5957
 - python: helpers/condition.py::time
   lean:
@@ -130,7 +131,7 @@ entries:
   - HALean.Automation.step
   - HALean.Automation.REPEAT_TERMINATE_ITERATIONS
   status: translated
-  notes: count/while/until; for_each and repeat variables not supported
+  notes: count (incl. templated), for_each, while, until; the `repeat` variable is local to its loop (currentRepeat)
   hash: 8ae3b200144a1124
 - python: helpers/script.py::_ScriptRun._async_step_stop
   lean:
@@ -232,7 +233,8 @@ entries:
   lean:
   - HALean.Automation.triggerAutomation
   status: translated
-  notes: conditions checked before mode admission; variables/this not supported
+  notes: automation variables rendered before conditions (an error stops the trigger); conditions checked
+    before mode admission; `this` not supported
   hash: 66efc46d16ebe326
 - python: helpers/template/__init__.py::Template.__init__
   lean:
@@ -436,3 +438,33 @@ entries:
   - HALean.Template.lenV
   status: translated
   hash: 6239213356d5c60e
+- python: helpers/script_variables.py::ScriptVariables.async_render
+  lean:
+  - HALean.Automation.renderVariables
+  status: translated
+  notes: in order, existing keys skipped; trigger_variables (static only) merged first
+  hash: 9d93bdeb927a4441
+- python: helpers/script_variables.py::ScriptVariables.async_simple_render
+  lean:
+  - HALean.Automation.step
+  status: translated
+  notes: used by the variables action
+  hash: 74e02c308ccc7948
+- python: helpers/script_variables.py::ScriptRunVariables._assign
+  lean:
+  - HALean.Automation.setVar
+  status: translated
+  notes: only `repeat` is ever defined locally, so assignments go to the run's top level
+  hash: 4bc94edc1767f0c6
+- python: helpers/script.py::_ScriptRun._async_step_variables
+  lean:
+  - HALean.Automation.step
+  status: translated
+  notes: a render error is a HomeAssistantError of the step
+  hash: 4351feef0ed1ee0e
+- python: components/automation/__init__.py::AutomationEntity._async_attach_triggers
+  lean:
+  - HALean.Automation.tmplCtxOf
+  status: translated
+  notes: trigger_variables must be static (HA renders them limited)
+  hash: 25c556f4d61cb7e3

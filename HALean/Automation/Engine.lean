@@ -124,6 +124,11 @@ def setE (e : Engine) : EM Unit := modify fun (_, acc) => (e, acc)
 
 def Engine.condEnv (e : Engine) : CondEnv := { states := e.states, now := e.now }
 
+/-- What trigger templates see: the static `trigger_variables`. -/
+def tmplCtxOf (e : Engine) (ai : Nat) : Template.Ctx :=
+  { states := e.states,
+    vars := ((e.automations.getD ai default).triggerVars.map fun (k, v) => (k, Template.Value.ofJson v)) }
+
 /-! ## Value helpers -/
 
 def valueOf (attr : Option String) : Option EntityState → Json
@@ -201,7 +206,15 @@ def triggerAutomation (ai : Nat) (tv : TriggerVars) : EM Unit := do
   let e ← getE
   let some a := e.automations[ai]? | return
   -- conditions are checked before the mode check (entity.py)
-  let env := { e.condEnv with triggerId := some tv.id, trigger := tv.value }
+  -- `variables = {"this": ..., **run_variables}`, then the automation's
+  -- variables rendered on top (an error stops the trigger right here)
+  let env0 := { e.condEnv with triggerId := some tv.id, vars := [("trigger", tv.value)] }
+  let vars ← match renderVariables env0 a.variables with
+    | .ok vs => pure vs
+    | .error msg =>
+      emit [.log "error" s!"{a.alias}: Error rendering variables: {msg}"]
+      return
+  let env := { env0 with vars }
   if !checkAutomationConditions env a.conditions then
     emit [.log "debug" s!"{a.alias}: conditions not met"]
     return
@@ -211,7 +224,7 @@ def triggerAutomation (ai : Nat) (tv : TriggerVars) : EM Unit := do
     emit [.log "warning" s!"{a.alias}: {why}"]
     return
   let wait : Wait := if decision == .enqueue then .queued else .ready
-  let run : Run := { id := e.nextRunId, autoIdx := ai, triggerId := tv.id, trigger := tv.value,
+  let run : Run := { id := e.nextRunId, autoIdx := ai, triggerId := tv.id, vars,
                      frames := [.seq a.actions false], wait }
   let mut e := { e with runs := e.runs ++ [run], nextRunId := e.nextRunId + 1 }
   if decision == .restart then
@@ -255,10 +268,10 @@ def onStateTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option Ent
 def onNumericTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option EntityState) :
     EM Unit := do
   let .numericState eids below above attr forMs vtm := t.kind | return
-  let vt := vtm.map fun tm => (tm, [("trigger", numericTriggerVar t eid below above attr)])
   if !eids.contains eid then return
   let some to := new | return
   let e ← getE
+  let vt := vtm.map fun tm => (tm, (tmplCtxOf e ai).vars ++ [("trigger", numericTriggerVar t eid below above attr)])
   match numericStateOf e.condEnv to below above attr vt with
   | .error m => emit [.log "warning" s!"Error in numeric_state trigger: {m}"]
   | .ok false =>
@@ -297,7 +310,6 @@ def sameStillHolds (env : CondEnv) (c : SameCheck) (new : Option EntityState) : 
       | .error _ => false
     | .always => true
 
-def tmplCtxOf (e : Engine) : Template.Ctx := { states := e.states }
 
 /-- `template/trigger.py::template_listener`, driven the way
 `async_track_template_result` drives it. The tracker re-renders when an
@@ -310,7 +322,7 @@ def onTemplateTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option 
   let .template tm forMs := t.kind | return
   let e ← getE
   let some st := e.tmplTrigs.find? (fun x => x.autoIdx == ai && x.trigIdx == t.idx) | return
-  let r := Template.render tm (tmplCtxOf e) true
+  let r := Template.render tm (tmplCtxOf e ai) true
   let changed := match st.last, r with
     | none, _ => true
     | some (.ok a), .ok b => !Template.pyEq a b
@@ -468,7 +480,7 @@ def initArmed : EM Unit := do
     for t in a.triggers do
       if let .numericState eids below above attr _ vtm := t.kind then
         for eid in eids do
-          let vt := vtm.map fun tm => (tm, [("trigger", numericTriggerVar t eid below above attr)])
+          let vt := vtm.map fun tm => (tm, (tmplCtxOf e ai).vars ++ [("trigger", numericTriggerVar t eid below above attr)])
           -- "Each entity that starts outside the range is already armed"
           if let .ok false := numericStateOne e.condEnv eid below above attr vt then
             armed := armed ++ [(ai, t.idx, eid)]
@@ -478,7 +490,7 @@ def initArmed : EM Unit := do
   for (a, ai) in e.automations.zipIdx do
     for t in a.triggers do
       if let .template tm _ := t.kind then
-        match Template.render tm (tmplCtxOf e) true with
+        match Template.render tm (tmplCtxOf e ai) true with
         | .ok v => tts := tts ++ [{ autoIdx := ai, trigIdx := t.idx, armed := !Template.resultAsBoolean v }]
         | .error msg =>
           tts := tts ++ [{ autoIdx := ai, trigIdx := t.idx }]

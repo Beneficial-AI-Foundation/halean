@@ -160,7 +160,8 @@ doesn't run twice.
 |---|---|---|
 | Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, static `for`), `time` (fixed `at`, weekday), `time_pattern`, `event` (flat `event_data`) | templated `for`, `sun`, `zone`, `homeassistant`, `mqtt`, `webhook`, device triggers, entity-based or offset `time`, `trigger_variables` |
 | Conditions | `and`/`or`/`not` (incl. shorthand), `state` (match any/all, `for`, attribute, `input_*` references), `numeric_state` (incl. `value_template`), `time` (fixed, `input_datetime`, `time` entities, midnight crossing, weekday), `trigger`, `template` (incl. the `"{{ ... }}"` shorthand), `enabled: false` | platform conditions, timestamp-sensor bounds (error) |
-| Actions | service call (blocking; templates in `data` and `target`), `delay`, `condition`, `choose`, `if`/`else`, `repeat` count/while/until, `stop` (+`error`), `event` (templates in `event_data`), `sequence`, `continue_on_error`, static `enabled` | templated action names, a whole-`data` template, `response_variable`, `variables`, `wait_template`, `wait_for_trigger`, `parallel`, `repeat for_each`, device actions, `scene` |
+| Automations | automation `variables` (rendered in order before conditions) and static `trigger_variables` | `this`, templated `trigger_variables`, per-trigger `variables` |
+| Actions | service call (blocking; templates in `data` and `target`), `delay`, `condition`, `choose`, `if`/`else`, `repeat` count (incl. templated)/for_each/while/until with the `repeat` variable, `variables`, `stop` (+`error`), `event` (templates in `event_data`), `sequence`, `continue_on_error`, static `enabled` | templated action names, a whole-`data` template, `response_variable`, `wait_template`, `wait_for_trigger`, `parallel`, device actions, `scene` |
 | Run modes | `single`, `restart`, `queued` (FIFO), `parallel`, `max`, conditions checked before admission | `max_exceeded` log levels |
 
 ### Templates (`HALean/Template/`)
@@ -206,9 +207,13 @@ evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 
 ## Known gaps and deviations
 
-* **The translation is tested against Python, not proven equivalent.** All 22
+* **The translation is tested against Python, not proven equivalent.** All 23
   differential scenarios and all template cases match real HA at the pinned
   release, but they cover only the paths they exercise.
+* Lean's JSON objects are sorted by key. Where HA depends on the written
+  order (`variables`), the shell sends ordered `[key, value]` lists
+  (`bridge/protocol.py`). Elsewhere a dict printed by a template, such as
+  `{{ trigger.event.data }}`, lists its keys sorted, not in arrival order.
 * Floats sent on as JSON lose their trailing `.0` (`20.0` arrives as `20`).
   HA's own service schemas coerce these, and Python compares them as equal.
 * Callbacks run in a fixed order (automations in config order, then triggers in
@@ -230,9 +235,9 @@ Properties worth proving or model-checking are collected in
 [PROPERTIES.md](PROPERTIES.md).
 
 
-1. Templates, part 3: `now()` and datetimes (with the tracker's time-based
-   re-renders and rate limits), `this`, `variables` / `trigger_variables`,
-   `expand`, `sort`, `min`/`max`, templated `for:`.
+1. Templates, part 4: `now()` and datetimes (with the tracker's time-based
+   re-renders and rate limits), `this`, `expand`, `sort`, `min`/`max`,
+   templated `for:`.
 2. Generate differential scenarios automatically (random automations within the supported
    subset plus random event sequences) to cover far more paths than hand-written ones.
 3. Make the run loop total and prove run-level properties: a `single` automation never has

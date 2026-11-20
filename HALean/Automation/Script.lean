@@ -22,10 +22,32 @@ inductive Frame where
   | repeatWhile (i : Nat) (conds : List Condition) (body : List Action) (coe : Bool)
   /-- `i = 0`: the body has not run yet. -/
   | repeatUntil (i : Nat) (conds : List Condition) (body : List Action) (coe : Bool)
+  | repeatEach (i : Nat) (items : List Template.Value) (body : List Action) (coe : Bool)
   deriving Repr, Inhabited
 
 def Frame.coe : Frame → Bool
-  | .seq _ c | .repeatCount _ _ _ c | .repeatWhile _ _ _ c | .repeatUntil _ _ _ c => c
+  | .seq _ c | .repeatCount _ _ _ c | .repeatWhile _ _ _ c | .repeatUntil _ _ _ c
+  | .repeatEach _ _ _ c => c
+
+/-- `set_repeat_var(iteration, count, item)` -/
+def repeatVar (iteration : Nat) (count : Option Nat) (item : Option Template.Value) :
+    Template.Value :=
+  .dict ((([(.str "first", .bool (iteration == 1)), (.str "index", .int iteration)]
+      ++ (match count with
+          | some c => if c > 0 then [(.str "last", .bool (iteration == c))] else []
+          | none => [])
+      ++ (match item with
+          | some .none | none => []
+          | some x => [(.str "item", x)])) : List (Template.Value × Template.Value)))
+
+/-- The `repeat` variable in scope: defined locally by the innermost repeat. -/
+def currentRepeat : List Frame → Option Template.Value
+  | [] => none
+  | .repeatCount i n _ _ :: _ => some (repeatVar i (some n) none)
+  | .repeatWhile i _ _ _ :: _ => some (repeatVar i none none)
+  | .repeatUntil i _ _ _ :: _ => some (repeatVar i none none)
+  | .repeatEach i items _ _ :: _ => some (repeatVar i (some items.length) (items[i - 1]?))
+  | .seq .. :: rest => currentRepeat rest
 
 inductive Wait where
   | ready
@@ -40,8 +62,9 @@ structure Run where
   id : Nat
   autoIdx : Nat
   triggerId : String
-  /-- The run's `trigger` variable. -/
-  trigger : Template.Value := .none
+  /-- The run's variables (`trigger`, automation `variables`, assignments
+  by `variables` actions). -/
+  vars : List (String × Template.Value) := []
   frames : List Frame
   wait : Wait := .ready
   deriving Repr, Inhabited
@@ -108,7 +131,12 @@ def unwindError (r : Run) (k : ErrKind) (msg : String) : StepOut :=
 
 /-- Execute one step of the top frame. `cmds` are emitted commands. -/
 def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
-  let env : CondEnv := { ctx.env with triggerId := some r.triggerId, trigger := r.trigger }
+  let withRepeat (rv : Option Template.Value) : List (String × Template.Value) :=
+    match rv with
+    | some v => ("repeat", v) :: r.vars
+    | none => r.vars
+  let env : CondEnv := { ctx.env with triggerId := some r.triggerId,
+                                      vars := withRepeat (currentRepeat r.frames) }
   let push (f : Frame) (rest : List Frame) : Run := { r with frames := f :: rest }
   match r.frames with
   | [] => (.done .finished, [], ctx)
@@ -158,6 +186,51 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
           | some body => (.next (push (.seq body coe) cur), [], ctx)
           | none => (.next r', [], ctx)
       | .repeatCount n body => (.next (push (.repeatCount 0 n body coe) cur), [], ctx)
+      | .repeatCountT t body =>
+        -- `int(count.async_render(...))`; TemplateError/ValueError abort the script
+        match Template.render t env.tmplCtx true with
+        | .error e =>
+          let m := s!"Error rendering repeat count template: {e}"
+          (.done (.aborted m), [.log "error" m], ctx)
+        | .ok v =>
+          let n? : Except String (Option Int) := match v with
+            | .int i => .ok (some i)
+            | .bool b => .ok (some (if b then 1 else 0))
+            | .float f => if f.isNaN then .ok none
+                          else match Template.floatToInt? f with
+                            | some i => .ok (some i)
+                            | none => .error "cannot convert float infinity to integer"
+            | .str s => .ok (Template.parseIntStr s)
+            | v => .error s!"int() argument must be a string or a number, not '{Template.typeName v}'"
+          match n? with
+          | .ok (some n) => (.next (push (.repeatCount 0 n.toNat body coe) cur), [], ctx)
+          | .ok none =>
+            let m := s!"Error rendering repeat count template: invalid literal for int()"
+            (.done (.aborted m), [.log "error" m], ctx)
+          | .error m => (unwindError r' .other m, [], ctx)
+      | .repeatEach items body =>
+        match renderComplexV env items with
+        | .ok (.list xs) => (.next (push (.repeatEach 0 xs body coe) cur), [], ctx)
+        | .ok v =>
+          let m := s!"Repeat 'for_each' must be a list of items, got: {(Template.pyStr v).toOption.getD (Template.typeName v)}"
+          (.done (.aborted "Repeat 'for_each' must be a list of items"), [.log "error" m], ctx)
+        | .error e =>
+          let m := s!"Error rendering repeat for each items template: {e}"
+          (.done (.aborted m), [.log "error" m], ctx)
+      | .variables defs =>
+        -- `async_simple_render` (each value sees the ones before it), then assign
+        let rendered : Except String (List (String × Template.Value)) :=
+          defs.foldlM (fun acc (k, c) => do
+            let v ← renderComplexV { env with vars := (acc.reverse ++ env.vars) } c
+            pure ((k, v) :: acc)) []
+        match rendered with
+        | .ok kvs =>
+          let vars := kvs.reverse.foldl (fun vs (k, v) => setVar vs k v) r'.vars
+          (.next { r' with vars }, [], ctx)
+        | .error msg =>
+          -- TemplateError is a HomeAssistantError raised by the step
+          let out := if coe then StepOut.next r' else unwindError r' .haError msg
+          (out, [.log "error" msg], ctx)
       | .repeatWhile cs body => (.next (push (.repeatWhile 0 cs body coe) cur), [], ctx)
       | .repeatUntil cs body => (.next (push (.repeatUntil 0 cs body coe) cur), [], ctx)
       | .stop reason err =>
@@ -176,8 +249,13 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
   | .repeatCount i n body c :: rest =>
     if i < n then (.next (push (.seq body false) (.repeatCount (i + 1) n body c :: rest)), [], ctx)
     else (.next { r with frames := rest }, [], ctx)
+  | .repeatEach i items body c :: rest =>
+    if i < items.length then (.next (push (.seq body false) (.repeatEach (i + 1) items body c :: rest)), [], ctx)
+    else (.next { r with frames := rest }, [], ctx)
   | .repeatWhile i cs body c :: rest =>
     let it := i + 1
+    -- `set_repeat_var(iteration)` happens before the while check
+    let env := { env with vars := ("repeat", repeatVar it none none) :: r.vars }
     if testConditions env cs != some true then (.next { r with frames := rest }, [], ctx)
     else if it > REPEAT_TERMINATE_ITERATIONS then
       (.done (.aborted s!"While condition terminated because it looped {REPEAT_TERMINATE_ITERATIONS} times"), [], ctx)

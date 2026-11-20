@@ -38,6 +38,8 @@ from datetime import datetime
 from pathlib import Path
 
 import websockets
+
+from protocol import protocol_automations
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -219,7 +221,7 @@ async def main() -> None:
         reader = asyncio.create_task(bridge.reader())
         states = (await bridge.request({"type": "get_states"}))["result"]
         await bridge.handle_cmds(await engine.send({
-            "type": "init", "automations": automations,
+            "type": "init", "automations": protocol_automations(automations),
             "states": [to_engine_state(s) for s in states], **now_fields()}))
         await bridge.request({"type": "subscribe_events"})  # all events
         _LOG.info("engine running %d automations", len(automations))

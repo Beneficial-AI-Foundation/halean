@@ -1,0 +1,100 @@
+# Automation `variables` / `trigger_variables`, the `variables` action, the
+# `repeat` variable, `repeat: for_each` and templated `count`.
+automations:
+  - id: vars                              # rendered in order, before conditions
+    trigger_variables: {threshold: 20}
+    variables:
+      room: kitchen
+      level: "{{ states('input_number.l') | int * 10 }}"
+      label: "{{ room }}-{{ level }}"
+      trigger: "not allowed to override"
+    triggers: [{trigger: event, event_type: go}]
+    conditions: ["{{ level > threshold }}"]
+    actions:
+      - event: vars
+        event_data: {label: "{{ label }}", platform: "{{ trigger.platform }}", t: "{{ threshold }}"}
+  - id: tv_trigger                        # trigger templates see trigger_variables
+    trigger_variables: {limit: 5}
+    triggers: [{trigger: template, value_template: "{{ states('sensor.n') | float(0) > limit }}"}]
+    actions: [{event: over_limit, event_data: {limit: "{{ limit }}"}}]
+  - id: assign                            # variables action inside a repeat writes the run variable
+    triggers: [{trigger: event, event_type: count}]
+    actions:
+      - variables: {total: 1}
+      - repeat:
+          count: "{{ 1 + 2 }}"
+          sequence:
+            - variables: {total: "{{ total + repeat.index }}", last_seen: "{{ repeat.last }}"}
+            - event: step
+              event_data: {i: "{{ repeat.index }}", first: "{{ repeat.first }}", total: "{{ total }}"}
+      - event: done
+        event_data: {total: "{{ total }}", last: "{{ last_seen }}", outside: "{{ repeat is defined }}"}
+  - id: each
+    triggers: [{trigger: event, event_type: each}]
+    actions:
+      - repeat:
+          for_each: [a, {b: 1}]
+          sequence: [{event: item, event_data: {item: "{{ repeat.item }}", i: "{{ repeat.index }}", last: "{{ repeat.last }}"}}]
+      - repeat:
+          for_each: "{{ ['x', 'y'] | map('upper') | list }}"
+          sequence: [{event: item2, event_data: {item: "{{ repeat.item }}"}}]
+  - id: while_index                       # while sees the next iteration's index
+    triggers: [{trigger: event, event_type: while}]
+    actions:
+      - repeat:
+          while: "{{ repeat.index <= 2 }}"
+          sequence: [{event: w, event_data: {i: "{{ repeat.index }}"}}]
+  - id: nested
+    triggers: [{trigger: event, event_type: nested}]
+    actions:
+      - repeat:
+          count: 2
+          sequence:
+            - repeat:
+                for_each: [p, q]
+                sequence: [{event: n, event_data: {inner: "{{ repeat.item }}"}}]
+            - event: outer
+              event_data: {i: "{{ repeat.index }}"}
+  - id: bad_vars                          # a variables error stops the trigger
+    variables: {x: "{{ 1 / 0 }}"}
+    triggers: [{trigger: event, event_type: bad}]
+    actions: [{event: never}]
+  - id: bad_each                          # for_each must be a list
+    triggers: [{trigger: event, event_type: bad_each}]
+    actions:
+      - repeat: {for_each: "{{ 5 }}", sequence: [{event: never2}]}
+      - event: never3
+states:
+  - {entity_id: input_number.l, state: "3"}
+  - {entity_id: sensor.n, state: "1"}
+steps:
+  - {at: 1, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: vars},
+              {type: fire_event, event_type: vars, data: {label: kitchen-30, platform: event, t: 20}}]}
+  - {at: 2, set: [input_number.l, "1"]}
+  - {at: 3, send: {type: event, event_type: go}}
+  - {at: 4, set: [sensor.n, "6"],
+     expect: [{type: automation_triggered, id: tv_trigger}, {type: fire_event, event_type: over_limit, data: {limit: 5}}]}
+  - {at: 5, send: {type: event, event_type: count},
+     expect: [{type: automation_triggered, id: assign},
+              {type: fire_event, event_type: step, data: {i: 1, first: true, total: 2}},
+              {type: fire_event, event_type: step, data: {i: 2, first: false, total: 4}},
+              {type: fire_event, event_type: step, data: {i: 3, first: false, total: 7}},
+              {type: fire_event, event_type: done, data: {total: 7, last: true, outside: false}}]}
+  - {at: 6, send: {type: event, event_type: each},
+     expect: [{type: automation_triggered, id: each},
+              {type: fire_event, event_type: item, data: {item: a, i: 1, last: false}},
+              {type: fire_event, event_type: item, data: {item: {b: 1}, i: 2, last: true}},
+              {type: fire_event, event_type: item2, data: {item: X}},
+              {type: fire_event, event_type: item2, data: {item: Y}}]}
+  - {at: 7, send: {type: event, event_type: while},
+     expect: [{type: automation_triggered, id: while_index},
+              {type: fire_event, event_type: w, data: {i: 1}}, {type: fire_event, event_type: w, data: {i: 2}}]}
+  - {at: 8, send: {type: event, event_type: nested},
+     expect: [{type: automation_triggered, id: nested},
+              {type: fire_event, event_type: n, data: {inner: p}}, {type: fire_event, event_type: n, data: {inner: q}},
+              {type: fire_event, event_type: outer, data: {i: 1}},
+              {type: fire_event, event_type: n, data: {inner: p}}, {type: fire_event, event_type: n, data: {inner: q}},
+              {type: fire_event, event_type: outer, data: {i: 2}}]}
+  - {at: 9, send: {type: event, event_type: bad}}
+  - {at: 10, send: {type: event, event_type: bad_each}, expect: [{type: automation_triggered, id: bad_each}]}

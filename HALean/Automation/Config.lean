@@ -99,6 +99,12 @@ inductive Action where
   | choose (options : List (List Condition × List Action)) (default : Option (List Action))
   | ifThen (conds : List Condition) (thenA : List Action) (elseA : Option (List Action))
   | repeatCount (n : Nat) (body : List Action)
+  /-- `count` given as a template: rendered when the repeat starts. -/
+  | repeatCountT (t : Template.Tmpl) (body : List Action)
+  /-- `for_each`: rendered when the repeat starts; must give a list. -/
+  | repeatEach (items : Complex) (body : List Action)
+  /-- `variables` action: rendered in order, then assigned to the run. -/
+  | variables (vs : List (String × Complex))
   | repeatWhile (conds : List Condition) (body : List Action)
   | repeatUntil (conds : List Condition) (body : List Action)
   | stop (reason : String) (error : Bool)
@@ -120,6 +126,11 @@ structure Automation where
   actions : List Action
   mode : Mode := .single
   maxRuns : Nat := 10
+  /-- `trigger_variables` merged with `variables` (in that order), rendered
+  at every trigger (`ScriptVariables.async_render`). -/
+  variables : List (String × Complex) := []
+  /-- `trigger_variables` (static only), seen by trigger templates. -/
+  triggerVars : List (String × Json) := []
   deriving Repr, Inhabited
 
 /-! ## Decoding -/
@@ -246,41 +257,51 @@ def compileTemplate (s : String) (vars : List String := TEMPLATE_VARS) : D Templ
   | .error e => throw e
 
 /-- `cv.template_complex` -/
-partial def decodeComplex (j : Json) : D Complex := do
+partial def decodeComplex (j : Json) (nm : List String := TEMPLATE_VARS) : D Complex := do
   match j with
-  | .str s => if Template.isTemplateString s then return .tmpl (← compileTemplate s) else return .lit j
-  | .arr xs => return .arr (← xs.toList.mapM decodeComplex)
-  | .obj kvs => return .obj (← kvs.toList.mapM fun (k, v) => do pure (← decodeComplex (.str k), ← decodeComplex v))
+  | .str s => if Template.isTemplateString s then return .tmpl (← compileTemplate s nm) else return .lit j
+  | .arr xs => return .arr (← xs.toList.mapM (decodeComplex · nm))
+  | .obj kvs => return .obj (← kvs.toList.mapM fun (k, v) => do pure (← decodeComplex (.str k) nm, ← decodeComplex v nm))
   | _ => return .lit j
 
 /-- numeric_state `value_template`: sees `state` (the entity's state object)
 next to the run variables. -/
-def valueTemplate? (j : Json) : D (Option Template.Tmpl) :=
+def valueTemplate? (j : Json) (nm : List String := TEMPLATE_VARS) : D (Option Template.Tmpl) :=
   match field? j "value_template" with
   | none => pure none
-  | some (.str s) => some <$> compileTemplate s (TEMPLATE_VARS ++ ["state"])
+  | some (.str s) => some <$> compileTemplate s (nm ++ ["state"])
   | some v => throw s!"invalid value_template: {v.compress}"
+
+/-- A mapping whose order matters (`variables`). Lean's `Json` objects are
+sorted by key, so the shell sends these as `[[key, value], ...]`; a plain
+object is accepted too, in key order. -/
+def orderedMapping (what : String) : Json → D (List (String × Json))
+  | .obj kvs => pure kvs.toList
+  | .arr xs => xs.toList.mapM fun x => match x with
+    | .arr #[.str k, v] => pure (k, v)
+    | _ => throw s!"{what}: expected [key, value] pairs"
+  | _ => throw s!"{what} must be a mapping"
 
 def noTemplate (j : Json) (k : String) : D Unit :=
   if has j k then throw s!"'{k}' (templates) is not supported" else pure ()
 
-partial def decodeCondition (j : Json) : D Condition := do
+partial def decodeCondition (j : Json) (nm : List String := TEMPLATE_VARS) : D Condition := do
   if !(← isEnabled j) then return .disabled
   -- shorthand `- and: [...]`, `- or: [...]`, `- not: [...]`
   for k in ["and", "or", "not"] do
     if !has j "condition" then
       if let some cs := field? j k then
-        let cs ← (ensureList cs).mapM decodeCondition
+        let cs ← (ensureList cs).mapM (decodeCondition · nm)
         return match k with | "and" => .and cs | "or" => .or cs | _ => .not cs
   match j with
   | .str s =>
     -- `dynamic_template_condition`: the shorthand must be a real template
     if !Template.isTemplateString s then throw s!"invalid condition: {s}"
-    return .template (← compileTemplate s)
+    return .template (← compileTemplate s nm)
   | _ => pure ()
   let some kind := str? j "condition" | throw s!"condition without 'condition' key: {j.compress}"
   let sub : D (List Condition) :=
-    (ensureList ((field? j "conditions").getD .null)).mapM decodeCondition
+    (ensureList ((field? j "conditions").getD .null)).mapM (decodeCondition · nm)
   match kind with
   | "and" => return .and (← sub)
   | "or" => return .or (← sub)
@@ -294,12 +315,12 @@ partial def decodeCondition (j : Json) : D Condition := do
     return .state ids states forMs (str? j "attribute") matchAny
   | "numeric_state" =>
     return .numericState (← entityIds j) (← bound? j "below") (← bound? j "above")
-      (str? j "attribute") (← valueTemplate? j)
+      (str? j "attribute") (← valueTemplate? j nm)
   | "time" => return .time (← timeBound? j "before") (← timeBound? j "after") (← weekday? j)
   | "trigger" => return .trigger (← strList ((field? j "id").getD .null))
   | "template" =>
     match field? j "value_template" with
-    | some (.str s) => return .template (← compileTemplate s)
+    | some (.str s) => return .template (← compileTemplate s nm)
     | _ => throw "template condition needs a value_template string"
   | other => throw s!"condition '{other}' is not supported"
 
@@ -311,7 +332,7 @@ def stateMatch (j : Json) (pos neg : String) : StateMatch :=
     | some v => { values := some (ensureList v), invert := true }
   | some v => { values := some (ensureList v) }
 
-def decodeTrigger (idx : Nat) (j : Json) : D (Option Trigger) := do
+def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := []) : D (Option Trigger) := do
   if !(← isEnabled j) then return none
   let platform := (str? j "trigger").orElse (fun _ => str? j "platform") |>.getD ""
   let id := (str? j "id").getD (toString idx)
@@ -328,7 +349,7 @@ def decodeTrigger (idx : Nat) (j : Json) : D (Option Trigger) := do
       let above ← bound? j "above"
       if below.isNone && above.isNone then throw "numeric_state needs below or above"
       pure <| TriggerKind.numericState (← entityIds j) below above (str? j "attribute")
-        (← optDuration j "for") (← valueTemplate? j)
+        (← optDuration j "for") (← valueTemplate? j (tnm ++ ["trigger"]))
     | "time" => do
       let ats ← (ensureList ((field? j "at").getD .null)).mapM fun v => match v with
         | .str s => match timeOfDaySec s with
@@ -380,24 +401,24 @@ def decodeTrigger (idx : Nat) (j : Json) : D (Option Trigger) := do
       let t ← match Template.compile src with
         | .ok t => pure t
         | .error e => throw s!"invalid template ({e}): {src}"
-      match Template.check t [] with
+      match Template.check t tnm with
       | .ok () => pure ()
       | .error e => throw e
       pure <| TriggerKind.template t (← optDuration j "for")
     | p => throw s!"trigger platform '{p}' is not supported"
   return some { id, idx, alias := str? j "alias", kind }
 
-partial def decodeAction (j : Json) : D (Option Action) := do
+partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Option Action) := do
   if !(← isEnabled j) then return none
   let coe := match field? j "continue_on_error" with | some (.bool true) => true | _ => false
   let wrap (a : Action) : Option Action := some (if coe then .continueOnError a else a)
   let seq (k : String) : D (List Action) := do
-    let xs ← (ensureList ((field? j k).getD .null)).mapM decodeAction
+    let xs ← (ensureList ((field? j k).getD .null)).mapM (decodeAction · nm)
     pure (xs.filterMap (fun x => x))
   let seqOf (v : Json) : D (List Action) := do
-    let xs ← (ensureList v).mapM decodeAction
+    let xs ← (ensureList v).mapM (decodeAction · nm)
     pure (xs.filterMap (fun x => x))
-  let conds (v : Json) : D (List Condition) := (ensureList v).mapM decodeCondition
+  let conds (v : Json) : D (List Condition) := (ensureList v).mapM (decodeCondition · nm)
   if let some svc := (str? j "action").orElse (fun _ => str? j "service") then
     if Template.isTemplateString svc then throw s!"templated action names are not supported: {svc}"
     match svc.splitOn "." with
@@ -412,10 +433,10 @@ partial def decodeAction (j : Json) : D (Option Action) := do
         | none => pure (Json.mkObj [])
         | some t@(.obj _) => pure t
         | some _ => throw "target must be a mapping (a whole-target template is not supported)"
-      return wrap (.service d s (← decodeComplex data) (← decodeComplex target))
+      return wrap (.service d s (← decodeComplex data nm) (← decodeComplex target nm))
     | _ => throw s!"bad service name {svc}"
   if let some d := field? j "delay" then return wrap (.delay (← durationMs d))
-  if has j "condition" then return wrap (.condition (← decodeCondition j))
+  if has j "condition" then return wrap (.condition (← decodeCondition j nm))
   if let some opts := field? j "choose" then
     let options ← (ensureList opts).mapM fun o => do
       pure ((← conds ((field? o "conditions").getD .null)), (← seqOf ((field? o "sequence").getD .null)))
@@ -433,10 +454,16 @@ partial def decodeAction (j : Json) : D (Option Action) := do
     if let some c := field? r "count" then
       match c with
       | .num n => return wrap (.repeatCount n.mantissa.toNat body)
-      | _ => throw "templated repeat count is not supported"
+      | .str s =>
+        if Template.isTemplateString s then return wrap (.repeatCountT (← compileTemplate s nm) body)
+        match s.toNat? with
+        | some n => return wrap (.repeatCount n body)
+        | none => throw s!"invalid repeat count {s}"
+      | _ => throw s!"invalid repeat count {c.compress}"
     if let some c := field? r "while" then return wrap (.repeatWhile (← conds c) body)
     if let some c := field? r "until" then return wrap (.repeatUntil (← conds c) body)
-    throw "repeat for_each is not supported"
+    if let some items := field? r "for_each" then return wrap (.repeatEach (← decodeComplex items nm) body)
+    throw "repeat needs count, for_each, while or until"
   if let some s := str? j "stop" then
     noTemplate j "response_variable"
     let err := match field? j "error" with | some (.bool true) => true | _ => false
@@ -447,19 +474,56 @@ partial def decodeAction (j : Json) : D (Option Action) := do
       | none => pure (Json.mkObj [])
       | some d@(.obj _) => pure d
       | some _ => throw "event_data must be a mapping"
-    return wrap (.event e (← decodeComplex data))
+    return wrap (.event e (← decodeComplex data nm))
   if has j "sequence" then return wrap (.sequence (← seq "sequence"))
+  if let some vs := field? j "variables" then
+    return wrap (.variables (← (← orderedMapping "variables" vs).mapM fun (k, v) => do pure (k, ← decodeComplex v nm)))
   throw s!"action not supported: {j.compress}"
+
+/-- Keys of every `variables:` action anywhere in an action list. -/
+partial def actionVariableNames (j : Json) : List String :=
+  match j with
+  | .arr xs => xs.toList.flatMap actionVariableNames
+  | .obj kvs =>
+    let here := match field? j "variables" with
+      | some v => ((orderedMapping "variables" v).toOption.getD []).map (·.1)
+      | none => []
+    here ++ kvs.toList.flatMap fun (k, v) => if k == "variables" then [] else actionVariableNames v
+  | _ => []
+
+partial def Complex.hasTemplate' : Complex → Bool
+  | .lit _ => false
+  | .tmpl _ => true
+  | .arr xs => xs.any Complex.hasTemplate'
+  | .obj kvs => kvs.any fun (k, v) => k.hasTemplate' || v.hasTemplate'
 
 def decodeAutomation (j : Json) : D Automation := do
   let id := (str? j "id").getD ""
   let alias := (str? j "alias").getD id
-  noTemplate j "variables"
-  noTemplate j "trigger_variables"
+  let mapping (k : String) : D (List (String × Json)) :=
+    match field? j k with
+    | none => pure []
+    | some v => orderedMapping k v
+  let tvars ← mapping "trigger_variables"
+  -- trigger_variables are rendered `limited` when triggers attach; HALean
+  -- supports static values only
+  for (k, v) in tvars do
+    if (← decodeComplex v []).hasTemplate' then
+      throw s!"templated trigger_variables ({k}) are not supported"
+  let vars ← mapping "variables"
+  -- `ScriptVariables(trigger_variables).variables.update(variables)`
+  let merged := vars.foldl (fun acc (k, v) =>
+    if acc.any (·.1 == k) then acc.map fun (k', v') => if k' == k then (k, v) else (k', v')
+    else acc ++ [(k, v)]) tvars
   let pick (a b : String) := (field? j a).orElse (fun _ => field? j b) |>.getD .null
-  let trigs ← ((ensureList (pick "triggers" "trigger")).zipIdx).mapM fun (t, i) => decodeTrigger i t
-  let conds ← (ensureList (pick "conditions" "condition")).mapM decodeCondition
-  let acts ← (ensureList (pick "actions" "action")).mapM decodeAction
+  -- the names templates may use: `trigger`, `repeat`, and every variable the
+  -- automation defines (anywhere, including `variables` actions)
+  let nm := TEMPLATE_VARS ++ ["repeat"] ++ merged.map (·.1) ++ actionVariableNames (pick "actions" "action")
+  let mvars ← merged.mapM fun (k, v) => do pure (k, ← decodeComplex v nm)
+  let tnm := tvars.map (·.1)
+  let trigs ← ((ensureList (pick "triggers" "trigger")).zipIdx).mapM fun (t, i) => decodeTrigger i t tnm
+  let conds ← (ensureList (pick "conditions" "condition")).mapM (decodeCondition · nm)
+  let acts ← (ensureList (pick "actions" "action")).mapM (decodeAction · nm)
   let mode ← match str? j "mode" with
     | none | some "single" => pure Mode.single
     | some "restart" => pure .restart
@@ -470,6 +534,7 @@ def decodeAutomation (j : Json) : D Automation := do
     | some (.num n) => n.mantissa.toNat
     | _ => 10
   return { id, alias, triggers := trigs.filterMap (fun x => x), conditions := conds,
-           actions := acts.filterMap (fun x => x), mode, maxRuns }
+           actions := acts.filterMap (fun x => x), mode, maxRuns,
+           variables := mvars, triggerVars := tvars }
 
 end HALean.Automation
