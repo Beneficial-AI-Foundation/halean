@@ -383,8 +383,9 @@ def onNumericTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option E
         id := t.id, idx := t.idx, platform := "numeric_state",
         entityId := some eid, description := s!"numeric state of {eid}",
         value := triggerValue t "numeric_state" [
+          -- `numeric_state.py::call_action`: no `attribute` key (unlike the
+          -- variables its value_template sees)
           ("entity_id", .str eid), ("below", boundVal below), ("above", boundVal above),
-          ("attribute", match attr with | some a => .str a | none => .none),
           ("from_state", stateVal old), ("to_state", stateVal new), ("for", forV),
           ("description", .str s!"numeric state of {eid}")] }
       match forP with

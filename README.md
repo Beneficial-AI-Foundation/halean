@@ -120,7 +120,7 @@ git clone --depth 1 --filter=blob:none --sparse --branch 2026.10.4 \
 git -C upstream/ha-core sparse-checkout set --no-cone /homeassistant/components/automation/ \
   /homeassistant/helpers/ /homeassistant/components/homeassistant/triggers/ \
   /homeassistant/const.py /homeassistant/core.py /homeassistant/components/template/trigger.py \
-  /homeassistant/util/dt.py /homeassistant/helpers/ratelimit.py
+  /homeassistant/util/dt.py /homeassistant/util/__init__.py
 ```
 
 ## Tracking upstream

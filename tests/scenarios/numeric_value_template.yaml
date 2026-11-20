@@ -10,7 +10,7 @@ automations:
         above: 10
     actions:
       - event: power_high
-        event_data: {entity: "{{ trigger.entity_id }}", to: "{{ trigger.to_state.state }}"}
+        event_data: {entity: "{{ trigger.entity_id }}", to: "{{ trigger.to_state.state }}", attr: "{{ trigger.attribute is defined }}"}
   - id: attr_temp                         # condition on an attribute via the template
     triggers: [{trigger: event, event_type: check}]
     conditions:
@@ -42,7 +42,7 @@ steps:
   - {at: 1, set: [sensor.power, "4"]}
   - {at: 2, set: [sensor.power, "6"],
      expect: [{type: automation_triggered, id: power},
-              {type: fire_event, event_type: power_high, data: {entity: sensor.power, to: 6}}]}
+              {type: fire_event, event_type: power_high, data: {entity: sensor.power, to: 6, attr: false}}]}
   - {at: 3, set: [sensor.power, "7"]}
   - {at: 4, set: [sensor.power, "1"]}
   - {at: 5, set: [sensor.power, "5.5"], expect: [{type: automation_triggered, id: power}, {type: fire_event, event_type: power_high}]}
