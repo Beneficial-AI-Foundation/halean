@@ -1,0 +1,99 @@
+# `wait_template`: true at once, true later (only false -> true wakes it),
+# timeouts with and without `continue_on_timeout`, `timeout: 0`, a templated
+# timeout, the `wait` variable, a run stopped while waiting, and the order of
+# a woken run against an automation the same state change triggers.
+automations:
+  - id: now_true                          # already true: no wait, remaining = timeout
+    triggers: [{trigger: event, event_type: a}]
+    actions:
+      - wait_template: "{{ is_state('input_boolean.door', 'off') }}"
+        timeout: {seconds: 7.5}
+      - event: a_done
+        event_data: {w: "c={{ wait.completed }} r={{ wait.remaining }}"}
+  - id: later                             # waits for the door to open, no timeout
+    triggers: [{trigger: event, event_type: b}]
+    actions:
+      - wait_template: "{{ is_state('input_boolean.door', 'on') }}"
+      - event: b_done
+        event_data: {w: "c={{ wait.completed }} r={{ wait.remaining }}"}
+  - id: times_out                         # continue_on_timeout defaults to true
+    triggers: [{trigger: event, event_type: c}]
+    actions:
+      - wait_template: "{{ states('sensor.level') | int(0) > 50 }}"
+        timeout: "00:00:03"
+      - event: c_done
+        event_data: {w: "c={{ wait.completed }} r={{ wait.remaining }}"}
+  - id: aborts                            # continue_on_timeout: false stops the run
+    triggers: [{trigger: event, event_type: d}]
+    actions:
+      - wait_template: "{{ states('sensor.level') | int(0) > 50 }}"
+        timeout: 2
+        continue_on_timeout: false
+      - event: d_done
+  - id: zero                              # timeout 0: decided at once
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - wait_template: "{{ states('sensor.level') | int(0) > 50 }}"
+        timeout: 0
+      - event: e_done
+        event_data: {w: "c={{ wait.completed }} r={{ wait.remaining }}"}
+  - id: templated                         # templated timeout, seen from the variables
+    variables: {secs: 4}
+    triggers: [{trigger: event, event_type: f}]
+    actions:
+      - wait_template: "{{ states('sensor.level') | int(0) > 50 }}"
+        timeout: "{{ secs }}"
+      - event: f_done
+        event_data: {w: "c={{ wait.completed }} r={{ wait.remaining }}"}
+  - id: restarted                         # restart stops the waiting run
+    mode: restart
+    triggers: [{trigger: event, event_type: g}]
+    actions:
+      - event: g_start
+      - wait_template: "{{ is_state('input_boolean.lamp', 'on') }}"
+      - event: g_done
+  - id: order_waiter                      # woken by sensor.level > 50 ...
+    triggers: [{trigger: event, event_type: h}]
+    actions:
+      - wait_template: "{{ states('sensor.level') | int(0) > 50 }}"
+      - action: test.waiter
+  - id: order_trigger                     # ... and triggered by the same change
+    triggers: [{trigger: numeric_state, entity_id: sensor.level, above: 50}]
+    actions: [{action: test.triggered}]
+states:
+  - {entity_id: input_boolean.door, state: "off"}
+  - {entity_id: input_boolean.lamp, state: "off"}
+  - {entity_id: sensor.level, state: "10"}
+steps:
+  - {at: 1, send: {type: event, event_type: a},
+     expect: [{type: automation_triggered, id: now_true},
+              {type: fire_event, event_type: a_done, data: {w: "c=True r=7.5"}}]}
+  - {at: 2, send: {type: event, event_type: b}, expect: [{type: automation_triggered, id: later}]}
+  - {at: 3, set: [input_boolean.lamp, "on"]}
+  - {at: 4, set: [input_boolean.door, "on"],
+     expect: [{type: fire_event, event_type: b_done, data: {w: "c=True r=None"}}]}
+  - {at: 5, set: [input_boolean.door, "off"]}
+  - {at: 10, send: {type: event, event_type: c}, expect: [{type: automation_triggered, id: times_out}]}
+  - {at: 12, send: {type: tick}}
+  - {at: 13, send: {type: tick},
+     expect: [{type: fire_event, event_type: c_done, data: {w: "c=False r=0.0"}}]}
+  - {at: 20, send: {type: event, event_type: d}, expect: [{type: automation_triggered, id: aborts}]}
+  - {at: 23, send: {type: tick}}
+  - {at: 25, send: {type: event, event_type: e},
+     expect: [{type: automation_triggered, id: zero},
+              {type: fire_event, event_type: e_done, data: {w: "c=False r=0.0"}}]}
+  - {at: 30, send: {type: event, event_type: f}, expect: [{type: automation_triggered, id: templated}]}
+  - {at: 33, send: {type: tick}}
+  - {at: 34, send: {type: tick},
+     expect: [{type: fire_event, event_type: f_done, data: {w: "c=False r=0.0"}}]}
+  - {at: 40, set: [input_boolean.lamp, "off"]}
+  - {at: 41, send: {type: event, event_type: g},
+     expect: [{type: automation_triggered, id: restarted}, {type: fire_event, event_type: g_start}]}
+  - {at: 42, send: {type: event, event_type: g},
+     expect: [{type: automation_triggered, id: restarted}, {type: fire_event, event_type: g_start}]}
+  - {at: 43, set: [input_boolean.lamp, "on"], expect: [{type: fire_event, event_type: g_done}]}
+  - {at: 50, send: {type: event, event_type: h}, expect: [{type: automation_triggered, id: order_waiter}]}
+  - {at: 51, set: [sensor.level, "60"],
+     expect: [{type: automation_triggered, id: order_trigger},
+              {type: call_service, service: triggered, call_id: 0},
+              {type: call_service, service: waiter, call_id: 1}]}

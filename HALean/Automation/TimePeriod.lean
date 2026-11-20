@@ -101,7 +101,7 @@ def timePeriodStr (s : String) : Alt := do
 
 /-- `float(value)` as `cv.time_period_seconds` and `Coerce(float)` use it;
 `none` is the `ValueError`/`TypeError` they turn into `Invalid`. -/
-def pyFloat? : Value → Option Float
+def pyFloatV? : Value → Option Float
   | .str s => parseFloatStr s
   | .int i => some (intToFloat i)
   | .bool b => some (if b then 1 else 0)
@@ -110,7 +110,7 @@ def pyFloat? : Value → Option Float
 
 /-- `cv.time_period_seconds` -/
 def timePeriodSeconds (v : Value) : Alt :=
-  (pyFloat? v).map fun f => timedeltaNew [(US_PER_SECOND, .float f)]
+  (pyFloatV? v).map fun f => timedeltaNew [(US_PER_SECOND, .float f)]
 
 /-- `cv.time_period_dict`: only the five units, each `Coerce(float)`, at
 least one, then `timedelta(**value)`. -/
@@ -123,7 +123,7 @@ def timePeriodDict (v : Value) : Alt := do
   for (k, x) in kvs do
     let .str k := k | none
     if !units.any (·.1 == k) then none
-    given := (given.filter (·.1 != k)) ++ [(k, ← pyFloat? x)]
+    given := (given.filter (·.1 != k)) ++ [(k, ← pyFloatV? x)]
   -- `delta_new` accumulates milliseconds, seconds, minutes, hours, days
   let args := units.filterMap fun (k, f) => (given.find? (·.1 == k)).map fun (_, x) => (f, TdArg.float x)
   return timedeltaNew args

@@ -468,7 +468,7 @@ entries:
   lean:
   - HALean.Automation.step
   status: translated
-  notes: a render error is a HomeAssistantError of the step
+  notes: 'a render error is a TemplateError, one of CONFIGURATION_ERRORS: never swallowed by continue_on_error'
   hash: 4351feef0ed1ee0e
 - python: components/automation/__init__.py::AutomationEntity._async_attach_triggers
   lean:
@@ -771,3 +771,51 @@ entries:
   - HALean.Automation.timePeriodSeconds
   status: translated
   hash: b88a742d03b3805d
+- python: helpers/script.py::_ScriptRun._async_step_wait_template
+  lean:
+  - HALean.Automation.step
+  - HALean.Automation.setupWait
+  - HALean.Automation.waitRefresh
+  - HALean.Automation.resumeRuns
+  status: translated
+  notes: the woken run resumes after the callbacks of the same state change; wait.remaining after a wake-up
+    with a timeout is read from the event-loop clock, an error in HALean
+  hash: c70282d56ea1a1b5
+- python: helpers/script.py::_ScriptRun._get_timeout_seconds_from_action
+  lean:
+  - HALean.Automation.step
+  status: translated
+  hash: 23daabb9a67767aa
+- python: helpers/script.py::_ScriptRun._get_pos_time_period_template
+  lean:
+  - HALean.Automation.step
+  - HALean.Automation.cvPositiveTimePeriod
+  status: translated
+  notes: used for timeouts; templated delays are not supported yet
+  hash: ab863185e9be5ce6
+- python: helpers/script.py::_ScriptRun._async_handle_timeout
+  lean:
+  - HALean.Automation.step
+  - HALean.Automation.fireDue
+  status: translated
+  hash: 48a862b01fd9a9a3
+- python: helpers/script.py::_ScriptRun._async_wait_with_optional_timeout
+  lean:
+  - HALean.Automation.fireDue
+  - HALean.Automation.removeRun
+  status: translated
+  notes: the tracker is removed on wake-up, timeout or stop
+  hash: 4ab04beb4f54ab15
+- python: helpers/script.py::_ScriptRun._async_set_remaining_time_var
+  lean:
+  - HALean.Automation.waitRefresh
+  status: translated
+  notes: remaining is None without a timeout; with one it depends on loop.time() and is an error to use
+  hash: 75e7274576a52109
+- python: helpers/event.py::async_track_template
+  lean:
+  - HALean.Automation.waitRefresh
+  - HALean.Automation.trackerGate
+  status: translated
+  notes: fires on a true result whose previous result was not true (or an error)
+  hash: 90932f7d42fe1ce5

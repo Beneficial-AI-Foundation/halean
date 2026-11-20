@@ -164,7 +164,7 @@ doesn't run twice.
 | Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, `for`, re-rendered like HA's template tracker: only for what the last render read, every minute when it used `now()`, rate limits for loops over states), `time` (fixed `at`, weekday), `time_pattern`, `event` (flat `event_data`); `for:` static or templated (a template string or a mapping of templates, rendered with the trigger variables when the trigger matches, then `cv.positive_time_period`; an error means no trigger) | `this` in trigger templates (its value depends on HA's startup phase), `sun`, `zone`, `homeassistant`, `mqtt`, `webhook`, device triggers, entity-based or offset `time` |
 | Conditions | `and`/`or`/`not` (incl. shorthand), `state` (match any/all, `for`, attribute, `input_*` references), `numeric_state` (incl. `value_template`), `time` (fixed, `input_datetime`, `time` entities, midnight crossing, weekday), `trigger`, `template` (incl. the `"{{ ... }}"` shorthand), `enabled: false` | platform conditions, timestamp-sensor bounds (error) |
 | Automations | automation `variables` (rendered in order before conditions) and static `trigger_variables`; `this` in variables, conditions and actions (the automation entity's `state.as_dict()`: `entity_id` derived from the name like HA, `state`, `attributes` `id`/`last_triggered`/`mode`/`current`/`max`/`friendly_name`); names default to `automation <n>` like HA | `this` when the entity id needs transliteration (non-ASCII names, also for every later automation) or HTML entities, templated `trigger_variables`, per-trigger `variables` |
-| Actions | service call (blocking; templates in `data` and `target`), `delay`, `condition`, `choose`, `if`/`else`, `repeat` count (incl. templated)/for_each/while/until with the `repeat` variable, `variables`, `stop` (+`error`), `event` (templates in `event_data`), `sequence`, `continue_on_error`, static `enabled` | templated action names, a whole-`data` template, `response_variable`, `wait_template`, `wait_for_trigger`, `parallel`, device actions, `scene` |
+| Actions | service call (blocking; templates in `data` and `target`), `delay`, `condition`, `choose`, `if`/`else`, `repeat` count (incl. templated)/for_each/while/until with the `repeat` variable, `variables`, `stop` (+`error`), `event` (templates in `event_data`), `sequence`, `wait_template` (`timeout`, static or templated, `continue_on_timeout`, the `wait` variable; tracked like HA's `async_track_template`), `continue_on_error`, static `enabled` | templated action names, a whole-`data` template, `response_variable`, `wait_for_trigger`, templated `delay`, `parallel`, device actions, `scene` |
 | Run modes | `single`, `restart`, `queued` (FIFO), `parallel`, `max`, conditions checked before admission | `max_exceeded` log levels |
 
 ### Templates (`HALean/Template/`)
@@ -192,8 +192,9 @@ in `tests/scenarios/`:
 
 * A failing `condition` step ends only the sub-script it's in. Inside
   `choose`/`if`/`repeat`/`sequence`, the outer sequence carries on.
-* `continue_on_error` swallows only `HomeAssistantError`. Config errors always
-  stop the run, and other exceptions are converted only by the failing step's
+* `continue_on_error` swallows only `HomeAssistantError`. Config errors
+  (`CONFIGURATION_ERRORS`: invalid data, template errors, condition errors such
+  as a failing `wait_template` check) always stop the run, and other exceptions are converted only by the failing step's
   own flag.
 * Conditions return true, false, `None` (disabled) or an error. `and`/`or`
   skip `None`, `not` treats it as false, and `if`/`while` treat an error as false.
@@ -213,7 +214,7 @@ evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 
 ## Known gaps and deviations
 
-* **The translation is tested against Python, not proven equivalent.** All 28
+* **The translation is tested against Python, not proven equivalent.** All 30
   differential scenarios and all template cases match real HA at the pinned
   release, but they cover only the paths they exercise.
 * Lean's JSON objects are sorted by key. Where HA depends on the written
@@ -241,6 +242,13 @@ evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 * Time triggers and the ends of delays happen on whole seconds as ticks
   arrive, so a 0.7 s delay lasts about 1 s. If the bridge stalls,
   catch-up is limited to one day.
+* `wait.remaining` after a `wait_template` with a `timeout` was woken up is
+  `timeout_handle.when() - loop.time()` in HA, a reading of the event loop's
+  clock. Using it is a render error in HALean. Before the wait, without a
+  timeout, and after a timeout it is exact (`timeout`, `None`, `0.0`).
+* A run woken by its `wait_template` continues after every automation the
+  same state change triggered has run up to its first wait, as HA's task
+  scheduling does.
 * `STEP_FUEL` (1M steps per drive) is a safety net HA doesn't have. HA would
   block its event loop instead.
 * `drive`/`finishRun`/`fireDue` are `partial`, so nothing has been proved about
@@ -274,4 +282,4 @@ Properties worth proving or model-checking are collected in
    two live runs, and a `queued` one runs in arrival order.
 4. User-level properties over a whole `automations.yaml`: conflicting commands to the
    same entity, and trigger loops (an action that re-triggers itself).
-5. Widen the subset: `wait_for_trigger`, `parallel`.
+5. Widen the subset: `wait_for_trigger`, `parallel`, templated `delay`.

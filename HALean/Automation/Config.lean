@@ -8,6 +8,7 @@
 -/
 import HALean.Core.Types
 import HALean.Template
+import HALean.Automation.TimePeriod
 open Lean
 
 namespace HALean.Automation
@@ -118,6 +119,9 @@ inductive Action where
   | stop (reason : String) (error : Bool)
   | event (eventType : String) (data : Complex)
   | sequence (body : List Action)
+  /-- `wait_template` with an optional `timeout` (`cv.positive_time_period_template`,
+  rendered when the step runs) and `continue_on_timeout` (default true). -/
+  | waitTemplate (t : Template.Tmpl) (timeout : Option Complex) (continueOnTimeout : Bool)
   /-- `continue_on_error: true` on the wrapped step. -/
   | continueOnError (a : Action)
   deriving Repr, Inhabited
@@ -320,6 +324,26 @@ def forPeriod? (j : Json) (k : String) (nm : List String) : D (Option ForPeriod)
         | none => throw s!"invalid time period {k}: {el.compress}"
     return some (.tmpl c)
   | some v => return some (.fixed (← durationMs v))
+
+/-- A wait step's `timeout` (`cv.positive_time_period_template`). A static
+value is validated at load; a template is kept and rendered by the step. -/
+def timeout? (j : Json) (nm : List String) : D (Option Complex) := do
+  match field? j "timeout" with
+  | none => pure none
+  | some v =>
+    let c ← decodeComplex v nm
+    if !c.hasTemplate' then
+      match cvPositiveTimePeriod (Template.Value.ofJson v) with
+      | .ok _ => pure ()
+      | .error e => throw s!"invalid timeout {v.compress}: {e}"
+    pure (some c)
+
+/-- `continue_on_timeout` (`cv.boolean`; HALean accepts only true/false). -/
+def continueOnTimeout? (j : Json) : D Bool :=
+  match field? j "continue_on_timeout" with
+  | none => pure true
+  | some (.bool b) => pure b
+  | some v => throw s!"continue_on_timeout must be true or false, got {v.compress}"
 
 /-- A mapping whose order matters (`variables`). Lean's `Json` objects are
 sorted by key, so the shell sends these as `[[key, value], ...]`; a plain
@@ -525,6 +549,9 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
       | some _ => throw "event_data must be a mapping"
     return wrap (.event e (← decodeComplex data nm))
   if has j "sequence" then return wrap (.sequence (← seq "sequence"))
+  if let some w := field? j "wait_template" then
+    let .str src := w | throw s!"wait_template must be a template, got {w.compress}"
+    return wrap (.waitTemplate (← compileTemplate src nm) (← timeout? j nm) (← continueOnTimeout? j))
   if let some vs := field? j "variables" then
     return wrap (.variables (← (← orderedMapping "variables" vs).mapM fun (k, v) => do pure (k, ← decodeComplex v nm)))
   throw s!"action not supported: {j.compress}"
@@ -631,7 +658,7 @@ def decodeAutomation (j : Json) (listNo : Nat := 0) (entityId : Option String :=
   -- the names templates may use: `trigger`, `repeat`, `this` (when the
   -- automation's entity id is known), and every variable the automation
   -- defines (anywhere, including `variables` actions)
-  let nm := TEMPLATE_VARS ++ ["repeat"] ++ (if entityId.isSome then ["this"] else [])
+  let nm := TEMPLATE_VARS ++ ["repeat", "wait"] ++ (if entityId.isSome then ["this"] else [])
     ++ merged.map (·.1) ++ actionVariableNames (pick "actions" "action")
   let mvars ← merged.mapM fun (k, v) => do pure (k, ← decodeComplex v nm)
   let tnm := tvars.map (·.1)

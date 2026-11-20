@@ -1,0 +1,68 @@
+# `wait_template` edge cases: an error in the first check is a
+# ConditionError, which continue_on_error never swallows (nor a template
+# error in a `variables` action, inside a `sequence` either), an error while waiting
+# is logged and the next true result wakes the run, `repeat` inside the
+# template, and a template using now() re-rendered every minute.
+automations:
+  - id: first_error                       # error at the first check ends the run
+    triggers: [{trigger: event, event_type: a}]
+    actions:
+      - wait_template: "{{ states('sensor.n') | float > 5 }}"
+      - event: a_done
+  - id: first_error_coe                   # ... even with continue_on_error
+    triggers: [{trigger: event, event_type: b}]
+    actions:
+      - wait_template: "{{ states('sensor.n') | float > 5 }}"
+        continue_on_error: true
+      - event: b_done
+  - id: variables_error
+    triggers: [{trigger: event, event_type: v}]
+    actions:
+      - variables: {x: "{{ states('sensor.n') | float }}"}
+        continue_on_error: true
+      - event: v_done
+  - id: variables_error_nested
+    triggers: [{trigger: event, event_type: w}]
+    actions:
+      - sequence:
+          - variables: {x: "{{ states('sensor.n') | float }}"}
+        continue_on_error: true
+      - event: w_done
+  - id: later_error                       # errors while waiting don't wake it
+    triggers: [{trigger: event, event_type: c}]
+    actions:
+      - wait_template: "{{ states('sensor.m') | float > 5 }}"
+      - event: c_done
+  - id: in_repeat                         # each iteration waits for its own index
+    triggers: [{trigger: event, event_type: d}]
+    actions:
+      - repeat:
+          count: 2
+          sequence:
+            - wait_template: "{{ states('sensor.cnt') | int(0) >= repeat.index }}"
+            - event: d_iter
+              event_data: {i: "{{ repeat.index }}"}
+  - id: clock                             # uses now(): re-rendered on the minute (t0 is 22:13:20)
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - wait_template: "{{ now().minute >= 15 }}"
+      - event: e_done
+states:
+  - {entity_id: sensor.n, state: "x"}
+  - {entity_id: sensor.m, state: "1"}
+  - {entity_id: sensor.cnt, state: "0"}
+steps:
+  - {at: 1, send: {type: event, event_type: a}, expect: [{type: automation_triggered, id: first_error}]}
+  - {at: 2, send: {type: event, event_type: b}, expect: [{type: automation_triggered, id: first_error_coe}]}
+  - {at: 3, send: {type: event, event_type: c}, expect: [{type: automation_triggered, id: later_error}]}
+  - {at: 4, set: [sensor.m, "x"]}
+  - {at: 5, set: [sensor.m, "y"]}
+  - {at: 6, set: [sensor.m, "9"], expect: [{type: fire_event, event_type: c_done}]}
+  - {at: 7, send: {type: event, event_type: v}, expect: [{type: automation_triggered, id: variables_error}]}
+  - {at: 8, send: {type: event, event_type: w}, expect: [{type: automation_triggered, id: variables_error_nested}]}
+  - {at: 10, send: {type: event, event_type: d}, expect: [{type: automation_triggered, id: in_repeat}]}
+  - {at: 11, set: [sensor.cnt, "1"], expect: [{type: fire_event, event_type: d_iter, data: {i: 1}}]}
+  - {at: 12, set: [sensor.cnt, "2"], expect: [{type: fire_event, event_type: d_iter, data: {i: 2}}]}
+  - {at: 20, send: {type: event, event_type: e}, expect: [{type: automation_triggered, id: clock}]}
+  - {at: 41, send: {type: tick}}
+  - {at: 101, send: {type: tick}, expect: [{type: fire_event, event_type: e_done}]}

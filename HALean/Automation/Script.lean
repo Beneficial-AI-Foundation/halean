@@ -10,6 +10,7 @@
   boundary where `_ConditionFail` is caught.
 -/
 import HALean.Automation.Condition
+import HALean.Automation.TimePeriod
 open Lean
 
 namespace HALean.Automation
@@ -56,7 +57,20 @@ inductive Wait where
   | delayUntil (t : Millis)
   /-- Blocking service call; `coe` is the step's own `continue_on_error`. -/
   | service (callId : Nat) (coe : Bool)
-  deriving Repr, Inhabited, BEq
+  /-- `wait_template` that was false: the engine tracks `t` (like
+  `async_track_template`) until it turns true or `deadline` passes. -/
+  | waitTmpl (t : Template.Tmpl) (deadline : Option Millis) (continueOnTimeout : Bool)
+  deriving Repr, Inhabited
+
+/-- Templates have no equality; waits compare by everything else. -/
+def Wait.beq : Wait → Wait → Bool
+  | .ready, .ready | .queued, .queued => true
+  | .delayUntil a, .delayUntil b => a == b
+  | .service a c, .service b d => a == b && c == d
+  | .waitTmpl _ a c, .waitTmpl _ b d => a == b && c == d
+  | _, _ => false
+
+instance : BEq Wait := ⟨Wait.beq⟩
 
 structure Run where
   id : Nat
@@ -68,6 +82,19 @@ structure Run where
   frames : List Frame
   wait : Wait := .ready
   deriving Repr, Inhabited
+
+/-- The variables a step sees: the run's, plus the innermost `repeat`. -/
+def Run.scopeVars (r : Run) : List (String × Template.Value) :=
+  match currentRepeat r.frames with
+  | some v => ("repeat", v) :: r.vars
+  | none => r.vars
+
+/-- The `wait` variable of the wait steps: `{"remaining": ..., "completed": ...}`. -/
+def waitVar (remaining : Template.Value) (completed : Bool) : Template.Value :=
+  .dict [(.str "remaining", remaining), (.str "completed", .bool completed)]
+
+/-- `_TIMEOUT_MSG` -/
+def TIMEOUT_MSG : String := "Timeout reached, abort script."
 
 /-- How a run ended (`script_execution_set`). -/
 inductive RunEnd where
@@ -131,12 +158,7 @@ def unwindError (r : Run) (k : ErrKind) (msg : String) : StepOut :=
 
 /-- Execute one step of the top frame. `cmds` are emitted commands. -/
 def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
-  let withRepeat (rv : Option Template.Value) : List (String × Template.Value) :=
-    match rv with
-    | some v => ("repeat", v) :: r.vars
-    | none => r.vars
-  let env : CondEnv := { ctx.env with triggerId := some r.triggerId,
-                                      vars := withRepeat (currentRepeat r.frames) }
+  let env : CondEnv := { ctx.env with triggerId := some r.triggerId, vars := r.scopeVars }
   let push (f : Frame) (rest : List Frame) : Run := { r with frames := f :: rest }
   match r.frames with
   | [] => (.done .finished, [], ctx)
@@ -228,9 +250,9 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
           let vars := kvs.reverse.foldl (fun vs (k, v) => setVar vs k v) r'.vars
           (.next { r' with vars }, [], ctx)
         | .error msg =>
-          -- TemplateError is a HomeAssistantError raised by the step
-          let out := if coe then StepOut.next r' else unwindError r' .haError msg
-          (out, [.log "error" msg], ctx)
+          -- a TemplateError is one of the `CONFIGURATION_ERRORS`, which
+          -- `continue_on_error` never swallows
+          (unwindError r' .invalid msg, [.log "error" msg], ctx)
       | .repeatWhile cs body => (.next (push (.repeatWhile 0 cs body coe) cur), [], ctx)
       | .repeatUntil cs body => (.next (push (.repeatUntil 0 cs body coe) cur), [], ctx)
       | .stop reason err =>
@@ -245,6 +267,38 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
         | .error e => (.next r', [.log "error" s!"Error rendering event data template: {e}",
                                   .fireEvent t (Json.mkObj [])], ctx)
       | .sequence body => (.next (push (.seq body coe) cur), [], ctx)
+      | .waitTemplate t timeout cot =>
+        -- `_get_timeout_seconds_from_action`: a render or validation error
+        -- is logged and aborts the script
+        let tus : Except String (Option Int) := match timeout with
+          | none => .ok none
+          | some c => do
+            let v ← renderComplexV env c
+            some <$> cvPositiveTimePeriod v
+        match tus with
+        | .error e =>
+          let m := s!"Error rendering timeout template: {e}"
+          (.done (.aborted m), [.log "error" m], ctx)
+        | .ok tus =>
+          -- `wait = {"remaining": timeout, "completed": False}` (seconds, a float)
+          let rem : Template.Value := match tus with
+            | some us => .float (Float.ofInt us / 1000000)
+            | none => .none
+          let r1 := { r' with vars := setVar r'.vars "wait" (waitVar rem false) }
+          -- `condition.async_template(...)`: a ConditionError is one of the
+          -- `CONFIGURATION_ERRORS`, which `continue_on_error` never swallows
+          match templateCond { env with vars := r1.scopeVars } t with
+          | .error e => (unwindError r1 .invalid e, [.log "error" e], ctx)
+          | .ok true => (.next { r1 with vars := setVar r1.vars "wait" (waitVar rem true) }, [], ctx)
+          | .ok false =>
+            if tus == some 0 then
+              -- `_async_handle_timeout`
+              let r2 := { r1 with vars := setVar r1.vars "wait" (waitVar (.float 0) false) }
+              if cot then (.next r2, [], ctx)
+              else (.done (.aborted TIMEOUT_MSG), [.log "info" TIMEOUT_MSG], ctx)
+            else
+              let deadline := tus.map fun us => env.now.utc + ((us + 999) / 1000).toNat
+              (.blocked { r1 with wait := .waitTmpl t deadline cot }, [], ctx)
     run false a
   | .repeatCount i n body c :: rest =>
     if i < n then (.next (push (.seq body false) (.repeatCount (i + 1) n body c :: rest)), [], ctx)
