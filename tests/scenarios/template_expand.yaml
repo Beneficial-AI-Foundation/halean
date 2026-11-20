@@ -1,0 +1,36 @@
+# `expand` in template triggers: the template tracker re-renders for what
+# expand read (StateExtension.expand): the group itself (`entity.domain`
+# collects it), each member it found, and ids that do not exist (yet).
+automations:
+  - id: any_on
+    triggers:
+      - trigger: template
+        value_template: "{{ expand('group.lights') | selectattr('state', 'eq', 'on') | list | count > 0 }}"
+    actions: [{event: any_on, event_data: {entity: "{{ trigger.entity_id }}"}}]
+  - id: both_exist
+    triggers:
+      - trigger: template
+        value_template: "{{ expand('light.missing', 'light.d') | count > 1 }}"
+    actions: [{event: both_exist, event_data: {entity: "{{ trigger.entity_id }}"}}]
+states:
+  - {entity_id: light.a, state: "off"}
+  - {entity_id: light.b, state: "off"}
+  - {entity_id: light.c, state: "off"}
+  - {entity_id: light.d, state: "off"}
+  - {entity_id: group.lights, state: "off", attributes: {entity_id: [light.a, light.b]}}
+steps:
+  - {at: 1, set: [light.c, "on"]}                  # not a member: not tracked
+  - {at: 2, set: [light.a, "on"],
+     expect: [{type: automation_triggered, id: any_on},
+              {type: fire_event, event_type: any_on, data: {entity: light.a}}]}
+  - {at: 3, set: [light.a, "off"]}
+  - {at: 4, set: [group.lights, "off"], attributes: {entity_id: [light.a, light.b, light.c]},
+     expect: [{type: automation_triggered, id: any_on},
+              {type: fire_event, event_type: any_on, data: {entity: group.lights}}]}
+  - {at: 5, set: [light.c, "off"]}
+  - {at: 6, set: [light.c, "on"],
+     expect: [{type: automation_triggered, id: any_on},
+              {type: fire_event, event_type: any_on, data: {entity: light.c}}]}
+  - {at: 7, set: [light.missing, "on"],
+     expect: [{type: automation_triggered, id: both_exist},
+              {type: fire_event, event_type: both_exist, data: {entity: light.missing}}]}

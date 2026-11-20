@@ -1,0 +1,284 @@
+# Collection functions: Jinja's sort, min, max, unique and HA's min/max
+# globals and expand. Same format as cases.yaml; `render_info: true` also
+# compares what the render read (template triggers re-render on it).
+
+# --- sort (jinja2.filters.do_sort) -------------------------------------------
+- {template: "{{ [3, 1, 2] | sort }}"}
+- {template: "{{ [3, 1, 2] | sort(reverse=true) }} {{ [3, 1, 2] | sort(true) }} {{ [3, 1, 2] | sort(reverse='x') }}"}
+- {template: "{{ ['b', 'A', 'a', 'B'] | sort }}"}
+- {template: "{{ ['b', 'A', 'a', 'B'] | sort(reverse=true) }}"}
+- {template: "{{ ['b', 'A', 'a', 'B'] | sort(case_sensitive=true) }}"}
+- {template: "{{ ['b', 'A', 'a', 'B'] | sort(false, true) }}"}
+- {template: "{{ [1, 2.5, true, 0, -1.5, false] | sort }}"}
+- {template: "{{ [1, 'a'] | sort }}"}
+- {template: "{{ [] | sort }} {{ 'cba' | sort }} {{ {'b': 1, 'a': 2} | sort }} {{ undefined_name | sort }}", unsupported: true}
+- {template: "{{ [] | sort }} {{ 'cba' | sort }} {{ {'b': 1, 'a': 2} | sort }}"}
+- {template: "{{ (3, 1) | sort }} {{ range(3, 0, -1) | sort }} {{ [3, 1] | reverse | sort }}"}
+- {template: "{{ [(2, 'a'), (1, 'b'), (1, 'a')] | sort }}"}
+- {template: "{{ [[1, 'a'], [2, 3]] | sort }}"}
+- {template: "{{ [[1, 'a'], [1, 3]] | sort }}"}
+- {template: "{{ [[1], [1, 0], []] | sort }}"}
+- {template: "{{ [{'n': 'b', 'a': 2}, {'n': 'a', 'a': 2}, {'n': 'c', 'a': 1}] | sort(attribute='a') }}"}
+- {template: "{{ [{'n': 'b', 'a': 2}, {'n': 'a', 'a': 2}, {'n': 'c', 'a': 1}] | sort(attribute='a', reverse=true) }}"}
+- {template: "{{ [{'n': 'b', 'a': 2}, {'n': 'A', 'a': 2}, {'n': 'c', 'a': 1}] | sort(attribute='a,n') }}"}
+- {template: "{{ [{'n': 'b', 'a': 2}, {'n': 'A', 'a': 2}, {'n': 'c', 'a': 1}] | sort(attribute='a,n', case_sensitive=true) }}"}
+- {template: "{{ [{'x': [3, 'q']}, {'x': [1, 'r']}] | sort(attribute='x.0') }}"}
+- {template: "{{ [[3, 'x'], [1, 'y'], [2, 'w']] | sort(attribute='1') }}"}
+- {template: "{{ [{'a': 1}, {'b': 2}] | sort(attribute='a') }}"}
+- {template: "{{ [{'b': 1}, {'b': 2}] | sort(attribute='a') }}"}
+- {template: "{{ [{'a': 1}] | sort(attribute='zz') }}"}
+- {template: "{{ [2, 1] | sort(attribute=none) }}"}
+- {template: "{{ [2, 1] | sort(foo=1) }}"}
+- {template: "{{ [2, 1] | sort(true, reverse=false) }}"}
+- {template: "{{ ['É', 'a', 'Z'] | sort(case_sensitive=true) }}"}
+- template: "{{ ['É', 'a', 'Z'] | sort }}"
+  # str.lower() beyond ASCII is not modelled: an error in HALean
+  expect_error_in_halean_only: true
+- template: "{{ [1, 'nan' | float, 0] | sort }}"
+  # NaN breaks the total order; the result depends on timsort's comparisons
+  expect_error_in_halean_only: true
+- {template: "{{ [timedelta(hours=2), timedelta(minutes=3)] | sort }}"}
+- {template: "{{ [now(), now() - timedelta(days=1)] | sort | first == now() - timedelta(days=1) }}"}
+- {template: "{{ [now(), as_datetime('2020-01-01 00:00')] | sort }}"}
+- template: "{{ states.sensor | sort(attribute='state') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: sensor.b, state: "20"}
+    - {entity_id: sensor.a, state: "3"}
+    - {entity_id: sensor.c, state: "20"}
+  render_info: true
+- template: "{{ states.sensor | sort(attribute='state', reverse=true) | map(attribute='name') | list }}"
+  states:
+    - {entity_id: sensor.b, state: "20", attributes: {friendly_name: Bee}}
+    - {entity_id: sensor.a, state: "3"}
+    - {entity_id: sensor.c, state: "20"}
+- template: "{{ states | sort(attribute='entity_id') | map(attribute='entity_id') | join(',') }}"
+  states:
+    - {entity_id: sensor.b, state: "1"}
+    - {entity_id: light.z, state: "on"}
+  render_info: true
+- template: "{{ states.light | sort(attribute='attributes.brightness') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on", attributes: {brightness: 200}}
+    - {entity_id: light.b, state: "on", attributes: {brightness: 20}}
+- template: "{{ states.light | sort(attribute='attributes.brightness') | list | count }}"
+  states:
+    - {entity_id: light.a, state: "on", attributes: {brightness: 200}}
+    - {entity_id: light.b, state: "off"}
+- template: "{{ states.light | sort | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.b, state: "off"}
+- template: "{{ [states.light.a] | sort | count }}"
+  states: [{entity_id: light.a, state: "on"}]
+  render_info: true
+
+# --- min / max: Jinja filters (do_min / do_max) ---------------------------------
+- {template: "{{ [3, 1, 2] | min }} {{ [3, 1, 2] | max }}"}
+- {template: "{{ [] | min }}|{{ [] | max(attribute='a') }}|{{ ([] | min) is defined }}"}
+- {template: "{{ ['B', 'a', 'C'] | max }} {{ ['B', 'a', 'C'] | max(case_sensitive=true) }} {{ ['B', 'a', 'C'] | min(true) }}"}
+- {template: "{{ ['b', 'B'] | min }} {{ ['B', 'b'] | min }} {{ ['b', 'B'] | max }} {{ ['B', 'b'] | max }}"}
+- {template: "{{ [{'v': 1}, {'v': 3, 'n': 1}, {'v': 3, 'n': 2}] | max(attribute='v') }}"}
+- {template: "{{ [{'v': 1}, {'v': 3, 'n': 1}, {'v': 1, 'n': 2}] | min(attribute='v') }}"}
+- {template: "{{ [{'v': 1}, {'w': 3}] | min(attribute='v') }}"}
+- {template: "{{ [{'v': 1}] | min(attribute='w') }}"}
+- {template: "{{ [1, 'a'] | max }}"}
+- {template: "{{ [1, 1.0, true] | min }} {{ [true, 1.0, 1] | max }}"}
+- {template: "{{ [1, 'nan' | float, 0] | max }} {{ ['nan' | float, 1, 0] | min }}"}
+- {template: "{{ [[1, 2], [1, 3], [1]] | max }} {{ [[1, 2], [1, 3], [1]] | min }}"}
+- {template: "{{ [2, 1] | min(foo=1) }}"}
+- {template: "{{ 5 | min }}"}
+- template: "{{ ['É', 'a'] | min }}"
+  expect_error_in_halean_only: true
+
+# --- min / max: HA globals (MathExtension.min_max_from_filter) ------------------
+- {template: "{{ min(3, 1, 2) }} {{ max(3, 1, 2) }} {{ min([3, 1]) }} {{ max('abc') }} {{ min((4, 2)) }}"}
+- {template: "{{ min(1, 1.0, true) }} {{ max(1, 1.0) }} {{ max(2.5, 2) }}"}
+- {template: "{{ min(['B', 'a', 'C'], case_sensitive=true) }} {{ max('B', 'a', 'C') }}"}
+- {template: "{{ max([{'v': 1}, {'v': 3}], attribute='v') }} {{ min({'v': 1}, {'v': 3}, attribute='v') }}"}
+- {template: "{{ min('') }}|{{ max([]) }}"}
+- {template: "{{ min(5) }}"}
+- {template: "{{ min(none) }}"}
+- {template: "{{ min() }}"}
+- {template: "{{ max(1, 'a') }}"}
+- {template: "{{ max(1, 2, foo=3) }}"}
+- {template: "{{ max([1, 2], value=3) }}"}
+- {template: "{{ max({'b': 1, 'a': 2}) }} {{ min(range(3, 9)) }}"}
+- template: "{{ max(states.sensor | map(attribute='state') | map('float')) }}"
+  states:
+    - {entity_id: sensor.a, state: "3.5"}
+    - {entity_id: sensor.b, state: "12"}
+- template: "{{ min(states.sensor, attribute='state').entity_id }}"
+  states:
+    - {entity_id: sensor.a, state: "3.5"}
+    - {entity_id: sensor.b, state: "12"}
+  render_info: true
+- template: "{{ (states.light | max(attribute='attributes.brightness')).entity_id }}"
+  states:
+    - {entity_id: light.a, state: "on", attributes: {brightness: 20}}
+    - {entity_id: light.b, state: "on", attributes: {brightness: 200}}
+- template: "{{ max(states.light) }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.b, state: "on"}
+- template: "{{ min(states('sensor.a') | float, states('sensor.b') | float) }}"
+  states:
+    - {entity_id: sensor.a, state: "3.5"}
+    - {entity_id: sensor.b, state: "12"}
+  render_info: true
+
+# --- unique (jinja2.filters.sync_do_unique) --------------------------------------
+- {template: "{{ ['foo', 'bar', 'foobar', 'FooBar'] | unique | list }}"}
+- {template: "{{ ['a', 'A', 'a'] | unique(case_sensitive=true) | list }} {{ ['a', 'A', 'a'] | unique(true) | list }}"}
+- {template: "{{ [1, 1.0, true, 2, 0, false, 0.0] | unique | list }}"}
+- {template: "{{ [(1, 2), (1, 2), (2, 1)] | unique | list }}"}
+- {template: "{{ [[1], [1]] | unique | list }}"}
+- {template: "{{ [{'a': 1}, {'a': 1}] | unique | list }}"}
+- {template: "{{ [{'a': 1, 'n': 1}, {'a': 1, 'n': 2}, {'a': 2}, {'n': 3}, {'n': 4}] | unique(attribute='a') | list }}"}
+- {template: "{{ 'abcab' | unique | join }}"}
+- {template: "{{ [] | unique | list }} {{ [3, 1] | unique | first }}"}
+- {template: "{{ [1, 2] | unique(foo=1) | list }}"}
+- template: "{{ ['É', 'é'] | unique | list }}"
+  expect_error_in_halean_only: true
+- template: "{{ states.light | unique(attribute='state') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.b, state: "off"}
+    - {entity_id: light.c, state: "on"}
+- template: "{{ states.light | unique | list | count }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+
+# --- expand (StateExtension.expand) -----------------------------------------------
+- template: "{{ expand('light.a', 'light.b') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.b, state: "off"}
+  render_info: true
+- template: "{{ expand('group.g') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.b, state: "off"}
+    - {entity_id: group.g, state: "on", attributes: {entity_id: [light.a, light.b]}}
+  render_info: true
+- template: "{{ expand('group.outer', 'light.a', 'light.missing') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.b, state: "off"}
+    - {entity_id: switch.s, state: "off"}
+    - {entity_id: group.inner, state: "on", attributes: {entity_id: [light.b, light.a]}}
+    - {entity_id: group.outer, state: "on", attributes: {entity_id: [group.inner, switch.s, light.b, sensor.nope]}}
+  render_info: true
+- template: "{{ expand('group.g') | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.b, state: "off"}
+    - {entity_id: group.g, state: "on", attributes: {entity_id: [light.a, light.b]}}
+  render_info: true
+- template: "{{ expand('zone.home') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: person.x, state: "home"}
+    - {entity_id: person.y, state: "not_home"}
+    - {entity_id: zone.home, state: "1", attributes: {persons: [person.x, person.y]}}
+  render_info: true
+- template: "{{ expand(['light.a', states.light.b]) | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.b, state: "off"}
+  render_info: true
+- template: "{{ expand(['light.b', ['light.a', ('light.c',)]], 'light.a') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.b, state: "off"}
+    - {entity_id: light.c, state: "off"}
+  render_info: true
+- template: "{{ expand(states.light) | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.b, state: "off"}
+    - {entity_id: switch.s, state: "off"}
+  render_info: true
+- template: "{{ expand(states.group) | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.b, state: "off"}
+    - {entity_id: group.g, state: "on", attributes: {entity_id: [light.a, light.b]}}
+  render_info: true
+- template: "{{ expand(states) | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: group.g, state: "on", attributes: {entity_id: [light.a, light.b]}}
+    - {entity_id: light.b, state: "off"}
+  render_info: true
+- template: "{{ 'group.g' | expand | map(attribute='entity_id') | list }} {{ 'light.a' | expand('light.b') | count }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.b, state: "off"}
+    - {entity_id: group.g, state: "on", attributes: {entity_id: [light.b]}}
+  render_info: true
+- template: "{{ expand('Light.A', 'light.a') | map(attribute='entity_id') | list }}"
+  states: [{entity_id: light.a, state: "on"}]
+  render_info: true
+- template: "{{ expand('light.a', 'light.a', 42, none, 1.5, true) | map(attribute='entity_id') | list }}"
+  states: [{entity_id: light.a, state: "on"}]
+  render_info: true
+- template: "{{ expand() }} {{ expand([]) }} {{ expand('nope') }} {{ expand(undefined_thing) }}"
+  unsupported: true
+- template: "{{ expand() }} {{ expand([]) }} {{ expand('nope') }} {{ expand('light.gone') }}"
+  render_info: true
+- template: "{{ expand('group.s') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: group.s, state: "on", attributes: {entity_id: "light.a"}}
+  render_info: true
+- template: "{{ expand('group.e', 'group.z') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: group.e, state: "off", attributes: {entity_id: []}}
+    - {entity_id: group.z, state: "off"}
+  render_info: true
+- template: "{{ expand('group.n') | list }}"
+  states:
+    - {entity_id: group.n, state: "on", attributes: {entity_id: 5}}
+- template: "{{ expand('group.d') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: group.d, state: "on", attributes: {entity_id: {light.a: 1}}}
+  render_info: true
+- template: "{{ expand('light.a') | count }} {{ expand('light.a') | first is defined }}"
+  states: [{entity_id: light.a, state: "on"}]
+- template: "{{ expand('light.a') }}"
+  states: [{entity_id: light.a, state: "on"}]
+  # HA prints the TemplateState objects; HALean does not print state objects
+  expect_error_in_halean_only: true
+- template: "{{ expand('light.grp') | map(attribute='entity_id') | list }}"
+  states:
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.grp, state: "on", attributes: {entity_id: [light.a]}}
+  # a light group from the group integration would be expanded by HA; HALean
+  # does not know entity sources and refuses instead of guessing
+  expect_error_in_halean_only: true
+- template: "{{ expand('group.g') | sort(attribute='entity_id') | map(attribute='state') | list }} {{ expand('group.g') | max(attribute='attributes.brightness') | attr('entity_id') }}"
+  unsupported: true
+- template: "{{ (expand('group.g') | max(attribute='attributes.brightness')).entity_id }} {{ expand('group.g') | sort(attribute='entity_id') | map(attribute='state') | list }}"
+  states:
+    - {entity_id: light.b, state: "off", attributes: {brightness: 3}}
+    - {entity_id: light.a, state: "on", attributes: {brightness: 200}}
+    - {entity_id: group.g, state: "on", attributes: {entity_id: [light.a, light.b]}}
+  render_info: true
+- template: "{{ expand('group.g') | map(attribute='state') | unique | list }}"
+  states:
+    - {entity_id: light.b, state: "off"}
+    - {entity_id: light.a, state: "on"}
+    - {entity_id: light.c, state: "on"}
+    - {entity_id: group.g, state: "on", attributes: {entity_id: [light.a, light.b, light.c]}}
+
+# --- list(x) asks DomainStates/AllStates for a length hint (lifecycle listener)
+- template: "{{ states.light | list | count }}"
+  states: [{entity_id: light.a, state: "on"}]
+  render_info: true
+- template: "{{ states | list | count }}"
+  states: [{entity_id: light.a, state: "on"}]
+  render_info: true
+- template: "{{ (states.light | max(attribute='entity_id')).entity_id }} {{ states.light | unique(attribute='state') | list | count }}"
+  states: [{entity_id: light.a, state: "on"}, {entity_id: light.b, state: "on"}]
+  render_info: true
+- template: "{{ [{'a': {'b': 1}}, {}] | map(attribute='a.b', default=5) | list }} {{ [[1, 2]] | map(attribute='1') | list }}"
