@@ -34,7 +34,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import websockets
@@ -68,6 +68,16 @@ def iso_ms(value: str | None) -> int:
     return int(datetime.fromisoformat(value).timestamp() * 1000)
 
 
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+
+
+def iso_us(value: str | None) -> int | None:
+    """Exact microseconds since the epoch (templates print them)."""
+    if not value:
+        return None
+    return (datetime.fromisoformat(value) - _EPOCH) // timedelta(microseconds=1)
+
+
 def to_engine_state(s: dict | None) -> dict | None:
     if s is None:
         return None
@@ -76,6 +86,8 @@ def to_engine_state(s: dict | None) -> dict | None:
         "state": s["state"],
         "attributes": s.get("attributes", {}),
         "last_changed": iso_ms(s.get("last_changed")),
+        "last_changed_us": iso_us(s.get("last_changed")),
+        "last_updated_us": iso_us(s.get("last_updated")),
     }
 
 

@@ -1,0 +1,38 @@
+# Dates and times inside automations: now() in conditions and data,
+# trigger.now of time triggers (HA fires time trackers 50-500 ms into the
+# second; HALean uses 500 ms), trigger.for and last_changed.
+# The clock starts at 2023-11-14 22:13:20 UTC (T0).
+automations:
+  - id: pattern
+    triggers: [{trigger: time_pattern, seconds: "/5"}]
+    conditions: ["{{ now().second % 5 == 0 }}"]
+    actions:
+      - event: tick
+        event_data:
+          now: "{{ trigger.now }}"
+          sec: "{{ trigger.now.second }}"
+          same: "{{ trigger.now == now() }}"
+          day: "{{ now().strftime('%A %H:%M') }}"
+  - id: held
+    triggers: [{trigger: state, entity_id: input_boolean.x, to: "on", for: 2}]
+    actions:
+      - event: held
+        event_data:
+          for: "{{ trigger.for }}"
+          secs: "{{ trigger.for.total_seconds() }}"
+          since: "{{ (now() - trigger.to_state.last_changed).total_seconds() }}"
+          lc: "{{ trigger.to_state.last_changed }}"
+          later: "{{ (now() + timedelta(minutes=90)).isoformat() }}"
+states:
+  - {entity_id: input_boolean.x, state: "off"}
+steps:
+  - {at: 1, set: [input_boolean.x, "on"]}
+  - {at: 3, send: {type: tick},
+     expect: [{type: automation_triggered, id: held},
+              {type: fire_event, event_type: held,
+               data: {for: "0:00:02", secs: 2.0, since: 2.0, lc: "2023-11-14 22:13:21+00:00",
+                      later: "2023-11-14T23:43:23+00:00"}}]}
+  - {at: 5, send: {type: tick},
+     expect: [{type: automation_triggered, id: pattern},
+              {type: fire_event, event_type: tick,
+               data: {now: "2023-11-14 22:13:25.500000+00:00", sec: 25, same: false, day: "Tuesday 22:13"}}]}

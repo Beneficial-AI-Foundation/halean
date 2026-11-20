@@ -99,7 +99,9 @@
   states: [{entity_id: sensor.temp, state: "5"}]
 - template: "{{ states.sensor.temp.last_changed }}"
   states: [{entity_id: sensor.temp, state: "5"}]
-  # HA prints a datetime; HALean refuses at render time, so this must error
+- template: "{{ states.sensor.temp.last_reported }}"
+  states: [{entity_id: sensor.temp, state: "5"}]
+  # not modelled yet: HALean refuses at render time instead of guessing
   expect_error_in_halean_only: true
 - template: "{{ is_state('light.x', 'on') }} {{ is_state('light.x', ['off', 'on']) }} {{ is_state('light.y', 'on') }}"
   states: [{entity_id: light.x, state: "on"}]
@@ -139,7 +141,7 @@
 - {template: "{{ [1, 'a', none] | join(', ') }} {{ 'abc' | list }} {{ 5 | string }}"}
 - {template: "{{ -3 | abs }} {{ (-3) | abs }} {{ [1, 2.5, 3] | sum }}"}
 - {template: "{{ [3, 1] | sort }}", unsupported: true}
-- {template: "{{ now() }}", unsupported: true}
+- {template: "{{ now() | sort }}", unsupported: true}
 
 # --- str methods, items and slices ------------------------------------------
 - {template: "{{ 'a,b,,c'.split(',') }} {{ ' x  y '.split() }} {{ 'a b c'.split(' ', 1) }}"}
@@ -226,3 +228,38 @@
 - {template: "{{ [1, 2] | select | first }} {{ [] | select | first }}"}
 - {template: "{{ [1, 2] | map('sort') | list }}", unsupported: true}
 - {template: "{{ [1, 2] | select(test_name) | list }}", unsupported: true}
+
+# --- dates and times (clock frozen at 2026-11-20 16:30:45.123 UTC, HA in US/Pacific) ---
+- {template: "{{ now() }}"}
+- {template: "{{ utcnow() }}"}
+- {template: "{{ now().year }}-{{ now().month }}-{{ now().day }} {{ now().hour }}:{{ now().minute }}:{{ now().second }}.{{ now().microsecond }}"}
+- {template: "{{ now().weekday() }} {{ now().isoweekday() }} {{ now().timestamp() }} {{ utcnow().timestamp() }}"}
+- {template: "{{ now().isoformat() }} | {{ utcnow().isoformat(' ') }}"}
+- {template: "{{ now().strftime('%A %d %B %Y %H:%M:%S %j %p %I %z %a %b %y %m %-d %-H %e %F %T %R %D %w %u %f %%') }}"}
+- {template: "{{ now().strftime('%Z') }}", expect_error_in_halean_only: true}
+- {template: "{{ now().replace(hour=7, minute=0, second=0, microsecond=0) }} {{ now().replace(day=31) }}"}
+- {template: "{{ today_at() }} {{ today_at('07:30') }} {{ today_at('23:59:59') }} {{ '06:00' | today_at }}"}
+- {template: "{{ today_at('25:00') }}"}
+- {template: "{{ now() > today_at('07:00') }} {{ now() < today_at('07:00') }} {{ now() == now() }}"}
+- {template: "{{ now() - timedelta(hours=1) }} {{ now() + timedelta(days=1, minutes=30) }}"}
+- {template: "{{ timedelta(hours=1.5) }} {{ timedelta(seconds=-1) }} {{ timedelta(days=2, microseconds=7) }} {{ timedelta(0) }} {{ timedelta(weeks=1, milliseconds=2.5) }}"}
+- {template: "{{ (timedelta(hours=1) * 2.5).total_seconds() }} {{ timedelta(hours=1) / timedelta(minutes=7) }} {{ timedelta(hours=1) // timedelta(minutes=7) }} {{ timedelta(hours=1) / 7 }} {{ timedelta(hours=1) % timedelta(minutes=7) }}"}
+- {template: "{{ -timedelta(minutes=5) }} {{ timedelta(minutes=-5) | abs }} {{ timedelta(days=1).days }} {{ timedelta(hours=25).seconds }} {{ timedelta(0) == timedelta(seconds=0) }} {{ timedelta(1) > timedelta(hours=23) }}"}
+- {template: "{{ [timedelta(days=1, seconds=5), timedelta(0)] }}"}
+- {template: "{{ (now() - (now() - timedelta(minutes=90))).total_seconds() }} {{ now() - utcnow() }}"}
+- {template: "{{ as_timestamp(now()) }} {{ as_timestamp('2026-11-20T10:00:00+01:00') }} {{ as_timestamp('2026-11-20 10:00:00.5Z') }} {{ as_timestamp('nope', 0) }} {{ 'nope' | as_timestamp(default=-1) }}"}
+- {template: "{{ as_timestamp('nope') }}"}
+- {template: "{{ as_datetime('2026-11-20T10:00:00+01:00') }} {{ as_datetime(1700000000) }} {{ as_datetime('1700000000.25') }} {{ as_datetime('nope') }} {{ as_datetime('nope', 5) }}"}
+- {template: "{{ as_datetime('2026-11-20 10:00') }} {{ as_datetime('2026-02-30T10:00:00Z', 'bad') }}"}
+- {template: "{{ as_local(as_datetime('2026-11-20T10:00:00+00:00')) }} {{ as_datetime('2026-11-20T10:00:00+00:00') | as_local }}"}
+- {template: "{{ 1700000000 | timestamp_utc }} {{ 1700000000.5 | timestamp_local }} {{ 1795193335 | timestamp_custom('%H:%M') }} {{ 1795193335 | timestamp_custom('%H:%M', false) }} {{ 'x' | timestamp_utc(0) }}"}
+- {template: "{{ 'x' | timestamp_local }}"}
+- template: "{{ states.sensor.t.last_changed }} {{ states.sensor.t.last_updated }} {{ (now() - states.sensor.t.last_changed).total_seconds() }}"
+  states: [{entity_id: sensor.t, state: "1"}]
+- template: "{{ now() - states.sensor.t.last_changed > timedelta(minutes=5) }}"
+  states: [{entity_id: sensor.t, state: "1"}]
+- {template: "{{ now() < '2026' }}"}
+- {template: "{{ now() + 1 }}"}
+- {template: "{{ as_datetime('2026-11-20 10:00') < now() }}"}
+- {template: "{{ now() }}", now: "2026-07-01T12:00:00+00:00"}
+- {template: "{{ now().tzinfo }}", expect_error_in_halean_only: true}

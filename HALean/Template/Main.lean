@@ -16,7 +16,11 @@ def decodeState (j : Json) : Except String EntityState := do
   let eid ← j.getObjValAs? String "entity_id"
   let st ← j.getObjValAs? String "state"
   let attrs := (j.getObjVal? "attributes").toOption.getD (Json.mkObj [])
-  return { entityId := eid, state := st, attributes := attrs }
+  let us (k : String) : Option Int := match j.getObjVal? k with
+    | .ok (.num n) => if n.exponent == 0 then some n.mantissa else none
+    | _ => none
+  return { entityId := eid, state := st, attributes := attrs,
+           lastChangedUs := us "last_changed_us", lastUpdatedUs := us "last_updated_us" }
 
 def handleLine (line : String) : Json :=
   match Json.parse line with
@@ -37,7 +41,13 @@ def handleLine (line : String) : Json :=
       match check t (vars.map (·.1)) with
       | .error e => Json.mkObj [("unsupported", e)]
       | .ok () =>
-        let ctx : Ctx := { states, vars }
+        let tz : Int := match j.getObjVal? "tz" with
+          | .ok (.num t) => t.mantissa
+          | _ => 0
+        let now : Instant := match j.getObjVal? "now" with
+          | .ok (.num n) => { utc := n.mantissa.toNat, tzOffsetSec := tz }
+          | _ => { utc := 0, tzOffsetSec := tz }
+        let ctx : Ctx := { states, vars, now }
         if cond then
           -- `condition.async_template`: render without parsing, compare to "true"
           match render t ctx false with

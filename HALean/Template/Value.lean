@@ -8,6 +8,7 @@
   `{{ [1, 'a'] }}` must print `[1, 'a']` and `1 == 1.0 == True`.
 -/
 import HALean.Core.Types
+import HALean.Template.Time
 open Lean
 
 namespace HALean.Template
@@ -35,6 +36,11 @@ inductive Value where
   | func (name : String) (self : Option Value)
   /-- A `namespace()` object; its fields live in the renderer's heap. -/
   | ns (id : Nat)
+  /-- `datetime`: microseconds since the epoch (the instant when aware, the
+  wall clock when naive) and the UTC offset in seconds (`none` = naive). -/
+  | datetime (us : Int) (off : Option Int)
+  /-- `timedelta`, in microseconds. -/
+  | timedelta (us : Int)
   /-- `range(start, stop, step)` (Jinja's sandboxed `safe_range`). -/
   | range (start stop step : Int)
   /-- A one-shot iterator: what `map`, `select`, `reverse`... return. Printing
@@ -224,6 +230,8 @@ mutual
 def pyStr : Value → Except String String
   | .str s => pure s
   | .undef _ => pure ""
+  | .datetime us off => pure (isoformat us off " ")
+  | .timedelta us => pure (tdStr us)
   | v => pyRepr v
 
 /-- `repr(x)` -/
@@ -244,6 +252,8 @@ def pyRepr : Value → Except String String
   | .domain d => throw s!"printing states.{d} is not supported by HALean"
   | .allStates => throw "printing `states` is not supported by HALean"
   | .func n _ => throw s!"printing the function {n} is not supported by HALean"
+  | .datetime .. => throw "repr() of a datetime is not supported by HALean"
+  | .timedelta us => pure (tdRepr us)
   | .range a b c => pure (if c == 1 then s!"range({a}, {b})" else s!"range({a}, {b}, {c})")
   | .gen k _ => throw s!"printing a {k} object is not supported by HALean"
   | .pyobj c _ => throw s!"printing a {c} object is not supported by HALean"
@@ -276,6 +286,7 @@ def truthy : Value → Bool
   | .list xs | .tuple xs => !xs.isEmpty
   | .dict kvs => !kvs.isEmpty
   | .range a b c => !(rangeItems a b c).isEmpty
+  | .timedelta us => us != 0
   | _ => true
 
 /-- Numbers as Python sees them (`bool` is an `int`). -/
@@ -333,6 +344,10 @@ partial def pyEq : Value → Value → Bool
   | .allStates, .allStates => true
   | .ns a, .ns b => a == b
   | .range a b c, .range x y z => rangeItems a b c == rangeItems x y z
+  -- aware datetimes compare instants; aware vs naive are never equal
+  | .datetime a (some _), .datetime b (some _) => a == b
+  | .datetime a none, .datetime b none => a == b
+  | .timedelta a, .timedelta b => a == b
   | a, b => match a.num?, b.num? with
     | some x, some y => numEq x y
     | _, _ => false
@@ -368,6 +383,8 @@ def typeName : Value → String
   | .allStates => "AllStates"
   | .func _ _ => "function"
   | .ns _ => "Namespace"
+  | .datetime .. => "datetime"
+  | .timedelta _ => "timedelta"
   | .range .. => "range"
   | .gen k _ => k
   | .pyobj c _ => c
@@ -380,6 +397,10 @@ partial def pyLt (a b : Value) : Except String Bool :=
   | .str x, .str y => pure (x < y)
   | .list x, .list y => seqLt x y
   | .tuple x, .tuple y => seqLt x y
+  | .datetime x (some _), .datetime y (some _) => pure (x < y)
+  | .datetime x none, .datetime y none => pure (x < y)
+  | .datetime .., .datetime .. => throw "can't compare offset-naive and offset-aware datetimes"
+  | .timedelta x, .timedelta y => pure (x < y)
   | _, _ => match a.num?, b.num? with
     | some x, some y => pure (numLt x y)
     | _, _ => throw s!"'<' not supported between instances of '{typeName a}' and '{typeName b}'"

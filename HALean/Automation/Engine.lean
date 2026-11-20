@@ -39,7 +39,7 @@ def stateVal : Option EntityState → Template.Value
 
 def forVal : Option Nat → Template.Value
   | none => .none
-  | some _ => .opaque "timedelta"
+  | some ms => .timedelta (ms * 1000)
 
 def boundVal : Option Bound → Template.Value
   | none => .none
@@ -126,7 +126,7 @@ def Engine.condEnv (e : Engine) : CondEnv := { states := e.states, now := e.now 
 
 /-- What trigger templates see: the static `trigger_variables`. -/
 def tmplCtxOf (e : Engine) (ai : Nat) : Template.Ctx :=
-  { states := e.states,
+  { states := e.states, now := e.now,
     vars := ((e.automations.getD ai default).triggerVars.map fun (k, v) => (k, Template.Value.ofJson v)) }
 
 /-! ## Value helpers -/
@@ -410,6 +410,12 @@ def Pattern.matches (p : Pattern) (v : Nat) : Bool :=
   | .every n => v % n == 0
   | .exact n => v == n
 
+/-- HA fires each time-change tracker at a random microsecond in
+`RANDOM_MICROSECOND_MIN..RANDOM_MICROSECOND_MAX` (50 000..500 000) into the
+matching second, and `trigger.now` is the time the callback ran. HALean uses
+the top of that range (what HA's own test harness produces). -/
+def TIME_CHANGE_MICROSECOND : Int := 500000
+
 /-- Time and time-pattern triggers for one whole local second. -/
 def fireTimeTriggers (sec : Nat) (tz : Int) : EM Unit := do
   let inst : Instant := { utc := sec * 1000, tzOffsetSec := tz }
@@ -424,14 +430,14 @@ def fireTimeTriggers (sec : Nat) (tz : Int) : EM Unit := do
           triggerAutomation ai {
             id := t.id, idx := t.idx, platform := "time",
             description := "time",
-            value := triggerValue t "time" [("now", .opaque "datetime"),
+            value := triggerValue t "time" [("now", .datetime (sec * 1000000 + TIME_CHANGE_MICROSECOND) (some tz)),
               ("description", .str "time"), ("entity_id", .none)] }
       | .timePattern ph pm ps =>
         if ph.matches h && pm.matches m && ps.matches s then
           triggerAutomation ai {
             id := t.id, idx := t.idx, platform := "time_pattern",
             description := "time pattern",
-            value := triggerValue t "time_pattern" [("now", .opaque "datetime"),
+            value := triggerValue t "time_pattern" [("now", .datetime (sec * 1000000 + TIME_CHANGE_MICROSECOND) (some tz)),
               ("description", .str "time pattern")] }
       | _ => pure ()
 

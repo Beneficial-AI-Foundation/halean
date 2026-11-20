@@ -468,3 +468,89 @@ entries:
   status: translated
   notes: trigger_variables must be static (HA renders them limited)
   hash: 25c556f4d61cb7e3
+- python: helpers/template/extensions/datetime.py::DateTimeExtension.now
+  lean:
+  - HALean.Template.callV
+  status: translated
+  notes: the engine's clock; rejected in template triggers (HA re-renders those on a timer)
+  hash: 8c9d33dbc1a0e2ca
+- python: helpers/template/extensions/datetime.py::DateTimeExtension.utcnow
+  lean:
+  - HALean.Template.callV
+  status: translated
+  hash: c3d062546fae06cc
+- python: helpers/template/extensions/datetime.py::DateTimeExtension.today_at
+  lean:
+  - HALean.Template.callV
+  - HALean.Template.parseTime
+  status: translated
+  hash: caf3c0f1287a6de0
+- python: helpers/template/extensions/datetime.py::DateTimeExtension.as_timestamp
+  lean:
+  - HALean.Template.callV
+  - HALean.Template.timestampOf
+  status: translated
+  notes: naive datetimes (system time zone) are errors
+  hash: 45cbfc21353d16e1
+- python: helpers/template/extensions/datetime.py::DateTimeExtension.as_datetime
+  lean:
+  - HALean.Template.callV
+  - HALean.Template.utcFromTimestamp
+  status: translated
+  hash: 0871256a07cec3d0
+- python: helpers/template/extensions/datetime.py::DateTimeExtension.as_local
+  lean:
+  - HALean.Template.asLocal
+  status: translated
+  notes: 'uses the current UTC offset: off by the DST difference for instants across a DST change'
+  hash: 38b3f2db39106910
+- python: helpers/template/extensions/datetime.py::DateTimeExtension.timestamp_custom
+  lean:
+  - HALean.Template.callV
+  - HALean.Template.strftime
+  status: translated
+  notes: glibc strftime in the C locale; %Z and unlisted directives are errors
+  hash: fd7c68af59d39103
+- python: helpers/template/extensions/datetime.py::DateTimeExtension.timestamp_local
+  lean:
+  - HALean.Template.callV
+  status: translated
+  hash: 12d3d5006d808b85
+- python: helpers/template/extensions/datetime.py::DateTimeExtension.timestamp_utc
+  lean:
+  - HALean.Template.callV
+  status: translated
+  hash: 4945cf0243379faf
+- python: util/dt.py::parse_datetime
+  lean:
+  - HALean.Template.parseDatetime
+  status: translated
+  notes: DATETIME_RE translated; strings only ciso8601 would accept are errors
+  hash: dbd0af9665451de8
+- python: util/dt.py::parse_time
+  lean:
+  - HALean.Template.parseTime
+  status: translated
+  hash: bcb6031376e0cac5
+- python: util/dt.py::as_local
+  lean:
+  - HALean.Template.asLocal
+  status: translated
+  hash: b18e2c5d9add66cb
+- python: util/dt.py::start_of_local_day
+  lean:
+  - HALean.Template.callV
+  status: translated
+  hash: 7bc33bebe33bb820
+- python: util/dt.py::as_timestamp
+  lean:
+  - HALean.Template.timestampOf
+  status: translated
+  hash: ecbc437a303532ca
+- python: helpers/event.py::async_track_utc_time_change
+  lean:
+  - HALean.Automation.TIME_CHANGE_MICROSECOND
+  status: translated
+  notes: HA picks a random 50-500 ms offset per tracker; HALean uses 500 ms for trigger.now and runs at
+    the whole-second tick
+  hash: 30ef42fef2de827b

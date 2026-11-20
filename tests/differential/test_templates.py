@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -21,10 +22,20 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, TemplateError
 from homeassistant.helpers import condition
 from homeassistant.helpers.template import Template
+from homeassistant.util import dt as dt_util
+from freezegun.api import FrozenDateTimeFactory
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 CASES = yaml.safe_load((ROOT / "tests" / "templates" / "cases.yaml").read_text())
 ENGINE = ROOT / ".lake" / "build" / "bin" / "halean-template"
+# The clock for every case: millisecond precision, like the engine's clock.
+# The test instance of HA runs in US/Pacific.
+NOW = datetime(2026, 11, 20, 16, 30, 45, 123000, tzinfo=UTC)
+EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+
+
+def _us(d: datetime) -> int:
+    return (d - EPOCH) // timedelta(microseconds=1)
 
 
 def _typename(v) -> str:
@@ -53,15 +64,23 @@ def _case_id(c: dict) -> str:
 
 
 @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
-async def test_template(hass: HomeAssistant, engine, case: dict) -> None:
+async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+    freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+    states = []
     for s in case.get("states", []):
         hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        st = hass.states.get(s["entity_id"])
+        states.append({**s, "last_changed_us": _us(st.last_changed),
+                       "last_updated_us": _us(st.last_updated)})
     variables = case.get("variables")
     parse = case.get("parse_result", True)
     is_cond = case.get("condition", False)
 
-    lean = engine({"template": case["template"], "states": case.get("states", []),
-                   "variables": variables or {}, "parse_result": parse, "condition": is_cond})
+    lean = engine({"template": case["template"], "states": states,
+                   "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                   "now": _us(dt_util.utcnow()) // 1000,
+                   "tz": int(dt_util.now().utcoffset().total_seconds())})
     if case.get("unsupported"):
         assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
         return

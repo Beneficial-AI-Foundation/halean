@@ -26,6 +26,8 @@ structure Ctx where
   states : States
   /-- Variables passed to the render (`trigger`, ...), innermost first. -/
   vars : List (String × Value) := []
+  /-- The clock, for `now()` (the engine's time, never a real clock). -/
+  now : Instant := { utc := 0 }
 
 inductive Signal where
   | normal | brk | cont
@@ -57,13 +59,22 @@ def tick : R Unit := do
 /-- Globals HALean implements, with HA's semantics. -/
 def GLOBALS : List String :=
   ["states", "is_state", "state_attr", "is_state_attr", "has_value", "float", "int", "bool",
-   "is_number", "iif", "namespace", "dict", "range"]
+   "is_number", "iif", "namespace", "dict", "range",
+   "now", "utcnow", "today_at", "as_timestamp", "as_datetime", "as_local", "timedelta",
+   "timestamp_local", "timestamp_utc", "timestamp_custom"]
+
+/-- Functions whose result depends on the clock. HA re-renders trigger
+templates using them on a timer, which HALean does not model yet, so they
+are rejected in trigger templates. -/
+def TIME_NAMES : List String := ["now", "utcnow", "today_at"]
 
 def FILTERS : List String :=
   ["float", "int", "bool", "is_number", "iif", "has_value", "state_attr", "states", "round",
    "default", "d", "lower", "upper", "capitalize", "title", "trim", "replace", "length", "count",
    "first", "last", "join", "list", "string", "abs", "sum",
-   "map", "select", "reject", "selectattr", "rejectattr", "reverse"]
+   "map", "select", "reject", "selectattr", "rejectattr", "reverse",
+   "as_timestamp", "as_datetime", "as_local", "timestamp_local", "timestamp_utc", "timestamp_custom",
+   "today_at"]
 
 def TESTS : List String :=
   ["defined", "undefined", "none", "number", "string", "boolean", "integer", "float",
@@ -173,7 +184,7 @@ def lookupKV (kvs : List (Value × Value)) (k : Value) : Option Value :=
   (kvs.find? (fun (k', _) => pyEq k' k)).map (·.2)
 
 def STATE_OPAQUE : List String :=
-  ["last_changed", "last_updated", "last_reported", "context", "state_with_unit",
+  ["last_reported", "context", "state_with_unit",
    "format_state", "as_dict", "as_compressed_state", "json_fragment", "expire", "last_changed_timestamp",
    "last_updated_timestamp", "last_reported_timestamp", "as_dict_json", "as_compressed_state_json"]
 
@@ -185,6 +196,10 @@ def stateAttr (s : EntityState) (a : String) : R Value :=
   | "attributes" => pure (Value.ofJson s.attributes)
   | "domain" => pure (.str s.domain)
   | "object_id" => pure (.str ((s.entityId.splitOn ".").getD 1 ""))
+  | "last_changed" => pure (.datetime (s.lastChangedUs.getD (s.lastChanged * 1000)) (some 0))
+  | "last_updated" => pure (match s.lastUpdatedUs with
+      | some u => .datetime u (some 0)
+      | none => .opaque "state.last_updated")
   | "name" =>
     match s.attr? "friendly_name" with
     | some j =>
@@ -230,6 +245,27 @@ def getattrV (ctx : Ctx) (v : Value) (a : String) : R Value := do
     pure ((fields.find? (·.1 == a)).map (·.2) |>.getD (.undef s!"'Namespace' has no attribute '{a}'"))
   | .none => pure (.undef s!"'None' has no attribute '{a}'")
   | .pyobj c fs => pure ((fs.find? (·.1 == a)).map (·.2) |>.getD (.undef s!"'{c}' has no attribute '{a}'"))
+  | .datetime us off =>
+    let c := toCivil (wallOf us off)
+    match a with
+    | "year" => pure (.int c.year)
+    | "month" => pure (.int c.month)
+    | "day" => pure (.int c.day)
+    | "hour" => pure (.int c.hour)
+    | "minute" => pure (.int c.minute)
+    | "second" => pure (.int c.second)
+    | "microsecond" => pure (.int c.micro)
+    | "weekday" | "isoweekday" | "timestamp" | "isoformat" | "strftime" | "replace" =>
+      pure (.func s!"datetime.{a}" (some v))
+    | _ => throw s!"datetime.{a} is not supported by HALean"
+  | .timedelta us =>
+    let (d, sec, u) := tdParts us
+    match a with
+    | "days" => pure (.int d)
+    | "seconds" => pure (.int sec)
+    | "microseconds" => pure (.int u)
+    | "total_seconds" => pure (.func "timedelta.total_seconds" (some v))
+    | _ => throw s!"timedelta.{a} is not supported by HALean"
   | .opaque w => throw s!"{w} values are not supported by HALean"
   | v => throw s!"attribute '{a}' of {typeName v} is not supported by HALean"
 
@@ -331,6 +367,127 @@ def containsV (ctx : Ctx) (c x : Value) : R Bool := do
   | .undef _ => pure false
   | c => do pure ((← iterV ctx c).any (pyEq · x))
 
+/-! ## Dates and times (`helpers/template/extensions/datetime.py`, `util/dt.py`) -/
+
+def Ctx.nowDT (ctx : Ctx) : Value := .datetime (ctx.now.utc * 1000) (some ctx.now.tzOffsetSec)
+
+/-- Round a non-negative fraction half to even. -/
+def roundHalfEven (n d : Nat) : Nat :=
+  let q := n / d
+  let r := n % d
+  if 2 * r > d || (2 * r == d && q % 2 == 1) then q + 1 else q
+
+/-- Exact `x * num / den` for an int or float, as microseconds, rounded half
+to even (Python's timedelta and fromtimestamp rounding). -/
+def scaledUs (x : Value) (num : Nat) (den : Nat := 1) : Option Int :=
+  match x with
+  | .int i => some (if i < 0 then -((roundHalfEven (i.natAbs * num) den : Nat) : Int) else roundHalfEven (i.natAbs * num) den)
+  | .bool b => some (if b then roundHalfEven num den else 0)
+  | .float f =>
+    if !Float.isFinite' f then none else
+    let (neg, n, dd) := floatFrac f
+    let q : Int := roundHalfEven (n * num) (dd * den)
+    some (if neg then -q else q)
+  | _ => none
+
+def checkDate (us : Int) (off : Option Int) : R Value := do
+  let c := toCivil (wallOf us off)
+  if c.year < 1 || c.year > 9999 then throw "OverflowError: date value out of range"
+  pure (.datetime us off)
+
+/-- `datetime.fromtimestamp(value, tz=UTC)`; `none` = TypeError/ValueError. -/
+def utcFromTimestamp (v : Value) : Option Value := do
+  let us ← match v with
+    | .int _ | .bool _ | .float _ => scaledUs v 1000000
+    | _ => none
+  let c := toCivil us
+  if c.year < 1 || c.year > 9999 then none
+  pure (.datetime us (some 0))
+
+/-- `dt_util.as_local` (with the engine's current UTC offset). -/
+def asLocal (ctx : Ctx) (v : Value) : R Value :=
+  match v with
+  | .datetime us (some _) => pure (.datetime us (some ctx.now.tzOffsetSec))
+  | .datetime wall none => pure (.datetime (wall - ctx.now.tzOffsetSec * US_PER_SEC) (some ctx.now.tzOffsetSec))
+  | v => throw s!"as_local expects a datetime, got {typeName v}"
+
+def digitsN (s : String) : Bool := !s.isEmpty && s.all Char.isDigit
+
+/-- `dt_util.parse_datetime`. HA tries the `ciso8601` library first and then
+`DATETIME_RE`; HALean translates the regex. A string that only `ciso8601`
+might accept (it starts like a date) is an error rather than a guess. -/
+def parseDatetime (str : String) : R (Option Value) := do
+  let unsupported : R (Option Value) :=
+    if str.length ≥ 4 && (str.take 4).toString.all Char.isDigit then
+      throw s!"parsing '{str}' as a date/time is not supported by HALean"
+    else pure none
+  -- (?P<year>\d{4})-(?P<month>\d{1,2})-(?P<day>\d{1,2})[T ]...
+  let some sepIdx := (str.toList.findIdx? fun c => c == 'T' || c == ' ') | unsupported
+  let datePart := (str.take sepIdx).toString
+  let rest := (str.drop (sepIdx + 1)).toString
+  let some (y, mo, d) := (match datePart.splitOn "-" with
+      | [a, b, c] => if a.length == 4 && digitsN a && b.length ≤ 2 && digitsN b && c.length ≤ 2 && digitsN c
+          then some (a.toNat!, b.toNat!, c.toNat!) else none
+      | _ => none) | unsupported
+  -- time and zone: split off Z / +hh[:mm] / -hh[:mm]
+  let (timePart, tz) :=
+    if rest.endsWith "Z" then ((rest.dropEnd 1).toString, some "Z")
+    else match rest.toList.findIdx? (fun c => c == '+' || c == '-') with
+      | some i => ((rest.take i).toString, some (rest.drop i).toString)
+      | none => (rest, none)
+  let tparts := timePart.splitOn ":"
+  let small (x : String) := x.length ≥ 1 && x.length ≤ 2 && digitsN x
+  let some (h, mi, sec, micro) := (match tparts with
+      | [a, b] => if small a && small b then some (a.toNat!, b.toNat!, 0, 0) else none
+      | [a, b, c] =>
+        if !(small a && small b) then none else
+        match c.splitOn "." with
+        | [ss] => if small ss then some (a.toNat!, b.toNat!, ss.toNat!, 0) else none
+        | [ss, fr] =>
+          if small ss && fr.length ≥ 1 && fr.length ≤ 12 && digitsN fr then
+            let f6 := (fr.take 6).toString
+            some (a.toNat!, b.toNat!, ss.toNat!, (f6 ++ "".pushn '0' (6 - f6.length)).toNat!)
+          else none
+        | _ => none
+      | _ => none) | unsupported
+  let off : Option (Option Int) := match tz with
+    | none => some none
+    | some "Z" => some (some 0)
+    | some z =>
+      let sign : Int := if z.startsWith "-" then -1 else 1
+      let body := (z.drop 1).toString
+      let parse (hh mm : String) : Option (Option Int) :=
+        if hh.length == 2 && digitsN hh && (mm.isEmpty || (mm.length == 2 && digitsN mm))
+        then some (some (sign * ((hh.toNat! * 3600 + (if mm.isEmpty then 0 else mm.toNat! * 60) : Nat) : Int)))
+        else none
+      match body.splitOn ":" with
+      | [hm] => if hm.length == 4 then parse (hm.take 2).toString (hm.drop 2).toString
+                else if hm.length == 2 then parse hm "" else none
+      | [hh, mm] => parse hh mm
+      | _ => none
+  let some off := off | unsupported
+  let c : Civil := { year := y, month := mo, day := d, hour := h, minute := mi, second := sec, micro }
+  -- `datetime(**kws)` raises ValueError, which every caller catches
+  if c.valid.isSome then return none
+  let wall := fromCivil c
+  pure (some (.datetime (match off with | some o => wall - o * US_PER_SEC | none => wall) off))
+
+/-- `dt_util.parse_time` -/
+def parseTime (s : String) : Option (Nat × Nat × Nat) := do
+  let parts := s.splitOn ":"
+  if parts.length < 2 then none
+  let h ← parseIntStr (parts.getD 0 "")
+  let m ← parseIntStr (parts.getD 1 "")
+  let sec ← if parts.length > 2 then parseIntStr (parts.getD 2 "") else some 0
+  if h < 0 || h > 23 || m < 0 || m > 59 || sec < 0 || sec > 59 then none
+  pure (h.toNat, m.toNat, sec.toNat)
+
+def timestampOf (v : Value) : R Float :=
+  match v with
+  | .datetime us (some _) => pure (ratToFloat (us < 0) us.natAbs 1000000)
+  | .datetime _ none => throw "timestamps of naive datetimes (system time zone) are not supported by HALean"
+  | v => throw s!"{typeName v} has no timestamp"
+
 /-! ## Arithmetic -/
 
 def fracOf (n : Num) : Bool × Nat × Nat :=
@@ -362,7 +519,50 @@ def arith (op : String) (a b : Value) : R Value := do
   if let .opaque w := a then throw s!"{w} values are not supported by HALean"
   if let .opaque w := b then throw s!"{w} values are not supported by HALean"
   let tyErr : R Value := throw s!"unsupported operand type(s) for {op}: '{typeName a}' and '{typeName b}'"
+  -- datetime / timedelta arithmetic (Python's rules and rounding)
+  let tdScale (us : Int) (x : Value) (divide : Bool) : R Value := do
+    match x with
+    | .int _ | .bool _ =>
+      let k : Int := match x with | .int i => i | .bool b => if b then 1 else 0 | _ => 0
+      if divide then
+        if k == 0 then throw "ZeroDivisionError: division by zero"
+        let q : Int := roundHalfEven us.natAbs k.natAbs
+        return .timedelta (if (us < 0) != (k < 0) then -q else q)
+      else return .timedelta (us * k)
+    | .float f =>
+      if !Float.isFinite' f then throw "ValueError: cannot convert float NaN or infinity to integer"
+      let (neg, n, d) := floatFrac f
+      if divide then
+        if n == 0 then throw "ZeroDivisionError: division by zero"
+        let q : Int := roundHalfEven (us.natAbs * d) n
+        return .timedelta (if (us < 0) != neg then -q else q)
+      else
+        let q : Int := roundHalfEven (us.natAbs * n) d
+        return .timedelta (if (us < 0) != neg then -q else q)
+    | _ => tyErr
   match op, a, b with
+  | "+", .datetime us off, .timedelta d | "+", .timedelta d, .datetime us off => checkDate (us + d) off
+  | "-", .datetime us off, .timedelta d => checkDate (us - d) off
+  | "-", .datetime x (some _), .datetime y (some _) => return .timedelta (x - y)
+  | "-", .datetime x none, .datetime y none => return .timedelta (x - y)
+  | "-", .datetime .., .datetime .. => throw "TypeError: can't subtract offset-naive and offset-aware datetimes"
+  | "+", .timedelta x, .timedelta y => return .timedelta (x + y)
+  | "-", .timedelta x, .timedelta y => return .timedelta (x - y)
+  | "*", .timedelta x, k | "*", k, .timedelta x => tdScale x k false
+  | "/", .timedelta x, .timedelta y =>
+    if y == 0 then throw "ZeroDivisionError: division by zero"
+    return .float (ratToFloat ((x < 0) != (y < 0)) x.natAbs y.natAbs)
+  | "/", .timedelta x, k => tdScale x k true
+  | "//", .timedelta x, .timedelta y =>
+    if y == 0 then throw "ZeroDivisionError: integer division or modulo by zero"
+    return .int (Int.fdiv x y)
+  | "//", .timedelta x, .int k =>
+    if k == 0 then throw "ZeroDivisionError: integer division or modulo by zero"
+    return .timedelta (Int.fdiv x k)
+  | "%", .timedelta x, .timedelta y =>
+    if y == 0 then throw "ZeroDivisionError: integer division or modulo by zero"
+    return .timedelta (Int.fmod x y)
+  | _, .datetime .., _ | _, _, .datetime .. | _, .timedelta _, _ | _, _, .timedelta _ => tyErr
   | "+", .str x, .str y => return .str (x ++ y)
   | "+", .list x, .list y => return .list (x ++ y)
   | "+", .tuple x, .tuple y => return .tuple (x ++ y)
@@ -683,12 +883,13 @@ partial def eval (ctx : Ctx) (e : Expr) : R Value := do
     | .int i => pure (.int (-i))
     | .bool b => pure (.int (if b then -1 else 0))
     | .float f => pure (.float (-f))
+    | .timedelta us => pure (.timedelta (-us))
     | .undef _ => undefErr v
     | v => throw s!"bad operand type for unary -: '{typeName v}'"
   | .pos x =>
     let v ← eval ctx x
     match v with
-    | .int _ | .float _ => pure v
+    | .int _ | .float _ | .timedelta _ => pure v
     | .bool b => pure (.int (if b then 1 else 0))
     | .undef _ => undefErr v
     | v => throw s!"bad operand type for unary +: '{typeName v}'"
@@ -772,6 +973,145 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
       let s ← get
       set { s with heap := s.heap.push a.kw }
       pure (.ns s.heap.size)
+    | "now", _ => do a.check n []; pure ctx.nowDT
+    | "utcnow", _ => do a.check n []; pure (.datetime (ctx.now.utc * 1000) (some 0))
+    | "today_at", _ => do
+      a.check n ["time_str"]
+      -- `start_of_local_day()`, then the parsed time of day
+      let off := ctx.now.tzOffsetSec
+      let wall := ctx.now.utc * 1000 + off * US_PER_SEC
+      let midnight := Int.fdiv wall US_PER_DAY * US_PER_DAY
+      let ts := (a.get 0 "time_str").getD (.str "")
+      if !truthy ts then return .datetime (midnight - off * US_PER_SEC) (some off)
+      let tstr ← strOf ts
+      match parseTime tstr with
+      | some (h, m, sec) =>
+        let w := midnight + ((h * 3600 + m * 60 + sec : Nat) : Int) * US_PER_SEC
+        pure (.datetime (w - off * US_PER_SEC) (some off))
+      | none => throw s!"ValueError: could not convert {typeName ts} to datetime: '{tstr}'"
+    | "timedelta", _ => do
+      a.check n ["days", "seconds", "microseconds", "milliseconds", "minutes", "hours", "weeks"]
+      let factors : List (String × Nat) := [("days", 86400000000), ("seconds", 1000000),
+        ("microseconds", 1), ("milliseconds", 1000), ("minutes", 60000000), ("hours", 3600000000),
+        ("weeks", 604800000000)]
+      -- exact sum of all arguments, rounded half to even once at the end
+      let mut num : Int := 0
+      let mut den : Nat := 1
+      for ((k, f), i) in factors.zipIdx do
+        match a.get i k with
+        | none => pure ()
+        | some (.int x) => num := num + x * f * den
+        | some (.bool b) => num := num + (if b then (f : Int) else 0) * den
+        | some (.float x) =>
+          if !Float.isFinite' x then throw "ValueError: cannot convert float NaN or infinity to integer"
+          let (neg, xn, xd) := floatFrac x
+          let term : Int := (if neg then -(xn : Int) else xn) * f
+          num := num * xd + term * den
+          den := den * xd
+        | some v => throw s!"TypeError: unsupported type for timedelta {k} component: {typeName v}"
+      let q : Int := roundHalfEven num.natAbs den
+      let us := if num < 0 then -q else q
+      if us.natAbs ≥ 999999999 * 86400000000 then throw "OverflowError: days out of range"
+      pure (.timedelta us)
+    | "as_timestamp", _ => do
+      a.check n ["value", "default"]
+      let v := (a.get 0 "value").getD .none
+      let fail : R Value := match a.get 1 "default" with
+        | some d => pure d
+        | none => noDefault "as_timestamp" v
+      match v with
+      | .datetime .. => pure (.float (← timestampOf v))
+      | v =>
+        match ← parseDatetime (← strOf v) with
+        | some d => pure (.float (← timestampOf d))
+        | none => fail
+    | "as_datetime", _ => do
+      a.check n ["value", "default"]
+      let v := (a.get 0 "value").getD .none
+      match v with
+      | .datetime .. => pure v
+      | v =>
+        let viaFloat : Option Float := match v with
+          | .str s => parseFloatStr s
+          | .int _ | .bool _ | .float _ => (match v with
+              | .int i => some (intToFloat i) | .bool b => some (if b then 1.0 else 0.0)
+              | .float f => some f | _ => none)
+          | _ => none
+        match viaFloat with
+        | some f => match utcFromTimestamp (.float f) with
+          | some d => pure d
+          | none => throw "ValueError: year is out of range"
+        | none =>
+          let parsed ← match v with
+            | .str s => parseDatetime s
+            | _ => pure none
+          match parsed, a.get 1 "default" with
+          | some d, _ => pure d
+          | none, some d => pure d
+          | none, none => match v with
+            | .str _ => pure .none
+            | v => noDefault "as_datetime" v
+    | "as_local", _ => do
+      a.check n ["value"]
+      asLocal ctx ((a.get 0 "value").getD .none)
+    | "timestamp_local" , _ | "timestamp_utc", _ | "timestamp_custom", _ => do
+      let names := if n == "timestamp_custom" then ["value", "date_format", "local", "default"] else ["value", "default"]
+      a.check n names
+      let v := (a.get 0 "value").getD .none
+      let dflt := a.get (names.length - 1) "default"
+      match utcFromTimestamp v with
+      | none => match dflt with
+        | some d => pure d
+        | none => noDefault n v
+      | some d =>
+        if n == "timestamp_utc" then
+          let .datetime us off := d | pure d
+          pure (.str (isoformat us off))
+        else
+          let isLocal := if n == "timestamp_local" then true else truthy ((a.get 2 "local").getD (.bool true))
+          let d ← if isLocal then asLocal ctx d else pure d
+          let .datetime us off := d | pure d
+          if n == "timestamp_local" then pure (.str (isoformat us off))
+          else
+            let fmt ← strOf ((a.get 1 "date_format").getD (.str "%Y-%m-%d"))
+            match strftime us off fmt with
+            | .ok r => pure (.str r)
+            | .error e => throw e
+    | "datetime.weekday", some (.datetime us off) => pure (.int (weekdayOf (wallOf us off)))
+    | "datetime.isoweekday", some (.datetime us off) => pure (.int (weekdayOf (wallOf us off) + 1))
+    | "datetime.timestamp", some d => pure (.float (← timestampOf d))
+    | "datetime.isoformat", some (.datetime us off) => do
+      a.check "isoformat" ["sep"]
+      pure (.str (isoformat us off (← strOf ((a.get 0 "sep").getD (.str "T")))))
+    | "datetime.strftime", some (.datetime us off) => do
+      let some f := a.get 0 "format" | throw "strftime() missing required argument 'format'"
+      match strftime us off (← strOf f) with
+      | .ok r => pure (.str r)
+      | .error e => throw e
+    | "datetime.replace", some (.datetime us off) => do
+      if !a.pos.isEmpty then throw "replace() with positional arguments is not supported by HALean"
+      let c := toCivil (wallOf us off)
+      let mut c := c
+      for (k, v) in a.kw do
+        let i ← match v with
+          | .int i => pure i
+          | v => throw s!"TypeError: '{typeName v}' object cannot be interpreted as an integer"
+        let nn := i.toNat
+        if i < 0 && k != "year" then throw s!"ValueError: {k} must be non-negative"
+        match k with
+        | "year" => c := { c with year := i }
+        | "month" => c := { c with month := nn }
+        | "day" => c := { c with day := nn }
+        | "hour" => c := { c with hour := nn }
+        | "minute" => c := { c with minute := nn }
+        | "second" => c := { c with second := nn }
+        | "microsecond" => c := { c with micro := nn }
+        | k => throw s!"replace({k}=...) is not supported by HALean"
+      if let some e := c.valid then throw s!"ValueError: {e}"
+      let wall := fromCivil c
+      pure (.datetime (match off with | some o => wall - o * US_PER_SEC | none => wall) off)
+    | "timedelta.total_seconds", some (.timedelta us) =>
+      pure (.float (ratToFloat (us < 0) us.natAbs 1000000))
     | "range", _ => do
       -- jinja2.sandbox.safe_range
       if !a.kw.isEmpty then throw "range() takes no keyword arguments"
@@ -912,6 +1252,7 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
     | .int i => pure (.int i.natAbs)
     | .bool b => pure (.int (if b then 1 else 0))
     | .float f => pure (.float f.abs)
+    | .timedelta us => pure (.timedelta us.natAbs)
     | .undef _ => undefErr v
     | v => throw s!"bad operand type for abs(): '{typeName v}'"
   | "sum" => do
@@ -919,6 +1260,9 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
     let mut acc := (arg 1 "start").getD (.int 0)
     for x in ← iterV ctx v do acc ← arith "+" acc x
     pure acc
+  | "as_timestamp" | "as_datetime" | "as_local" | "timestamp_local" | "timestamp_utc"
+  | "timestamp_custom" | "today_at" =>
+    callV ctx (.func n none) { pos := v :: a.pos, kw := a.kw }
   | "reverse" =>
     match v with
     | .str s => pure (.str (String.ofList s.toList.reverse))
@@ -1148,12 +1492,16 @@ where
 
 /-- Reject templates that use names, filters or tests HALean does not
 implement. `vars` are the variables the caller passes (e.g. `trigger`). -/
-def check (t : Tmpl) (vars : List String) : Except String Unit := do
+def check (t : Tmpl) (vars : List String) (allowTime : Bool := true) : Except String Unit := do
   let parts := t.nodes.map nodeNames
   let used := parts.flatMap (·.1.1)
   let filters := parts.flatMap (·.1.2.1)
   let tests := parts.flatMap (·.1.2.2)
   let bound := parts.flatMap (·.2)
+  if !allowTime then
+    for n in used ++ filters do
+      if TIME_NAMES.contains n then
+        throw s!"'{n}' in a trigger template is not supported by HALean yet (HA re-renders it on a timer)"
   for n in used do
     if !(GLOBALS.contains n || vars.contains n || bound.contains n
          || ["true", "false", "none", "True", "False", "None"].contains n) then

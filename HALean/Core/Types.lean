@@ -32,6 +32,10 @@ structure EntityState where
   state : String
   attributes : Json := Json.mkObj []
   lastChanged : Millis := 0
+  /-- `last_changed` / `last_updated` in microseconds, as HA has them (the
+  shell sends them when it can; templates print them exactly). -/
+  lastChangedUs : Option Int := none
+  lastUpdatedUs : Option Int := none
   deriving Repr, Inhabited, BEq
 
 def EntityState.domain (s : EntityState) : String :=

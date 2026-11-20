@@ -22,12 +22,19 @@ def getInt (j : Json) (k : String) (d : Int) : Int :=
 def decodeInstant (j : Json) : Except String Instant := do
   return { utc := ← getNat j "now", tzOffsetSec := getInt j "tz" 0 }
 
+def optInt (j : Json) (k : String) : Option Int :=
+  match field? j k with
+  | some (.num n) => if n.exponent == 0 then some n.mantissa else none
+  | _ => none
+
 def decodeEntityState (j : Json) : Except String EntityState := do
   let some eid := str? j "entity_id" | throw "state without entity_id"
   let some st := str? j "state" | throw "state without state"
   return { entityId := eid, state := st,
            attributes := (field? j "attributes").getD (Json.mkObj []),
-           lastChanged := (getNat j "last_changed").toOption.getD 0 }
+           lastChanged := (getNat j "last_changed").toOption.getD 0,
+           lastChangedUs := optInt j "last_changed_us",
+           lastUpdatedUs := optInt j "last_updated_us" }
 
 def decodeOptState (j : Json) (k : String) : Except String (Option EntityState) :=
   match field? j k with

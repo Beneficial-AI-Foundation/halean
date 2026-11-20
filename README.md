@@ -117,7 +117,8 @@ git clone --depth 1 --filter=blob:none --sparse --branch 2026.10.4 \
   https://github.com/home-assistant/core upstream/ha-core
 git -C upstream/ha-core sparse-checkout set --no-cone /homeassistant/components/automation/ \
   /homeassistant/helpers/ /homeassistant/components/homeassistant/triggers/ \
-  /homeassistant/const.py /homeassistant/core.py /homeassistant/components/template/trigger.py
+  /homeassistant/const.py /homeassistant/core.py /homeassistant/components/template/trigger.py \
+  /homeassistant/util/dt.py
 ```
 
 ## Tracking upstream
@@ -158,7 +159,7 @@ doesn't run twice.
 
 | Area | Supported | Rejected at load, stays in HA |
 |---|---|---|
-| Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, static `for`), `time` (fixed `at`, weekday), `time_pattern`, `event` (flat `event_data`) | templated `for`, `sun`, `zone`, `homeassistant`, `mqtt`, `webhook`, device triggers, entity-based or offset `time`, `trigger_variables` |
+| Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, static `for`; no `now()`), `time` (fixed `at`, weekday), `time_pattern`, `event` (flat `event_data`) | templated `for`, `sun`, `zone`, `homeassistant`, `mqtt`, `webhook`, device triggers, entity-based or offset `time` |
 | Conditions | `and`/`or`/`not` (incl. shorthand), `state` (match any/all, `for`, attribute, `input_*` references), `numeric_state` (incl. `value_template`), `time` (fixed, `input_datetime`, `time` entities, midnight crossing, weekday), `trigger`, `template` (incl. the `"{{ ... }}"` shorthand), `enabled: false` | platform conditions, timestamp-sensor bounds (error) |
 | Automations | automation `variables` (rendered in order before conditions) and static `trigger_variables` | `this`, templated `trigger_variables`, per-trigger `variables` |
 | Actions | service call (blocking; templates in `data` and `target`), `delay`, `condition`, `choose`, `if`/`else`, `repeat` count (incl. templated)/for_each/while/until with the `repeat` variable, `variables`, `stop` (+`error`), `event` (templates in `event_data`), `sequence`, `continue_on_error`, static `enabled` | templated action names, a whole-`data` template, `response_variable`, `wait_template`, `wait_for_trigger`, `parallel`, device actions, `scene` |
@@ -173,10 +174,10 @@ go through HA's `_parse_result` (`"42"` becomes `42`, `"[1, 2]"` becomes a list,
 
 | Supported | Rejected at load, stays in HA |
 |---|---|
-| `{{ }}`, `{% if/elif/else %}`, `{% for %}` (with `if`, `else`, `loop.*`, `break`/`continue`), `{% set %}` (incl. tuples), `namespace()`, comments, `-` whitespace control; all operators, chained comparisons, `x if c else y`, slices; `states(...)`, `states.domain.entity` / `states['...']`, iterating `states` / `states.light` (in HA's insertion order), `range` (`state`, `attributes`, `name`, `domain`, `object_id`, `entity_id`), `is_state`, `state_attr`, `is_state_attr`, `has_value`, `float`, `int`, `bool`, `is_number`, `iif`, `dict`; filters `round`, `default`, `lower`, `upper`, `title`, `capitalize`, `trim`, `replace`, `length`, `first`, `last`, `join`, `list`, `string`, `abs`, `sum`, `map` (filter or `attribute=`), `select`, `reject`, `selectattr`, `rejectattr`, `reverse`; common tests; str methods `split`, `strip`, `replace`, `startswith`, ...; the `trigger` variable for every supported trigger platform | any other global, filter or test (`now()`, `this`, `expand`, `sort`, `min`/`max`, ...), macros, `include`, `raw` |
+| `{{ }}`, `{% if/elif/else %}`, `{% for %}` (with `if`, `else`, `loop.*`, `break`/`continue`), `{% set %}` (incl. tuples), `namespace()`, comments, `-` whitespace control; all operators, chained comparisons, `x if c else y`, slices; `states(...)`, `states.domain.entity` / `states['...']`, iterating `states` / `states.light` (in HA's insertion order), `range` (`state`, `attributes`, `name`, `domain`, `object_id`, `entity_id`), `is_state`, `state_attr`, `is_state_attr`, `has_value`, `float`, `int`, `bool`, `is_number`, `iif`, `dict`; filters `round`, `default`, `lower`, `upper`, `title`, `capitalize`, `trim`, `replace`, `length`, `first`, `last`, `join`, `list`, `string`, `abs`, `sum`, `map` (filter or `attribute=`), `select`, `reject`, `selectattr`, `rejectattr`, `reverse`; dates and times: `now()`, `utcnow()`, `today_at`, `timedelta`, `as_timestamp`, `as_datetime`, `as_local`, `timestamp_local`/`_utc`/`_custom`, datetime attributes, `strftime`, `replace`, `isoformat`, datetime/timedelta arithmetic, `last_changed`/`last_updated`, `trigger.now`, `trigger.for`; common tests; str methods `split`, `strip`, `replace`, `startswith`, ...; the `trigger` variable for every supported trigger platform | any other global, filter or test (`this`, `expand`, `sort`, `min`/`max`, `relative_time`, `strptime`, ...), macros, `include`, `raw` |
 
-Some values are reachable but not modelled yet (`last_changed`, `trigger.for`,
-`trigger.now`). Printing a generator (`{{ xs | map('int') }}`) is also an error
+Some values are reachable but not modelled yet (`last_reported`, `tzinfo`,
+`strftime('%Z')`). Printing a generator (`{{ xs | map('int') }}`) is also an error
 here, where HA prints `<generator object ...>`. Using them is a render error in HALean,
 so it is never a silent wrong answer. Case-changing filters on non-ASCII text are
 also errors for now.
@@ -207,13 +208,21 @@ evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 
 ## Known gaps and deviations
 
-* **The translation is tested against Python, not proven equivalent.** All 23
+* **The translation is tested against Python, not proven equivalent.** All 24
   differential scenarios and all template cases match real HA at the pinned
   release, but they cover only the paths they exercise.
 * Lean's JSON objects are sorted by key. Where HA depends on the written
   order (`variables`), the shell sends ordered `[key, value]` lists
   (`bridge/protocol.py`). Elsewhere a dict printed by a template, such as
   `{{ trigger.event.data }}`, lists its keys sorted, not in arrival order.
+* Time zones: the engine knows the current UTC offset, not the zone
+  database. `as_local` and friends use that offset, so instants on the other
+  side of a DST change are off by the DST difference. Zone names
+  (`strftime('%Z')`, `tzinfo`) are errors.
+* HA fires time and time-pattern triggers at a random 50-500 ms into the
+  second; `trigger.now` in HALean is 500 ms in, but the run starts at the
+  whole-second tick, so `now()` there can be up to 0.5 s earlier than
+  `trigger.now`.
 * Floats sent on as JSON lose their trailing `.0` (`20.0` arrives as `20`).
   HA's own service schemas coerce these, and Python compares them as equal.
 * Callbacks run in a fixed order (automations in config order, then triggers in
@@ -235,9 +244,9 @@ Properties worth proving or model-checking are collected in
 [PROPERTIES.md](PROPERTIES.md).
 
 
-1. Templates, part 4: `now()` and datetimes (with the tracker's time-based
+1. Templates, part 5: `now()` in template triggers (the tracker's time-based
    re-renders and rate limits), `this`, `expand`, `sort`, `min`/`max`,
-   templated `for:`.
+   `strptime`, `relative_time`, templated `for:`.
 2. Generate differential scenarios automatically (random automations within the supported
    subset plus random event sequences) to cover far more paths than hand-written ones.
 3. Make the run loop total and prove run-level properties: a `single` automation never has

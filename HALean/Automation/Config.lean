@@ -401,7 +401,7 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := []) : D (Option T
       let t ← match Template.compile src with
         | .ok t => pure t
         | .error e => throw s!"invalid template ({e}): {src}"
-      match Template.check t tnm with
+      match Template.check t tnm (allowTime := false) with
       | .ok () => pure ()
       | .error e => throw e
       pure <| TriggerKind.template t (← optDuration j "for")

@@ -28,7 +28,7 @@ structure CondEnv where
   vars : List (String × Template.Value) := []
 
 def CondEnv.tmplCtx (env : CondEnv) : Template.Ctx :=
-  { states := env.states, vars := env.vars }
+  { states := env.states, vars := env.vars, now := env.now }
 
 /-- Set a variable: replace it where it is, or add it (`ScriptRunVariables`
 assigns to the scope that defines it, else to the top level). -/
