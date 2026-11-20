@@ -1,15 +1,35 @@
 # Automations outside the supported subset are reported, not approximated
 differential: false
-differential_reason: "HA runs template automations; this scenario only checks that the engine refuses them"
+differential_reason: "HA runs these automations; this scenario only checks that the engine refuses them"
 automations:
-  - id: tpl
-    triggers: [{trigger: template, value_template: "{{ true }}", for: "{{ 5 }}"}]
+  - id: tpl          # `this` when triggers attach depends on HA's startup phase
+    triggers: [{trigger: template, value_template: "{{ this is none }}"}]
     actions: []
-  - id: tpl_data
+  - id: tpl_for      # same for a templated `for:`
+    triggers: [{trigger: state, entity_id: sensor.x, for: "{{ this.attributes.current }}"}]
+    actions: []
+  - id: opaque       # loads, but the automation entity's timestamps and context are errors
+    alias: opaque
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - event: never_data
+        event_data: {changed: "{{ this.last_changed }}"}
+  - id: tpl_data     # the entity id of a non-ASCII alias needs transliteration
+    alias: Küche
     triggers: [{trigger: event, event_type: go}]
     actions: [{action: notify.me, data: {message: "{{ this.state }}"}}]
+  - id: after        # its entity id could collide with the one above
+    alias: after
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: notify.me, data: {message: "{{ this.entity_id }}"}}]
 expect_init:
   - {type: unsupported, id: tpl}
+  - {type: unsupported, id: tpl_for}
   - {type: unsupported, id: tpl_data}
+  - {type: unsupported, id: after}
 steps:
-  - {at: 1, send: {type: event, event_type: go}}
+  - {at: 1, send: {type: event, event_type: go}, logs: true,
+     expect: [{type: automation_triggered, id: opaque},
+              {type: log, level: error,
+               message: "Error rendering event data template: this.last_changed values are not supported by HALean"},
+              {type: fire_event, event_type: never_data, data: {}}]}   # HA fires it without the data

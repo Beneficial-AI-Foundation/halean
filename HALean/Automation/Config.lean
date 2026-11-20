@@ -68,21 +68,29 @@ inductive Pattern where
   | exact (n : Nat)
   deriving Repr, Inhabited, BEq
 
+/-- A trigger's `for:` (`cv.positive_time_period_template`): a static
+period, or a template string / a mapping holding templates, rendered when
+the trigger's condition is met. -/
+inductive ForPeriod where
+  | fixed (ms : Nat)
+  | tmpl (c : Complex)
+  deriving Repr, Inhabited
+
 inductive TriggerKind where
   /-- `matchAll` is true iff none of from/not_from/to/not_to was *present*
   in the config (`to: ~` is present-but-null and so is not match-all). -/
   | state (entityIds : List String) (fromM toM : StateMatch) (matchAll : Bool)
-      (attr : Option String) (forMs : Option Nat)
+      (attr : Option String) (forP : Option ForPeriod)
       (fromKeyOnly : Bool)  -- `from` present and `to` absent (for `_check_same_state`)
   | numericState (entityIds : List String) (below above : Option Bound)
-      (attr : Option String) (forMs : Option Nat) (valueTemplate : Option Template.Tmpl := none)
+      (attr : Option String) (forP : Option ForPeriod) (valueTemplate : Option Template.Tmpl := none)
   /-- Fixed local times of day, in whole seconds. -/
   | time (ats : List Nat) (weekday : Option (List String))
   | timePattern (hours minutes seconds : Pattern)
   /-- Flat `event_data` only: every pair must be present and equal. -/
   | event (eventTypes : List String) (data : List (String × Json))
-  /-- `template` trigger (`components/template/trigger.py`), static `for:` only. -/
-  | template (t : Template.Tmpl) (forMs : Option Nat)
+  /-- `template` trigger (`components/template/trigger.py`). -/
+  | template (t : Template.Tmpl) (forP : Option ForPeriod)
   deriving Repr, Inhabited
 
 structure Trigger where
@@ -131,6 +139,11 @@ structure Automation where
   variables : List (String × Complex) := []
   /-- `trigger_variables` (static only), seen by trigger templates. -/
   triggerVars : List (String × Json) := []
+  /-- The automation entity's `entity_id`, when HALean can derive it exactly
+  (`none` makes templates using `this` a load-time error). -/
+  entityId : Option String := none
+  /-- `unique_id`: the configured `id`, if any (the `id` attribute). -/
+  uniqueId : Option String := none
   deriving Repr, Inhabited
 
 /-! ## Decoding -/
@@ -186,7 +199,7 @@ def durationMs (v : Json) : D Nat := do
   match v with
   | .num n => ofSec n.toFloat
   | .str s =>
-    if s.contains '{' then throw s!"templated durations are not supported: {s}" else
+    if Template.isTemplateString s then throw s!"templated durations are not supported here: {s}" else
     let (neg, s) := if s.startsWith "-" then (true, s.dropS 1) else (false, s)
     if neg then throw "negative time period" else
     let parts := s.splitOn ":"
@@ -244,8 +257,9 @@ def weekday? (j : Json) : D (Option (List String)) :=
   | none => pure none
   | some v => some <$> strList v
 
-/-- The variables HALean passes to templates. Templates using anything else
-(`this`, `now()`, ...) are rejected at load time. -/
+/-- The variables HALean passes to every template. Run templates also see
+`repeat`, the automation's variables and `this` (`decodeAutomation`);
+templates using anything else are rejected at load time. -/
 def TEMPLATE_VARS : List String := ["trigger"]
 
 def compileTemplate (s : String) (vars : List String := TEMPLATE_VARS) : D Template.Tmpl := do
@@ -271,6 +285,41 @@ def valueTemplate? (j : Json) (nm : List String := TEMPLATE_VARS) : D (Option Te
   | none => pure none
   | some (.str s) => some <$> compileTemplate s (nm ++ ["state"])
   | some v => throw s!"invalid value_template: {v.compress}"
+
+partial def Complex.hasTemplate' : Complex → Bool
+  | .lit _ => false
+  | .tmpl _ => true
+  | .arr xs => xs.any Complex.hasTemplate'
+  | .obj kvs => kvs.any fun (k, v) => k.hasTemplate' || v.hasTemplate'
+
+/-- `cv.positive_time_period_template`: `positive_time_period`, else
+`dynamic_template`, else `_positive_time_period_template_complex` (a non-empty
+mapping whose static keys are period units and whose static values are
+non-negative numbers; it is kept as `template_complex`). Template names are
+the trigger-time variables `nm`. -/
+def forPeriod? (j : Json) (k : String) (nm : List String) : D (Option ForPeriod) := do
+  match field? j k with
+  | none => pure none
+  | some (.str s) =>
+    if Template.isTemplateString s then return some (.tmpl (.tmpl (← compileTemplate s nm)))
+    return some (.fixed (← durationMs (.str s)))
+  | some v@(.obj kvs) =>
+    let c ← decodeComplex v nm
+    if !c.hasTemplate' then return some (.fixed (← durationMs v))
+    for (key, el) in kvs.toList do
+      if !Template.isTemplateString key &&
+          !["days", "hours", "minutes", "seconds", "milliseconds"].contains key then
+        throw s!"invalid time period key '{key}'"
+      let isTmpl := match el with | .str e => Template.isTemplateString e | _ => false
+      if !isTmpl then
+        let f := match el with
+          | .bool b => some (if b then 1.0 else 0.0)
+          | _ => jsonNumToFloat el
+        match f with
+        | some f => if f < 0 || f.isNaN then throw s!"invalid time period {k}: {el.compress}"
+        | none => throw s!"invalid time period {k}: {el.compress}"
+    return some (.tmpl c)
+  | some v => return some (.fixed (← durationMs v))
 
 /-- A mapping whose order matters (`variables`). Lean's `Json` objects are
 sorted by key, so the shell sends these as `[[key, value], ...]`; a plain
@@ -342,14 +391,14 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := []) : D (Option T
       let ids ← entityIds j
       let keys := ["from", "not_from", "to", "not_to"]
       pure <| TriggerKind.state ids (stateMatch j "from" "not_from") (stateMatch j "to" "not_to")
-        (keys.all fun k => !has j k) (str? j "attribute") (← optDuration j "for")
+        (keys.all fun k => !has j k) (str? j "attribute") (← forPeriod? j "for" (tnm ++ ["trigger"]))
         (has j "from" && !has j "to")
     | "numeric_state" => do
       let below ← bound? j "below"
       let above ← bound? j "above"
       if below.isNone && above.isNone then throw "numeric_state needs below or above"
       pure <| TriggerKind.numericState (← entityIds j) below above (str? j "attribute")
-        (← optDuration j "for") (← valueTemplate? j (tnm ++ ["trigger"]))
+        (← forPeriod? j "for" (tnm ++ ["trigger"])) (← valueTemplate? j (tnm ++ ["trigger"]))
     | "time" => do
       let ats ← (ensureList ((field? j "at").getD .null)).mapM fun v => match v with
         | .str s => match timeOfDaySec s with
@@ -404,7 +453,7 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := []) : D (Option T
       match Template.check t tnm with
       | .ok () => pure ()
       | .error e => throw e
-      pure <| TriggerKind.template t (← optDuration j "for")
+      pure <| TriggerKind.template t (← forPeriod? j "for" (tnm ++ ["trigger"]))
     | p => throw s!"trigger platform '{p}' is not supported"
   return some { id, idx, alias := str? j "alias", kind }
 
@@ -491,15 +540,78 @@ partial def actionVariableNames (j : Json) : List String :=
     here ++ kvs.toList.flatMap fun (k, v) => if k == "variables" then [] else actionVariableNames v
   | _ => []
 
-partial def Complex.hasTemplate' : Complex → Bool
-  | .lit _ => false
-  | .tmpl _ => true
-  | .arr xs => xs.any Complex.hasTemplate'
-  | .obj kvs => kvs.any fun (k, v) => k.hasTemplate' || v.hasTemplate'
+/-- `util.slugify` (python-slugify's legacy pipeline with separator `_`,
+then `""` becomes `"unknown"`), for ASCII text. `none` where the result
+would depend on transliteration (non-ASCII) or on HTML entity decoding
+(`&...;`), which HALean does not model. -/
+def slugify? (text : String) : Option String := do
+  if text.isEmpty then return ""
+  if !text.toList.all (fun c : Char => c.toNat < 128) then none
+  if text.contains '&' && text.contains ';' then none
+  -- QUOTE_PATTERN → '-', then lower()
+  let arr := (text.toList.map fun c => if c == '\'' then '-' else c.toLower).toArray
+  -- NUMBERS_PATTERN `(?<=\d),(?=\d)` → ''
+  let cs := (List.range arr.size).filterMap fun i =>
+    let c := arr[i]!
+    if c == ',' && i > 0 && i + 1 < arr.size && arr[i-1]!.isDigit && arr[i+1]!.isDigit then none
+    else some c
+  -- DISALLOWED_CHARS_PATTERN `[^-a-zA-Z0-9]+` → '-', DUPLICATE_DASH_PATTERN, strip('-')
+  let cs := cs.map fun c => if c == '-' || c.isDigit || (c ≥ 'a' && c ≤ 'z') then c else '-'
+  let collapsed := cs.foldl (fun acc c => if c == '-' && acc.head? == some '-' then acc else c :: acc) []
+  let slug := String.ofList (collapsed.reverse.dropWhile (· == '-') |>.reverse.dropWhile (· == '-') |>.reverse)
+  let slug := slug.replace "-" "_"
+  return if slug.isEmpty then "unknown" else slug
 
-def decodeAutomation (j : Json) : D Automation := do
+/-- `automation/__init__.py::_automation_name`: the alias, else
+`automation <position in the config list>`. -/
+def automationName (j : Json) (listNo : Nat) : String :=
+  match str? j "alias" with
+  | some a => if a.isEmpty then s!"automation {listNo}" else a
+  | none => s!"automation {listNo}"
+
+/-- `MAX_LENGTH_STATE_ENTITY_ID` -/
+def MAX_LENGTH_STATE_ENTITY_ID : Nat := 255
+
+/-- `EntityRegistry.async_get_available_entity_id`: `domain.slug`, else
+`_2`, `_3`, ... until it is neither registered nor in the state machine. -/
+def availableEntityId (domain slug : String) (taken : List String) : String := Id.run do
+  let preferred := s!"{domain}.{slug}"
+  let mut test := String.ofList (preferred.toList.take MAX_LENGTH_STATE_ENTITY_ID)
+  let mut tries := 1
+  for _ in [0:taken.length + 1] do
+    if !taken.contains test then break
+    tries := tries + 1
+    let lenSuffix := (toString tries).length + 1
+    test := String.ofList (preferred.toList.take (MAX_LENGTH_STATE_ENTITY_ID - lenSuffix)) ++ s!"_{tries}"
+  return test
+
+/-- The entity ids HA gives the configured automations: `EntityPlatform`
+adds them one by one in config order (`_async_add_entities`), each taking
+`async_get_available_entity_id(slugify(name))` against the ids already
+taken (`taken`: the state machine's entities). Once one name cannot be
+slugified exactly, the ids of it and of every later automation are unknown
+(`none`), since they could collide with it. -/
+def automationEntityIds (raw : List Json) (taken : List String) : List (Option String) := Id.run do
+  let mut taken := taken
+  let mut known := true
+  let mut out : List (Option String) := []
+  for (j, i) in raw.zipIdx do
+    match known, slugify? (automationName j i) with
+    | true, some slug =>
+      let eid := availableEntityId "automation" slug taken
+      taken := taken ++ [eid]
+      out := out ++ [some eid]
+    | _, _ =>
+      known := false
+      out := out ++ [none]
+  return out
+
+/-- Decode one automation, the `listNo`-th in the configuration, whose
+entity id is `entityId` (see `automationEntityIds`). -/
+def decodeAutomation (j : Json) (listNo : Nat := 0) (entityId : Option String := none) :
+    D Automation := do
   let id := (str? j "id").getD ""
-  let alias := (str? j "alias").getD id
+  let alias := automationName j listNo
   let mapping (k : String) : D (List (String × Json)) :=
     match field? j k with
     | none => pure []
@@ -516,9 +628,11 @@ def decodeAutomation (j : Json) : D Automation := do
     if acc.any (·.1 == k) then acc.map fun (k', v') => if k' == k then (k, v) else (k', v')
     else acc ++ [(k, v)]) tvars
   let pick (a b : String) := (field? j a).orElse (fun _ => field? j b) |>.getD .null
-  -- the names templates may use: `trigger`, `repeat`, and every variable the
-  -- automation defines (anywhere, including `variables` actions)
-  let nm := TEMPLATE_VARS ++ ["repeat"] ++ merged.map (·.1) ++ actionVariableNames (pick "actions" "action")
+  -- the names templates may use: `trigger`, `repeat`, `this` (when the
+  -- automation's entity id is known), and every variable the automation
+  -- defines (anywhere, including `variables` actions)
+  let nm := TEMPLATE_VARS ++ ["repeat"] ++ (if entityId.isSome then ["this"] else [])
+    ++ merged.map (·.1) ++ actionVariableNames (pick "actions" "action")
   let mvars ← merged.mapM fun (k, v) => do pure (k, ← decodeComplex v nm)
   let tnm := tvars.map (·.1)
   let trigs ← ((ensureList (pick "triggers" "trigger")).zipIdx).mapM fun (t, i) => decodeTrigger i t tnm
@@ -535,6 +649,6 @@ def decodeAutomation (j : Json) : D Automation := do
     | _ => 10
   return { id, alias, triggers := trigs.filterMap (fun x => x), conditions := conds,
            actions := acts.filterMap (fun x => x), mode, maxRuns,
-           variables := mvars, triggerVars := tvars }
+           variables := mvars, triggerVars := tvars, entityId, uniqueId := str? j "id" }
 
 end HALean.Automation

@@ -55,11 +55,12 @@ def decodeInput (j : Json) : Except String (Input × List (String × String)) :=
     let raw := ensureList ((field? j "automations").getD .null)
     let mut ok := []
     let mut bad := []
-    for a in raw do
-      match decodeAutomation a with
+    let sts ← (ensureList ((field? j "states").getD .null)).mapM decodeEntityState
+    let eids := automationEntityIds raw (sts.map (·.entityId))
+    for (a, i) in raw.zipIdx do
+      match decodeAutomation a i (eids.getD i none) with
       | .ok x => ok := ok ++ [x]
       | .error why => bad := bad ++ [((str? a "id").getD "?", why)]
-    let sts ← (ensureList ((field? j "states").getD .null)).mapM decodeEntityState
     return (.init ok sts now, bad)
   | "state_changed" =>
     let some eid := str? j "entity_id" | throw "state_changed without entity_id"

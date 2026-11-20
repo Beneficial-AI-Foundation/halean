@@ -118,7 +118,6 @@ async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, pat
     events: set[str] = set()
     automations = copy.deepcopy(sc["automations"])
     for a in automations:
-        a.setdefault("alias", a.get("id"))  # same display name on both sides
         _walk_actions(a.get("actions") or a.get("action"), services, events)
 
     observed: list[tuple] = []
