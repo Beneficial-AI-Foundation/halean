@@ -91,6 +91,8 @@ inductive TriggerKind where
   /-- Legacy `zone` trigger (`trigger: zone`): `enter` is `true` for
   `event: enter`, `false` for `leave`. -/
   | zone (entityIds : List String) (zone : String) (enter : Bool)
+  /-- Legacy `sun` trigger: `sunrise` (or sunset) plus `offset` (µs). -/
+  | sun (sunrise : Bool) (offsetUs : Int)
   /-- Flat `event_data` only: every pair must be present and equal. -/
   | event (eventTypes : List String) (data : List (String × Json))
   /-- `template` trigger (`components/template/trigger.py`). -/
@@ -505,6 +507,17 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := []) : D (Option T
         | some (.str "leave") => pure false
         | some v => throw s!"zone trigger event must be enter or leave, got {v.compress}"
       pure <| TriggerKind.zone (← entityIds j) z enter
+    | "sun" => do
+      let sunrise ← match str? j "event" with
+        | some "sunrise" => pure true
+        | some "sunset" => pure false
+        | _ => throw "sun trigger event must be sunrise or sunset"
+      let off ← match field? j "offset" with
+        | none => pure 0
+        | some v => match cvTimePeriod (Template.Value.ofJson v) with
+          | .ok us => pure us
+          | .error e => throw s!"invalid sun trigger offset {v.compress}: {e}"
+      pure <| TriggerKind.sun sunrise off
     | p => throw s!"trigger platform '{p}' is not supported"
   return some { id, idx, alias := str? j "alias", kind }
 

@@ -128,9 +128,9 @@ def timePeriodDict (v : Value) : Alt := do
   let args := units.filterMap fun (k, f) => (given.find? (·.1 == k)).map fun (_, x) => (f, TdArg.float x)
   return timedeltaNew args
 
-/-- `cv.positive_time_period` (`time_period` then `positive_timedelta`) on
-a rendered value, in microseconds. -/
-def cvPositiveTimePeriod (v : Value) : Except String Int := do
+/-- `cv.time_period` on a rendered value (may be negative), in
+microseconds. -/
+def cvTimePeriod (v : Value) : Except String Int := do
   if let .str s := v then asciiOnly s
   if let .dict kvs := v then
     for (_, x) in kvs do if let .str s := x then asciiOnly s
@@ -140,7 +140,11 @@ def cvPositiveTimePeriod (v : Value) : Except String Int := do
     fun _ => match v with | .timedelta us => some (pure us) | _ => none,
     fun _ => timePeriodDict v]
   let some r := alts.findSome? (· ()) | throw "invalid time period: expected 'HH:MM', 'HH:MM:SS', seconds or a mapping"
-  let us ← r
+  r
+
+/-- `cv.positive_time_period` (`time_period` then `positive_timedelta`). -/
+def cvPositiveTimePeriod (v : Value) : Except String Int := do
+  let us ← cvTimePeriod v
   if us < 0 then throw "Time period should be positive"
   return us
 

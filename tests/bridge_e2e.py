@@ -54,6 +54,10 @@ async def main() -> int:
             if msg["type"] == "get_states":
                 await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True,
                                           "result": [STATE_OFF]}))
+            elif msg["type"] == "get_config":
+                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True,
+                                          "result": {"latitude": 52.37, "longitude": 4.89,
+                                                     "elevation": 0}}))
             elif msg["type"] == "subscribe_events":
                 sub = msg["id"]
                 await ws.send(json.dumps({"id": sub, "type": "result", "success": True}))

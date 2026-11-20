@@ -1,0 +1,39 @@
+# Legacy `sun` trigger: astral's sunset at the scenario's location (with
+# elevation, so `adjust_to_horizon` matters), positive and negative offsets,
+# the next event is scheduled after firing (each fires once), sunrise is not
+# due yet, and a sun trigger inside wait_for_trigger.
+# Sunset here is 2023-11-14 22:17:04.18 UTC (t0 + 224.18 s); offsets put each
+# event above half a second, where HA's harness and the engine's whole-second
+# ticks agree.
+location: {latitude: 40.0, longitude: -82.667, elevation: 120}
+automations:
+  - id: at_sunset
+    triggers: [{trigger: sun, event: sunset, offset: 0.5}]
+    actions:
+      - event: sunset
+        event_data:
+          d: "{{ trigger.description }} {{ trigger.event }} {{ trigger.platform }}"
+          o: "{{ trigger.offset }}"
+  - id: before_sunset
+    triggers: [{trigger: sun, event: sunset, offset: "-00:01:00.5"}]
+    actions: [{event: before}]
+  - id: at_sunrise
+    triggers: [{trigger: sun, event: sunrise}]
+    actions: [{event: sunrise}]
+  - id: waiter
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - wait_for_trigger: {trigger: sun, event: sunset, offset: "00:00:01.5"}
+      - event: waited
+        event_data: {o: "{{ wait.trigger.offset }}"}
+steps:
+  - {at: 10, send: {type: event, event_type: go}, expect: [{type: automation_triggered, id: waiter}]}
+  - {at: 163, send: {type: tick}}
+  - {at: 164, send: {type: tick},
+     expect: [{type: automation_triggered, id: before_sunset}, {type: fire_event, event_type: before}]}
+  - {at: 224, send: {type: tick}}
+  - {at: 225, send: {type: tick},
+     expect: [{type: automation_triggered, id: at_sunset},
+              {type: fire_event, event_type: sunset, data: {d: "sun event sunset sunset sun", o: "0:00:00.500000"}}]}
+  - {at: 226, send: {type: tick}, expect: [{type: fire_event, event_type: waited, data: {o: "0:00:01.500000"}}]}
+  - {at: 300, send: {type: tick}}

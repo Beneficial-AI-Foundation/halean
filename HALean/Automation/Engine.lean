@@ -12,6 +12,7 @@
 import HALean.Automation.Script
 import HALean.Automation.TimePeriod
 import HALean.Automation.Location
+import HALean.Automation.Sun
 open Lean
 
 namespace HALean.Automation
@@ -183,10 +184,17 @@ structure Engine where
   /-- Runs whose wait completed during the current input; they continue
   once its callbacks are done. -/
   woken : List Nat := []
+  /-- HA's location (`hass.config` latitude, longitude, elevation), for the
+  `sun` trigger. -/
+  location : Option Sun.Observer := none
+  /-- The next event of each `sun` trigger: (owner, trigger idx) → UTC µs
+  (`async_track_point_in_utc_time`). -/
+  sunNext : List ((Owner × Nat) × Int) := []
   deriving Inhabited
 
 inductive Input where
   | init (automations : List Automation) (states : List EntityState) (now : Instant)
+      (location : Option Sun.Observer := none)
   | stateChanged (entityId : String) (old new : Option EntityState) (now : Instant)
   | event (eventType : String) (data : Json) (now : Instant)
   | tick (now : Instant)
@@ -272,6 +280,7 @@ def cleanupWait (e : Engine) (rid : Nat) : Engine :=
   { e with tmplTrigs := e.tmplTrigs.filter (·.owner != o),
            waitTrigs := e.waitTrigs.filter (·.runId != rid),
            pendings := e.pendings.filter (·.owner != o),
+           sunNext := e.sunNext.filter (·.1.1 != o),
            armed := e.armed.filter (·.1 != o),
            periods := e.periods.filter (·.1.1 != o) }
 
@@ -300,6 +309,7 @@ def attachTriggers (o : Owner) (trigs : List Trigger) : EM Unit := do
   let mut armed := e.armed
   let mut tts := e.tmplTrigs
   let mut logs : List Cmd := []
+  let mut sun := e.sunNext
   for t in trigs do
     match t.kind with
     | .numericState eids below above attr _ vtm =>
@@ -307,6 +317,14 @@ def attachTriggers (o : Owner) (trigs : List Trigger) : EM Unit := do
         let vt := vtm.map fun tm => (tm, (tmplCtxOf e o).vars ++ [("trigger", numericTriggerVar t eid below above attr)])
         if let .ok false := numericStateOne e.condEnv eid below above attr vt then
           armed := armed ++ [(o, t.idx, eid)]
+    | .sun sunrise off =>
+      -- `schedule_next_event()`
+      match e.location with
+      | none => logs := logs ++ [.log "error" s!"{a.alias}: the sun trigger needs HA's location"]
+      | some obs =>
+        match Sun.nextEvent obs sunrise ((e.now.utc : Int) * 1000) e.now.tzOffsetSec off with
+        | some at_ => sun := sun ++ [((o, t.idx), at_)]
+        | none => logs := logs ++ [.log "error" s!"{a.alias}: Unable to find event after one year"]
     | .template tm _ =>
       match Template.renderWithInfo tm (tmplCtxOf e o) true with
       | (.ok v, info) => tts := tts ++ [{ owner := o, trigIdx := t.idx, armed := !Template.resultAsBoolean v, info }]
@@ -314,7 +332,7 @@ def attachTriggers (o : Owner) (trigs : List Trigger) : EM Unit := do
         tts := tts ++ [{ owner := o, trigIdx := t.idx, info }]
         logs := logs ++ [.log "warning" s!"Error initializing 'template' trigger for '{a.alias}': {msg}"]
     | _ => pure ()
-  setE { e with armed, tmplTrigs := tts }
+  setE { e with armed, tmplTrigs := tts, sunNext := sun }
   emit logs
 
 mutual
@@ -993,6 +1011,28 @@ partial def fireDue (t : Millis) : EM Unit := do
       fireDue t
     | none => pure ()
 
+/-- `sun` triggers due at or before `t` (ms): schedule the next event, then
+run the action (`handle_event`). -/
+partial def fireSun (t : Millis) : EM Unit := do
+  let e ← getE
+  let some ((o, idx), at_) := e.sunNext.find? (·.2 ≤ (t : Int) * 1000) | return
+  let trig? := ((e.owners.find? (·.1 == o)).map (·.2)).bind fun ts => ts.find? (·.idx == idx)
+  let rest := e.sunNext.filter (·.1 != (o, idx))
+  match trig?, e.location with
+  | some tr, some obs =>
+    let .sun sunrise off := tr.kind | setE { e with sunNext := rest }
+    -- `utcnow()` when the timer runs is the event's instant
+    let nxt := Sun.nextEvent obs sunrise at_ e.now.tzOffsetSec off
+    setE { e with sunNext := rest ++ (nxt.map (fun n => ((o, idx), n))).toList }
+    let ev := if sunrise then "sunrise" else "sunset"
+    let desc := s!"sun event {ev}"
+    fire o { id := tr.id, idx := tr.idx, platform := "sun", description := desc,
+             value := triggerValue tr "sun" [("description", .str desc), ("event", .str ev),
+               ("offset", .timedelta off)] }
+    resumeWoken
+  | _, _ => setE { e with sunNext := rest }
+  fireSun t
+
 /-- Advance the clock to `now`, firing time triggers second by second. -/
 def advanceTo (now : Instant) : EM Unit := do
   let e ← getE
@@ -1003,6 +1043,7 @@ def advanceTo (now : Instant) : EM Unit := do
     let e ← getE
     setE { e with now := { utc := sec * 1000, tzOffsetSec := now.tzOffsetSec } }
     fireDue (sec * 1000)
+    fireSun (sec * 1000)
     fireTimeTriggers sec now.tzOffsetSec
     -- a templated `for:` that rendered to 0 is due at once
     fireDue (sec * 1000)
@@ -1015,9 +1056,9 @@ def initArmed : EM Unit := do
     attachTriggers (.auto ai) a.triggers
 
 def handle : Input → EM Unit
-  | .init autos sts now => do
+  | .init autos sts now loc => do
     setE { automations := autos, states := sts.map (fun s => (s.entityId, s)),
-           now, lastSec := now.utc / 1000 }
+           now, lastSec := now.utc / 1000, location := loc }
     initArmed
   | .stateChanged eid old new now => do
     advanceTo now

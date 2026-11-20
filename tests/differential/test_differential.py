@@ -34,7 +34,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.setup import async_setup_component
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from run_scenarios import T0, engine_outputs  # noqa: E402
+from run_scenarios import LOCATION, T0, engine_outputs  # noqa: E402
 
 SCENARIOS = sorted((Path(__file__).resolve().parent.parent / "scenarios").glob("*.yaml"))
 T0_DT = datetime.fromtimestamp(T0 / 1000, UTC)
@@ -116,6 +116,10 @@ async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, pat
         pytest.skip(sc.get("differential_reason", "engine-only scenario"))
 
     await hass.config.async_set_time_zone("UTC")
+    loc = sc.get("location", LOCATION)
+    hass.config.latitude = loc["latitude"]
+    hass.config.longitude = loc["longitude"]
+    hass.config.elevation = loc["elevation"]
     freezer.move_to(T0_DT)
 
     services: set[tuple[str, str]] = set()

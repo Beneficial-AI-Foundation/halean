@@ -61,7 +61,15 @@ def decodeInput (j : Json) : Except String (Input × List (String × String)) :=
       match decodeAutomation a i (eids.getD i none) with
       | .ok x => ok := ok ++ [x]
       | .error why => bad := bad ++ [((str? a "id").getD "?", why)]
-    return (.init ok sts now, bad)
+    -- `hass.config` latitude / longitude / elevation, for the sun trigger
+    let loc : Option Sun.Observer := match field? j "location" with
+      | some l => do
+        let lat ← (field? l "latitude").bind pyNumber?
+        let lon ← (field? l "longitude").bind pyNumber?
+        let el := ((field? l "elevation").bind pyNumber?).getD 0
+        pure { latitude := lat, longitude := lon, elevation := el }
+      | none => none
+    return (.init ok sts now loc, bad)
   | "state_changed" =>
     let some eid := str? j "entity_id" | throw "state_changed without entity_id"
     return (.stateChanged eid (← decodeOptState j "old_state") (← decodeOptState j "new_state") now, [])

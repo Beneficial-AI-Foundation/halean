@@ -923,3 +923,35 @@ entries:
   status: translated
   notes: 'trigger payload: trigger_data, platform, description, then the trigger''s own fields'
   hash: a5ae38b9432c3245
+- python: components/sun/trigger.py::SunEventTrigger.async_attach_runner
+  lean:
+  - HALean.Automation.attachTriggers
+  - HALean.Automation.fireSun
+  status: translated
+  notes: the next event is scheduled before the action runs; it fires at the first whole-second tick at
+    or after the event
+  hash: 617bbf5eea17267a
+- python: components/sun/trigger.py::LegacySunTrigger._action_payload
+  lean:
+  - HALean.Automation.fireSun
+  status: translated
+  hash: 9d2c51681281f0f9
+- python: components/sun/trigger.py::SunEventTrigger.__init__
+  lean:
+  - HALean.Automation.decodeTrigger
+  status: translated
+  notes: legacy configs have no offset_type, so the offset is used as given; offset is cv.time_period
+    (an assignment, not hashed), translated as cvTimePeriod
+  hash: 89e9f79559fe1cf3
+- python: helpers/sun.py::get_observer_astral_event_next
+  lean:
+  - HALean.Automation.Sun.nextEvent
+  status: translated
+  notes: astral itself (2.2, not HA code) is translated in HALean/Automation/Sun.lean and checked by tests/sun/compare.py
+  hash: 95a47e16d0b7a48d
+- python: helpers/sun.py::get_astral_observer
+  lean:
+  - HALean.Automation.decodeInput
+  status: translated
+  notes: the shell sends hass.config latitude/longitude/elevation in init
+  hash: 59b52e8f43b0357e

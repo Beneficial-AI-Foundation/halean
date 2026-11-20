@@ -54,6 +54,7 @@ lake build                       # engine + all proofs
 uv run tests/run_scenarios.py    # behaviour scenarios (engine only)
 uv run tests/differential/run.py # scenarios + template cases through a real Home Assistant vs Lean
 uv run tests/bridge_e2e.py       # bridge against a fake HA WebSocket server
+uv run --with astral==2.2 tests/sun/compare.py  # sunrise/sunset vs astral, to the microsecond
 uv run tests/live/docker_e2e.py  # bridge + engine driving the pinned HA release in a throwaway Docker container
 ```
 
@@ -162,7 +163,7 @@ doesn't run twice.
 
 | Area | Supported | Rejected at load, stays in HA |
 |---|---|---|
-| Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, `for`, re-rendered like HA's template tracker: only for what the last render read, every minute when it used `now()`, rate limits for loops over states), `time` (fixed `at`, weekday), `time_pattern`, `event` (flat `event_data`), legacy `zone` (enter/leave by coordinates, Vincenty distance like HA's, or a person's/device tracker's `in_zones`); `for:` static or templated (a template string or a mapping of templates, rendered with the trigger variables when the trigger matches, then `cv.positive_time_period`; an error means no trigger) | `this` in trigger templates (its value depends on HA's startup phase), `sun`, `zone.entered`/`zone.left` and other new-style triggers, `homeassistant`, `mqtt`, `webhook`, device triggers, entity-based or offset `time` |
+| Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, `for`, re-rendered like HA's template tracker: only for what the last render read, every minute when it used `now()`, rate limits for loops over states), `time` (fixed `at`, weekday), `time_pattern`, `event` (flat `event_data`), legacy `zone` (enter/leave by coordinates, Vincenty distance like HA's, or a person's/device tracker's `in_zones`), legacy `sun` (sunrise/sunset with `offset`, astral's NOAA calculation at HA's location and elevation); `for:` static or templated (a template string or a mapping of templates, rendered with the trigger variables when the trigger matches, then `cv.positive_time_period`; an error means no trigger) | `this` in trigger templates (its value depends on HA's startup phase), other sun events (dawn, dusk, noon, elevation, ...), `zone.entered`/`zone.left` and other new-style triggers, `homeassistant`, `mqtt`, `webhook`, device triggers, entity-based or offset `time` |
 | Conditions | `and`/`or`/`not` (incl. shorthand), `state` (match any/all, `for`, attribute, `input_*` references), `numeric_state` (incl. `value_template`), `time` (fixed, `input_datetime`, `time` entities, midnight crossing, weekday), `trigger`, `template` (incl. the `"{{ ... }}"` shorthand), `enabled: false` | platform conditions, timestamp-sensor bounds (error) |
 | Automations | automation `variables` (rendered in order before conditions) and static `trigger_variables`; `this` in variables, conditions and actions (the automation entity's `state.as_dict()`: `entity_id` derived from the name like HA, `state`, `attributes` `id`/`last_triggered`/`mode`/`current`/`max`/`friendly_name`); names default to `automation <n>` like HA | `this` when the entity id needs transliteration (non-ASCII names, also for every later automation) or HTML entities, templated `trigger_variables`, per-trigger `variables` |
 | Actions | service call (blocking; templates in `data` and `target`; `response_variable`), `stop` with `response_variable`, `delay` (static or templated), `condition`, `choose`, `if`/`else`, `repeat` count (incl. templated)/for_each/while/until with the `repeat` variable, `variables`, `stop` (+`error`), `event` (templates in `event_data`), `sequence`, `wait_template` (`timeout`, static or templated, `continue_on_timeout`, the `wait` variable; tracked like HA's `async_track_template`), `wait_for_trigger` (any supported trigger, seeing the run's variables; `timeout`, `continue_on_timeout`, `wait.trigger`), `parallel` (branches share variables except `wait`; errors and `stop` are raised once every branch is done), `continue_on_error`, static `enabled` | templated action names, a whole-`data` template, device actions, `scene` |
@@ -215,7 +216,7 @@ evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 
 ## Known gaps and deviations
 
-* **The translation is tested against Python, not proven equivalent.** All 36
+* **The translation is tested against Python, not proven equivalent.** All 37
   differential scenarios and all template cases match real HA at the pinned
   release, but they cover only the paths they exercise.
 * Lean's JSON objects are sorted by key. Where HA depends on the written
@@ -253,6 +254,11 @@ evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 * A run woken by its `wait_template` or `wait_for_trigger` continues after every automation the
   same state change triggered has run up to its first wait, as HA's task
   scheduling does.
+* A `sun` trigger fires at the first whole-second tick at or after the
+  event (HA's timer fires at the exact microsecond). The event times
+  themselves match astral to the microsecond (`tests/sun/compare.py`).
+  Only the current UTC offset is known, so near a DST change the local date
+  used to look up the next event can differ from HA's.
 * `STEP_FUEL` (1M steps per drive) is a safety net HA doesn't have. HA would
   block its event loop instead.
 * `drive`/`finishRun`/`fireDue` are `partial`, so nothing has been proved about
@@ -286,4 +292,4 @@ Properties worth proving or model-checking are collected in
    two live runs, and a `queued` one runs in arrival order.
 4. User-level properties over a whole `automations.yaml`: conflicting commands to the
    same entity, and trigger loops (an action that re-triggers itself).
-5. Widen the subset: the `sun` trigger and condition (needs a translation of the `astral` library), the `zone` condition, offset and entity `time` triggers.
+5. Widen the subset: the `sun` and `zone` conditions, the other sun events, offset and entity `time` triggers.

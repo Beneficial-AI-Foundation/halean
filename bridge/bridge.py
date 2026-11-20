@@ -243,9 +243,12 @@ async def main() -> None:
         bridge = Bridge(ws, engine, args.dry_run, args.status_entity)
         reader = asyncio.create_task(bridge.reader())
         states = (await bridge.request({"type": "get_states"}))["result"]
+        config = (await bridge.request({"type": "get_config"})).get("result") or {}
         await bridge.handle_cmds(await engine.send({
             "type": "init", "automations": protocol_automations(automations),
-            "states": [to_engine_state(s) for s in states], **now_fields()}))
+            "states": [to_engine_state(s) for s in states], **now_fields(),
+            # HA's location, for the sun trigger
+            "location": {k: config.get(k) for k in ("latitude", "longitude", "elevation")}}))
         await bridge.request({"type": "subscribe_events"})  # all events
         _LOG.info("engine running %d automations", len(automations))
         bridge.announce(f"engine started with {len(automations)} automations")
