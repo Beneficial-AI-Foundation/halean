@@ -50,6 +50,35 @@ def currentRepeat : List Frame → Option Template.Value
   | .repeatEach i items _ _ :: _ => some (repeatVar i (some items.length) (items[i - 1]?))
   | .seq .. :: rest => currentRepeat rest
 
+/-- The kind of a failed service call, which decides what
+`continue_on_error` may swallow (`_handle_exception`, `_async_step_call_service`):
+  * `invalid`  – `vol.Invalid` / configuration errors: never swallowed
+  * `haError`  – `HomeAssistantError` (incl. ServiceNotFound): swallowed by any
+                 enclosing step with `continue_on_error`
+  * `other`    – any other exception: only the service step's own
+                 `continue_on_error` converts it to a HomeAssistantError -/
+inductive ErrKind where
+  | invalid | haError | other
+  deriving Repr, Inhabited, BEq
+
+/-- How a run ended. Sub-scripts (`parallel` branches) re-raise all but
+`_ConditionFail`, so the kind matters. -/
+inductive RunEnd where
+  | finished
+  /-- `_ConditionFail` reached the top of the run -/
+  | conditionFailed
+  /-- `_StopScript` (`stop` without `error`) -/
+  | stopped (why : String)
+  /-- `_AbortScript` -/
+  | aborted (why : String)
+  | error (k : ErrKind) (why : String)
+  deriving Repr, Inhabited, BEq
+
+/-- A sub-script's end that its parent re-raises. -/
+def RunEnd.raises : RunEnd → Bool
+  | .finished | .conditionFailed => false
+  | _ => true
+
 inductive Wait where
   | ready
   /-- Waiting for the lock of a queued script (`_QueuedScriptRun`). -/
@@ -64,6 +93,9 @@ inductive Wait where
   until one fires or `deadline` passes. -/
   | waitTrig (triggers : List Trigger) (vars : List (String × Template.Value))
       (deadline : Option Millis) (continueOnTimeout : Bool)
+  /-- `parallel`: the branch runs (in order), the ends of those that are
+  done, and the step's `continue_on_error`. -/
+  | joinPar (children : List Nat) (results : List (Nat × RunEnd)) (coe : Bool)
   deriving Repr, Inhabited
 
 /-- Templates have no equality; waits compare by everything else. -/
@@ -73,6 +105,7 @@ def Wait.beq : Wait → Wait → Bool
   | .service a c, .service b d => a == b && c == d
   | .waitTmpl _ a c, .waitTmpl _ b d => a == b && c == d
   | .waitTrig _ _ a c, .waitTrig _ _ b d => a == b && c == d
+  | .joinPar a _ c, .joinPar b _ d => a == b && c == d
   | _, _ => false
 
 instance : BEq Wait := ⟨Wait.beq⟩
@@ -86,6 +119,8 @@ structure Run where
   vars : List (String × Template.Value) := []
   frames : List Frame
   wait : Wait := .ready
+  /-- For a `parallel` branch: the run that started it. -/
+  parent : Option Nat := none
   deriving Repr, Inhabited
 
 /-- The variables a step sees: the run's, plus the innermost `repeat`. -/
@@ -114,13 +149,6 @@ def setWaitFields (vars : List (String × Template.Value)) (fields : List (Strin
 /-- `_TIMEOUT_MSG` -/
 def TIMEOUT_MSG : String := "Timeout reached, abort script."
 
-/-- How a run ended (`script_execution_set`). -/
-inductive RunEnd where
-  | finished
-  | aborted (why : String)
-  | error (why : String)
-  deriving Repr, Inhabited, BEq
-
 /-- Commands the engine asks the I/O shell to perform. -/
 inductive Cmd where
   | callService (callId runId : Nat) (domain service : String) (data target : Json)
@@ -129,23 +157,14 @@ inductive Cmd where
   | log (level msg : String)
   deriving Repr, Inhabited
 
-/-- The kind of a failed service call, which decides what
-`continue_on_error` may swallow (`_handle_exception`, `_async_step_call_service`):
-  * `invalid`  – `vol.Invalid` / configuration errors: never swallowed
-  * `haError`  – `HomeAssistantError` (incl. ServiceNotFound): swallowed by any
-                 enclosing step with `continue_on_error`
-  * `other`    – any other exception: only the service step's own
-                 `continue_on_error` converts it to a HomeAssistantError -/
-inductive ErrKind where
-  | invalid | haError | other
-  deriving Repr, Inhabited, BEq
-
 /-- `REPEAT_TERMINATE_ITERATIONS` -/
 def REPEAT_TERMINATE_ITERATIONS : Nat := 10000
 
 inductive StepOut where
   | next (r : Run)
   | blocked (r : Run)
+  /-- Start these sub-scripts and wait for all of them (`parallel`). -/
+  | spawn (r : Run) (branches : List (List Action)) (coe : Bool)
   | done (e : RunEnd)
   deriving Inhabited
 
@@ -159,17 +178,17 @@ ends the run. -/
 def conditionFail (r : Run) : StepOut :=
   match r.frames with
   | _ :: rest@(_ :: _) => .next { r with frames := rest }
-  | _ => .done (.aborted "condition failed")
+  | _ => .done .conditionFailed
 
 /-- Unwind an exception through the frames. A frame whose action had
 `continue_on_error` stops a `haError`, and execution resumes in its parent. -/
 def unwindError (r : Run) (k : ErrKind) (msg : String) : StepOut :=
   let rec go : List Frame → StepOut
-    | [] => .done (.error msg)
+    | [] => .done (.error k msg)
     | f :: rest =>
       if f.coe && k == .haError then
         match rest with
-        | [] => .done (.error msg)  -- unreachable: the root has coe = false
+        | [] => .done (.error k msg)  -- unreachable: the root has coe = false
         | _ => .next { r with frames := rest }
       else go rest
   go r.frames
@@ -284,7 +303,7 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
       | .stop reason err =>
         -- `_AbortScript` / `_StopScript` are not HomeAssistantErrors: they
         -- reach the top whatever `continue_on_error` says.
-        if err then (.done (.aborted reason), [], ctx) else (.done .finished, [], ctx)
+        if err then (.done (.aborted reason), [], ctx) else (.done (.stopped reason), [], ctx)
       | .event t data =>
         -- `_async_step_event`: a template error is logged and the event is
         -- fired with the data rendered so far (none).
@@ -293,6 +312,8 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
         | .error e => (.next r', [.log "error" s!"Error rendering event data template: {e}",
                                   .fireEvent t (Json.mkObj [])], ctx)
       | .sequence body => (.next (push (.seq body coe) cur), [], ctx)
+      | .parallel [] => (.next r', [], ctx)
+      | .parallel branches => (.spawn r' branches coe, [], ctx)
       | .waitTemplate t timeout cot =>
         -- `_get_timeout_seconds_from_action`: a render or validation error
         -- is logged and aborts the script
@@ -380,15 +401,23 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
 /-- Safety net for nested loops (HA would hang the event loop instead). -/
 def STEP_FUEL : Nat := 1000000
 
+/-- Where `exec` stopped. `done` carries the run as it was at its last step
+(its variables). -/
+inductive ExecRes where
+  | blocked (r : Run)
+  | spawn (r : Run) (branches : List (List Action)) (coe : Bool)
+  | done (r : Run) (e : RunEnd)
+
 /-- Run until the run blocks or ends. -/
-def exec (ctx : ExecCtx) (r : Run) : (Option Run ⊕ RunEnd) × List Cmd × ExecCtx :=
-  let rec loop : Nat → ExecCtx → Run → List Cmd → (Option Run ⊕ RunEnd) × List Cmd × ExecCtx
-    | 0, ctx, _, acc => (.inr (.error "step budget exhausted"), acc, ctx)
+def exec (ctx : ExecCtx) (r : Run) : ExecRes × List Cmd × ExecCtx :=
+  let rec loop : Nat → ExecCtx → Run → List Cmd → ExecRes × List Cmd × ExecCtx
+    | 0, ctx, r, acc => (.done r (.error .other "step budget exhausted"), acc, ctx)
     | fuel + 1, ctx, r, acc =>
       match step ctx r with
       | (.next r', cs, ctx') => loop fuel ctx' r' (acc ++ cs)
-      | (.blocked r', cs, ctx') => (.inl (some r'), acc ++ cs, ctx')
-      | (.done e, cs, ctx') => (.inr e, acc ++ cs, ctx')
+      | (.blocked r', cs, ctx') => (.blocked r', acc ++ cs, ctx')
+      | (.spawn r' bs c, cs, ctx') => (.spawn r' bs c, acc ++ cs, ctx')
+      | (.done e, cs, ctx') => (.done r e, acc ++ cs, ctx')
   loop STEP_FUEL ctx r []
 
 /-- Resume a run whose service call completed. -/

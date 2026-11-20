@@ -128,6 +128,8 @@ inductive Action where
   /-- `wait_for_trigger`: the triggers (disabled ones dropped), `timeout`,
   `continue_on_timeout`. -/
   | waitForTrigger (triggers : List Trigger) (timeout : Option Complex) (continueOnTimeout : Bool)
+  /-- `parallel`: each branch is a sub-script started at the same time. -/
+  | parallel (branches : List (List Action))
   /-- `continue_on_error: true` on the wrapped step. -/
   | continueOnError (a : Action)
   deriving Repr, Inhabited
@@ -559,6 +561,17 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
       | some _ => throw "event_data must be a mapping"
     return wrap (.event e (← decodeComplex data nm))
   if has j "sequence" then return wrap (.sequence (← seq "sequence"))
+  if let some ps := field? j "parallel" then
+    -- each item is a `sequence:` mapping (`_SCRIPT_SEQUENCE_SCHEMA`) or a
+    -- single action (`_parallel_sequence_action`); a disabled branch is
+    -- skipped (`_async_run_script` with `enabled: false`)
+    let branches ← (ensureList ps).mapM fun b => do
+      if has b "sequence" && !(has b "action" || has b "service") then
+        if !(← isEnabled b) then return []
+        seqOf ((field? b "sequence").getD .null)
+      else
+        return (← decodeAction b nm).toList
+    return wrap (.parallel (branches.filter (!·.isEmpty)))
   if let some w := field? j "wait_template" then
     let .str src := w | throw s!"wait_template must be a template, got {w.compress}"
     return wrap (.waitTemplate (← compileTemplate src nm) (← timeout? j nm) (← continueOnTimeout? j))

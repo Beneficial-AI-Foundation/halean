@@ -1,0 +1,125 @@
+# `parallel`: branches start in order and the step ends when all have;
+# branches share variables but keep their own `wait`; a failed condition
+# ends only its branch; `stop` and errors in a branch are raised once every
+# branch is done (the others run to the end); `continue_on_error` on the
+# parallel step; `repeat` inside a branch; order against another automation
+# triggered by the same event: `gather` does not start the branches eagerly,
+# so the other automation runs first.
+automations:
+  - id: calls                             # both calls go out at once
+    triggers: [{trigger: event, event_type: a}]
+    actions:
+      - parallel:
+          - action: test.one
+          - sequence: [{action: test.two}, {action: test.three}]
+      - action: test.after
+  - id: delays
+    triggers: [{trigger: event, event_type: b}]
+    actions:
+      - parallel:
+          - sequence: [{delay: 3}, {event: b_slow}]
+          - sequence: [{delay: 1}, {event: b_fast}]
+          - {event: b_now}
+      - event: b_done
+  - id: shared_vars
+    triggers: [{trigger: event, event_type: c}]
+    actions:
+      - wait_template: "{{ true }}"
+      - parallel:
+          - sequence: [{variables: {x: 1}}, {delay: 2}, {event: c_one, event_data: {x: "{{ x }}", y: "{{ y }}"}}]
+          - sequence:
+              - {delay: 1}
+              - {variables: {y: "{{ x + 1 }}"}}
+              - {wait_template: "{{ false }}", timeout: 0}
+              - {event: c_two, event_data: {w: "{{ wait.completed }}"}}
+      - event: c_done
+        event_data: {x: "{{ x }}", y: "{{ y }}", w: "{{ wait.completed }}"}
+  - id: condition_in_branch               # ends only its branch
+    triggers: [{trigger: event, event_type: d}]
+    actions:
+      - parallel:
+          - sequence: [{condition: template, value_template: "{{ false }}"}, {event: d_never}]
+          - {event: d_other}
+      - event: d_done
+  - id: stop_in_branch                    # the other branch still finishes
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - parallel:
+          - sequence: [{delay: 1}, {stop: "enough"}]
+          - sequence: [{delay: 2}, {event: e_other}]
+      - event: e_never
+  - id: error_swallowed                   # HomeAssistantError + continue_on_error
+    triggers: [{trigger: event, event_type: f}]
+    actions:
+      - parallel:
+          - action: test.fails
+          - {event: f_other}
+        continue_on_error: true
+      - event: f_done
+  - id: error_raised
+    triggers: [{trigger: event, event_type: g}]
+    actions:
+      - parallel:
+          - action: test.fails
+          - {event: g_other}
+      - event: g_never
+  - id: in_repeat
+    triggers: [{trigger: event, event_type: h}]
+    actions:
+      - repeat:
+          count: 2
+          sequence:
+            - parallel:
+                - {event: h_branch, event_data: {i: "{{ repeat.index }}"}}
+                - repeat:
+                    count: 1
+                    sequence: [{event: h_inner, event_data: {i: "{{ repeat.index }}"}}]
+  - id: order_a
+    triggers: [{trigger: event, event_type: i}]
+    actions:
+      - parallel: [{event: i_a1}, {event: i_a2}]
+      - event: i_a3
+  - id: order_b
+    triggers: [{trigger: event, event_type: i}]
+    actions: [{event: i_b}]
+steps:
+  - {at: 1, send: {type: event, event_type: a},
+     expect: [{type: automation_triggered, id: calls},
+              {type: call_service, service: one, call_id: 0},
+              {type: call_service, service: two, call_id: 1}]}
+  - {at: 2, send: {type: service_result, call_id: 1, ok: true}, expect: [{type: call_service, service: three, call_id: 2}]}
+  - {at: 3, send: {type: service_result, call_id: 2, ok: true}}
+  - {at: 4, send: {type: service_result, call_id: 0, ok: true}, expect: [{type: call_service, service: after, call_id: 3}]}
+  - {at: 5, send: {type: service_result, call_id: 3, ok: true}}
+  - {at: 10, send: {type: event, event_type: b},
+     expect: [{type: automation_triggered, id: delays}, {type: fire_event, event_type: b_now}]}
+  - {at: 11, send: {type: tick}, expect: [{type: fire_event, event_type: b_fast}]}
+  - {at: 13, send: {type: tick}, expect: [{type: fire_event, event_type: b_slow}, {type: fire_event, event_type: b_done}]}
+  - {at: 20, send: {type: event, event_type: c}, expect: [{type: automation_triggered, id: shared_vars}]}
+  - {at: 21, send: {type: tick}, expect: [{type: fire_event, event_type: c_two, data: {w: false}}]}
+  - {at: 22, send: {type: tick},
+     expect: [{type: fire_event, event_type: c_one, data: {x: 1, y: 2}},
+              {type: fire_event, event_type: c_done, data: {x: 1, y: 2, w: true}}]}
+  - {at: 30, send: {type: event, event_type: d},
+     expect: [{type: automation_triggered, id: condition_in_branch},
+              {type: fire_event, event_type: d_other}, {type: fire_event, event_type: d_done}]}
+  - {at: 40, send: {type: event, event_type: e}, expect: [{type: automation_triggered, id: stop_in_branch}]}
+  - {at: 41, send: {type: tick}}
+  - {at: 42, send: {type: tick}, expect: [{type: fire_event, event_type: e_other}]}
+  - {at: 50, send: {type: event, event_type: f},
+     expect: [{type: automation_triggered, id: error_swallowed},
+              {type: call_service, service: fails, call_id: 4}, {type: fire_event, event_type: f_other}]}
+  - {at: 51, send: {type: service_result, call_id: 4, ok: false, error_kind: ha_error},
+     expect: [{type: fire_event, event_type: f_done}]}
+  - {at: 60, send: {type: event, event_type: g},
+     expect: [{type: automation_triggered, id: error_raised},
+              {type: call_service, service: fails, call_id: 5}, {type: fire_event, event_type: g_other}]}
+  - {at: 61, send: {type: service_result, call_id: 5, ok: false, error_kind: ha_error}}
+  - {at: 70, send: {type: event, event_type: h},
+     expect: [{type: automation_triggered, id: in_repeat},
+              {type: fire_event, event_type: h_branch, data: {i: 1}}, {type: fire_event, event_type: h_inner, data: {i: 1}},
+              {type: fire_event, event_type: h_branch, data: {i: 2}}, {type: fire_event, event_type: h_inner, data: {i: 1}}]}
+  - {at: 80, send: {type: event, event_type: i},
+     expect: [{type: automation_triggered, id: order_a}, {type: automation_triggered, id: order_b},
+              {type: fire_event, event_type: i_b}, {type: fire_event, event_type: i_a1},
+              {type: fire_event, event_type: i_a2}, {type: fire_event, event_type: i_a3}]}

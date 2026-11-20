@@ -49,7 +49,8 @@ The main obstacle for most of these: `drive`, `finishRun` and `fireDue` in
 probably the first step.
 
 1. **`single` really is single.** For any input sequence, an automation with
-   `mode: single` never has two live runs (`Engine.runs`). Lifts
+   `mode: single` never has two live runs (`runsOf`: the runs in
+   `Engine.runs` that are not `parallel` branches). Lifts
    `single_exclusive` from `admit` to all reachable states.
 2. **`max` is respected.** For `queued` / `parallel`, the number of live runs
    of an automation never exceeds `max`.
@@ -61,17 +62,20 @@ probably the first step.
    step budget (`STEP_FUEL`) guarantees this; the goal is to prove that the
    budget is never reached when `repeat` loops are bounded (HA stops `repeat`
    after 10,000 iterations).
-6. **`continue_on_error` only swallows what HA says.** Errors of kind
+6. **`parallel` joins.** A run waiting on its `parallel` branches continues
+   only after every branch has ended, and stopping a run removes all of its
+   branches and their listeners (`removeRun`, `finishBranch`).
+7. **`continue_on_error` only swallows what HA says.** Errors of kind
    `haError` are swallowed by the nearest enclosing `continue_on_error`;
    `invalid` errors never are (`unwindError`, `resumeService` in `Script.lean`).
-7. **Timers fire when they should.** A `for: N` trigger fires at the first
+8. **Timers fire when they should.** A `for: N` trigger fires at the first
    clock tick at least `N` seconds after its condition became true (ticks are
    whole seconds), unless the condition broke in between, in which case it
    never fires.
-8. **Determinism.** Two engines in the same state given the same input
+9. **Determinism.** Two engines in the same state given the same input
    produce the same commands. This holds by construction (pure functions); it
    matters because it makes every recorded run replayable.
-9. **Conditions.** Algebraic laws of the three-valued `and` / `or` / `not`,
+10. **Conditions.** Algebraic laws of the three-valued `and` / `or` / `not`,
    and where the usual laws fail. For example, a disabled condition counts as
    true inside `and` but as false inside `not` (`evalAnd_all_disabled`,
    `evalNot_disabled`), so De Morgan-style rewrites can change meaning.

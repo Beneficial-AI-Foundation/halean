@@ -41,7 +41,8 @@ entries:
   - HALean.Automation.numericStateOne
   - HALean.Automation.resolveBound
   status: translated
-  notes: value_template rendered with `state` and the run variables; None/unavailable/unknown results are False
+  notes: value_template rendered with `state` and the run variables; None/unavailable/unknown results
+    are False
   hash: 374d77c1a17c5957
 - python: helpers/condition.py::time
   lean:
@@ -89,8 +90,10 @@ entries:
   lean:
   - HALean.Automation.exec
   - HALean.Automation.conditionFail
+  - HALean.Automation.finishRun
+  - HALean.Automation.finishBranch
   status: translated
-  notes: _ConditionFail ends only the current (sub-)script; STEP_FUEL safety net is an addition
+  notes: sub-scripts re-raise everything but _ConditionFail (RunEnd.raises)
   hash: f846f0d9db5311a4
 - python: helpers/script.py::_ScriptRun._async_step
   lean:
@@ -107,6 +110,7 @@ entries:
 - python: helpers/script.py::_ScriptRun._async_run_script
   lean:
   - HALean.Automation.step
+  - HALean.Automation.drive
   status: translated
   notes: every sub-script is a seq frame
   hash: 2dcf98873b00f951
@@ -143,7 +147,8 @@ entries:
   - HALean.Automation.step
   - HALean.Automation.resumeService
   status: translated
-  notes: blocking call delegated to the shell; data/target templates rendered first (a render error is a HomeAssistantError of the step); response_variable rejected
+  notes: blocking call delegated to the shell; data/target templates rendered first (a render error is
+    a HomeAssistantError of the step); response_variable rejected
   hash: 2c9a2006b53f8036
 - python: helpers/script.py::_ScriptRun._async_step_event
   lean:
@@ -201,7 +206,8 @@ entries:
   - HALean.Automation.onStateTrigger
   - HALean.Automation.renderPeriod
   status: translated
-  notes: 'templated ''for'' rejected; matchAll is by key presence (so an explicit null ''to'' works as upstream); templated for: rendered when the trigger matches (cv.positive_time_period_template)'
+  notes: 'templated ''for'' rejected; matchAll is by key presence (so an explicit null ''to'' works as
+    upstream); templated for: rendered when the trigger matches (cv.positive_time_period_template)'
   hash: 5e5087a8dc6161d9
 - python: components/homeassistant/triggers/numeric_state.py::async_attach_trigger
   lean:
@@ -210,7 +216,8 @@ entries:
   - HALean.Automation.onNumericTrigger
   - HALean.Automation.renderPeriod
   status: translated
-  notes: 'value_template sees `state` and a trigger dict (platform, entity_id, below, above, attribute); templated for: rendered when the trigger matches (cv.positive_time_period_template)'
+  notes: 'value_template sees `state` and a trigger dict (platform, entity_id, below, above, attribute);
+    templated for: rendered when the trigger matches (cv.positive_time_period_template)'
   hash: baa5c01dbce8b082
 - python: components/homeassistant/triggers/time.py::async_attach_trigger
   lean:
@@ -237,7 +244,8 @@ entries:
   - HALean.Automation.thisValue
   - HALean.Automation.triggerAutomation
   status: translated
-  notes: automation variables rendered before conditions (an error stops the trigger); conditions checked before mode admission; `this` captured before the run is admitted (not in trigger templates)
+  notes: automation variables rendered before conditions (an error stops the trigger); conditions checked
+    before mode admission; `this` captured before the run is admitted (not in trigger templates)
   hash: 66efc46d16ebe326
 - python: helpers/template/__init__.py::Template.__init__
   lean:
@@ -264,7 +272,8 @@ entries:
   - HALean.Template.parseResult
   - HALean.Template.literalEval
   status: translated
-  notes: ast.literal_eval translated for numbers, strings, True/False/None, lists, tuples, dicts; sets become lists, bytes stay strings
+  notes: ast.literal_eval translated for numbers, strings, True/False/None, lists, tuples, dicts; sets
+    become lists, bytes stay strings
   hash: 4acea10c6028c660
 - python: helpers/template/__init__.py::render_complex
   lean:
@@ -380,7 +389,8 @@ entries:
   - HALean.Automation.step
   - HALean.Automation.normalizeTarget
   status: translated
-  notes: templated action names and whole-data templates rejected; templated entity_id normalised like comp_entity_ids_or_uuids (no registry UUIDs)
+  notes: templated action names and whole-data templates rejected; templated entity_id normalised like
+    comp_entity_ids_or_uuids (no registry UUIDs)
   hash: bacbd2c6d576e1d4
 - python: helpers/config_validation.py::template_complex
   lean:
@@ -408,14 +418,16 @@ entries:
   - HALean.Automation.onTemplateTrigger
   - HALean.Automation.initArmed
   status: translated
-  notes: 'static for: only; trigger templates may not use variables (trigger_variables unsupported); templated for: supported'
+  notes: 'static for: only; trigger templates may not use variables (trigger_variables unsupported); templated
+    for: supported'
   hash: 30211567f29b293d
 - python: helpers/event.py::TrackTemplateResultInfo._render_template_if_ready
   lean:
   - HALean.Automation.onTemplateTrigger
   - HALean.Automation.templateRefresh
   status: translated
-  notes: re-renders only for changes the last render info lets through, honouring the rate limit; listener only on a changed parsed result (first re-render always, error->error never)
+  notes: re-renders only for changes the last render info lets through, honouring the rate limit; listener
+    only on a changed parsed result (first re-render always, error->error never)
   hash: a9582098d045a9c1
 - python: helpers/template/states.py::_state_generator
   lean:
@@ -551,7 +563,8 @@ entries:
   lean:
   - HALean.Automation.TIME_CHANGE_MICROSECOND
   status: translated
-  notes: HA picks a random 50-500 ms offset per tracker; HALean uses 500 ms for trigger.now and runs at the whole-second tick
+  notes: HA picks a random 50-500 ms offset per tracker; HALean uses 500 ms for trigger.now and runs at
+    the whole-second tick
   hash: 30ef42fef2de827b
 - python: helpers/template/render_info.py::RenderInfo._freeze
   lean:
@@ -628,7 +641,9 @@ entries:
   lean:
   - HALean.Template.expand
   status: translated
-  notes: stack order (not sorted); groups and zones; non-group entities with an entity_id attribute are errors (HALean has no entity sources); an unavailable group-integration entity is returned as-is where HA drops it
+  notes: stack order (not sorted); groups and zones; non-group entities with an entity_id attribute are
+    errors (HALean has no entity sources); an unavailable group-integration entity is returned as-is where
+    HA drops it
   hash: da3a6eb94d83baf5
 - python: core.py::StateMachine.get
   lean:
@@ -747,7 +762,8 @@ entries:
   - HALean.Automation.cvPositiveTimePeriod
   - HALean.Automation.timePeriodDict
   status: translated
-  notes: also translates the schema assignments positive_time_period_template, positive_time_period and time_period_dict (vol.Any/vol.All, not functions, so not hashed)
+  notes: also translates the schema assignments positive_time_period_template, positive_time_period and
+    time_period_dict (vol.Any/vol.All, not functions, so not hashed)
   hash: b006eef142a076fb
 - python: helpers/config_validation.py::time_period_str
   lean:
@@ -766,7 +782,8 @@ entries:
   - HALean.Automation.waitRefresh
   - HALean.Automation.resumeRuns
   status: translated
-  notes: the woken run resumes after the callbacks of the same state change; wait.remaining after a wake-up with a timeout is read from the event-loop clock, an error in HALean
+  notes: the woken run resumes after the callbacks of the same state change; wait.remaining after a wake-up
+    with a timeout is read from the event-loop clock, an error in HALean
   hash: c70282d56ea1a1b5
 - python: helpers/script.py::_ScriptRun._get_timeout_seconds_from_action
   lean:
@@ -815,7 +832,8 @@ entries:
   - HALean.Automation.resumeWoken
   - HALean.Automation.cleanupWait
   status: translated
-  notes: the triggers are attached with dict(self._variables) taken before wait is set; a second trigger firing before the run resumes overwrites wait.trigger
+  notes: the triggers are attached with dict(self._variables) taken before wait is set; a second trigger
+    firing before the run resumes overwrites wait.trigger
   hash: 344fb7f3d54bbf35
 - python: helpers/trigger/__init__.py::async_initialize_triggers
   lean:
@@ -824,3 +842,34 @@ entries:
   status: translated
   notes: trigger_data id/idx/alias come from triggerValue; disabled triggers are dropped at load
   hash: 65d58accf6d16244
+- python: helpers/script.py::_ScriptRun._async_step_parallel
+  lean:
+  - HALean.Automation.step
+  - HALean.Automation.drive
+  - HALean.Automation.finishBranch
+  - HALean.Automation.resumeWoken
+  status: translated
+  notes: 'gather: branches start after the current callbacks, all run to the end, then the first branch
+    (in order) that raised re-raises in the parent, which also resumes later'
+  hash: 8651899477a8fa0e
+- python: helpers/script.py::Script._async_prep_parallel_scripts
+  lean:
+  - HALean.Automation.decodeAction
+  status: translated
+  notes: a disabled branch is dropped (its run would be skipped)
+  hash: ee32b304ec2239b2
+- python: helpers/script_variables.py::ScriptRunVariables.enter_scope
+  lean:
+  - HALean.Automation.syncFamily
+  - HALean.Automation.BRANCH_LOCAL
+  status: translated
+  notes: a parallel branch keeps wait (assign_parallel_protected) and the repeat it started in; every
+    other assignment reaches the outer scope, so branches copy their variables to the family whenever
+    they stop
+  hash: 3610018cc38d3853
+- python: helpers/script_variables.py::ScriptRunVariables.assign_parallel_protected
+  lean:
+  - HALean.Automation.BRANCH_LOCAL
+  - HALean.Automation.syncFamily
+  status: translated
+  hash: 1e1035c7631f29f7

@@ -230,7 +230,35 @@ def StateMatch.matches (m : StateMatch) (v : Json) : Bool :=
 
 /-! ## Runs and run modes -/
 
-def runsOf (e : Engine) (ai : Nat) : List Run := e.runs.filter (·.autoIdx == ai)
+/-- The automation's runs (`Script._runs`); `parallel` branches are
+sub-scripts, not runs of the automation. -/
+def runsOf (e : Engine) (ai : Nat) : List Run := e.runs.filter fun r => r.autoIdx == ai && r.parent.isNone
+
+/-- A run and all branches below it. -/
+partial def familyOf (e : Engine) (id : Nat) : List Nat :=
+  id :: (e.runs.filter (·.parent == some id)).flatMap fun c => familyOf e c.id
+
+/-- The top run of a branch. -/
+partial def rootOf (e : Engine) (id : Nat) : Nat :=
+  match (e.runs.find? (·.id == id)).bind (·.parent) with
+  | some p => rootOf e p
+  | none => id
+
+/-- Variables a branch keeps to itself: `wait` (`assign_parallel_protected`)
+and the `repeat` of the loop it was started in. -/
+def BRANCH_LOCAL : List String := ["wait", "repeat"]
+
+/-- Branches share the run's variables (`ScriptRunVariables` assigns to the
+outer scope). Branches interleave only where they block, so copying a
+branch's variables to the rest of its family whenever it stops is exact. -/
+def syncFamily (e : Engine) (r : Run) : Engine :=
+  let root := rootOf e r.id
+  let fam := familyOf e root
+  if fam.length ≤ 1 then e else
+  let shared := r.vars.filter fun (k, _) => !BRANCH_LOCAL.contains k
+  { e with runs := e.runs.map fun x =>
+      if x.id == r.id || !fam.contains x.id then x
+      else { x with vars := shared.foldl (fun vs (k, v) => setVar vs k v) x.vars } }
 
 def replaceRun (e : Engine) (r : Run) : Engine :=
   { e with runs := e.runs.map fun x => if x.id == r.id then r else x }
@@ -245,9 +273,11 @@ def cleanupWait (e : Engine) (rid : Nat) : Engine :=
            armed := e.armed.filter (·.1 != o),
            periods := e.periods.filter (·.1.1 != o) }
 
-/-- Remove a run, and the listeners of its wait (also on stop). -/
+/-- Remove a run with its branches, and the listeners of their waits (also
+on stop: stopping a run cancels its sub-scripts). -/
 def removeRun (e : Engine) (id : Nat) : Engine :=
-  cleanupWait { e with runs := e.runs.filter (·.id != id) } id
+  let fam := familyOf e id
+  fam.foldl cleanupWait { e with runs := e.runs.filter (!fam.contains ·.id) }
 
 /-- `async_track_template(hass, wait_template, ..., self._variables)`: set
 up the tracker with its first render's info. -/
@@ -291,10 +321,24 @@ queued script releases the lock to the next waiter). -/
 partial def drive (r : Run) : EM Unit := do
   let e ← getE
   let (res, cmds, ctx) := exec { env := e.condEnv, nextCallId := e.nextCallId } r
-  setE { e with nextCallId := ctx.nextCallId }
+  let last := match res with | .blocked x | .spawn x .. | .done x _ => x
+  setE (syncFamily { e with nextCallId := ctx.nextCallId } last)
   emit cmds
   match res with
-  | .inl (some r') =>
+  | .spawn r' branches coe =>
+    -- `asyncio.gather` of one sub-script per branch, each with a scope of
+    -- its own (`enter_scope(parallel=True)`); they start in order
+    let e ← getE
+    let ids := List.range' e.nextRunId branches.length
+    let kids : List Run := (branches.zip ids).map fun (b, id) =>
+      { id, autoIdx := r'.autoIdx, triggerId := r'.triggerId, vars := r'.scopeVars,
+        frames := [.seq b false], parent := some r'.id }
+    let e := replaceRun e { r' with wait := .joinPar ids [] coe }
+    -- `gather` wraps the branches in tasks that are not started eagerly:
+    -- they run after the callbacks of the current input
+    setE { e with runs := e.runs ++ kids, nextRunId := e.nextRunId + branches.length,
+                  woken := e.woken ++ ids }
+  | .blocked r' =>
     setE (replaceRun (← getE) r')
     match r'.wait with
     | .waitTmpl t _ _ => setupWait r' t
@@ -304,16 +348,19 @@ partial def drive (r : Run) : EM Unit := do
         [{ runId := r'.id, autoIdx := r'.autoIdx, triggers := trigs, vars, hasTimeout := deadline.isSome }] }
       attachTriggers (.wait r'.id) trigs
     | _ => pure ()
-  | .inl none => pure ()
-  | .inr end_ => finishRun r end_
+  | .done _ end_ => finishRun r end_
 
 partial def finishRun (r : Run) (end_ : RunEnd) : EM Unit := do
   let e ← getE
+  if let some pid := r.parent then
+    finishBranch pid r.id end_
+    return
   let a := e.automations.getD r.autoIdx default
   match end_ with
-  | .error m => emit [.log "error" s!"Error while executing automation {a.alias}: {m}"]
+  | .error _ m => emit [.log "error" s!"Error while executing automation {a.alias}: {m}"]
   | .aborted m => emit [.log "debug" s!"{a.alias} aborted: {m}"]
-  | .finished => pure ()
+  | .conditionFailed => emit [.log "debug" s!"{a.alias} aborted: condition failed"]
+  | .finished | .stopped _ => pure ()
   setE (removeRun e r.id)
   -- `_QueuedScriptRun._finish` releases the FIFO lock
   if a.mode == .queued then
@@ -322,6 +369,37 @@ partial def finishRun (r : Run) (end_ : RunEnd) : EM Unit := do
       if let some nxt := (runsOf e r.autoIdx).head? then
         setE (replaceRun e { nxt with wait := .ready })
         drive { nxt with wait := .ready }
+
+/-- A `parallel` branch ended. Once all have, `gather` returns and the
+first branch (in order) that raised re-raises in the parent; an error is
+then handled like any step's (`_handle_exception` with the parallel step's
+`continue_on_error`). -/
+partial def finishBranch (pid kid : Nat) (end_ : RunEnd) : EM Unit := do
+  setE (removeRun (← getE) kid)
+  let e ← getE
+  let some p := e.runs.find? (·.id == pid) | return
+  let .joinPar ids results coe := p.wait | return
+  let results := results ++ [(kid, end_)]
+  if !ids.all (fun i => results.any (·.1 == i)) then
+    setE (replaceRun e { p with wait := .joinPar ids results coe })
+    return
+  let p := { p with wait := .ready }
+  -- the parent wakes up later, when `gather`'s future is done
+  let later (p : Run) : EM Unit := do
+    let e ← getE
+    setE { replaceRun e p with woken := e.woken ++ [p.id] }
+  setE (replaceRun e p)
+  let raised := ids.findSome? fun i => (results.find? (·.1 == i)).bind fun (_, x) =>
+    if x.raises then some x else none
+  match raised with
+  | none => later p
+  | some (.error k m) =>
+    if coe && k == .haError then later p
+    else match unwindError p k m with
+      | .next p' => later p'
+      | .done x => finishRun p x
+      | _ => pure ()
+  | some x => finishRun p x
 end
 
 /-- `this` as `AutomationEntity.async_trigger` builds it:
@@ -340,7 +418,7 @@ def thisValue (e : Engine) (ai : Nat) (a : Automation) (eid : String) : Template
     | .single => "single" | .restart => "restart" | .queued => "queued" | .parallel => "parallel"
   let attrs : List (String × Template.Value) :=
     (match a.uniqueId with | some u => [("id", .str u)] | none => []) ++
-    [("last_triggered", lt), ("mode", .str mode), ("current", .int (e.runs.filter (·.autoIdx == ai)).length)] ++
+    [("last_triggered", lt), ("mode", .str mode), ("current", .int (runsOf e ai).length)] ++
     (if a.mode == .queued || a.mode == .parallel then [("max", .int a.maxRuns)] else []) ++
     [("friendly_name", .str a.alias)]
   .dict ([("entity_id", Template.Value.str eid), ("state", .str "on"),
@@ -423,9 +501,11 @@ def fire (o : Owner) (tv : TriggerVars) : EM Unit := do
     let e := replaceRun e r
     setE { e with woken := if e.woken.contains rid then e.woken else e.woken ++ [rid] }
 
-/-- Continue runs whose `wait_for_trigger` completed: remove the step's
-triggers, then run on. -/
-def resumeWoken : EM Unit := do
+/-- Run what is scheduled for after the current callbacks, in order: runs
+whose `wait_for_trigger` completed (their triggers are removed first),
+`parallel` branches, and parents whose branches are all done. Runs started
+here can schedule more. -/
+partial def resumeWoken : EM Unit := do
   let ws := (← getE).woken
   if ws.isEmpty then return
   setE { (← getE) with woken := [] }
@@ -433,6 +513,7 @@ def resumeWoken : EM Unit := do
     setE (cleanupWait (← getE) rid)
     if let some r := (← getE).runs.find? (·.id == rid) then
       if r.wait == .ready then drive r
+  resumeWoken
 
 /-- Every trigger listener, in registration order: the automations', then
 those of waiting runs. -/
@@ -851,6 +932,7 @@ partial def fireDue (t : Millis) : EM Unit := do
       let r := { r with wait := .ready }
       setE (replaceRun e r)
       drive r
+    resumeWoken
     fireDue t
   | none, none =>
     match rl? with
@@ -913,8 +995,9 @@ def handle : Input → EM Unit
       return  -- run was stopped meanwhile (restart): ignore
     match resumeService r ok kind msg with
     | .next r' => setE (replaceRun e r'); drive r'
-    | .blocked r' => setE (replaceRun e r')
+    | .blocked r' | .spawn r' .. => setE (replaceRun e r')  -- not produced by resumeService
     | .done end_ => finishRun r end_
+    resumeWoken
 
 /-- The engine's single entry point. -/
 def Engine.step (e : Engine) (i : Input) : Engine × List Cmd :=

@@ -52,6 +52,10 @@ def _walk_actions(actions, services: set, events: set) -> None:
         for key in ("then", "else", "sequence", "default"):
             if isinstance(a.get(key), list):
                 _walk_actions(a[key], services, events)
+        # parallel branches: single actions or `sequence:` mappings
+        par = a.get("parallel")
+        if par is not None:
+            _walk_actions(par if isinstance(par, list) else [par], services, events)
         for opt in a.get("choose", []) or []:
             _walk_actions(opt.get("sequence"), services, events)
         if isinstance(a.get("repeat"), dict):

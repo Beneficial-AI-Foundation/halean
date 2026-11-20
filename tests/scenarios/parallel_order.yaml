@@ -1,0 +1,55 @@
+# `parallel` scheduling: two automations with parallel steps on the same
+# event, a nested parallel, a branch waiting for a trigger, and a mode:
+# single automation whose branches are not runs of their own.
+automations:
+  - id: pa
+    triggers: [{trigger: event, event_type: a}]
+    actions:
+      - parallel: [{event: a1}, {event: a2}]
+      - event: a3
+  - id: pb
+    triggers: [{trigger: event, event_type: a}]
+    actions:
+      - parallel: [{event: b1}, {event: b2}]
+      - event: b3
+  - id: nested
+    triggers: [{trigger: event, event_type: c}]
+    actions:
+      - parallel:
+          - parallel: [{event: c1}, {event: c2}]
+          - {event: c3}
+      - event: c4
+  - id: waits
+    mode: single
+    triggers: [{trigger: event, event_type: d}]
+    actions:
+      - parallel:
+          - sequence:
+              - wait_for_trigger: {trigger: state, entity_id: input_boolean.x, to: "on"}
+              - event: d1
+                event_data: {t: "{{ wait.trigger.to_state.state }}"}
+          - sequence:
+              - wait_template: "{{ is_state('input_boolean.y', 'on') }}"
+              - {event: d2}
+      - event: d3
+        event_data: {w: "{{ wait is defined }}"}
+states:
+  - {entity_id: input_boolean.x, state: "off"}
+  - {entity_id: input_boolean.y, state: "off"}
+steps:
+  - {at: 1, send: {type: event, event_type: a},
+     expect: [{type: automation_triggered, id: pa}, {type: automation_triggered, id: pb},
+              {type: fire_event, event_type: a1}, {type: fire_event, event_type: a2},
+              {type: fire_event, event_type: b1}, {type: fire_event, event_type: b2},
+              {type: fire_event, event_type: a3}, {type: fire_event, event_type: b3}]}
+  - {at: 2, send: {type: event, event_type: c},
+     expect: [{type: automation_triggered, id: nested},
+              {type: fire_event, event_type: c3}, {type: fire_event, event_type: c1},
+              {type: fire_event, event_type: c2}, {type: fire_event, event_type: c4}]}
+  - {at: 3, send: {type: event, event_type: d}, expect: [{type: automation_triggered, id: waits}]}
+  - {at: 4, send: {type: event, event_type: d}, logs: true,
+     expect: [{type: log, level: warning, message: "automation 3: Already running"}]}
+  - {at: 5, set: [input_boolean.y, "on"], expect: [{type: fire_event, event_type: d2}]}
+  - {at: 6, set: [input_boolean.x, "on"],
+     expect: [{type: fire_event, event_type: d1, data: {t: "on"}},
+              {type: fire_event, event_type: d3, data: {w: false}}]}
