@@ -11,6 +11,7 @@
 -/
 import HALean.Automation.Script
 import HALean.Automation.TimePeriod
+import HALean.Automation.Location
 open Lean
 
 namespace HALean.Automation
@@ -190,6 +191,7 @@ inductive Input where
   | event (eventType : String) (data : Json) (now : Instant)
   | tick (now : Instant)
   | serviceResult (callId : Nat) (ok : Bool) (kind : ErrKind) (msg : String) (now : Instant)
+      (response : Json := .null)
 
 abbrev EM := StateM (Engine × List Cmd)
 
@@ -803,6 +805,44 @@ def onTemplateTrigger (o : Owner) (t : Trigger) (eid : String) (old new : Option
   if ← trackerGate st eid old new replay then
     templateRefresh o t (some (eid, old, new))
 
+/-- `zone/trigger.py::LegacyZoneTrigger.zone_automation_listener` -/
+def onZoneTrigger (o : Owner) (t : Trigger) (eid : String) (old new : Option EntityState) :
+    EM Unit := do
+  let .zone eids zoneId enter := t.kind | return
+  if !eids.contains eid then return
+  -- states that cannot be matched against a zone are ignored
+  if (old.map (!stateHasZoneInfo ·)).getD false || (new.map (!stateHasZoneInfo ·)).getD false then return
+  let e ← getE
+  let some zs := e.states.get? zoneId |
+    emit [.log "warning" s!"Non-existing zone '{zoneId}' in a zone trigger"]
+  let check (s : Option EntityState) : Except String Bool :=
+    match s with
+    | some s => zoneCondition zs s
+    | none => .ok false
+  -- an exception in the listener is logged by the event bus
+  let r : Except String (Option String) := do
+    let fromM ← check old
+    let toM ← check new
+    if (enter && !fromM && toM) || (!enter && fromM && !toM) then
+      let name ← match zs.attr? "friendly_name" with
+        | some (.str n) => pure n
+        | some v => Template.pyStr (Template.Value.ofJson v)
+        | none => throw "KeyError: 'friendly_name'"
+      let verb := if enter then "entering" else "leaving"
+      pure (some s!"{eid} {verb} {name}")
+    else pure none
+  match r with
+  | .error m => emit [.log "error" s!"Error in zone trigger listener: {m}"]
+  | .ok none => pure ()
+  | .ok (some desc) =>
+    -- `run_action({...}, description)`: trigger_data, platform, description,
+    -- then the payload
+    let value := triggerValue t "zone" [("description", .str desc), ("entity_id", .str eid),
+      ("from_state", stateVal old), ("to_state", stateVal new), ("zone", .state zs false),
+      ("event", .str (if enter then "enter" else "leave"))]
+    fire o { id := t.id, idx := t.idx, platform := "zone", entityId := some eid,
+             description := desc, value }
+
 def onStateChanged (eid : String) (old new : Option EntityState) : EM Unit := do
   -- the state machine is updated before listeners run
   let e ← getE
@@ -817,6 +857,7 @@ def onStateChanged (eid : String) (old new : Option EntityState) : EM Unit := do
       | .state .. => onStateTrigger o t eid old new
       | .numericState .. => onNumericTrigger o t eid old new
       | .template .. => onTemplateTrigger o t eid old new
+      | .zone .. => onZoneTrigger o t eid old new
       | _ => pure ()
   let done ← onWaitTrackers eid old new
   -- `state_for_cancel_listener`s: drop timers whose condition broke
@@ -986,14 +1027,14 @@ def handle : Input → EM Unit
     fireDue now.utc
   | .event ty data now => do advanceTo now; onEvent ty data; resumeWoken
   | .tick now => advanceTo now
-  | .serviceResult cid ok kind msg now => do
+  | .serviceResult cid ok kind msg now resp => do
     advanceTo now
     let e ← getE
     let some r := e.runs.find? (fun r => match r.wait with
-        | .service c _ => c == cid
+        | .service c .. => c == cid
         | _ => false) |
       return  -- run was stopped meanwhile (restart): ignore
-    match resumeService r ok kind msg with
+    match resumeService r ok kind msg resp with
     | .next r' => setE (replaceRun e r'); drive r'
     | .blocked r' | .spawn r' .. => setE (replaceRun e r')  -- not produced by resumeService
     | .done end_ => finishRun r end_

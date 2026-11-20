@@ -85,7 +85,7 @@ inductive Wait where
   | queued
   | delayUntil (t : Millis)
   /-- Blocking service call; `coe` is the step's own `continue_on_error`. -/
-  | service (callId : Nat) (coe : Bool)
+  | service (callId : Nat) (coe : Bool) (respVar : Option String := none)
   /-- `wait_template` that was false: the engine tracks `t` (like
   `async_track_template`) until it turns true or `deadline` passes. -/
   | waitTmpl (t : Template.Tmpl) (deadline : Option Millis) (continueOnTimeout : Bool)
@@ -102,7 +102,7 @@ inductive Wait where
 def Wait.beq : Wait → Wait → Bool
   | .ready, .ready | .queued, .queued => true
   | .delayUntil a, .delayUntil b => a == b
-  | .service a c, .service b d => a == b && c == d
+  | .service a c x, .service b d y => a == b && c == d && x == y
   | .waitTmpl _ a c, .waitTmpl _ b d => a == b && c == d
   | .waitTrig _ _ a c, .waitTrig _ _ b d => a == b && c == d
   | .joinPar a _ c, .joinPar b _ d => a == b && c == d
@@ -152,6 +152,7 @@ def TIMEOUT_MSG : String := "Timeout reached, abort script."
 /-- Commands the engine asks the I/O shell to perform. -/
 inductive Cmd where
   | callService (callId runId : Nat) (domain service : String) (data target : Json)
+      (returnResponse : Bool := false)
   | fireEvent (eventType : String) (data : Json)
   | automationTriggered (automationId name source : String)
   | log (level msg : String)
@@ -207,7 +208,7 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
     let r' := { r with frames := cur }
     let rec run (coe : Bool) : Action → StepOut × List Cmd × ExecCtx
       | .continueOnError a => run true a
-      | .service d s data tgt =>
+      | .service d s data tgt rv =>
         -- `async_prepare_call_from_config` runs inside the step: a template
         -- error is a HomeAssistantError raised by the step itself.
         let prepared : Except String (Json × Json) := do
@@ -221,8 +222,9 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
           (out, [.log "error" msg], ctx)
         | .ok (dj, tj) =>
           let cid := ctx.nextCallId
-          (.blocked { r' with wait := .service cid coe },
-           [.callService cid r.id d s dj tj], { ctx with nextCallId := cid + 1 })
+          -- `return_response = response_variable is not None`
+          (.blocked { r' with wait := .service cid coe rv },
+           [.callService cid r.id d s dj tj rv.isSome], { ctx with nextCallId := cid + 1 })
       | .delay ms =>
         if ms == 0 then (.next r', [], ctx)
         else (.blocked { r' with wait := .delayUntil (env.now.utc + ms) }, [], ctx)
@@ -300,10 +302,15 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
           (unwindError r' .invalid msg, [.log "error" msg], ctx)
       | .repeatWhile cs body => (.next (push (.repeatWhile 0 cs body coe) cur), [], ctx)
       | .repeatUntil cs body => (.next (push (.repeatUntil 0 cs body coe) cur), [], ctx)
-      | .stop reason err =>
+      | .stop reason err rv =>
         -- `_AbortScript` / `_StopScript` are not HomeAssistantErrors: they
         -- reach the top whatever `continue_on_error` says.
-        if err then (.done (.aborted reason), [], ctx) else (.done (.stopped reason), [], ctx)
+        if err then (.done (.aborted reason), [], ctx)
+        else match rv with
+          | some v =>
+            if (env.vars.find? (·.1 == v)).isSome then (.done (.stopped reason), [], ctx)
+            else (.done (.aborted s!"Response variable '{v}' is not defined"), [], ctx)
+          | none => (.done (.stopped reason), [], ctx)
       | .event t data =>
         -- `_async_step_event`: a template error is logged and the event is
         -- fired with the data rendered so far (none).
@@ -421,11 +428,16 @@ def exec (ctx : ExecCtx) (r : Run) : ExecRes × List Cmd × ExecCtx :=
   loop STEP_FUEL ctx r []
 
 /-- Resume a run whose service call completed. -/
-def resumeService (r : Run) (ok : Bool) (k : ErrKind) (msg : String) : StepOut :=
+def resumeService (r : Run) (ok : Bool) (k : ErrKind) (msg : String)
+    (response : Json := .null) : StepOut :=
   match r.wait with
-  | .service _ coe =>
+  | .service _ coe rv =>
     let r := { r with wait := .ready }
-    if ok then .next r
+    -- `if response_variable: self._variables[response_variable] = response_data`
+    if ok then match rv with
+      | some v => if v.isEmpty then .next r
+                  else .next { r with vars := setVar r.vars v (Template.Value.ofJson response) }
+      | none => .next r
     else if coe && k != .invalid then .next r  -- the step's own continue_on_error
     else unwindError r k msg
   | _ => .next r

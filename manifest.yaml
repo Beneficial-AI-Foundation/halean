@@ -140,15 +140,15 @@ entries:
   lean:
   - HALean.Automation.step
   status: translated
-  notes: response_variable not supported
+  notes: a response_variable that is not defined aborts the run
   hash: a51acb4f9a47c972
 - python: helpers/script.py::_ScriptRun._async_step_call_service
   lean:
   - HALean.Automation.step
   - HALean.Automation.resumeService
   status: translated
-  notes: blocking call delegated to the shell; data/target templates rendered first (a render error is
-    a HomeAssistantError of the step); response_variable rejected
+  notes: 'response_variable: the shell asks for the response (return_response) and reports a response-support
+    mismatch as a configuration error'
   hash: 2c9a2006b53f8036
 - python: helpers/script.py::_ScriptRun._async_step_event
   lean:
@@ -873,3 +873,53 @@ entries:
   - HALean.Automation.syncFamily
   status: translated
   hash: 1e1035c7631f29f7
+- python: components/zone/trigger.py::LegacyZoneTrigger.async_attach_runner
+  lean:
+  - HALean.Automation.onZoneTrigger
+  status: translated
+  hash: 2e003d00b487e4ce
+- python: components/zone/trigger.py::_state_has_zone_info
+  lean:
+  - HALean.Automation.stateHasZoneInfo
+  status: translated
+  hash: fb41ae6e80ee8beb
+- python: components/zone/condition.py::zone
+  lean:
+  - HALean.Automation.zoneCondition
+  status: translated
+  notes: an in_zones string is a substring test, as Python `in` is
+  hash: e8a18aa54404759d
+- python: components/zone/__init__.py::in_zone
+  lean:
+  - HALean.Automation.inZone
+  status: translated
+  hash: ac7a831c52785503
+- python: components/zone/helpers.py::get_in_zones_attribute
+  lean:
+  - HALean.Automation.inZonesAttribute
+  status: translated
+  notes: the attribute is in_zones for both domains
+  hash: db673df679755661
+- python: util/location.py::vincenty
+  lean:
+  - HALean.Automation.vincenty
+  status: translated
+  notes: same libm functions as CPython on the same host; agrees with HA at the float next to a 100 m
+    radius
+  hash: 25819494cb2aabb6
+- python: util/location.py::distance
+  lean:
+  - HALean.Automation.distance
+  status: translated
+  hash: 58381f8e9653f464
+- python: helpers/location.py::get_state_coordinates
+  lean:
+  - HALean.Automation.hasLocation
+  status: translated
+  hash: dd0be37ed1fe766f
+- python: helpers/trigger/__init__.py::_async_attach_trigger_cls
+  lean:
+  - HALean.Automation.triggerValue
+  status: translated
+  notes: 'trigger payload: trigger_data, platform, description, then the trigger''s own fields'
+  hash: a5ae38b9432c3245

@@ -1,0 +1,52 @@
+# Legacy `zone` trigger: entering and leaving by coordinates (Vincenty
+# distance against the zone's radius, minus gps_accuracy), by a person's
+# `in_zones`, states without location info are ignored, a zone that does not
+# exist, and the trigger variables.
+automations:
+  - id: enter
+    triggers: [{trigger: zone, entity_id: device_tracker.phone, zone: zone.office, event: enter}]
+    actions:
+      - event: entered
+        event_data:
+          d: "{{ trigger.description }}"
+          z: "{{ trigger.zone.entity_id }} {{ trigger.event }} {{ trigger.platform }} {{ trigger.idx }}"
+          s: "{{ trigger.from_state.attributes.latitude }}>{{ trigger.to_state.attributes.latitude }}"
+  - id: leave
+    triggers: [{trigger: zone, entity_id: [device_tracker.phone, person.alice], zone: zone.office, event: leave}]
+    actions:
+      - event: left
+        event_data: {d: "{{ trigger.description }}"}
+  - id: person_enter
+    triggers: [{trigger: zone, entity_id: person.alice, zone: zone.office}]
+    actions: [{event: alice_in}]
+  - id: missing_zone
+    triggers: [{trigger: zone, entity_id: device_tracker.phone, zone: zone.nowhere}]
+    actions: [{event: never}]
+states:
+  - {entity_id: zone.office, state: "0",
+     attributes: {latitude: 52.37, longitude: 4.89, radius: 100, friendly_name: Office, passive: false}}
+  - {entity_id: device_tracker.phone, state: not_home, attributes: {latitude: 52.372, longitude: 4.89}}
+  - {entity_id: person.alice, state: not_home, attributes: {in_zones: []}}
+steps:
+  - {at: 1, set: [device_tracker.phone, home], attributes: {latitude: 52.3705, longitude: 4.8901},
+     expect: [{type: automation_triggered, id: enter},
+              {type: fire_event, event_type: entered,
+               data: {d: "device_tracker.phone entering Office", z: "zone.office enter zone 0", s: "52.372>52.3705"}}]}
+  - {at: 2, set: [device_tracker.phone, home], attributes: {latitude: 52.3706, longitude: 4.8902}}
+  - {at: 3, set: [device_tracker.phone, not_home], attributes: {latitude: 52.3712, longitude: 4.89},
+     expect: [{type: automation_triggered, id: leave},
+              {type: fire_event, event_type: left, data: {d: "device_tracker.phone leaving Office"}}]}
+  - {at: 4, set: [device_tracker.phone, not_home], attributes: {latitude: 52.3712, longitude: 4.89, gps_accuracy: 50},
+     expect: [{type: automation_triggered, id: enter}, {type: fire_event, event_type: entered}]}
+  - {at: 5, set: [device_tracker.phone, unknown]}
+  - {at: 6, set: [device_tracker.phone, not_home], attributes: {latitude: 52.3712, longitude: 4.89}}
+  # the radius boundary: 99.999 m is inside, the next float (100.0 m) is not
+  - {at: 7, set: [device_tracker.phone, x], attributes: {latitude: 52.37089867496289, longitude: 4.89},
+     expect: [{type: automation_triggered, id: enter}, {type: fire_event, event_type: entered}]}
+  - {at: 8, set: [device_tracker.phone, x], attributes: {latitude: 52.370898674962895, longitude: 4.89},
+     expect: [{type: automation_triggered, id: leave}, {type: fire_event, event_type: left}]}
+  - {at: 9, set: [person.alice, office], attributes: {in_zones: [zone.office]},
+     expect: [{type: automation_triggered, id: person_enter}, {type: fire_event, event_type: alice_in}]}
+  - {at: 10, set: [person.alice, away], attributes: {in_zones: [zone.home]},
+     expect: [{type: automation_triggered, id: leave},
+              {type: fire_event, event_type: left, data: {d: "person.alice leaving Office"}}]}

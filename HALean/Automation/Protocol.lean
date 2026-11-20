@@ -72,13 +72,13 @@ def decodeInput (j : Json) : Except String (Input × List (String × String)) :=
   | "service_result" =>
     let ok := match field? j "ok" with | some (.bool b) => b | _ => false
     return (.serviceResult (← getNat j "call_id") ok (decodeErrKind (str? j "error_kind"))
-      ((str? j "message").getD "") now, [])
+      ((str? j "message").getD "") now ((field? j "response").getD .null), [])
   | t => throw s!"unknown message type {t}"
 
 def Cmd.toJson : Cmd → Json
-  | .callService cid rid d s data tgt => Json.mkObj
+  | .callService cid rid d s data tgt rr => Json.mkObj
       [("type", "call_service"), ("call_id", cid), ("run_id", rid), ("domain", d),
-       ("service", s), ("data", data), ("target", tgt)]
+       ("service", s), ("data", data), ("target", tgt), ("return_response", rr)]
   | .fireEvent t data => Json.mkObj [("type", "fire_event"), ("event_type", t), ("data", data)]
   | .automationTriggered id name src => Json.mkObj
       [("type", "automation_triggered"), ("id", id), ("name", name), ("source", src)]

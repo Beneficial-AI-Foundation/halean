@@ -59,7 +59,8 @@
         "ok": {"type": "boolean"},
         "error_kind": {"enum": ["invalid", "ha_error", "other"],
           "description": "invalid = vol.Invalid/config errors (never swallowed); ha_error = HomeAssistantError; other = any other exception"},
-        "message": {"type": "string"}
+        "message": {"type": "string"},
+        "response": {"description": "The service's response data, when the call asked for it (return_response)."}
       }
     },
     "batch": {
@@ -68,7 +69,8 @@
         "type": {"const": "batch"},
         "cmds": {"type": "array", "items": {"oneOf": [
           {"properties": {"type": {"const": "call_service"}, "call_id": {"type": "integer"}, "run_id": {"type": "integer"},
-            "domain": {"type": "string"}, "service": {"type": "string"}, "data": {"type": "object"}, "target": {"type": "object"}},
+            "domain": {"type": "string"}, "service": {"type": "string"}, "data": {"type": "object"}, "target": {"type": "object"},
+            "return_response": {"type": "boolean", "description": "The step has a response_variable: ask for the response and send it back as service_result.response."}},
            "description": "Blocking call: answer with service_result carrying the same call_id."},
           {"properties": {"type": {"const": "fire_event"}, "event_type": {"type": "string"}, "data": {"type": "object"}}},
           {"properties": {"type": {"const": "automation_triggered"}, "id": {"type": "string"}, "name": {"type": "string"}, "source": {"type": "string"}}},

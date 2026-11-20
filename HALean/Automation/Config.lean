@@ -88,6 +88,9 @@ inductive TriggerKind where
   /-- Fixed local times of day, in whole seconds. -/
   | time (ats : List Nat) (weekday : Option (List String))
   | timePattern (hours minutes seconds : Pattern)
+  /-- Legacy `zone` trigger (`trigger: zone`): `enter` is `true` for
+  `event: enter`, `false` for `leave`. -/
+  | zone (entityIds : List String) (zone : String) (enter : Bool)
   /-- Flat `event_data` only: every pair must be present and equal. -/
   | event (eventTypes : List String) (data : List (String × Json))
   /-- `template` trigger (`components/template/trigger.py`). -/
@@ -102,7 +105,8 @@ structure Trigger where
   deriving Repr, Inhabited
 
 inductive Action where
-  | service (domain service : String) (data target : Complex)
+  /-- `respVar`: `response_variable`, assigned the service's response. -/
+  | service (domain service : String) (data target : Complex) (respVar : Option String)
   | delay (ms : Nat)
   /-- A templated `delay` (`cv.positive_time_period_template`), rendered
   when the step runs. -/
@@ -119,7 +123,8 @@ inductive Action where
   | variables (vs : List (String × Complex))
   | repeatWhile (conds : List Condition) (body : List Action)
   | repeatUntil (conds : List Condition) (body : List Action)
-  | stop (reason : String) (error : Bool)
+  /-- `respVar`: the `response_variable` whose value the stop returns. -/
+  | stop (reason : String) (error : Bool) (respVar : Option String)
   | event (eventType : String) (data : Complex)
   | sequence (body : List Action)
   /-- `wait_template` with an optional `timeout` (`cv.positive_time_period_template`,
@@ -353,6 +358,13 @@ def continueOnTimeout? (j : Json) : D Bool :=
   | some (.bool b) => pure b
   | some v => throw s!"continue_on_timeout must be true or false, got {v.compress}"
 
+/-- `response_variable` (`str`). -/
+def responseVariable? (j : Json) : D (Option String) :=
+  match field? j "response_variable" with
+  | none => pure none
+  | some (.str v) => pure (some v)
+  | some v => throw s!"response_variable must be a string, got {v.compress}"
+
 /-- A mapping whose order matters (`variables`). Lean's `Json` objects are
 sorted by key, so the shell sends these as `[[key, value], ...]`; a plain
 object is accepted too, in key order. -/
@@ -486,6 +498,13 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := []) : D (Option T
       | .ok () => pure ()
       | .error e => throw e
       pure <| TriggerKind.template t (← forPeriod? j "for" (tnm ++ ["trigger"]))
+    | "zone" => do
+      let some z := str? j "zone" | throw "zone trigger needs a zone entity id"
+      let enter ← match field? j "event" with
+        | none | some (.str "enter") => pure true
+        | some (.str "leave") => pure false
+        | some v => throw s!"zone trigger event must be enter or leave, got {v.compress}"
+      pure <| TriggerKind.zone (← entityIds j) z enter
     | p => throw s!"trigger platform '{p}' is not supported"
   return some { id, idx, alias := str? j "alias", kind }
 
@@ -505,7 +524,6 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
     match svc.splitOn "." with
     | [d, s] =>
       noTemplate j "data_template"
-      noTemplate j "response_variable"
       let data ← match field? j "data" with
         | none => pure (Json.mkObj [])
         | some d@(.obj _) => pure d
@@ -514,7 +532,7 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
         | none => pure (Json.mkObj [])
         | some t@(.obj _) => pure t
         | some _ => throw "target must be a mapping (a whole-target template is not supported)"
-      return wrap (.service d s (← decodeComplex data nm) (← decodeComplex target nm))
+      return wrap (.service d s (← decodeComplex data nm) (← decodeComplex target nm) (← responseVariable? j))
     | _ => throw s!"bad service name {svc}"
   if has j "delay" then
     match ← forPeriod? j "delay" nm with
@@ -550,9 +568,11 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
     if let some items := field? r "for_each" then return wrap (.repeatEach (← decodeComplex items nm) body)
     throw "repeat needs count, for_each, while or until"
   if let some s := str? j "stop" then
-    noTemplate j "response_variable"
     let err := match field? j "error" with | some (.bool true) => true | _ => false
-    return wrap (.stop s err)
+    let rv ← responseVariable? j
+    -- `_stop_action_check_error_response`
+    if err && rv.isSome then throw "'response_variable' cannot be used with 'error: true'"
+    return wrap (.stop s err rv)
   if let some e := str? j "event" then
     noTemplate j "event_data_template"
     let data ← match field? j "event_data" with
@@ -588,9 +608,11 @@ partial def actionVariableNames (j : Json) : List String :=
   match j with
   | .arr xs => xs.toList.flatMap actionVariableNames
   | .obj kvs =>
-    let here := match field? j "variables" with
+    let here := (match field? j "variables" with
       | some v => ((orderedMapping "variables" v).toOption.getD []).map (·.1)
-      | none => []
+      | none => []) ++ (match field? j "response_variable" with
+      | some (.str v) => [v]
+      | _ => [])
     here ++ kvs.toList.flatMap fun (k, v) => if k == "variables" then [] else actionVariableNames v
   | _ => []
 

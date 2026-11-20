@@ -1,0 +1,61 @@
+# `response_variable`: the service's response is assigned to the variable
+# (outer scope, so a `parallel` branch's response is seen after the step);
+# a failed call leaves it unset; `stop` with a response_variable that is not
+# defined aborts the run instead.
+automations:
+  - id: forecast
+    triggers: [{trigger: event, event_type: a}]
+    actions:
+      - action: weather.get_forecasts
+        target: {entity_id: weather.home}
+        data: {type: daily}
+        response_variable: fc
+      - event: a_done
+        event_data:
+          t: "{{ fc['weather.home'].forecast[0].temperature }}"
+          n: "{{ fc['weather.home'].forecast | length }}"
+  - id: in_branch
+    triggers: [{trigger: event, event_type: b}]
+    actions:
+      - parallel:
+          - {action: test.lookup, response_variable: r}
+          - {event: b_branch}
+      - event: b_done
+        event_data: {v: "{{ r.value }}"}
+  - id: failed
+    triggers: [{trigger: event, event_type: c}]
+    actions:
+      - action: test.lookup
+        response_variable: r2
+        continue_on_error: true
+      - event: c_done
+        event_data: {d: "{{ r2 is defined }}"}
+  - id: stop_undefined
+    triggers: [{trigger: event, event_type: d}]
+    actions:
+      - stop: done
+        response_variable: nothing
+  - id: stop_defined
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - variables: {out: {ok: true}}
+      - stop: done
+        response_variable: out
+steps:
+  - {at: 1, send: {type: event, event_type: a},
+     expect: [{type: automation_triggered, id: forecast},
+              {type: call_service, service: get_forecasts, call_id: 0, return_response: true}]}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: true,
+                   response: {weather.home: {forecast: [{temperature: 21.5}, {temperature: 19}]}}},
+     expect: [{type: fire_event, event_type: a_done, data: {t: 21.5, n: 2}}]}
+  - {at: 3, send: {type: event, event_type: b},
+     expect: [{type: automation_triggered, id: in_branch},
+              {type: call_service, service: lookup, call_id: 1}, {type: fire_event, event_type: b_branch}]}
+  - {at: 4, send: {type: service_result, call_id: 1, ok: true, response: {value: 7}},
+     expect: [{type: fire_event, event_type: b_done, data: {v: 7}}]}
+  - {at: 5, send: {type: event, event_type: c},
+     expect: [{type: automation_triggered, id: failed}, {type: call_service, service: lookup, call_id: 2}]}
+  - {at: 6, send: {type: service_result, call_id: 2, ok: false, error_kind: ha_error},
+     expect: [{type: fire_event, event_type: c_done, data: {d: false}}]}
+  - {at: 7, send: {type: event, event_type: d}, expect: [{type: automation_triggered, id: stop_undefined}]}
+  - {at: 8, send: {type: event, event_type: e}, expect: [{type: automation_triggered, id: stop_defined}]}

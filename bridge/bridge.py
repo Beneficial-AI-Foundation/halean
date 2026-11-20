@@ -55,6 +55,11 @@ ERROR_KIND = {
     "unauthorized": "ha_error",
 }
 
+# `_async_step_call_service` raises vol.Invalid (a configuration error) before
+# calling a service whose response support doesn't match the step; over the
+# WebSocket API HA reports the same mismatch with these translation keys.
+INVALID_TRANSLATION_KEYS = {"service_does_not_support_response", "service_lacks_response_request"}
+
 
 def now_fields() -> dict:
     t = time.time()
@@ -176,14 +181,20 @@ class Bridge:
                       c["target"], c["data"])
             res = {"success": True}
         else:
-            res = await self.request({"type": "call_service", "domain": c["domain"],
-                                      "service": c["service"], "service_data": c["data"],
-                                      "target": c["target"]})
+            req = {"type": "call_service", "domain": c["domain"], "service": c["service"],
+                   "service_data": c["data"], "target": c["target"]}
+            if c.get("return_response"):
+                req["return_response"] = True
+            res = await self.request(req)
         msg = {"type": "service_result", "call_id": c["call_id"], "ok": res.get("success", False),
                **now_fields()}
-        if not msg["ok"]:
+        if msg["ok"]:
+            if c.get("return_response"):
+                msg["response"] = (res.get("result") or {}).get("response")
+        else:
             err = res.get("error", {})
-            msg["error_kind"] = ERROR_KIND.get(err.get("code", ""), "other")
+            msg["error_kind"] = ("invalid" if err.get("translation_key") in INVALID_TRANSLATION_KEYS
+                                 else ERROR_KIND.get(err.get("code", ""), "other"))
             msg["message"] = err.get("message", "")
         await self.handle_cmds(await self.engine.send(msg))
 

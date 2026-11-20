@@ -29,7 +29,7 @@ from freezegun.api import FrozenDateTimeFactory
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from homeassistant.const import MATCH_ALL
-from homeassistant.core import Context, HomeAssistant, ServiceCall, callback
+from homeassistant.core import Context, HomeAssistant, ServiceCall, SupportsResponse, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.setup import async_setup_component
 
@@ -132,10 +132,12 @@ async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, pat
         observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
         fut = hass.loop.create_future()
         futures.append(fut)
-        await fut  # raises if the scenario reports a failure
+        return await fut  # the scenario's response; raises if it reports a failure
 
+    # services answer with response data when asked (SupportsResponse.OPTIONAL)
     for domain, service in services:
-        hass.services.async_register(domain, service, handler)
+        hass.services.async_register(domain, service, handler,
+                                     supports_response=SupportsResponse.OPTIONAL)
 
     @callback
     def on_event(event) -> None:
@@ -182,7 +184,7 @@ async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, pat
                 if fut.done():
                     pass  # the run was stopped (restart) and its call cancelled
                 elif msg.get("ok"):
-                    fut.set_result(None)
+                    fut.set_result(msg.get("response"))
                 else:
                     kind = msg.get("error_kind", "other")
                     fut.set_exception(
