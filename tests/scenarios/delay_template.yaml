@@ -1,0 +1,31 @@
+# templated `delay`: a template string, a mapping with templates, zero, and
+# a render error (logged, the run is aborted)
+automations:
+  - id: string
+    variables: {secs: 3}
+    triggers: [{trigger: event, event_type: a}]
+    actions: [{delay: "{{ secs }}"}, {event: a_done}]
+  - id: mapping
+    triggers: [{trigger: event, event_type: b}]
+    actions: [{delay: {minutes: 0, seconds: "{{ trigger.event.data.s }}"}}, {event: b_done}]
+  - id: zero
+    triggers: [{trigger: event, event_type: c}]
+    actions: [{delay: "{{ 0 }}"}, {event: c_done}]
+  - id: hms
+    triggers: [{trigger: event, event_type: d}]
+    actions: [{delay: "00:00:0{{ 2 + 2 }}"}, {event: d_done}]
+  - id: bad
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{delay: "{{ 'soon' }}"}, {event: e_done}]
+steps:
+  - {at: 1, send: {type: event, event_type: a}, expect: [{type: automation_triggered, id: string}]}
+  - {at: 3, send: {type: tick}}
+  - {at: 4, send: {type: tick}, expect: [{type: fire_event, event_type: a_done}]}
+  - {at: 10, send: {type: event, event_type: b, data: {s: 2}}, expect: [{type: automation_triggered, id: mapping}]}
+  - {at: 12, send: {type: tick}, expect: [{type: fire_event, event_type: b_done}]}
+  - {at: 20, send: {type: event, event_type: c}, expect: [{type: automation_triggered, id: zero}, {type: fire_event, event_type: c_done}]}
+  - {at: 30, send: {type: event, event_type: d}, expect: [{type: automation_triggered, id: hms}]}
+  - {at: 33, send: {type: tick}}
+  - {at: 34, send: {type: tick}, expect: [{type: fire_event, event_type: d_done}]}
+  - {at: 40, send: {type: event, event_type: e}, expect: [{type: automation_triggered, id: bad}]}
+  - {at: 45, send: {type: tick}}

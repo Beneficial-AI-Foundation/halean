@@ -207,6 +207,14 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
       | .delay ms =>
         if ms == 0 then (.next r', [], ctx)
         else (.blocked { r' with wait := .delayUntil (env.now.utc + ms) }, [], ctx)
+      | .delayT c =>
+        -- `_get_pos_time_period_template`: an error is logged and aborts
+        match (do cvPositiveTimePeriod (← renderComplexV env c) : Except String Int) with
+        | .error e =>
+          let m := s!"Error rendering delay template: {e}"
+          (.done (.aborted m), [.log "error" m], ctx)
+        | .ok 0 => (.next r', [], ctx)
+        | .ok us => (.blocked { r' with wait := .delayUntil (env.now.utc + ((us + 999) / 1000).toNat) }, [], ctx)
       | .condition c =>
         -- `check = cond.async_check(...)`, ConditionError → False; `if not check`
         match evalCond env c with

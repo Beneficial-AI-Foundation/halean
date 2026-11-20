@@ -104,6 +104,9 @@ structure Trigger where
 inductive Action where
   | service (domain service : String) (data target : Complex)
   | delay (ms : Nat)
+  /-- A templated `delay` (`cv.positive_time_period_template`), rendered
+  when the step runs. -/
+  | delayT (c : Complex)
   | condition (c : Condition)
   | choose (options : List (List Condition × List Action)) (default : Option (List Action))
   | ifThen (conds : List Condition) (thenA : List Action) (elseA : Option (List Action))
@@ -511,7 +514,11 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
         | some _ => throw "target must be a mapping (a whole-target template is not supported)"
       return wrap (.service d s (← decodeComplex data nm) (← decodeComplex target nm))
     | _ => throw s!"bad service name {svc}"
-  if let some d := field? j "delay" then return wrap (.delay (← durationMs d))
+  if has j "delay" then
+    match ← forPeriod? j "delay" nm with
+    | some (.tmpl c) => return wrap (.delayT c)
+    | some (.fixed ms) => return wrap (.delay ms)
+    | none => throw "delay needs a period"
   if has j "condition" then return wrap (.condition (← decodeCondition j nm))
   if let some opts := field? j "choose" then
     let options ← (ensureList opts).mapM fun o => do
