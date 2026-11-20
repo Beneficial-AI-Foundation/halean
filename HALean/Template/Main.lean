@@ -7,6 +7,8 @@
   One per line on stdout:
     {"ok": true, "type": "int", "repr": "3"}   -- repr() of the rendered value
     {"ok": false, "error": "..."}               -- HA would raise TemplateError
+    with "info": {"entities": [...], "domains": [...], ...} when the input
+    has "info": true (`async_render_to_info`)
     {"unsupported": "..."}                      -- rejected at load time
 -/
 import HALean.Template
@@ -55,12 +57,21 @@ def handleLine (line : String) : Json :=
           | .ok _ => Json.mkObj [("ok", false), ("error", "unexpected result")]
           | .error e => Json.mkObj [("ok", false), ("error", e)]
         else
-          match render t ctx parse with
-          | .error e => Json.mkObj [("ok", false), ("error", e)]
-          | .ok v =>
-            match pyRepr v with
-            | .ok r => Json.mkObj [("ok", true), ("type", typeName v), ("repr", r)]
+          let (res, info) := renderWithInfo t ctx parse
+          let out := match res with
             | .error e => Json.mkObj [("ok", false), ("error", e)]
+            | .ok v =>
+              match pyRepr v with
+              | .ok r => Json.mkObj [("ok", true), ("type", typeName v), ("repr", r)]
+              | .error e => Json.mkObj [("ok", false), ("error", e)]
+          -- what the render read (`async_render_to_info`), on request
+          match j.getObjVal? "info" with
+          | .ok (.bool true) =>
+            let strs (xs : List String) : Json := .arr ((xs.eraseDups.mergeSort (· ≤ ·)).map Json.str).toArray
+            out.setObjVal! "info" (Json.mkObj [("entities", strs info.entities),
+              ("domains", strs info.domains), ("domains_lifecycle", strs info.domainsLifecycle),
+              ("all_states", info.allStates), ("all_states_lifecycle", info.allStatesLifecycle)])
+          | _ => out
 
 partial def loop (stdin : IO.FS.Stream) (stdout : IO.FS.Stream) : IO Unit := do
   let line ← stdin.getLine

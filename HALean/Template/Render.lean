@@ -9,6 +9,9 @@
     * `helpers/template/extensions/type_cast.py` – `float`, `int`, `is_number`
     * `helpers/template/extensions/math.py` – `round` (`forgiving_round`)
     * `helpers/template/extensions/functional.py` – `iif`
+    * `helpers/template/extensions/math.py` – `min`/`max` (`min_max_from_filter`)
+    * `helpers/template/extensions/state.py` – `expand`
+    * `core.py` – `StateMachine.get` (case-insensitive fallback, for `expand`)
     * `helpers/template/helpers.py` – `forgiving_boolean`, `result_as_boolean`
   and from Jinja2 itself (the evaluator, builtin filters and tests, sandboxed
   `getattr`/`getitem`, `Undefined`).
@@ -121,7 +124,8 @@ def GLOBALS : List String :=
   ["states", "is_state", "state_attr", "is_state_attr", "has_value", "float", "int", "bool",
    "is_number", "iif", "namespace", "dict", "range",
    "now", "utcnow", "today_at", "as_timestamp", "as_datetime", "as_local", "timedelta",
-   "timestamp_local", "timestamp_utc", "timestamp_custom"]
+   "timestamp_local", "timestamp_utc", "timestamp_custom",
+   "min", "max", "expand"]
 
 /-- Functions whose result depends on the clock. HA re-renders trigger
 templates using them on a timer, which HALean does not model yet, so they
@@ -134,7 +138,8 @@ def FILTERS : List String :=
    "first", "last", "join", "list", "string", "abs", "sum",
    "map", "select", "reject", "selectattr", "rejectattr", "reverse",
    "as_timestamp", "as_datetime", "as_local", "timestamp_local", "timestamp_utc", "timestamp_custom",
-   "today_at"]
+   "today_at",
+   "sort", "min", "max", "unique", "expand"]
 
 def TESTS : List String :=
   ["defined", "undefined", "none", "number", "string", "boolean", "integer", "float",
@@ -341,6 +346,11 @@ def seqIndex (xs : List α) (i : Int) : Option α :=
   let j := if i < 0 then i + n else i
   if j < 0 || j ≥ n then none else xs[j.toNat]?
 
+/-- Public attributes of `int`, `float` and `bool` (CPython 3.14). -/
+def NUMBER_ATTRS : List String :=
+  ["as_integer_ratio", "bit_count", "bit_length", "conjugate", "denominator", "from_bytes",
+   "from_number", "fromhex", "hex", "imag", "is_integer", "numerator", "real", "to_bytes"]
+
 def getitemV (ctx : Ctx) (v : Value) (k : Value) : R Value := do
   match v with
   | .undef _ => undefErr v
@@ -367,6 +377,14 @@ def getitemV (ctx : Ctx) (v : Value) (k : Value) : R Value := do
     | .str a => getattrV ctx v a
     | _ => pure (.undef "invalid key")
   | .none => pure (.undef "'None' is not subscriptable")
+  | .int _ | .float _ | .bool _ =>
+    -- `obj[k]` raises TypeError, then the sandbox tries `getattr(obj, k)`
+    match k with
+    | .str a =>
+      if a.startsWith "_" || NUMBER_ATTRS.contains a then
+        throw s!"attribute '{a}' of {typeName v} is not supported by HALean"
+      else pure (.undef s!"'{typeName v} object' has no attribute '{a}'")
+    | _ => pure (.undef s!"'{typeName v}' object is not subscriptable")
   | .opaque w => throw s!"{w} values are not supported by HALean"
   | v => throw s!"indexing {typeName v} is not supported by HALean"
 
@@ -897,6 +915,207 @@ def iif (v : Value) (t f n : Option Value) : Value :=
   | .none, some x => x
   | _, _ => if truthy v then t.getD (.bool true) else f.getD (.bool false)
 
+/-! ## Collections: `sort`, `min`/`max`, `unique` (Jinja) and `expand` (HA) -/
+
+def liftExcept (x : Except String α) : R α :=
+  match x with
+  | .ok v => pure v
+  | .error e => throw e
+
+/-- `list(x)` / `sorted(x)` / `xs += x`: like iteration, but CPython first asks
+for a length hint, so `DomainStates.__len__` / `AllStates.__len__` also
+record the lifecycle listener. -/
+def iterVList (ctx : Ctx) (v : Value) : R (List Value) := do
+  match v with
+  | .domain d => collectDomain d true
+  | .allStates => collectAll true
+  | _ => pure ()
+  iterV ctx v
+
+/-- `jinja2.filters._prepare_attribute_parts`: a dotted path, parts made of
+digits (`str.isdigit`) looked up as ints. `isdigit` also accepts non-ASCII
+digits, which HALean does not model: such a part is an error. -/
+def attrParts (attr : Value) : R (List Value) :=
+  match attr with
+  | .none => pure []
+  | .str path => (path.splitOn ".").mapM fun part =>
+    if part.isEmpty then pure (.str part)
+    else if part.all fun c => c.isDigit then pure (.int part.toNat!)
+    else if part.all fun c => c.isDigit || c.toNat ≥ 128 then
+      throw s!"attribute part '{part}' (non-ASCII digits?) is not supported by HALean"
+    else pure (.str part)
+  | a => pure [a]
+
+/-- The lookup inside `jinja2.filters.make_attrgetter`'s `attrgetter`: each
+part through the sandboxed `getitem`, an Undefined replaced by `default`
+after every step. -/
+def attrPath (ctx : Ctx) (x : Value) (parts : List Value) (dflt : Option Value := none) : R Value :=
+  parts.foldlM (fun cur part => do
+    let r ← getitemV ctx cur part
+    pure (match r, dflt with
+      | .undef _, some d => (match d with | .none => r | d => d)
+      | r, _ => r)) x
+
+/-- `jinja2.filters.ignore_case`. `str.lower()` is exact for ASCII only, so
+lower-casing other text is an error. -/
+def ignoreCase (v : Value) : R Value :=
+  match v with
+  | .str s => do asciiOnly "lower" s; pure (.str s.toLower)
+  | v => pure v
+
+/-- `make_attrgetter(environment, attribute, postprocess=ignore_case if not
+case_sensitive else None)` applied to one item. -/
+def sortKey (ctx : Ctx) (parts : List Value) (caseSensitive : Bool) (x : Value) : R Value := do
+  let k ← attrPath ctx x parts
+  if caseSensitive then pure k else ignoreCase k
+
+/-- Positional or keyword arguments of a Python function, rejecting unknown
+keywords and arguments given twice (`TypeError`). -/
+def Args.checkStrict (a : Args) (fn : String) (names : List String) : R Unit := do
+  a.check fn names
+  for (k, _) in a.kw do
+    if names.idxOf k < a.pos.length then throw s!"{fn}() got multiple values for argument '{k}'"
+    if (a.kw.filter (·.1 == k)).length > 1 then throw s!"{fn}() got multiple values for argument '{k}'"
+
+/-- `jinja2.filters.do_sort`: `sorted(value, key=make_multi_attrgetter(...),
+reverse=reverse)`. Every key is a list (one element per comma-separated
+attribute). CPython's timsort compares only some pairs, so HALean compares
+all of them first: if some pair cannot be compared (`TypeError`), any
+comparison sort, timsort included, has to compare an incomparable pair too
+(keys of disjoint comparable classes can only be ordered through a direct
+comparison), so it raises; if the keys are not totally preordered (NaN), the
+result depends on timsort's exact comparisons, which HALean does not model,
+so that is an error. Otherwise the stable sort is unique. -/
+def doSort (ctx : Ctx) (items : List Value) (reverse caseSensitive : Bool) (attr : Value) : R Value := do
+  let parts ← match attr with
+    | .str s => (s.splitOn ",").mapM fun p => attrParts (.str p)
+    | a => do pure [← attrParts a]
+  let keyed ← items.mapM fun x => do
+    pure (Value.list (← parts.mapM fun p => sortKey ctx p caseSensitive x), x)
+  let arr := keyed.toArray
+  for i in [0:arr.size] do
+    for j in [i+1:arr.size] do
+      tick
+      let a := arr[i]!.1
+      let b := arr[j]!.1
+      let ab ← liftExcept (pyLt a b)
+      let ba ← liftExcept (pyLt b a)
+      if !ab && !ba && !pyEq a b then
+        throw "sorting values that are not totally ordered (NaN) is not supported by HALean"
+  let lt (p q : Value × Value) : Bool := (pyLt p.1 q.1).toOption.getD false
+  -- `reverse=True` keeps equal items in their original order, like CPython
+  let sorted := keyed.mergeSort fun p q => if reverse then !(lt p q) else !(lt q p)
+  pure (.list (sorted.map (·.2)))
+
+/-- `jinja2.filters._min_or_max` with Python's `min`/`max`: one pass keeping
+the first item whose key is strictly smaller (`<`) / larger (`>`). -/
+def minOrMax (ctx : Ctx) (isMax : Bool) (items : List Value) (caseSensitive : Bool) (attr : Value) : R Value := do
+  if items.isEmpty then return .undef "No aggregated item, sequence was empty."
+  let parts ← attrParts attr
+  let mut best : Option (Value × Value) := none
+  for x in items do
+    tick
+    let k ← sortKey ctx parts caseSensitive x
+    match best with
+    | none => best := some (k, x)
+    | some (bk, _) =>
+      -- `k > bk` is `bk < k` for every type HALean compares
+      if ← liftExcept (if isMax then pyLt bk k else pyLt k bk) then best := some (k, x)
+  pure ((best.map (·.2)).getD .none)
+
+/-- Python's `hash()` succeeds (`none`), raises `TypeError` (`some msg`), or
+HALean cannot tell what a set does with the value (an error). -/
+partial def hashCheck (v : Value) : R Unit :=
+  match v with
+  | .none | .undef _ | .bool _ | .int _ | .str _ | .datetime .. | .timedelta _ | .range .. => pure ()
+  | .float f => if f.isNaN then throw "NaN in a set is not supported by HALean (identity semantics)" else pure ()
+  | .tuple xs => xs.forM hashCheck
+  | .list _ | .dict _ | .state .. => throw s!"TypeError: unhashable type: '{typeName v}'"
+  | v => throw s!"hashing a {typeName v} is not supported by HALean"
+
+/-- `jinja2.filters.sync_do_unique`: items whose key was not seen yet (a set
+membership test: hash + `==`), as a generator. -/
+def doUnique (ctx : Ctx) (items : List Value) (caseSensitive : Bool) (attr : Value) : R Value := do
+  let parts ← attrParts attr
+  let mut seen : Array Value := #[]
+  let mut out : Array Value := #[]
+  for x in items do
+    tick
+    let k ← sortKey ctx parts caseSensitive x
+    hashCheck k
+    if !(seen.any (pyEq · k)) then
+      seen := seen.push k
+      out := out.push x
+  pure (.gen "generator" out.toList)
+
+/-- `StateMachine.get`: the id as given, then `entity_id.lower()`. Valid ids
+are ASCII, and only U+212A (Kelvin sign) lower-cases into ASCII, so other
+non-ASCII ids cannot match. -/
+def hassStatesGet (ctx : Ctx) (eid : String) : R (Option EntityState) :=
+  match ctx.states.get? eid with
+  | some s => pure (some s)
+  | none =>
+    if eid.contains 'K' then throw s!"looking up '{eid}' is not supported by HALean"
+    else if eid.all (fun (c : Char) => c.toNat < 128) then pure (ctx.states.get? eid.toLower)
+    else pure none
+
+/-- Whether `isinstance(v, collections.abc.Iterable)` (a `str` is handled
+before this is asked). -/
+def isIterable (v : Value) : Bool :=
+  match v with
+  | .list _ | .tuple _ | .dict _ | .range .. | .gen .. | .domain _ | .allStates | .undef _ | .str _ => true
+  | _ => false
+
+/-- `StateExtension.expand`: entity ids, state objects and iterables of them
+to a list of states, groups (`entity_id` attribute) and zones (`persons`)
+replaced by their members. A stack (`search.pop()` takes the last item), so
+the result is in the order the entities are first reached, not sorted.
+
+HA also expands entities whose `entity_sources` say they come from the
+`group` integration (light groups, ...). HALean does not know entity
+sources: a non-group entity with an `entity_id` attribute is an error. -/
+def expand (ctx : Ctx) (args : List Value) : R Value := do
+  -- the top of the stack is the head
+  let mut stack := args.reverse
+  let mut found : Array (String × Value) := #[]
+  while true do
+    tick
+    match stack with
+    | [] => break
+    | e :: rest =>
+      stack := rest
+      let (key, s, c) ← match e with
+        | .str eid => do
+          match ← hassStatesGet ctx eid with
+          | none => collect eid; continue
+          | some s => pure (eid, s, true)
+        | .state s c => pure (s.entityId, s, c)
+        | .opaque w => throw s!"{w} values are not supported by HALean"
+        | v =>
+          if isIterable v then
+            stack := (← iterVList ctx v).reverse ++ stack
+          continue
+      if found.any (·.1 == key) then continue
+      -- `entity.domain` collects on a collecting TemplateState
+      if c then collect s.entityId
+      let members (attrName : String) : R (List Value) := do
+        match s.attr? attrName with
+        | none => pure []
+        | some j =>
+          let v := Value.ofJson j
+          -- `search += v` extends with any iterable (a str by characters)
+          if truthy v then iterV ctx v else pure []
+      if s.domain == "group" then
+        stack := (← members "entity_id").reverse ++ stack
+      else if s.domain == "zone" then
+        stack := (← members "persons").reverse ++ stack
+      else
+        if s.hasAttr "entity_id" then
+          throw s!"expand: {s.entityId} has an entity_id attribute; whether HA expands it depends on its entity source, which HALean does not know"
+        collect key
+        found := found.push (key, .state s c)
+  pure (.list (found.toList.map (·.2)))
+
 /-! ## The evaluator -/
 
 mutual
@@ -1211,6 +1430,20 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
     | "dict.get", some (.dict kvs) => do
       let some k := (a.pos[0]? : Option Value) | throw "get expected at least 1 argument"
       pure ((lookupKV kvs k).getD ((a.pos[1]?).getD .none))
+    | "min", _ | "max", _ => do
+      -- `MathExtension.min_max_from_filter` around Jinja's `do_min`/`do_max`
+      for (k, _) in a.kw do
+        if k != "case_sensitive" && k != "attribute" then
+          throw s!"{n}() got an unexpected keyword argument '{k}'"
+      let items ← match a.pos with
+        | [] => throw s!"{n} expected at least 1 argument, got 0"
+        | [x] => iterV ctx x
+        | xs => pure xs
+      minOrMax ctx (n == "max") items (truthy ((a.kw.lookup "case_sensitive").getD (.bool false)))
+        ((a.kw.lookup "attribute").getD .none)
+    | "expand", _ => do
+      if !a.kw.isEmpty then throw "expand() got an unexpected keyword argument"
+      expand ctx a.pos
     | m, some (.str s) => strMethod m s a
     | _, _ => throw s!"calling {n} is not supported by HALean"
   | .opaque w => throw s!"{w} values are not supported by HALean"
@@ -1319,7 +1552,7 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
     let sep ← strOf ((arg 0 "d").getD (.str ""))
     let items ← (← iterV ctx v).mapM strOf
     pure (.str (sep.intercalate items))
-  | "list" => pure (.list (← iterV ctx v))
+  | "list" => pure (.list (← iterVList ctx v))
   | "string" => pure (.str (← strOf v))
   | "abs" =>
     match v with
@@ -1347,9 +1580,8 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
     match a.pos, (a.kw.find? (·.1 == "attribute")) with
     | [], some (_, attr) =>
       let dflt := (a.kw.find? (·.1 == "default")).map (·.2)
-      let out ← items.mapM fun x => do
-        let r ← attrGet ctx x attr
-        pure (match r, dflt with | .undef _, some d => d | r, _ => r)
+      let parts ← attrParts attr
+      let out ← items.mapM fun x => attrPath ctx x parts dflt
       pure (.gen "generator" out)
     | (.str f) :: rest, _ =>
       let out ← items.mapM fun x => applyFilter ctx f x { pos := rest, kw := a.kw }
@@ -1375,6 +1607,20 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
         | _ => throw s!"{n} needs a test name"
       pure (if n == "selectattr" then r else !r)
     pure (.gen "generator" keep)
+  -- collections (Jinja's do_sort, do_min, do_max, sync_do_unique; HA's expand)
+  | "sort" => do
+    a.checkStrict n ["reverse", "case_sensitive", "attribute"]
+    doSort ctx (← iterVList ctx v) (truthy ((arg 0 "reverse").getD (.bool false)))
+      (truthy ((arg 1 "case_sensitive").getD (.bool false))) ((arg 2 "attribute").getD .none)
+  | "min" | "max" => do
+    a.checkStrict n ["case_sensitive", "attribute"]
+    minOrMax ctx (n == "max") (← iterV ctx v) (truthy ((arg 0 "case_sensitive").getD (.bool false)))
+      ((arg 1 "attribute").getD .none)
+  | "unique" => do
+    a.checkStrict n ["case_sensitive", "attribute"]
+    doUnique ctx (← iterV ctx v) (truthy ((arg 0 "case_sensitive").getD (.bool false)))
+      ((arg 1 "attribute").getD .none)
+  | "expand" => callV ctx (.func "expand" none) { pos := v :: a.pos, kw := a.kw }
   | _ => throw s!"filter '{n}' is not supported by HALean"
 
 partial def applyTest (ctx : Ctx) (n : String) (v : Value) (args : List Value) : R Bool := do
@@ -1417,17 +1663,7 @@ partial def applyTest (ctx : Ctx) (n : String) (v : Value) (args : List Value) :
 /-- `jinja2.filters.make_attrgetter`: dotted path, digit parts as indexes,
 each step through the sandboxed `getitem`. -/
 partial def attrGet (ctx : Ctx) (x : Value) (attr : Value) : R Value := do
-  match attr with
-  | .int i => getitemV ctx x (.int i)
-  | .str path =>
-    let mut cur := x
-    for part in path.splitOn "." do
-      let key : Value := match part.toNat? with
-        | some k => .int k
-        | none => .str part
-      cur ← getitemV ctx cur key
-    pure cur
-  | a => throw s!"attribute must be a string, not {typeName a}"
+  attrPath ctx x (← attrParts attr)
 
 partial def isUndef (v : Value) : Bool :=
   match v with | .undef _ => true | _ => false

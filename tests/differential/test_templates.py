@@ -1,9 +1,11 @@
 """Differential test for the Template service: render every case in
-tests/templates/cases.yaml with Home Assistant's own `Template.async_render`
+tests/templates/*.yaml with Home Assistant's own `Template.async_render`
 (or `condition.async_template`) and with `halean-template`, and require the
 same result type and `repr()`, or an error from both.
 
 Cases marked `unsupported: true` must be rejected by HALean at load time.
+Cases marked `render_info: true` also compare what the render read
+(`async_render_to_info`: entities, domains, all states).
 
 Run:  uv run tests/differential/run.py -k templates
 """
@@ -26,7 +28,8 @@ from homeassistant.util import dt as dt_util
 from freezegun.api import FrozenDateTimeFactory
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-CASES = yaml.safe_load((ROOT / "tests" / "templates" / "cases.yaml").read_text())
+CASES = [c for f in sorted((ROOT / "tests" / "templates").glob("*.yaml"))
+         for c in yaml.safe_load(f.read_text())]
 ENGINE = ROOT / ".lake" / "build" / "bin" / "halean-template"
 # The clock for every case: millisecond precision, like the engine's clock.
 # The test instance of HA runs in US/Pacific.
@@ -79,6 +82,7 @@ async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, eng
 
     lean = engine({"template": case["template"], "states": states,
                    "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                   "info": bool(case.get("render_info")),
                    "now": _us(dt_util.utcnow()) // 1000,
                    "tz": int(dt_util.now().utcoffset().total_seconds())})
     if case.get("unsupported"):
@@ -95,6 +99,15 @@ async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, eng
         ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
     except (TemplateError, HomeAssistantError) as err:
         ha = {"ok": False, "error": str(err)}
+
+    if case.get("render_info"):
+        # what the render read must match too (template triggers depend on it)
+        info = tpl.async_render_to_info(variables)
+        want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                "domains_lifecycle": sorted(info.domains_lifecycle),
+                "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+        assert lean.pop("info") == want, f"render info differs: HA {want}"
+    lean.pop("info", None)
 
     if case.get("expect_error_in_halean_only"):
         # HA can print it, HALean refuses at render time instead of guessing

@@ -96,10 +96,12 @@ The harness can catch subtle differences: changing the engine so a failing
 nested `condition` ends the whole run fails `nested_condition` against real HA.
 
 **Templates** get their own differential test (`tests/differential/test_templates.py`).
-Every case in `tests/templates/cases.yaml` is rendered by HA's own
+Every case in `tests/templates/*.yaml` is rendered by HA's own
 `Template.async_render` (or `condition.async_template`) and by `halean-template`.
 The result type and `repr()` must match, or both must raise. Cases marked
-`unsupported: true` must be rejected by HALean at load time.
+`unsupported: true` must be rejected by HALean at load time; cases marked
+`render_info: true` must also read the same entities and domains
+(`async_render_to_info`), which is what template triggers listen to.
 
 **One pinned release.** The translation, the differential harness and the Docker
 image all use the release tag recorded in `manifest.yaml` (`upstream.tag`), so
@@ -174,13 +176,15 @@ go through HA's `_parse_result` (`"42"` becomes `42`, `"[1, 2]"` becomes a list,
 
 | Supported | Rejected at load, stays in HA |
 |---|---|
-| `{{ }}`, `{% if/elif/else %}`, `{% for %}` (with `if`, `else`, `loop.*`, `break`/`continue`), `{% set %}` (incl. tuples), `namespace()`, comments, `-` whitespace control; all operators, chained comparisons, `x if c else y`, slices; `states(...)`, `states.domain.entity` / `states['...']`, iterating `states` / `states.light` (in HA's insertion order), `range` (`state`, `attributes`, `name`, `domain`, `object_id`, `entity_id`), `is_state`, `state_attr`, `is_state_attr`, `has_value`, `float`, `int`, `bool`, `is_number`, `iif`, `dict`; filters `round`, `default`, `lower`, `upper`, `title`, `capitalize`, `trim`, `replace`, `length`, `first`, `last`, `join`, `list`, `string`, `abs`, `sum`, `map` (filter or `attribute=`), `select`, `reject`, `selectattr`, `rejectattr`, `reverse`; dates and times: `now()`, `utcnow()`, `today_at`, `timedelta`, `as_timestamp`, `as_datetime`, `as_local`, `timestamp_local`/`_utc`/`_custom`, datetime attributes, `strftime`, `replace`, `isoformat`, datetime/timedelta arithmetic, `last_changed`/`last_updated`, `trigger.now`, `trigger.for`; common tests; str methods `split`, `strip`, `replace`, `startswith`, ...; the `trigger` variable for every supported trigger platform | any other global, filter or test (`this`, `expand`, `sort`, `min`/`max`, `relative_time`, `strptime`, ...), macros, `include`, `raw` |
+| `{{ }}`, `{% if/elif/else %}`, `{% for %}` (with `if`, `else`, `loop.*`, `break`/`continue`), `{% set %}` (incl. tuples), `namespace()`, comments, `-` whitespace control; all operators, chained comparisons, `x if c else y`, slices; `states(...)`, `states.domain.entity` / `states['...']`, iterating `states` / `states.light` (in HA's insertion order), `range` (`state`, `attributes`, `name`, `domain`, `object_id`, `entity_id`), `is_state`, `state_attr`, `is_state_attr`, `has_value`, `float`, `int`, `bool`, `is_number`, `iif`, `dict`; filters `round`, `default`, `lower`, `upper`, `title`, `capitalize`, `trim`, `replace`, `length`, `first`, `last`, `join`, `list`, `string`, `abs`, `sum`, `map` (filter or `attribute=`), `select`, `reject`, `selectattr`, `rejectattr`, `reverse`; collections: `sort` (`reverse`, `case_sensitive`, dotted and comma-separated `attribute`), `min`/`max` (filters, and HA's globals over several arguments or one iterable), `unique`, `expand` (groups and zones, in HA's stack order, recording what it read for template triggers); dates and times: `now()`, `utcnow()`, `today_at`, `timedelta`, `as_timestamp`, `as_datetime`, `as_local`, `timestamp_local`/`_utc`/`_custom`, datetime attributes, `strftime`, `replace`, `isoformat`, datetime/timedelta arithmetic, `last_changed`/`last_updated`, `trigger.now`, `trigger.for`; common tests; str methods `split`, `strip`, `replace`, `startswith`, ...; the `trigger` variable for every supported trigger platform | any other global, filter or test (`this`, `relative_time`, `strptime`, ...), macros, `include`, `raw` |
 
 Some values are reachable but not modelled yet (`last_reported`, `tzinfo`,
 `strftime('%Z')`). Printing a generator (`{{ xs | map('int') }}`) is also an error
 here, where HA prints `<generator object ...>`. Using them is a render error in HALean,
 so it is never a silent wrong answer. Case-changing filters on non-ASCII text are
-also errors for now.
+also errors for now, and so are case-insensitive `sort`/`min`/`max`/`unique` over
+non-ASCII strings (`str.lower()`) and sorting keys that are not totally ordered
+(NaN: the result would depend on timsort's exact comparisons).
 
 Upstream behaviours the translation keeps exactly, each covered by a scenario
 in `tests/scenarios/`:
@@ -208,13 +212,18 @@ evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 
 ## Known gaps and deviations
 
-* **The translation is tested against Python, not proven equivalent.** All 25
+* **The translation is tested against Python, not proven equivalent.** All 26
   differential scenarios and all template cases match real HA at the pinned
   release, but they cover only the paths they exercise.
 * Lean's JSON objects are sorted by key. Where HA depends on the written
   order (`variables`), the shell sends ordered `[key, value]` lists
   (`bridge/protocol.py`). Elsewhere a dict printed by a template, such as
   `{{ trigger.event.data }}`, lists its keys sorted, not in arrival order.
+* `expand` also expands entities that the `group` integration provides in other
+  domains (light groups, ...), which HA knows from `entity_sources`. HALean
+  does not: a non-group entity with an `entity_id` attribute is a render error.
+  An unavailable group-platform entity has no such attribute, so HALean returns
+  it as a plain entity where HA drops it.
 * Time zones: the engine knows the current UTC offset, not the zone
   database. `as_local` and friends use that offset, so instants on the other
   side of a DST change are off by the DST difference. Zone names
@@ -244,8 +253,7 @@ Properties worth proving or model-checking are collected in
 [PROPERTIES.md](PROPERTIES.md).
 
 
-1. Templates, part 6: `this`, `expand`, `sort`, `min`/`max`, `strptime`,
-   `relative_time`, templated `for:`.
+1. Templates, part 6: `this`, `strptime`, `relative_time`, templated `for:`.
 2. Generate differential scenarios automatically (random automations within the supported
    subset plus random event sequences) to cover far more paths than hand-written ones.
 3. Make the run loop total and prove run-level properties: a `single` automation never has
