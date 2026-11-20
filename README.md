@@ -226,6 +226,10 @@ evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 
 ## Next steps
 
+Properties worth proving or model-checking are collected in
+[PROPERTIES.md](PROPERTIES.md).
+
+
 1. Templates, part 3: `now()` and datetimes (with the tracker's time-based
    re-renders and rate limits), `this`, `variables` / `trigger_variables`,
    `expand`, `sort`, `min`/`max`, templated `for:`.
