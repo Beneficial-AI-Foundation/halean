@@ -1,5 +1,5 @@
 """Differential test for the Template service: render every case in
-tests/templates/cases.yaml with Home Assistant's own `Template.async_render`
+tests/templates/*.yaml with Home Assistant's own `Template.async_render`
 (or `condition.async_template`) and with `halean-template`, and require the
 same result type and `repr()`, or an error from both.
 
@@ -26,7 +26,9 @@ from homeassistant.util import dt as dt_util
 from freezegun.api import FrozenDateTimeFactory
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-CASES = yaml.safe_load((ROOT / "tests" / "templates" / "cases.yaml").read_text())
+# cases.yaml first, then every other case file in tests/templates/
+CASES = [c for f in sorted((ROOT / "tests" / "templates").glob("*.yaml"), key=lambda f: f.name != "cases.yaml")
+         for c in yaml.safe_load(f.read_text())]
 ENGINE = ROOT / ".lake" / "build" / "bin" / "halean-template"
 # The clock for every case: millisecond precision, like the engine's clock.
 # The test instance of HA runs in US/Pacific.
