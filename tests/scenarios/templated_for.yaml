@@ -1,0 +1,73 @@
+# Templated `for:` on state, numeric_state and template triggers: rendered
+# with the trigger variables when the trigger's condition is met, then
+# validated by cv.positive_time_period; an error means no trigger.
+automations:
+  - id: state_for
+    alias: state_for
+    triggers: [{trigger: state, entity_id: sensor.a, to: "on", for: "{{ states('input_number.delay') | int }}"}]
+    actions: [{event: sf, event_data: {for: "{{ trigger.for }}", secs: "{{ trigger.for.total_seconds() }}"}}]
+  - id: numeric_dict                      # a mapping with templated values
+    alias: numeric_dict
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.n
+        above: 10
+        for: {seconds: "{{ states('input_number.delay') | int + 1 }}", milliseconds: 0}
+    actions: [{event: nd, event_data: {for: "{{ trigger.for }}", ent: "{{ trigger.entity_id }}"}}]
+  - id: tmpl_for                          # sees trigger.to_state; renders a "HH:MM:SS" string
+    alias: tmpl_for
+    triggers:
+      - trigger: template
+        value_template: "{{ states('sensor.t') | int > 5 }}"
+        for: "00:00:0{{ trigger.to_state.state | int - 5 }}"
+    actions: [{event: tf, event_data: {for: "{{ trigger.for }}"}}]
+  - id: numeric_bad                       # a render error disarms the entity
+    alias: numeric_bad
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.n2
+        above: 10
+        for: {minutes: "{{ states('sensor.bad') }}"}
+    actions: [{event: nb, event_data: {for: "{{ trigger.for }}"}}]
+  - id: shared                            # call_action reads period[entity] when it fires
+    alias: shared
+    triggers: [{trigger: state, entity_id: sensor.m, for: "{{ trigger.to_state.attributes.d }}"}]
+    actions: [{event: shared, event_data: {for: "{{ trigger.for }}", d: "{{ trigger.to_state.attributes.d }}"}}]
+  - id: negative
+    alias: negative
+    triggers: [{trigger: state, entity_id: sensor.a, to: "on", for: "{{ -1 }}"}]
+    actions: [{event: never}]
+states:
+  - {entity_id: input_number.delay, state: "3"}
+  - {entity_id: sensor.a, state: "off"}
+  - {entity_id: sensor.n, state: "0"}
+  - {entity_id: sensor.t, state: "0"}
+  - {entity_id: sensor.n2, state: "0"}
+  - {entity_id: sensor.bad, state: "abc"}
+  - {entity_id: sensor.m, state: "x", attributes: {d: 0}}
+steps:
+  - {at: 1, set: [sensor.a, "on"]}
+  - {at: 5, set: [sensor.n, "15"],
+     expect: [{type: automation_triggered, id: state_for},
+              {type: fire_event, event_type: sf, data: {for: "0:00:03", secs: 3}}]}
+  - {at: 6, set: [sensor.t, "7"]}
+  - {at: 10, set: [sensor.n2, "20"],
+     expect: [{type: automation_triggered, id: tmpl_for},
+              {type: fire_event, event_type: tf, data: {for: "0:00:02"}},
+              {type: automation_triggered, id: numeric_dict},
+              {type: fire_event, event_type: nd, data: {for: "0:00:04", ent: sensor.n}}]}
+  - {at: 11, set: [sensor.bad, "0.05"]}
+  - {at: 12, set: [sensor.n2, "25"]}     # still above, but disarmed
+  - {at: 13, set: [sensor.n2, "0"]}
+  - {at: 14, set: [sensor.n2, "30"]}
+  - {at: 18, send: {type: tick},
+     expect: [{type: automation_triggered, id: numeric_bad},
+              {type: fire_event, event_type: nb, data: {for: "0:00:03"}}]}
+  - {at: 20, set: [sensor.m, "x"], attributes: {d: 5}}
+  - {at: 21, set: [sensor.m, "x"], attributes: {d: 2}}
+  - {at: 24, send: {type: tick},
+     expect: [{type: automation_triggered, id: shared},
+              {type: fire_event, event_type: shared, data: {for: "0:00:02", d: 2}}]}
+  - {at: 26, send: {type: tick},
+     expect: [{type: automation_triggered, id: shared},
+              {type: fire_event, event_type: shared, data: {for: "0:00:02", d: 5}}]}

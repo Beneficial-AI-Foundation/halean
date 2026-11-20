@@ -159,9 +159,9 @@ doesn't run twice.
 
 | Area | Supported | Rejected at load, stays in HA |
 |---|---|---|
-| Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, static `for`, re-rendered like HA's template tracker: only for what the last render read, every minute when it used `now()`, rate limits for loops over states), `time` (fixed `at`, weekday), `time_pattern`, `event` (flat `event_data`) | templated `for`, `sun`, `zone`, `homeassistant`, `mqtt`, `webhook`, device triggers, entity-based or offset `time` |
+| Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, `for`, re-rendered like HA's template tracker: only for what the last render read, every minute when it used `now()`, rate limits for loops over states), `time` (fixed `at`, weekday), `time_pattern`, `event` (flat `event_data`); `for:` static or templated (a template string or a mapping of templates, rendered with the trigger variables when the trigger matches, then `cv.positive_time_period`; an error means no trigger) | `this` in trigger templates (its value depends on HA's startup phase), `sun`, `zone`, `homeassistant`, `mqtt`, `webhook`, device triggers, entity-based or offset `time` |
 | Conditions | `and`/`or`/`not` (incl. shorthand), `state` (match any/all, `for`, attribute, `input_*` references), `numeric_state` (incl. `value_template`), `time` (fixed, `input_datetime`, `time` entities, midnight crossing, weekday), `trigger`, `template` (incl. the `"{{ ... }}"` shorthand), `enabled: false` | platform conditions, timestamp-sensor bounds (error) |
-| Automations | automation `variables` (rendered in order before conditions) and static `trigger_variables` | `this`, templated `trigger_variables`, per-trigger `variables` |
+| Automations | automation `variables` (rendered in order before conditions) and static `trigger_variables`; `this` in variables, conditions and actions (the automation entity's `state.as_dict()`: `entity_id` derived from the name like HA, `state`, `attributes` `id`/`last_triggered`/`mode`/`current`/`max`/`friendly_name`); names default to `automation <n>` like HA | `this` when the entity id needs transliteration (non-ASCII names, also for every later automation) or HTML entities, templated `trigger_variables`, per-trigger `variables` |
 | Actions | service call (blocking; templates in `data` and `target`), `delay`, `condition`, `choose`, `if`/`else`, `repeat` count (incl. templated)/for_each/while/until with the `repeat` variable, `variables`, `stop` (+`error`), `event` (templates in `event_data`), `sequence`, `continue_on_error`, static `enabled` | templated action names, a whole-`data` template, `response_variable`, `wait_template`, `wait_for_trigger`, `parallel`, device actions, `scene` |
 | Run modes | `single`, `restart`, `queued` (FIFO), `parallel`, `max`, conditions checked before admission | `max_exceeded` log levels |
 
@@ -174,7 +174,7 @@ go through HA's `_parse_result` (`"42"` becomes `42`, `"[1, 2]"` becomes a list,
 
 | Supported | Rejected at load, stays in HA |
 |---|---|
-| `{{ }}`, `{% if/elif/else %}`, `{% for %}` (with `if`, `else`, `loop.*`, `break`/`continue`), `{% set %}` (incl. tuples), `namespace()`, comments, `-` whitespace control; all operators, chained comparisons, `x if c else y`, slices; `states(...)`, `states.domain.entity` / `states['...']`, iterating `states` / `states.light` (in HA's insertion order), `range` (`state`, `attributes`, `name`, `domain`, `object_id`, `entity_id`), `is_state`, `state_attr`, `is_state_attr`, `has_value`, `float`, `int`, `bool`, `is_number`, `iif`, `dict`; filters `round`, `default`, `lower`, `upper`, `title`, `capitalize`, `trim`, `replace`, `length`, `first`, `last`, `join`, `list`, `string`, `abs`, `sum`, `map` (filter or `attribute=`), `select`, `reject`, `selectattr`, `rejectattr`, `reverse`; dates and times: `now()`, `utcnow()`, `today_at`, `timedelta`, `as_timestamp`, `as_datetime`, `as_local`, `timestamp_local`/`_utc`/`_custom`, datetime attributes, `strftime`, `replace`, `isoformat`, datetime/timedelta arithmetic, `last_changed`/`last_updated`, `trigger.now`, `trigger.for`; common tests; str methods `split`, `strip`, `replace`, `startswith`, ...; the `trigger` variable for every supported trigger platform | any other global, filter or test (`this`, `expand`, `sort`, `min`/`max`, `relative_time`, `strptime`, ...), macros, `include`, `raw` |
+| `{{ }}`, `{% if/elif/else %}`, `{% for %}` (with `if`, `else`, `loop.*`, `break`/`continue`), `{% set %}` (incl. tuples), `namespace()`, comments, `-` whitespace control; all operators, chained comparisons, `x if c else y`, slices; `states(...)`, `states.domain.entity` / `states['...']`, iterating `states` / `states.light` (in HA's insertion order), `range` (`state`, `attributes`, `name`, `domain`, `object_id`, `entity_id`), `is_state`, `state_attr`, `is_state_attr`, `has_value`, `float`, `int`, `bool`, `is_number`, `iif`, `dict`; filters `round`, `default`, `lower`, `upper`, `title`, `capitalize`, `trim`, `replace`, `length`, `first`, `last`, `join`, `list`, `string`, `abs`, `sum`, `map` (filter or `attribute=`), `select`, `reject`, `selectattr`, `rejectattr`, `reverse`; dates and times: `now()`, `utcnow()`, `today_at`, `timedelta`, `as_timestamp`, `as_datetime`, `as_local`, `timestamp_local`/`_utc`/`_custom`, datetime attributes, `strftime`, `replace`, `isoformat`, datetime/timedelta arithmetic, `last_changed`/`last_updated`, `trigger.now`, `trigger.for`; common tests; str methods `split`, `strip`, `replace`, `startswith`, ...; the `trigger` variable for every supported trigger platform | any other global, filter or test (`expand`, `sort`, `min`/`max`, `relative_time`, `strptime`, ...), macros, `include`, `raw` |
 
 Some values are reachable but not modelled yet (`last_reported`, `tzinfo`,
 `strftime('%Z')`). Printing a generator (`{{ xs | map('int') }}`) is also an error
@@ -208,7 +208,7 @@ evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 
 ## Known gaps and deviations
 
-* **The translation is tested against Python, not proven equivalent.** All 25
+* **The translation is tested against Python, not proven equivalent.** All 27
   differential scenarios and all template cases match real HA at the pinned
   release, but they cover only the paths they exercise.
 * Lean's JSON objects are sorted by key. Where HA depends on the written
@@ -235,6 +235,19 @@ evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
   block its event loop instead.
 * `drive`/`finishRun`/`fireDue` are `partial`, so nothing has been proved about
   them yet. Making them total with explicit measures is the next proof step.
+* `this` describes the automation entity HA would create for the automation.
+  When the bridge runs an automation, HA has no such entity, so HALean derives
+  it the way HA would: the entity id comes from the name, de-duplicated only
+  against the other configured automations and the states known at startup
+  (not against other HA entities or registry entries); the state is always
+  `on`; `current` and `last_triggered` come from the engine's own runs. Its
+  `last_changed`, `last_updated`, `last_reported` and `context` are render
+  errors. `last_triggered` of a run started by a timer is the whole-second
+  tick, like `now()` (see above).
+* A templated `for:` that renders to 0 starts its run right after the state
+  change, as `async_call_later(hass, 0, ...)` does on a real event loop. The
+  differential harness cannot check this (its frozen monotonic clock delays
+  0 s timers to the next time change), so `templated_for_zero` is engine-only.
 * The bridge is unverified. It subscribes to events after `get_states`, so a
   change in that window can be missed at startup.
 

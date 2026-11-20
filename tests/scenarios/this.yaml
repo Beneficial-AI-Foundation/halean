@@ -1,0 +1,91 @@
+# `this`: the automation's own entity state (`state.as_dict()`), captured
+# when it triggers, before `last_triggered` and `current` are updated.
+automations:
+  - id: basic
+    alias: This Basic                     # automation.this_basic
+    mode: parallel
+    max: 3
+    variables: {this: overridden, me: "{{ this.entity_id }}"}   # run variables win
+    triggers: [{trigger: event, event_type: go}]
+    conditions: "{{ this.attributes.current < 2 }}"
+    actions:
+      - event: basic
+        event_data:
+          me: "{{ me }}"
+          state: "{{ this.state }}"
+          id: "{{ this.attributes.id }}"
+          name: "{{ this.attributes.friendly_name }}"
+          mode: "{{ this.attributes.mode }}"
+          current: "{{ this.attributes.current }}"
+          max: "{{ this.attributes.max }}"
+          last: "{{ this.attributes.last_triggered }}"
+          ago: "{{ (now() - this.attributes.last_triggered).total_seconds() if this.attributes.last_triggered else -1 }}"
+      - delay: 5
+  - alias: This Basic                     # same name, no id: automation.this_basic_2
+    triggers: [{trigger: event, event_type: dup}]
+    actions:
+      - event: dup_seen
+        event_data:
+          me: "{{ this.entity_id }}"
+          has_id: "{{ 'id' in this.attributes }}"
+          has_max: "{{ 'max' in this.attributes }}"
+          mode: "{{ this.attributes.mode }}"
+  - id: noalias                           # named "automation 2"
+    triggers: [{trigger: event, event_type: noalias}]
+    actions:
+      - event: noalias_seen
+        event_data: {me: "{{ this.entity_id }}", name: "{{ this.attributes.friendly_name }}"}
+  - id: slug
+    alias: "Lights & Fans, 1,000 'x'"     # slugify
+    triggers: [{trigger: event, event_type: slug}]
+    actions: [{event: slug_seen, event_data: {me: "{{ this.entity_id }}"}}]
+  - id: queued                            # a queued run counts in `current`
+    alias: queued
+    mode: queued
+    triggers: [{trigger: event, event_type: q}]
+    actions:
+      - event: q_seen
+        event_data: {current: "{{ this.attributes.current }}", max: "{{ this.attributes.max }}"}
+      - action: notify.q
+states: []
+steps:
+  - {at: 1, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: basic},
+              {type: fire_event, event_type: basic,
+               data: {me: automation.this_basic, state: "on", id: basic, name: This Basic,
+                      mode: parallel, current: 0, max: 3, last: null, ago: -1}}]}
+  - {at: 2, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: basic},
+              {type: fire_event, event_type: basic,
+               data: {current: 1, last: "2023-11-14 22:13:21+00:00", ago: 1}}]}
+  - {at: 3, send: {type: event, event_type: go}}     # current is 2: condition fails
+  - {at: 4, send: {type: event, event_type: dup},
+     expect: [{type: automation_triggered},
+              {type: fire_event, event_type: dup_seen,
+               data: {me: automation.this_basic_2, has_id: false, has_max: false, mode: single}}]}
+  - {at: 5, send: {type: event, event_type: noalias},
+     expect: [{type: automation_triggered, id: noalias, name: automation 2},
+              {type: fire_event, event_type: noalias_seen,
+               data: {me: automation.automation_2, name: automation 2}}]}
+  - {at: 6, send: {type: event, event_type: slug},
+     expect: [{type: automation_triggered, id: slug},
+              {type: fire_event, event_type: slug_seen, data: {me: automation.lights_fans_1000_x}}]}
+  - {at: 8, send: {type: event, event_type: go},     # both runs ended; at=3 did not count
+     expect: [{type: automation_triggered, id: basic},
+              {type: fire_event, event_type: basic,
+               data: {current: 0, last: "2023-11-14 22:13:22+00:00", ago: 6}}]}
+  - {at: 9, send: {type: event, event_type: q},
+     expect: [{type: automation_triggered, id: queued},
+              {type: fire_event, event_type: q_seen, data: {current: 0, max: 10}},
+              {type: call_service, domain: notify, service: q}]}
+  - {at: 10, send: {type: event, event_type: q},
+     expect: [{type: automation_triggered, id: queued}]}
+  - {at: 11, send: {type: event, event_type: q},
+     expect: [{type: automation_triggered, id: queued}]}
+  - {at: 12, send: {type: service_result, call_id: 0, ok: true},
+     expect: [{type: fire_event, event_type: q_seen, data: {current: 1}},
+              {type: call_service, domain: notify, service: q}]}
+  - {at: 13, send: {type: service_result, call_id: 1, ok: true},
+     expect: [{type: fire_event, event_type: q_seen, data: {current: 2}},
+              {type: call_service, domain: notify, service: q}]}
+  - {at: 14, send: {type: service_result, call_id: 2, ok: true}}

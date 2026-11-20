@@ -1,0 +1,25 @@
+# A templated `for:` that renders to 0 still goes through
+# `async_call_later(hass, 0, ...)` (only a static zero `for:` fires inline), so
+# the run starts on the next event-loop iteration: before the next input.
+differential: false
+differential_reason: >-
+  The harness freezes the monotonic clock at epoch scale, where asyncio's
+  clock resolution vanishes, so a 0 s timer waits for the next time change
+  there; a real event loop runs it at once.
+automations:
+  - id: zero
+    alias: zero
+    triggers: [{trigger: state, entity_id: sensor.z, to: "on", for: "{{ 0 }}"}]
+    actions: [{event: zero, event_data: {for: "{{ trigger.for }}"}}]
+  - id: static_zero
+    alias: static_zero
+    triggers: [{trigger: state, entity_id: sensor.z, to: "on", for: 0}]
+    actions: [{event: static_zero, event_data: {for: "{{ trigger.for }}"}}]
+states:
+  - {entity_id: sensor.z, state: "off"}
+steps:
+  - {at: 1, set: [sensor.z, "on"],
+     expect: [{type: automation_triggered, id: static_zero},
+              {type: fire_event, event_type: static_zero, data: {for: "0:00:00"}},
+              {type: automation_triggered, id: zero},
+              {type: fire_event, event_type: zero, data: {for: "0:00:00"}}]}
