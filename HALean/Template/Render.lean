@@ -20,6 +20,7 @@
   (`check`); anything outside the supported set is rejected, never guessed.
 -/
 import HALean.Template.Syntax
+import HALean.Template.DateParse
 open Lean
 
 namespace HALean.Template
@@ -125,12 +126,14 @@ def GLOBALS : List String :=
    "is_number", "iif", "namespace", "dict", "range",
    "now", "utcnow", "today_at", "as_timestamp", "as_datetime", "as_local", "timedelta",
    "timestamp_local", "timestamp_utc", "timestamp_custom",
-   "min", "max", "expand"]
+   "min", "max", "expand",
+   "strptime", "as_timedelta", "relative_time", "time_since", "time_until", "timedelta_string"]
 
 /-- Functions whose result depends on the clock. HA re-renders trigger
 templates using them on a timer, which HALean does not model yet, so they
 are rejected in trigger templates. -/
-def TIME_NAMES : List String := ["now", "utcnow", "today_at"]
+def TIME_NAMES : List String :=
+  ["now", "utcnow", "today_at", "relative_time", "time_since", "time_until"]
 
 def FILTERS : List String :=
   ["float", "int", "bool", "is_number", "iif", "has_value", "state_attr", "states", "round",
@@ -138,14 +141,15 @@ def FILTERS : List String :=
    "first", "last", "join", "list", "string", "abs", "sum",
    "map", "select", "reject", "selectattr", "rejectattr", "reverse",
    "as_timestamp", "as_datetime", "as_local", "timestamp_local", "timestamp_utc", "timestamp_custom",
-   "today_at",
+   "today_at", "as_timedelta", "relative_time", "time_since", "time_until", "timedelta_string",
    "sort", "min", "max", "unique", "expand"]
 
 def TESTS : List String :=
   ["defined", "undefined", "none", "number", "string", "boolean", "integer", "float",
    "mapping", "sequence", "iterable", "true", "false", "eq", "equalto", "==", "ne", "!=",
    "lt", "<", "lessthan", "le", "<=", "gt", ">", "greaterthan", "ge", ">=", "in",
-   "divisibleby", "even", "odd", "is_state", "is_state_attr", "has_value", "is_number"]
+   "divisibleby", "even", "odd", "is_state", "is_state_attr", "has_value", "is_number",
+   "datetime"]
 
 /-- `[\da-z_]+` without a leading/trailing `_` and without `__`. -/
 def validSlug (s : String) : Bool :=
@@ -1116,6 +1120,91 @@ def expand (ctx : Ctx) (args : List Value) : R Value := do
         found := found.push (key, .state s c)
   pure (.list (found.toList.map (·.2)))
 
+/-! ## More dates and times (`helpers/template/extensions/datetime.py`)
+
+`strptime`, `as_timedelta`, `relative_time`, `time_since`, `time_until`,
+`timedelta_string` and the `timedelta(...)` constructor. The parsing itself is
+in `DateParse.lean`. -/
+
+/-- Names handled by `callDateTime`. -/
+def DATETIME2_NAMES : List String :=
+  ["strptime", "as_timedelta", "relative_time", "time_since", "time_until", "timedelta_string", "timedelta"]
+
+def pyErrMsg : PyErr → String
+  | .valueError m | .error m => m
+
+/-- `DateTimeExtension._datetime_as_string`, with `dt_util.get_age` (past) and
+`dt_util.get_time_remaining` (future). -/
+def datetimeAsString (ctx : Ctx) (v : Value) (precision : Value) (future : Bool) : R Value := do
+  collectTime
+  let .datetime .. := v | return v
+  let v ← match v with
+    | .datetime _ none => asLocal ctx v
+    | v => pure v
+  let .datetime us _ := v | return v
+  let nowUs := ctx.now.utc * 1000
+  if future then
+    if nowUs > us then return v
+    pure (.str (getTimestring (roundedSeconds (us - nowUs)).toNat precision))
+  else
+    if nowUs < us then return v
+    pure (.str (getTimestring (roundedSeconds (nowUs - us)).toNat precision))
+
+/-- The functions of `DATETIME2_NAMES`, as globals (filters pass the piped
+value first). -/
+def callDateTime (ctx : Ctx) (n : String) (a : Args) : R Value := do
+  match n with
+  | "strptime" =>
+    -- `DateTimeExtension.strptime`: ValueError/TypeError give the default
+    a.check n ["string", "fmt", "default"]
+    let some str := a.get 0 "string" | throw "strptime() missing required argument 'string'"
+    let some fmt := a.get 1 "fmt" | throw "strptime() missing required argument 'fmt'"
+    let fail : R Value := match a.get 2 "default" with
+      | some d => pure d
+      | none => noDefault "strptime" str
+    match str, fmt with
+    | .str s, .str f =>
+      match strptime s f with
+      | .ok d => pure d
+      | .error (.valueError _) => fail
+      | .error (.error e) => throw e
+    | _, _ => fail
+  | "as_timedelta" =>
+    -- `dt_util.parse_duration`; a non-string is a TypeError from `re.match`
+    a.check n ["value"]
+    let some v := a.get 0 "value" | throw "as_timedelta() missing required argument 'value'"
+    let .str s := v | throw s!"TypeError: expected string or bytes-like object, got '{typeName v}'"
+    match parseDuration s with
+    | .ok (some us) => pure (.timedelta us)
+    | .ok none => pure .none
+    | .error e => throw (pyErrMsg e)
+  | "relative_time" =>
+    a.check n ["value"]
+    let some v := a.get 0 "value" | throw "relative_time() missing required argument 'value'"
+    datetimeAsString ctx v (.int 1) false
+  | "time_since" | "time_until" =>
+    a.check n ["value", "precision"]
+    let some v := a.get 0 "value" | throw s!"{n}() missing required argument 'value'"
+    datetimeAsString ctx v ((a.get 1 "precision").getD (.int 1)) (n == "time_until")
+  | "timedelta_string" =>
+    a.check n ["value", "precision"]
+    let some v := a.get 0 "value" | throw "timedelta_string() missing required argument 'value'"
+    let .timedelta us := v | return v
+    pure (.str (getTimestring (roundedSeconds us.natAbs).toNat ((a.get 1 "precision").getD (.int 1))))
+  | "timedelta" =>
+    -- `timedelta(days, seconds, microseconds, milliseconds, minutes, hours, weeks)`
+    let names := ["days", "seconds", "microseconds", "milliseconds", "minutes", "hours", "weeks"]
+    a.check n names
+    let factors : List (String × Nat) := [("microseconds", 1), ("milliseconds", 1000),
+      ("seconds", 1000000), ("minutes", 60000000), ("hours", 3600000000),
+      ("days", 86400000000), ("weeks", 604800000000)]
+    let comps := factors.filterMap fun (k, f) =>
+      (a.get (names.idxOf k) k).map fun v => (k, f, v)
+    match timedeltaNew comps with
+    | .ok us => pure (.timedelta us)
+    | .error e => throw (pyErrMsg e)
+  | _ => throw s!"calling {n} is not supported by HALean"
+
 /-! ## The evaluator -/
 
 mutual
@@ -1282,30 +1371,6 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
         let w := midnight + ((h * 3600 + m * 60 + sec : Nat) : Int) * US_PER_SEC
         pure (.datetime (w - off * US_PER_SEC) (some off))
       | none => throw s!"ValueError: could not convert {typeName ts} to datetime: '{tstr}'"
-    | "timedelta", _ => do
-      a.check n ["days", "seconds", "microseconds", "milliseconds", "minutes", "hours", "weeks"]
-      let factors : List (String × Nat) := [("days", 86400000000), ("seconds", 1000000),
-        ("microseconds", 1), ("milliseconds", 1000), ("minutes", 60000000), ("hours", 3600000000),
-        ("weeks", 604800000000)]
-      -- exact sum of all arguments, rounded half to even once at the end
-      let mut num : Int := 0
-      let mut den : Nat := 1
-      for ((k, f), i) in factors.zipIdx do
-        match a.get i k with
-        | none => pure ()
-        | some (.int x) => num := num + x * f * den
-        | some (.bool b) => num := num + (if b then (f : Int) else 0) * den
-        | some (.float x) =>
-          if !Float.isFinite' x then throw "ValueError: cannot convert float NaN or infinity to integer"
-          let (neg, xn, xd) := floatFrac x
-          let term : Int := (if neg then -(xn : Int) else xn) * f
-          num := num * xd + term * den
-          den := den * xd
-        | some v => throw s!"TypeError: unsupported type for timedelta {k} component: {typeName v}"
-      let q : Int := roundHalfEven num.natAbs den
-      let us := if num < 0 then -q else q
-      if us.natAbs ≥ 999999999 * 86400000000 then throw "OverflowError: days out of range"
-      pure (.timedelta us)
     | "as_timestamp", _ => do
       a.check n ["value", "default"]
       let v := (a.get 0 "value").getD .none
@@ -1445,6 +1510,9 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
       if !a.kw.isEmpty then throw "expand() got an unexpected keyword argument"
       expand ctx a.pos
     | m, some (.str s) => strMethod m s a
+    | _, none => do
+      if !DATETIME2_NAMES.contains n then throw s!"calling {n} is not supported by HALean"
+      callDateTime ctx n a
     | _, _ => throw s!"calling {n} is not supported by HALean"
   | .opaque w => throw s!"{w} values are not supported by HALean"
   | v => throw s!"'{typeName v}' object is not callable"
@@ -1568,7 +1636,8 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
     for x in ← iterV ctx v do acc ← arith "+" acc x
     pure acc
   | "as_timestamp" | "as_datetime" | "as_local" | "timestamp_local" | "timestamp_utc"
-  | "timestamp_custom" | "today_at" =>
+  | "timestamp_custom" | "today_at"
+  | "as_timedelta" | "relative_time" | "time_since" | "time_until" | "timedelta_string" =>
     callV ctx (.func n none) { pos := v :: a.pos, kw := a.kw }
   | "reverse" =>
     match v with
@@ -1658,6 +1727,7 @@ partial def applyTest (ctx : Ctx) (n : String) (v : Value) (args : List Value) :
     | _ => pure false
   | "has_value" => hasValue ctx v
   | "is_number" => isNumber v
+  | "datetime" => pure (match v with | .datetime .. => true | _ => false)
   | _ => throw s!"test '{n}' is not supported by HALean"
 
 /-- `jinja2.filters.make_attrgetter`: dotted path, digit parts as indexes,

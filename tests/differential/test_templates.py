@@ -28,8 +28,8 @@ from homeassistant.util import dt as dt_util
 from freezegun.api import FrozenDateTimeFactory
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-# Every tests/templates/*.yaml file holds a list of cases.
-CASES = [c for f in sorted((ROOT / "tests" / "templates").glob("*.yaml"))
+# cases.yaml first, then every other case file in tests/templates/
+CASES = [c for f in sorted((ROOT / "tests" / "templates").glob("*.yaml"), key=lambda f: f.name != "cases.yaml")
          for c in yaml.safe_load(f.read_text()) or []]
 ENGINE = ROOT / ".lake" / "build" / "bin" / "halean-template"
 # The clock for every case: millisecond precision, like the engine's clock.
