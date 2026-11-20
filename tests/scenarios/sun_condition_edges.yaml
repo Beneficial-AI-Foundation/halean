@@ -1,0 +1,21 @@
+# `sun` condition where today's sunrise (UTC) falls on the previous date
+# (far east: tomorrow's is used).
+location: {latitude: 35.0, longitude: 150.0, elevation: 0}
+automations:
+  - id: after_sunrise
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: sun, after: sunrise}]
+    actions: [{event: after_sunrise}]
+  - id: before_sunrise
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: sun, before: sunrise}]
+    actions: [{event: before_sunrise}]
+  - id: after_sunset
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: sun, after: sunset}]
+    actions: [{event: after_sunset}]
+steps:
+  # 22:13 UTC: date 14's sunrise is on the 13th (UTC), so the 15th's is used
+  - {at: 1, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: after_sunrise}, {type: fire_event, event_type: after_sunrise},
+              {type: automation_triggered, id: after_sunset}, {type: fire_event, event_type: after_sunset}]}

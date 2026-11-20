@@ -1,0 +1,44 @@
+# Legacy `sun` condition around today's sunset (t0 + 100.03 s here): after
+# and before, offsets, `before: sunrise` + `after: sunset` (the night, an
+# OR), case-insensitive events.
+location: {latitude: 40.0, longitude: -82.667, elevation: 0}
+automations:
+  - id: after_sunset
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: sun, after: sunset}]
+    actions: [{event: after_sunset}]
+  - id: before_sunset
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: sun, before: Sunset}]
+    actions: [{event: before_sunset}]
+  - id: night
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: sun, after: sunset, before: sunrise}]
+    actions: [{event: night}]
+  - id: day
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: sun, after: sunrise, before: sunset}]
+    actions: [{event: day}]
+  - id: offsets
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: sun, after: sunset, after_offset: "-00:00:50", before: sunset, before_offset: 30}]
+    actions: [{event: around_sunset}]
+steps:
+  - {at: 40, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: before_sunset}, {type: fire_event, event_type: before_sunset},
+              {type: automation_triggered, id: day}, {type: fire_event, event_type: day}]}
+  - {at: 60, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: before_sunset}, {type: fire_event, event_type: before_sunset},
+              {type: automation_triggered, id: day}, {type: fire_event, event_type: day},
+              {type: automation_triggered, id: offsets}, {type: fire_event, event_type: around_sunset}]}
+  - {at: 100, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: before_sunset}, {type: fire_event, event_type: before_sunset},
+              {type: automation_triggered, id: day}, {type: fire_event, event_type: day},
+              {type: automation_triggered, id: offsets}, {type: fire_event, event_type: around_sunset}]}
+  - {at: 101, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: after_sunset}, {type: fire_event, event_type: after_sunset},
+              {type: automation_triggered, id: night}, {type: fire_event, event_type: night},
+              {type: automation_triggered, id: offsets}, {type: fire_event, event_type: around_sunset}]}
+  - {at: 131, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: after_sunset}, {type: fire_event, event_type: after_sunset},
+              {type: automation_triggered, id: night}, {type: fire_event, event_type: night}]}

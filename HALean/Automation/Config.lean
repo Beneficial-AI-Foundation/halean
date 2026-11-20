@@ -52,6 +52,11 @@ inductive Condition where
   | trigger (ids : List String)
   /-- `condition: template` and the string shorthand. -/
   | template (t : Template.Tmpl)
+  /-- Legacy `zone` condition: every entity must be in one of the zones. -/
+  | zone (entityIds zones : List String)
+  /-- Legacy `sun` condition: `before`/`after` (`true` = sunrise, `false` =
+  sunset) with their offsets in µs. -/
+  | sun (before after : Option Bool) (beforeOffset afterOffset : Int)
   /-- `enabled: false`: `DisabledConditionChecker`, which returns `None`. -/
   | disabled
   deriving Repr, Inhabited
@@ -417,6 +422,30 @@ partial def decodeCondition (j : Json) (nm : List String := TEMPLATE_VARS) : D C
     match field? j "value_template" with
     | some (.str s) => return .template (← compileTemplate s nm)
     | _ => throw "template condition needs a value_template string"
+  | "zone" =>
+    -- `zone: cv.entity_ids` (a list or a comma-separated string)
+    let zones := (← strList ((field? j "zone").getD .null)).flatMap fun s =>
+      (s.splitOn ",").map String.trim |>.filter (· ≠ "")
+    if zones.isEmpty then throw "zone condition needs a zone"
+    return .zone (← entityIds j) zones
+  | "sun" =>
+    let ev (k : String) : D (Option Bool) := match field? j k with
+      | none => pure none
+      | some (.str s) => match s.toLower with
+        | "sunrise" => pure (some true)
+        | "sunset" => pure (some false)
+        | _ => throw s!"sun condition {k} must be sunrise or sunset"
+      | some v => throw s!"invalid sun condition {k}: {v.compress}"
+    let off (k : String) : D Int := match field? j k with
+      | none => pure 0
+      | some v => match cvTimePeriod (Template.Value.ofJson v) with
+        | .ok us => pure us
+        | .error e => throw s!"invalid {k} {v.compress}: {e}"
+    let before ← ev "before"
+    let after ← ev "after"
+    -- `vol.AtLeastOne("before", "after")`
+    if !has j "before" && !has j "after" then throw "sun condition needs before or after"
+    return .sun before after (← off "before_offset") (← off "after_offset")
   | other => throw s!"condition '{other}' is not supported"
 
 def stateMatch (j : Json) (pos neg : String) : StateMatch :=

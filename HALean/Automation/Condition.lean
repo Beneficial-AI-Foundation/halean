@@ -8,6 +8,8 @@
     * `err msg`      – the checker raised `ConditionError`
 -/
 import HALean.Automation.Config
+import HALean.Automation.Location
+import HALean.Automation.Sun
 open Lean
 
 namespace HALean.Automation
@@ -26,6 +28,8 @@ structure CondEnv where
   /-- The run variables templates see (`trigger`, `variables`, `repeat`),
   innermost first. -/
   vars : List (String × Template.Value) := []
+  /-- HA's location, for the `sun` condition. -/
+  location : Option Sun.Observer := none
 
 def CondEnv.tmplCtx (env : CondEnv) : Template.Ctx :=
   { states := env.states, vars := env.vars, now := env.now }
@@ -275,6 +279,56 @@ def entityLoop (eids : List String) (check : String → Except String Bool)
   if !errors.isEmpty then return .err (String.intercalate "; " errors)
   return .ok (some result)
 
+/-- `zone(hass, zone_entity_id, entity_id)`: look both up, then match. -/
+def zoneById (env : CondEnv) (zid eid : String) : Except String Bool := do
+  let some z := env.states.get? zid | throw s!"unknown zone {zid}"
+  let some ent := env.states.get? eid | throw s!"unknown entity {eid}"
+  zoneCondition z ent
+
+/-- `ZoneCondition._async_check`: every entity in some zone; errors are
+raised only if no definitive result was found. -/
+def zoneCond (env : CondEnv) (eids zones : List String) : CondResult :=
+  let (allOk, errs) := eids.foldl (fun (ok, errs) eid =>
+    let (entOk, errs) := zones.foldl (fun (eo, errs) zid =>
+      match zoneById env zid eid with
+      | .ok true => (true, errs)
+      | .ok false => (eo, errs)
+      | .error m => (eo, errs ++ [s!"error matching {eid} with {zid}: {m}"])) (false, errs)
+    (ok && entOk, errs)) (true, [])
+  if !errs.isEmpty && !allOk then .err s!"In 'zone' condition: {String.intercalate "; " errs}"
+  else .ok (some allOk)
+
+/-- `sun/condition.py::sun`: today's sunrise/sunset (tomorrow's when today's
+fell on the previous local date), then the bounds. `before: sunrise` with
+`after: sunset` is the dark period around midnight, an OR. -/
+def sunCond (env : CondEnv) (before after : Option Bool) (bo ao : Int) : Except String Bool := do
+  let some obs := env.location | throw "the sun condition needs HA's location"
+  let nowUs : Int := (env.now.utc : Int) * 1000
+  let localDay (us : Int) : Int := Int.fdiv (us + env.now.tzOffsetSec * Template.US_PER_SEC) Template.US_PER_DAY
+  let today := localDay nowUs
+  -- `get_astral_event_date(hass, event, date)`: `None` if it never occurs
+  let ev (rise : Bool) (day : Int) : Option Int :=
+    let (y, m, d) := Template.civilFromDays day
+    Sun.sunEvent obs rise y m d
+  let hasRise := before == some true || after == some true
+  let hasSet := before == some false || after == some false
+  let sr0 := ev true today
+  let sr := if hasRise && (sr0.map (fun t => decide (today > localDay t))).getD false then ev true (today + 1) else sr0
+  let ss0 := ev false today
+  let ss := if hasSet && (ss0.map (fun t => decide (today > localDay t))).getD false then ev false (today + 1) else ss0
+  -- polar regions: no sunrise/sunset today
+  if sr.isNone && hasRise then return false
+  if ss.isNone && hasSet then return false
+  let srT := sr.getD 0
+  let ssT := ss.getD 0
+  if before == some true && after == some false then
+    return nowUs < srT + bo || nowUs > ssT + ao
+  if before == some true && nowUs > srT + bo then return false
+  if before == some false && nowUs > ssT + bo then return false
+  if after == some true && nowUs < srT + ao then return false
+  if after == some false && nowUs < ssT + ao then return false
+  return true
+
 mutual
 /-- `ConditionChecker.async_check` -/
 def evalCond (env : CondEnv) : Condition → CondResult
@@ -298,6 +352,11 @@ def evalCond (env : CondEnv) : Condition → CondResult
         | none => false))
   | .template t =>
       match templateCond env t with
+      | .ok b => .ok (some b)
+      | .error e => .err e
+  | .zone eids zones => zoneCond env eids zones
+  | .sun before after bo ao =>
+      match sunCond env before after bo ao with
       | .ok b => .ok (some b)
       | .error e => .err e
 

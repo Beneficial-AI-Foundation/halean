@@ -1,0 +1,18 @@
+# `sun` condition in polar night (Svalbard in November): no sunrise or sunset,
+# so every bound is false.
+location: {latitude: 80.0, longitude: 15.0, elevation: 0}
+automations:
+  - id: after_sunrise
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: sun, after: sunrise}]
+    actions: [{event: after_sunrise}]
+  - id: before_sunrise
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: sun, before: sunrise}]
+    actions: [{event: before_sunrise}]
+  - id: after_sunset
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: sun, after: sunset}]
+    actions: [{event: after_sunset}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: []}

@@ -886,8 +886,10 @@ entries:
 - python: components/zone/condition.py::zone
   lean:
   - HALean.Automation.zoneCondition
+  - HALean.Automation.zoneById
   status: translated
-  notes: an in_zones string is a substring test, as Python `in` is
+  notes: an exception other than ConditionErrorMessage (a non-numeric coordinate) is a condition error
+    in HALean, where HA would raise it
   hash: e8a18aa54404759d
 - python: components/zone/__init__.py::in_zone
   lean:
@@ -955,3 +957,24 @@ entries:
   status: translated
   notes: the shell sends hass.config latitude/longitude/elevation in init
   hash: 59b52e8f43b0357e
+- python: components/zone/condition.py::ZoneCondition._async_check
+  lean:
+  - HALean.Automation.zoneCond
+  status: translated
+  hash: 3c954050b01ca6f2
+- python: components/sun/condition.py::sun
+  lean:
+  - HALean.Automation.sunCond
+  status: translated
+  hash: 98a36ee4c42b2e80
+- python: components/sun/condition.py::SunCondition._async_check
+  lean:
+  - HALean.Automation.sunCond
+  status: translated
+  hash: aa0c3fe195fc4ec1
+- python: helpers/sun.py::get_astral_event_date
+  lean:
+  - HALean.Automation.sunCond
+  - HALean.Automation.Sun.sunEvent
+  status: translated
+  hash: 5a4601882dbc512f

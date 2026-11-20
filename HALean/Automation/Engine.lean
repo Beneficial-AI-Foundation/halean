@@ -207,7 +207,7 @@ def emit (cs : List Cmd) : EM Unit := modify fun (e, acc) => (e, acc ++ cs)
 def getE : EM Engine := return (← get).1
 def setE (e : Engine) : EM Unit := modify fun (_, acc) => (e, acc)
 
-def Engine.condEnv (e : Engine) : CondEnv := { states := e.states, now := e.now }
+def Engine.condEnv (e : Engine) : CondEnv := { states := e.states, now := e.now, location := e.location }
 
 /-- What trigger templates see: an automation's static
 `trigger_variables`, or the waiting run's variables. -/

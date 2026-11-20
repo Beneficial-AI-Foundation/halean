@@ -1,0 +1,44 @@
+# Legacy `zone` condition: every entity must be in one of the zones (by
+# coordinates with gps_accuracy, or a person's in_zones); an error for one
+# zone does not matter when another zone matches, but makes the condition
+# fail with an error otherwise.
+automations:
+  - id: phone_at_office
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: zone, entity_id: device_tracker.phone, zone: zone.office}]
+    actions: [{event: phone_at_office}]
+  - id: both_somewhere
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: zone, entity_id: [device_tracker.phone, person.alice], zone: [zone.office, zone.home]}]
+    actions: [{event: both_somewhere}]
+  - id: missing_zone_ok
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: zone, entity_id: device_tracker.phone, zone: "zone.nowhere, zone.office"}]
+    actions: [{event: missing_zone_ok}]
+  - id: unknown_entity
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: zone, entity_id: device_tracker.ghost, zone: zone.office}]
+    actions: [{event: never}]
+states:
+  - {entity_id: zone.office, state: "0",
+     attributes: {latitude: 52.37, longitude: 4.89, radius: 100, friendly_name: Office}}
+  - {entity_id: zone.home, state: "0",
+     attributes: {latitude: 52.0, longitude: 5.0, radius: 50, friendly_name: Home}}
+  - {entity_id: device_tracker.phone, state: home, attributes: {latitude: 52.3705, longitude: 4.89}}
+  - {entity_id: person.alice, state: home, attributes: {in_zones: [zone.home]}}
+steps:
+  - {at: 1, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: phone_at_office}, {type: fire_event, event_type: phone_at_office},
+              {type: automation_triggered, id: both_somewhere}, {type: fire_event, event_type: both_somewhere},
+              {type: automation_triggered, id: missing_zone_ok}, {type: fire_event, event_type: missing_zone_ok}]}
+  - {at: 2, set: [device_tracker.phone, away], attributes: {latitude: 52.3712, longitude: 4.89}}
+  - {at: 3, send: {type: event, event_type: go}, expect: []}
+  - {at: 4, set: [device_tracker.phone, away], attributes: {latitude: 52.3712, longitude: 4.89, gps_accuracy: 50}}
+  - {at: 5, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: phone_at_office}, {type: fire_event, event_type: phone_at_office},
+              {type: automation_triggered, id: both_somewhere}, {type: fire_event, event_type: both_somewhere},
+              {type: automation_triggered, id: missing_zone_ok}, {type: fire_event, event_type: missing_zone_ok}]}
+  - {at: 6, set: [person.alice, away], attributes: {in_zones: []}}
+  - {at: 7, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: phone_at_office}, {type: fire_event, event_type: phone_at_office},
+              {type: automation_triggered, id: missing_zone_ok}, {type: fire_event, event_type: missing_zone_ok}]}
