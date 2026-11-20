@@ -1,0 +1,128 @@
+# `wait_for_trigger`: woken by state, event, numeric_state (armed when the
+# wait starts, with `for:`), template (seeing the run's variables) and
+# time_pattern triggers; the `wait` variable (`trigger`, `completed`,
+# `remaining`); timeouts with and without `continue_on_timeout`;
+# `timeout: 0`; a restarted run's triggers are removed; the order of a woken
+# run against an automation the same change triggers.
+automations:
+  - id: by_state
+    triggers: [{trigger: event, event_type: a}]
+    actions:
+      - wait_for_trigger:
+          - {trigger: state, entity_id: input_boolean.door, to: "on", id: opened}
+          - {trigger: event, event_type: never}
+      - event: a_done
+        event_data:
+          w: "c={{ wait.completed }} r={{ wait.remaining }} id={{ wait.trigger.id }} idx={{ wait.trigger.idx }}"
+          s: "{{ wait.trigger.platform }} {{ wait.trigger.entity_id }} {{ wait.trigger.from_state.state }}>{{ wait.trigger.to_state.state }}"
+  - id: by_second_trigger                 # the second trigger fires: idx 1
+    triggers: [{trigger: event, event_type: b}]
+    actions:
+      - wait_for_trigger:
+          - {trigger: event, event_type: never}
+          - {trigger: event, event_type: poke, event_data: {k: 1}}
+      - event: b_done
+        event_data: {w: "id={{ wait.trigger.id }} idx={{ wait.trigger.idx }} k={{ wait.trigger.event.data.k }}"}
+  - id: times_out
+    triggers: [{trigger: event, event_type: c}]
+    actions:
+      - wait_for_trigger: {trigger: event, event_type: never}
+        timeout: 3
+      - event: c_done
+        event_data: {w: "c={{ wait.completed }} r={{ wait.remaining }} t={{ wait.trigger }}"}
+  - id: aborts
+    triggers: [{trigger: event, event_type: d}]
+    actions:
+      - wait_for_trigger: {trigger: event, event_type: never}
+        timeout: {seconds: 2}
+        continue_on_timeout: false
+      - event: d_done
+  - id: zero
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - wait_for_trigger: {trigger: event, event_type: never}
+        timeout: 0
+      - event: e_done
+        event_data: {w: "c={{ wait.completed }} r={{ wait.remaining }}"}
+  - id: numeric_for                       # armed at attach; fires 2 s after crossing
+    triggers: [{trigger: event, event_type: f}]
+    actions:
+      - wait_for_trigger:
+          - {trigger: numeric_state, entity_id: sensor.level, above: 50, for: 2}
+      - event: f_done
+        event_data: {w: "{{ wait.trigger.platform }} for={{ wait.trigger.for }} to={{ wait.trigger.to_state.state }}"}
+  - id: template_vars                     # trigger templates see the run's variables
+    variables: {target: sensor.temp}
+    triggers: [{trigger: event, event_type: g}]
+    actions:
+      - wait_for_trigger:
+          - {trigger: template, value_template: "{{ states(target) | int(0) > 25 }}"}
+      - event: g_done
+        event_data: {w: "{{ wait.trigger.platform }} {{ wait.trigger.entity_id }}"}
+  - id: restarted
+    mode: restart
+    triggers: [{trigger: event, event_type: h}]
+    actions:
+      - event: h_start
+      - wait_for_trigger: {trigger: event, event_type: h_go}
+      - event: h_done
+  - id: pattern
+    triggers: [{trigger: event, event_type: i}]
+    actions:
+      - wait_for_trigger: {trigger: time_pattern, seconds: "/10"}
+      - event: i_done
+        event_data: {w: "{{ wait.trigger.platform }}"}
+  - id: order_waiter
+    triggers: [{trigger: event, event_type: j}]
+    actions:
+      - wait_for_trigger: {trigger: state, entity_id: input_boolean.lamp}
+      - action: test.waiter
+  - id: order_trigger
+    triggers: [{trigger: state, entity_id: input_boolean.lamp, to: "on"}]
+    actions: [{action: test.triggered}]
+states:
+  - {entity_id: input_boolean.door, state: "off"}
+  - {entity_id: input_boolean.lamp, state: "off"}
+  - {entity_id: sensor.level, state: "10"}
+  - {entity_id: sensor.temp, state: "20"}
+steps:
+  - {at: 1, send: {type: event, event_type: a}, expect: [{type: automation_triggered, id: by_state}]}
+  - {at: 2, set: [input_boolean.lamp, "x"]}
+  - {at: 3, set: [input_boolean.door, "on"],
+     expect: [{type: fire_event, event_type: a_done,
+               data: {w: "c=True r=None id=opened idx=0", s: "state input_boolean.door off>on"}}]}
+  - {at: 4, set: [input_boolean.door, "off"]}
+  - {at: 5, send: {type: event, event_type: b}, expect: [{type: automation_triggered, id: by_second_trigger}]}
+  - {at: 6, send: {type: event, event_type: poke, data: {k: 2}}}
+  - {at: 7, send: {type: event, event_type: poke, data: {k: 1}},
+     expect: [{type: fire_event, event_type: b_done, data: {w: "id=1 idx=1 k=1"}}]}
+  - {at: 10, send: {type: event, event_type: c}, expect: [{type: automation_triggered, id: times_out}]}
+  - {at: 12, send: {type: tick}}
+  - {at: 13, send: {type: tick},
+     expect: [{type: fire_event, event_type: c_done, data: {w: "c=False r=0.0 t=None"}}]}
+  - {at: 20, send: {type: event, event_type: d}, expect: [{type: automation_triggered, id: aborts}]}
+  - {at: 23, send: {type: tick}}
+  - {at: 25, send: {type: event, event_type: e},
+     expect: [{type: automation_triggered, id: zero},
+              {type: fire_event, event_type: e_done, data: {w: "c=False r=0.0"}}]}
+  - {at: 30, send: {type: event, event_type: f}, expect: [{type: automation_triggered, id: numeric_for}]}
+  - {at: 31, set: [sensor.level, "60"]}
+  - {at: 32, send: {type: tick}}
+  - {at: 33, send: {type: tick},
+     expect: [{type: fire_event, event_type: f_done, data: {w: "numeric_state for=0:00:02 to=60"}}]}
+  - {at: 40, send: {type: event, event_type: g}, expect: [{type: automation_triggered, id: template_vars}]}
+  - {at: 41, set: [sensor.temp, "30"],
+     expect: [{type: fire_event, event_type: g_done, data: {w: "template sensor.temp"}}]}
+  - {at: 50, send: {type: event, event_type: h},
+     expect: [{type: automation_triggered, id: restarted}, {type: fire_event, event_type: h_start}]}
+  - {at: 51, send: {type: event, event_type: h},
+     expect: [{type: automation_triggered, id: restarted}, {type: fire_event, event_type: h_start}]}
+  - {at: 52, send: {type: event, event_type: h_go}, expect: [{type: fire_event, event_type: h_done}]}
+  - {at: 55, send: {type: event, event_type: i}, expect: [{type: automation_triggered, id: pattern}]}
+  - {at: 58, send: {type: tick}}
+  - {at: 61, send: {type: tick}, expect: [{type: fire_event, event_type: i_done, data: {w: time_pattern}}]}
+  - {at: 70, send: {type: event, event_type: j}, expect: [{type: automation_triggered, id: order_waiter}]}
+  - {at: 71, set: [input_boolean.lamp, "on"],
+     expect: [{type: automation_triggered, id: order_trigger},
+              {type: call_service, service: triggered, call_id: 0},
+              {type: call_service, service: waiter, call_id: 1}]}

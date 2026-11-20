@@ -802,6 +802,7 @@ entries:
 - python: helpers/script.py::_ScriptRun._async_wait_with_optional_timeout
   lean:
   - HALean.Automation.fireDue
+  - HALean.Automation.cleanupWait
   - HALean.Automation.removeRun
   status: translated
   notes: the tracker is removed on wake-up, timeout or stop
@@ -819,3 +820,21 @@ entries:
   status: translated
   notes: fires on a true result whose previous result was not true (or an error)
   hash: 90932f7d42fe1ce5
+- python: helpers/script.py::_ScriptRun._async_step_wait_for_trigger
+  lean:
+  - HALean.Automation.step
+  - HALean.Automation.attachTriggers
+  - HALean.Automation.fire
+  - HALean.Automation.resumeWoken
+  - HALean.Automation.cleanupWait
+  status: translated
+  notes: the triggers are attached with dict(self._variables) taken before wait is set; a second trigger
+    firing before the run resumes overwrites wait.trigger
+  hash: 344fb7f3d54bbf35
+- python: helpers/trigger/__init__.py::async_initialize_triggers
+  lean:
+  - HALean.Automation.attachTriggers
+  - HALean.Automation.initArmed
+  status: translated
+  notes: trigger_data id/idx/alias come from triggerValue; disabled triggers are dropped at load
+  hash: 65d58accf6d16244

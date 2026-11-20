@@ -60,6 +60,10 @@ inductive Wait where
   /-- `wait_template` that was false: the engine tracks `t` (like
   `async_track_template`) until it turns true or `deadline` passes. -/
   | waitTmpl (t : Template.Tmpl) (deadline : Option Millis) (continueOnTimeout : Bool)
+  /-- `wait_for_trigger`: the engine attaches `triggers`, which see `vars`,
+  until one fires or `deadline` passes. -/
+  | waitTrig (triggers : List Trigger) (vars : List (String × Template.Value))
+      (deadline : Option Millis) (continueOnTimeout : Bool)
   deriving Repr, Inhabited
 
 /-- Templates have no equality; waits compare by everything else. -/
@@ -68,6 +72,7 @@ def Wait.beq : Wait → Wait → Bool
   | .delayUntil a, .delayUntil b => a == b
   | .service a c, .service b d => a == b && c == d
   | .waitTmpl _ a c, .waitTmpl _ b d => a == b && c == d
+  | .waitTrig _ _ a c, .waitTrig _ _ b d => a == b && c == d
   | _, _ => false
 
 instance : BEq Wait := ⟨Wait.beq⟩
@@ -92,6 +97,19 @@ def Run.scopeVars (r : Run) : List (String × Template.Value) :=
 /-- The `wait` variable of the wait steps: `{"remaining": ..., "completed": ...}`. -/
 def waitVar (remaining : Template.Value) (completed : Bool) : Template.Value :=
   .dict [(.str "remaining", remaining), (.str "completed", .bool completed)]
+
+/-- Set fields of the `wait` variable in place (`self._variables["wait"][k] = v`). -/
+def setWaitFields (vars : List (String × Template.Value)) (fields : List (String × Template.Value)) :
+    List (String × Template.Value) :=
+  vars.map fun (k, v) =>
+    if k != "wait" then (k, v) else
+    match v with
+    | .dict kvs => (k, .dict (kvs.map fun (kk, vv) => match kk with
+        | .str f => match fields.find? (·.1 == f) with
+          | some (_, nv) => (kk, nv)
+          | none => (kk, vv)
+        | _ => (kk, vv)))
+    | other => (k, other)
 
 /-- `_TIMEOUT_MSG` -/
 def TIMEOUT_MSG : String := "Timeout reached, abort script."
@@ -299,6 +317,34 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
             else
               let deadline := tus.map fun us => env.now.utc + ((us + 999) / 1000).toNat
               (.blocked { r1 with wait := .waitTmpl t deadline cot }, [], ctx)
+      | .waitForTrigger trigs timeout cot =>
+        let tus : Except String (Option Int) := match timeout with
+          | none => .ok none
+          | some c => do
+            let v ← renderComplexV env c
+            some <$> cvPositiveTimePeriod v
+        match tus with
+        | .error e =>
+          let m := s!"Error rendering timeout template: {e}"
+          (.done (.aborted m), [.log "error" m], ctx)
+        | .ok tus =>
+          -- `variables = dict(self._variables)`, taken before `wait` is set
+          let snapshot := r'.scopeVars
+          let rem : Template.Value := match tus with
+            | some us => .float (Float.ofInt us / 1000000)
+            | none => .none
+          let w0 : Template.Value :=
+            .dict [(.str "remaining", rem), (.str "completed", .bool false), (.str "trigger", .none)]
+          let r1 := { r' with vars := setVar r'.vars "wait" w0 }
+          if tus == some 0 then
+            let r2 := { r1 with vars := setWaitFields r1.vars [("remaining", .float 0)] }
+            if cot then (.next r2, [], ctx)
+            else (.done (.aborted TIMEOUT_MSG), [.log "info" TIMEOUT_MSG], ctx)
+          -- `if not remove_triggers: return`
+          else if trigs.isEmpty then (.next r1, [], ctx)
+          else
+            let deadline := tus.map fun us => env.now.utc + ((us + 999) / 1000).toNat
+            (.blocked { r1 with wait := .waitTrig trigs snapshot deadline cot }, [], ctx)
     run false a
   | .repeatCount i n body c :: rest =>
     if i < n then (.next (push (.seq body false) (.repeatCount (i + 1) n body c :: rest)), [], ctx)

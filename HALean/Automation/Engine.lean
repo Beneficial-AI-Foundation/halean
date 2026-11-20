@@ -80,6 +80,15 @@ inductive SameCheck where
   | always
   deriving Repr, Inhabited
 
+/-- Who a trigger listener belongs to: an automation (by position), or a
+run waiting in a `wait_for_trigger` step (`async_initialize_triggers` with
+the step's `async_done` as the action). A `wait_template` tracker belongs to
+its waiting run too. -/
+inductive Owner where
+  | auto (ai : Nat)
+  | wait (runId : Nat)
+  deriving Repr, Inhabited, BEq, DecidableEq
+
 /-- The last result `async_track_template_result` saw. -/
 inductive TmplResult where
   | ok (v : Template.Value)
@@ -93,7 +102,7 @@ abbrev Deferred := String × Option EntityState × Option EntityState
 `delay_cancel`) and its `TrackTemplateResultInfo` (`_info`, `_last_result`,
 the `KeyedRateLimit`, the time listener is `info.hasTime`). -/
 structure TmplTrig where
-  autoIdx : Nat
+  owner : Owner
   trigIdx : Nat
   armed : Bool := false
   last : Option TmplResult := none
@@ -102,19 +111,15 @@ structure TmplTrig where
   lastTriggered : Option Millis := none
   /-- The rate limiter's timer: when it fires and the event it replays. -/
   rlTimer : Option (Millis × Deferred) := none
-  /-- For a `wait_template` step (`async_track_template`): the waiting run,
-  its template and the variables it was set up with. -/
-  runId : Option Nat := none
+  /-- For a `wait_template` step (`async_track_template`): its template and
+  the variables it was set up with. -/
   tmpl : Option Template.Tmpl := none
   vars : List (String × Template.Value) := []
   deriving Repr, Inhabited
 
-/-- Same tracker: a template trigger by position, a wait by its run. -/
+/-- Same tracker: same owner and trigger position. -/
 def TmplTrig.sameKey (a b : TmplTrig) : Bool :=
-  match a.runId, b.runId with
-  | some x, some y => x == y
-  | none, none => a.autoIdx == b.autoIdx && a.trigIdx == b.trigIdx
-  | _, _ => false
+  a.owner == b.owner && a.trigIdx == b.trigIdx
 
 /-- `_refresh`'s change test: a changed result; error after error is not a
 change, the first render after setup always is. -/
@@ -132,14 +137,24 @@ def TmplResult.of : Except String Template.Value → TmplResult
 /-- A pending `for:` timer created by `async_track_same_state`. -/
 structure PendingFor where
   id : Nat := 0
-  autoIdx : Nat
+  owner : Owner
   entity : String
   fireAt : Millis
   check : SameCheck
   vars : TriggerVars
   /-- For a templated `for:` of a state or numeric_state trigger: the key of
   the trigger's `period[entity]`, which `call_action` reads when it fires. -/
-  periodKey : Option (Nat × Nat × String) := none
+  periodKey : Option (Owner × Nat × String) := none
+  deriving Repr, Inhabited
+
+/-- The triggers of a `wait_for_trigger` step while its run waits, and the
+variables they see (`dict(self._variables)` before `wait` is set). -/
+structure WaitTrig where
+  runId : Nat
+  autoIdx : Nat
+  triggers : List Trigger
+  vars : List (String × Template.Value)
+  hasTimeout : Bool
   deriving Repr, Inhabited
 
 structure Engine where
@@ -147,8 +162,8 @@ structure Engine where
   states : States := []
   now : Instant := {utc := 0}
   pendings : List PendingFor := []
-  /-- numeric_state `armed_entities`: (automation, trigger idx, entity) -/
-  armed : List (Nat × Nat × String) := []
+  /-- numeric_state `armed_entities`: (owner, trigger idx, entity) -/
+  armed : List (Owner × Nat × String) := []
   /-- All live runs, oldest first (each automation's `Script._runs`). -/
   runs : List Run := []
   nextRunId : Nat := 0
@@ -161,7 +176,12 @@ structure Engine where
   lastTriggered : List (Nat × Int) := []
   /-- The `period` dicts of state and numeric_state triggers with a
   templated `for:`: (automation, trigger idx, entity) → microseconds. -/
-  periods : List ((Nat × Nat × String) × Int) := []
+  periods : List ((Owner × Nat × String) × Int) := []
+  /-- Runs waiting in a `wait_for_trigger` step, with their triggers. -/
+  waitTrigs : List WaitTrig := []
+  /-- Runs whose wait completed during the current input; they continue
+  once its callbacks are done. -/
+  woken : List Nat := []
   deriving Inhabited
 
 inductive Input where
@@ -179,10 +199,20 @@ def setE (e : Engine) : EM Unit := modify fun (_, acc) => (e, acc)
 
 def Engine.condEnv (e : Engine) : CondEnv := { states := e.states, now := e.now }
 
-/-- What trigger templates see: the static `trigger_variables`. -/
-def tmplCtxOf (e : Engine) (ai : Nat) : Template.Ctx :=
+/-- What trigger templates see: an automation's static
+`trigger_variables`, or the waiting run's variables. -/
+def tmplCtxOf (e : Engine) (o : Owner) : Template.Ctx :=
   { states := e.states, now := e.now,
-    vars := ((e.automations.getD ai default).triggerVars.map fun (k, v) => (k, Template.Value.ofJson v)) }
+    vars := match o with
+      | .auto ai => (e.automations.getD ai default).triggerVars.map fun (k, v) => (k, Template.Value.ofJson v)
+      | .wait rid => ((e.waitTrigs.find? (·.runId == rid)).map (·.vars)).getD [] }
+
+/-- The automation an owner's messages are about. -/
+def Engine.ownerAuto (e : Engine) : Owner → Automation
+  | .auto ai => e.automations.getD ai default
+  | .wait rid => match e.runs.find? (·.id == rid) with
+    | some r => e.automations.getD r.autoIdx default
+    | none => default
 
 /-! ## Value helpers -/
 
@@ -205,11 +235,19 @@ def runsOf (e : Engine) (ai : Nat) : List Run := e.runs.filter (·.autoIdx == ai
 def replaceRun (e : Engine) (r : Run) : Engine :=
   { e with runs := e.runs.map fun x => if x.id == r.id then r else x }
 
-/-- Remove a run, and the template tracker of its wait (the `finally:
-unsub()` of `_async_wait_with_optional_timeout`, also on stop). -/
+/-- Remove every listener of a run's wait (the `finally: unsub()` /
+`remove_triggers()` of `_async_wait_with_optional_timeout`). -/
+def cleanupWait (e : Engine) (rid : Nat) : Engine :=
+  let o := Owner.wait rid
+  { e with tmplTrigs := e.tmplTrigs.filter (·.owner != o),
+           waitTrigs := e.waitTrigs.filter (·.runId != rid),
+           pendings := e.pendings.filter (·.owner != o),
+           armed := e.armed.filter (·.1 != o),
+           periods := e.periods.filter (·.1.1 != o) }
+
+/-- Remove a run, and the listeners of its wait (also on stop). -/
 def removeRun (e : Engine) (id : Nat) : Engine :=
-  { e with runs := e.runs.filter (·.id != id),
-           tmplTrigs := e.tmplTrigs.filter (·.runId != some id) }
+  cleanupWait { e with runs := e.runs.filter (·.id != id) } id
 
 /-- `async_track_template(hass, wait_template, ..., self._variables)`: set
 up the tracker with its first render's info. -/
@@ -217,8 +255,35 @@ def setupWait (r : Run) (t : Template.Tmpl) : EM Unit := do
   let e ← getE
   let vars := r.scopeVars
   let (_, info) := Template.renderWithInfo t { states := e.states, now := e.now, vars } true
-  setE { e with tmplTrigs := (e.tmplTrigs.filter (·.runId != some r.id)) ++
-    [{ autoIdx := r.autoIdx, trigIdx := 0, runId := some r.id, tmpl := some t, vars, info }] }
+  setE { e with tmplTrigs := (e.tmplTrigs.filter (·.owner != .wait r.id)) ++
+    [{ owner := .wait r.id, trigIdx := 0, tmpl := some t, vars, info }] }
+
+/-- Attach triggers (`async_attach_trigger`): numeric_state entities that
+start outside the range are armed ("Each entity that starts outside the
+range is already armed"); template triggers are armed when their first render
+is false, and that render gives the tracker's first info. -/
+def attachTriggers (o : Owner) (trigs : List Trigger) : EM Unit := do
+  let e ← getE
+  let a := e.ownerAuto o
+  let mut armed := e.armed
+  let mut tts := e.tmplTrigs
+  let mut logs : List Cmd := []
+  for t in trigs do
+    match t.kind with
+    | .numericState eids below above attr _ vtm =>
+      for eid in eids do
+        let vt := vtm.map fun tm => (tm, (tmplCtxOf e o).vars ++ [("trigger", numericTriggerVar t eid below above attr)])
+        if let .ok false := numericStateOne e.condEnv eid below above attr vt then
+          armed := armed ++ [(o, t.idx, eid)]
+    | .template tm _ =>
+      match Template.renderWithInfo tm (tmplCtxOf e o) true with
+      | (.ok v, info) => tts := tts ++ [{ owner := o, trigIdx := t.idx, armed := !Template.resultAsBoolean v, info }]
+      | (.error msg, info) =>
+        tts := tts ++ [{ owner := o, trigIdx := t.idx, info }]
+        logs := logs ++ [.log "warning" s!"Error initializing 'template' trigger for '{a.alias}': {msg}"]
+    | _ => pure ()
+  setE { e with armed, tmplTrigs := tts }
+  emit logs
 
 mutual
 /-- Drive a run until it blocks or ends; on end, `_finish` it (which for a
@@ -231,7 +296,14 @@ partial def drive (r : Run) : EM Unit := do
   match res with
   | .inl (some r') =>
     setE (replaceRun (← getE) r')
-    if let .waitTmpl t _ _ := r'.wait then setupWait r' t
+    match r'.wait with
+    | .waitTmpl t _ _ => setupWait r' t
+    | .waitTrig trigs vars deadline _ =>
+      let e ← getE
+      setE { e with waitTrigs := (e.waitTrigs.filter (·.runId != r'.id)) ++
+        [{ runId := r'.id, autoIdx := r'.autoIdx, triggers := trigs, vars, hasTimeout := deadline.isSome }] }
+      attachTriggers (.wait r'.id) trigs
+    | _ => pure ()
   | .inl none => pure ()
   | .inr end_ => finishRun r end_
 
@@ -334,6 +406,45 @@ def triggerAutomation (ai : Nat) (tv : TriggerVars) : EM Unit := do
   emit [.automationTriggered a.id a.alias tv.description]
   if wait == .ready then drive run
 
+/-- A trigger of `o` fired: start the automation, or complete the wait
+(`_async_step_wait_for_trigger.async_done`: `wait.remaining`, `completed`,
+`trigger`). Listeners stay until the run resumes, so another trigger of the
+same wait firing in the same round overwrites `wait.trigger`, as in HA. -/
+def fire (o : Owner) (tv : TriggerVars) : EM Unit := do
+  match o with
+  | .auto ai => triggerAutomation ai tv
+  | .wait rid =>
+    let e ← getE
+    let some w := e.waitTrigs.find? (·.runId == rid) | return
+    let some r := e.runs.find? (·.id == rid) | return
+    let rem : Template.Value := if w.hasTimeout then .opaque "wait.remaining" else .none
+    let r := { r with wait := .ready,
+                      vars := setWaitFields r.vars [("remaining", rem), ("completed", .bool true), ("trigger", tv.value)] }
+    let e := replaceRun e r
+    setE { e with woken := if e.woken.contains rid then e.woken else e.woken ++ [rid] }
+
+/-- Continue runs whose `wait_for_trigger` completed: remove the step's
+triggers, then run on. -/
+def resumeWoken : EM Unit := do
+  let ws := (← getE).woken
+  if ws.isEmpty then return
+  setE { (← getE) with woken := [] }
+  for rid in ws do
+    setE (cleanupWait (← getE) rid)
+    if let some r := (← getE).runs.find? (·.id == rid) then
+      if r.wait == .ready then drive r
+
+/-- Every trigger listener, in registration order: the automations', then
+those of waiting runs. -/
+def Engine.owners (e : Engine) : List (Owner × List Trigger) :=
+  e.automations.zipIdx.map (fun (a, ai) => (Owner.auto ai, a.triggers))
+    ++ e.waitTrigs.map fun w => (Owner.wait w.runId, w.triggers)
+
+/-- A wait's listeners are gone once its run resumed, timed out or stopped. -/
+def Engine.listening (e : Engine) : Owner → Bool
+  | .auto _ => true
+  | .wait rid => e.waitTrigs.any (·.runId == rid)
+
 /-! ## Triggers -/
 
 /-- `state.py::call_action` -/
@@ -351,31 +462,31 @@ def stateTriggerVars (t : Trigger) (eid : String) (old new : Option EntityState)
 for a templated `for:`. `variables` are the trigger-time variables
 (`trigger_variables`) with the platform's `trigger` mapping on top. Returns
 microseconds. -/
-def renderPeriod (e : Engine) (ai : Nat) (c : Complex) (trig : Template.Value) :
+def renderPeriod (e : Engine) (o : Owner) (c : Complex) (trig : Template.Value) :
     Except String Int := do
-  let vars := ("trigger", trig) :: ((tmplCtxOf e ai).vars.filter (·.1 != "trigger"))
+  let vars := ("trigger", trig) :: ((tmplCtxOf e o).vars.filter (·.1 != "trigger"))
   let v ← renderComplexV { e.condEnv with vars } c
   cvPositiveTimePeriod v
 
 /-- Record `period[entity] = us` and start a `for:` timer that reads it. -/
-def addPeriodPending (ai : Nat) (key : Nat × Nat × String) (us : Int) (check : SameCheck)
+def addPeriodPending (o : Owner) (key : Owner × Nat × String) (us : Int) (check : SameCheck)
     (tv : TriggerVars) : EM Unit := do
   let e ← getE
   setE { e with
     periods := (e.periods.filter (·.1 != key)) ++ [(key, us)],
     nextPendingId := e.nextPendingId + 1,
     pendings := e.pendings ++ [{
-      id := e.nextPendingId, autoIdx := ai, entity := key.2.2,
+      id := e.nextPendingId, owner := o, entity := key.2.2,
       fireAt := e.now.utc + usToMs us, check, vars := tv, periodKey := some key }] }
 
 /-- The `_LOGGER.error("Error rendering '%s' for template: %s", ...)` of the
 state, numeric_state and template triggers when their `for:` fails. -/
-def logPeriodError (ai : Nat) (msg : String) : EM Unit := do
-  let a := (← getE).automations.getD ai default
+def logPeriodError (o : Owner) (msg : String) : EM Unit := do
+  let a := (← getE).ownerAuto o
   emit [.log "error" s!"Error rendering '{a.alias}' for template: {msg}"]
 
 /-- `state.py::state_automation_listener` -/
-def onStateTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option EntityState) :
+def onStateTrigger (o : Owner) (t : Trigger) (eid : String) (old new : Option EntityState) :
     EM Unit := do
   let .state eids fromM toM matchAll attr forP fromKeyOnly := t.kind | return
   if !eids.contains eid then return
@@ -385,38 +496,38 @@ def onStateTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option Ent
   if !fromM.matches oldV || !toM.matches newV || (!matchAll && oldV == newV) then return
   let check := if fromKeyOnly then SameCheck.notEqualOld attr oldV else .equalNew attr newV
   match forP with
-  | none => triggerAutomation ai (stateTriggerVars t eid old new attr .none)
+  | none => fire o (stateTriggerVars t eid old new attr .none)
   -- `if not time_delta: call_action()` with `for` = the static period
-  | some (.fixed 0) => triggerAutomation ai (stateTriggerVars t eid old new attr (forVal (some 0)))
+  | some (.fixed 0) => fire o (stateTriggerVars t eid old new attr (forVal (some 0)))
   | some (.fixed p) =>
     let e ← getE
     setE { e with nextPendingId := e.nextPendingId + 1, pendings := e.pendings ++
-      [{ id := e.nextPendingId, autoIdx := ai, entity := eid, fireAt := e.now.utc + p, check,
+      [{ id := e.nextPendingId, owner := o, entity := eid, fireAt := e.now.utc + p, check,
          vars := stateTriggerVars t eid old new attr (forVal (some p)) }] }
   | some (.tmpl c) =>
     let trig : Template.Value := .dict [(.str "platform", .str "state"), (.str "entity_id", .str eid),
       (.str "from_state", stateVal old), (.str "to_state", stateVal new)]
-    match renderPeriod (← getE) ai c trig with
-    | .error m => logPeriodError ai m
+    match renderPeriod (← getE) o c trig with
+    | .error m => logPeriodError o m
     | .ok us =>
-      addPeriodPending ai (ai, t.idx, eid) us check (stateTriggerVars t eid old new attr (.timedelta us))
+      addPeriodPending o (o, t.idx, eid) us check (stateTriggerVars t eid old new attr (.timedelta us))
 
 /-- `numeric_state.py::state_automation_listener` -/
-def onNumericTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option EntityState) :
+def onNumericTrigger (o : Owner) (t : Trigger) (eid : String) (old new : Option EntityState) :
     EM Unit := do
   let .numericState eids below above attr forP vtm := t.kind | return
   if !eids.contains eid then return
   let some to := new | return
   let e ← getE
-  let vt := vtm.map fun tm => (tm, (tmplCtxOf e ai).vars ++ [("trigger", numericTriggerVar t eid below above attr)])
+  let vt := vtm.map fun tm => (tm, (tmplCtxOf e o).vars ++ [("trigger", numericTriggerVar t eid below above attr)])
   match numericStateOf e.condEnv to below above attr vt with
   | .error m => emit [.log "warning" s!"Error in numeric_state trigger: {m}"]
   | .ok false =>
-    if !e.armed.contains (ai, t.idx, eid) then
-      setE { e with armed := e.armed ++ [(ai, t.idx, eid)] }
+    if !e.armed.contains (o, t.idx, eid) then
+      setE { e with armed := e.armed ++ [(o, t.idx, eid)] }
   | .ok true =>
-    if e.armed.contains (ai, t.idx, eid) then
-      let e := { e with armed := e.armed.filter (· != (ai, t.idx, eid)) }
+    if e.armed.contains (o, t.idx, eid) then
+      let e := { e with armed := e.armed.filter (· != (o, t.idx, eid)) }
       setE e
       let tv (forV : Template.Value) : TriggerVars := {
         id := t.id, idx := t.idx, platform := "numeric_state",
@@ -428,18 +539,18 @@ def onNumericTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option E
           ("from_state", stateVal old), ("to_state", stateVal new), ("for", forV),
           ("description", .str s!"numeric state of {eid}")] }
       match forP with
-      | none => triggerAutomation ai (tv .none)
-      | some (.fixed 0) => triggerAutomation ai (tv (forVal (some 0)))
+      | none => fire o (tv .none)
+      | some (.fixed 0) => fire o (tv (forVal (some 0)))
       | some (.fixed p) =>
         setE { e with nextPendingId := e.nextPendingId + 1, pendings := e.pendings ++
-          [{ id := e.nextPendingId, autoIdx := ai, entity := eid, fireAt := e.now.utc + p,
+          [{ id := e.nextPendingId, owner := o, entity := eid, fireAt := e.now.utc + p,
              check := .numeric below above attr vt, vars := tv (forVal (some p)) }] }
       | some (.tmpl c) =>
         -- rendered after the entity is disarmed: an error leaves it disarmed
-        match renderPeriod e ai c (numericTriggerVar t eid below above attr) with
-        | .error m => logPeriodError ai m
+        match renderPeriod e o c (numericTriggerVar t eid below above attr) with
+        | .error m => logPeriodError o m
         | .ok us =>
-          addPeriodPending ai (ai, t.idx, eid) us (.numeric below above attr vt) (tv (.timedelta us))
+          addPeriodPending o (o, t.idx, eid) us (.numeric below above attr vt) (tv (.timedelta us))
 
 /-- `_check_same_state` / `check_numeric_state_no_raise` -/
 def sameStillHolds (env : CondEnv) (c : SameCheck) (new : Option EntityState) : Bool :=
@@ -456,8 +567,8 @@ def sameStillHolds (env : CondEnv) (c : SameCheck) (new : Option EntityState) : 
     | .always => true
 
 
-def getTT (ai idx : Nat) : EM (Option TmplTrig) := do
-  return (← getE).tmplTrigs.find? (fun x => x.runId.isNone && x.autoIdx == ai && x.trigIdx == idx)
+def getTT (o : Owner) (idx : Nat) : EM (Option TmplTrig) := do
+  return (← getE).tmplTrigs.find? (fun x => x.tmpl.isNone && x.owner == o && x.trigIdx == idx)
 
 def saveTT (st : TmplTrig) : EM Unit := do
   let e ← getE
@@ -466,7 +577,7 @@ def saveTT (st : TmplTrig) : EM Unit := do
 /-- `template/trigger.py::template_listener`, called with the tracker's
 update. `ev` is the state change that caused it (`none` for the time
 listener). -/
-def templateListener (ai : Nat) (t : Trigger) (forP : Option ForPeriod) (st : TmplTrig)
+def templateListener (o : Owner) (t : Trigger) (forP : Option ForPeriod) (st : TmplTrig)
     (r : Except String Template.Value) (ev : Option Deferred) : EM Unit := do
   match r with
   | .error msg =>
@@ -499,40 +610,40 @@ def templateListener (ai : Nat) (t : Trigger) (forP : Option ForPeriod) (st : Tm
       let e ← getE
       let pid := e.nextPendingId
       setE { e with nextPendingId := pid + 1, pendings := e.pendings ++
-        [{ id := pid, autoIdx := ai, entity := "", fireAt := e.now.utc + ms, check := .always, vars := tv forV }] }
+        [{ id := pid, owner := o, entity := "", fireAt := e.now.utc + ms, check := .always, vars := tv forV }] }
       saveTT { st with pending := some pid }
     match forP with
     | none =>
       saveTT st
-      triggerAutomation ai (tv .none)
+      fire o (tv .none)
     | some (.fixed 0) =>
       saveTT st
-      triggerAutomation ai (tv (forVal (some 0)))
+      fire o (tv (forVal (some 0)))
     | some (.fixed p) => later p (forVal (some p))
     | some (.tmpl c) =>
       -- `period_variables`: the trigger variables and `template_variables`
       let trig : Template.Value := .dict [(.str "platform", .str "template"), (.str "entity_id", eidV),
         (.str "from_state", oldV), (.str "to_state", newV)]
-      match renderPeriod (← getE) ai c trig with
+      match renderPeriod (← getE) o c trig with
       | .error m =>
         saveTT st
-        logPeriodError ai m
+        logPeriodError o m
       | .ok us => later (usToMs us) (.timedelta us)
 
 /-- Render now (`_rate_limit.async_triggered` + `async_render_to_info`), and
 pass a changed result on to the listener. Error after error, or an equal
 result, is not a change; the first render after setup always is. -/
-def templateRefresh (ai : Nat) (t : Trigger) (ev : Option Deferred) : EM Unit := do
+def templateRefresh (o : Owner) (t : Trigger) (ev : Option Deferred) : EM Unit := do
   let .template tm forP := t.kind | return
-  let some st ← getTT ai t.idx | return
+  let some st ← getTT o t.idx | return
   let e ← getE
-  let (r, info) := Template.renderWithInfo tm (tmplCtxOf e ai) true
+  let (r, info) := Template.renderWithInfo tm (tmplCtxOf e o) true
   let st := { st with info, lastTriggered := some e.now.utc, rlTimer := none }
   if !resultChanged st.last r then
     saveTT st
     return
   let st := { st with last := some (TmplResult.of r) }
-  templateListener ai t forP st r ev
+  templateListener o t forP st r ev
 
 /-- The rest of `_refresh` for a state change: `_event_triggers_rerender`,
 then `KeyedRateLimit.async_schedule_action` (entities the template named are
@@ -559,7 +670,7 @@ returns its id. `wait.remaining` is read from the event loop's clock
 (`timeout_handle.when() - loop.time()`), which HALean does not model: it is
 an error to use it. -/
 def waitRefresh (st : TmplTrig) : EM (Option Nat) := do
-  let (some t, some rid) := (st.tmpl, st.runId) | return none
+  let (some t, .wait rid) := (st.tmpl, st.owner) | return none
   let e ← getE
   let (r, info) := Template.renderWithInfo t { states := e.states, now := e.now, vars := st.vars } true
   let prev := st.last
@@ -580,7 +691,7 @@ def waitRefresh (st : TmplTrig) : EM (Option Nat) := do
     let .waitTmpl _ deadline _ := run.wait | return none
     let rem : Template.Value := if deadline.isSome then .opaque "wait.remaining" else .none
     let run := { run with wait := .ready, vars := setVar run.vars "wait" (waitVar rem true) }
-    setE { replaceRun e run with tmplTrigs := e.tmplTrigs.filter (·.runId != some rid) }
+    setE { replaceRun e run with tmplTrigs := e.tmplTrigs.filter (·.owner != .wait rid) }
     return some rid
 
 /-- Continue runs whose wait completed (their task wakes up after the
@@ -594,7 +705,7 @@ def resumeRuns (rids : List Nat) : EM Unit := do
 def onWaitTrackers (eid : String) (old new : Option EntityState) : EM (List Nat) := do
   let mut done := []
   for st0 in (← getE).tmplTrigs do
-    if st0.runId.isNone then continue
+    if st0.tmpl.isNone then continue
     let some st := (← getE).tmplTrigs.find? (·.sameKey st0) | continue
     if ← trackerGate st eid old new false then
       if let some rid ← waitRefresh st then done := done ++ [rid]
@@ -604,12 +715,12 @@ def onWaitTrackers (eid : String) (old new : Option EntityState) : EM (List Nat)
 one the rate limiter deferred): `_event_triggers_rerender`, then
 `KeyedRateLimit.async_schedule_action` (entities the template named are
 exempt), then render. -/
-def onTemplateTrigger (ai : Nat) (t : Trigger) (eid : String) (old new : Option EntityState)
+def onTemplateTrigger (o : Owner) (t : Trigger) (eid : String) (old new : Option EntityState)
     (replay : Bool := false) : EM Unit := do
   let .template .. := t.kind | return
-  let some st ← getTT ai t.idx | return
+  let some st ← getTT o t.idx | return
   if ← trackerGate st eid old new replay then
-    templateRefresh ai t (some (eid, old, new))
+    templateRefresh o t (some (eid, old, new))
 
 def onStateChanged (eid : String) (old new : Option EntityState) : EM Unit := do
   -- the state machine is updated before listeners run
@@ -618,13 +729,13 @@ def onStateChanged (eid : String) (old new : Option EntityState) : EM Unit := do
     | some s => e.states.set s
     | none => e.states.remove eid
   setE { e with states }
-  let autos := (← getE).automations
-  for (a, ai) in autos.zipIdx do
-    for t in a.triggers do
+  for (o, trigs) in (← getE).owners do
+    for t in trigs do
+      if !(← getE).listening o then break
       match t.kind with
-      | .state .. => onStateTrigger ai t eid old new
-      | .numericState .. => onNumericTrigger ai t eid old new
-      | .template .. => onTemplateTrigger ai t eid old new
+      | .state .. => onStateTrigger o t eid old new
+      | .numericState .. => onNumericTrigger o t eid old new
+      | .template .. => onTemplateTrigger o t eid old new
       | _ => pure ()
   let done ← onWaitTrackers eid old new
   -- `state_for_cancel_listener`s: drop timers whose condition broke
@@ -632,19 +743,20 @@ def onStateChanged (eid : String) (old new : Option EntityState) : EM Unit := do
   setE { e with pendings := e.pendings.filter fun p =>
     p.entity != eid || sameStillHolds e.condEnv p.check new }
   resumeRuns done
+  resumeWoken
 
 /-- `event.py` (flat event_data: subset match) -/
 def onEvent (ty : String) (data : Json) : EM Unit := do
-  let autos := (← getE).automations
-  for (a, ai) in autos.zipIdx do
-    for t in a.triggers do
+  for (o, trigs) in (← getE).owners do
+    for t in trigs do
+      if !(← getE).listening o then break
       if let .event types want := t.kind then
         if types.contains ty && want.all (fun (k, v) => field? data k == some v) then
           let ev : Template.Value := .pyobj "Event" [
             ("event_type", .str ty), ("data", Template.Value.ofJson data),
             ("origin", .opaque "event.origin"), ("time_fired", .opaque "datetime"),
             ("context", .opaque "context")]
-          triggerAutomation ai {
+          fire o {
             id := t.id, idx := t.idx, platform := "event",
             description := s!"event '{ty}'",
             value := triggerValue t "event" [("event", ev), ("description", .str s!"event '{ty}'")] }
@@ -666,13 +778,13 @@ def fireTimeTriggers (sec : Nat) (tz : Int) : EM Unit := do
   let inst : Instant := { utc := sec * 1000, tzOffsetSec := tz }
   let tod := inst.timeOfDay / 1000
   let (h, m, s) := (tod / 3600, tod / 60 % 60, tod % 60)
-  let autos := (← getE).automations
-  for (a, ai) in autos.zipIdx do
-    for t in a.triggers do
+  for (o, trigs) in (← getE).owners do
+    for t in trigs do
+      if !(← getE).listening o then break
       match t.kind with
       | .time ats wd =>
         if ats.contains tod && (wd.map (·.contains inst.weekday)).getD true then
-          triggerAutomation ai {
+          fire o {
             id := t.id, idx := t.idx, platform := "time",
             description := "time",
             value := triggerValue t "time" [("now", .datetime (sec * 1000000 + TIME_CHANGE_MICROSECOND) (some tz)),
@@ -680,11 +792,11 @@ def fireTimeTriggers (sec : Nat) (tz : Int) : EM Unit := do
       | .template .. =>
         -- `async_track_utc_time_change(second=0)` while the last render used the clock
         if sec % 60 == 0 then
-          if let some st ← getTT ai t.idx then
-            if st.info.hasTime then templateRefresh ai t none
+          if let some st ← getTT o t.idx then
+            if st.info.hasTime then templateRefresh o t none
       | .timePattern ph pm ps =>
         if ph.matches h && pm.matches m && ps.matches s then
-          triggerAutomation ai {
+          fire o {
             id := t.id, idx := t.idx, platform := "time_pattern",
             description := "time pattern",
             value := triggerValue t "time_pattern" [("now", .datetime (sec * 1000000 + TIME_CHANGE_MICROSECOND) (some tz)),
@@ -694,9 +806,10 @@ def fireTimeTriggers (sec : Nat) (tz : Int) : EM Unit := do
   if sec % 60 == 0 then
     let mut done := []
     for st in (← getE).tmplTrigs do
-      if st.runId.isSome && st.info.hasTime then
+      if st.tmpl.isSome && st.info.hasTime then
         if let some rid ← waitRefresh st then done := done ++ [rid]
     resumeRuns done
+  resumeWoken
 
 /-- Fire everything due at or before `t`: `for:` timers and delays. -/
 partial def fireDue (t : Millis) : EM Unit := do
@@ -709,6 +822,7 @@ partial def fireDue (t : Millis) : EM Unit := do
   let d? := e.runs.find? fun r => match r.wait with
     | .delayUntil w => w ≤ t
     | .waitTmpl _ (some w) _ => w ≤ t
+    | .waitTrig _ _ (some w) _ => w ≤ t
     | _ => false
   let rl? := e.tmplTrigs.find? fun x => match x.rlTimer with
     | some (due, _) => due ≤ t
@@ -720,14 +834,15 @@ partial def fireDue (t : Millis) : EM Unit := do
     let vars := match p.periodKey.bind fun k => e.periods.find? (·.1 == k) with
       | some (_, us) => p.vars.withFor (.timedelta us)
       | none => p.vars
-    triggerAutomation p.autoIdx vars
+    fire p.owner vars
+    resumeWoken
     fireDue t
   | none, some r =>
     match r.wait with
-    | .waitTmpl _ _ cot =>
+    | .waitTmpl _ _ cot | .waitTrig _ _ _ cot =>
       -- the wait's timeout: `_async_handle_timeout`, then `unsub()`
-      let r := { r with wait := .ready, vars := setVar r.vars "wait" (waitVar (.float 0) false) }
-      setE { replaceRun e r with tmplTrigs := e.tmplTrigs.filter (·.runId != some r.id) }
+      let r := { r with wait := .ready, vars := setWaitFields r.vars [("remaining", .float 0)] }
+      setE (cleanupWait (replaceRun e r) r.id)
       if cot then drive r
       else
         emit [.log "info" TIMEOUT_MSG]
@@ -744,13 +859,14 @@ partial def fireDue (t : Millis) : EM Unit := do
       let some (_, (eid, old, new)) := x.rlTimer | pure ()
       let x := { x with rlTimer := none }
       saveTT x
-      if x.runId.isSome then
+      if x.tmpl.isSome then
         if ← trackerGate x eid old new true then
           if let some rid ← waitRefresh x then resumeRuns [rid]
       else
-        let a := e.automations.getD x.autoIdx default
-        if let some t := a.triggers.find? (·.idx == x.trigIdx) then
-          onTemplateTrigger x.autoIdx t eid old new (replay := true)
+        let trigs := ((e.owners.find? (·.1 == x.owner)).map (·.2)).getD []
+        if let some t := trigs.find? (·.idx == x.trigIdx) then
+          onTemplateTrigger x.owner t eid old new (replay := true)
+          resumeWoken
       fireDue t
     | none => pure ()
 
@@ -772,31 +888,8 @@ def advanceTo (now : Instant) : EM Unit := do
   fireDue now.utc
 
 def initArmed : EM Unit := do
-  let e ← getE
-  let mut armed := []
-  for (a, ai) in e.automations.zipIdx do
-    for t in a.triggers do
-      if let .numericState eids below above attr _ vtm := t.kind then
-        for eid in eids do
-          let vt := vtm.map fun tm => (tm, (tmplCtxOf e ai).vars ++ [("trigger", numericTriggerVar t eid below above attr)])
-          -- "Each entity that starts outside the range is already armed"
-          if let .ok false := numericStateOne e.condEnv eid below above attr vt then
-            armed := armed ++ [(ai, t.idx, eid)]
-  -- template triggers: "Arm at setup if the template is already false"
-  let mut tts : List TmplTrig := []
-  let mut logs : List Cmd := []
-  for (a, ai) in e.automations.zipIdx do
-    for t in a.triggers do
-      if let .template tm _ := t.kind then
-        -- the trigger's own first render arms it; the tracker's setup render
-        -- (same template, same moment) gives the first render info
-        match Template.renderWithInfo tm (tmplCtxOf e ai) true with
-        | (.ok v, info) => tts := tts ++ [{ autoIdx := ai, trigIdx := t.idx, armed := !Template.resultAsBoolean v, info }]
-        | (.error msg, info) =>
-          tts := tts ++ [{ autoIdx := ai, trigIdx := t.idx, info }]
-          logs := logs ++ [.log "warning" s!"Error initializing 'template' trigger for '{a.alias}': {msg}"]
-  setE { e with armed, tmplTrigs := tts }
-  emit logs
+  for (a, ai) in (← getE).automations.zipIdx do
+    attachTriggers (.auto ai) a.triggers
 
 def handle : Input → EM Unit
   | .init autos sts now => do
@@ -809,7 +902,7 @@ def handle : Input → EM Unit
     -- `async_call_later(hass, 0, ...)`: a templated `for:` that rendered to 0
     -- fires on the next loop iteration, before the next input
     fireDue now.utc
-  | .event ty data now => do advanceTo now; onEvent ty data
+  | .event ty data now => do advanceTo now; onEvent ty data; resumeWoken
   | .tick now => advanceTo now
   | .serviceResult cid ok kind msg now => do
     advanceTo now

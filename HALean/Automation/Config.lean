@@ -122,6 +122,9 @@ inductive Action where
   /-- `wait_template` with an optional `timeout` (`cv.positive_time_period_template`,
   rendered when the step runs) and `continue_on_timeout` (default true). -/
   | waitTemplate (t : Template.Tmpl) (timeout : Option Complex) (continueOnTimeout : Bool)
+  /-- `wait_for_trigger`: the triggers (disabled ones dropped), `timeout`,
+  `continue_on_timeout`. -/
+  | waitForTrigger (triggers : List Trigger) (timeout : Option Complex) (continueOnTimeout : Bool)
   /-- `continue_on_error: true` on the wrapped step. -/
   | continueOnError (a : Action)
   deriving Repr, Inhabited
@@ -552,6 +555,10 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
   if let some w := field? j "wait_template" then
     let .str src := w | throw s!"wait_template must be a template, got {w.compress}"
     return wrap (.waitTemplate (← compileTemplate src nm) (← timeout? j nm) (← continueOnTimeout? j))
+  if let some w := field? j "wait_for_trigger" then
+    -- trigger templates see the run's variables (and `trigger`)
+    let trigs ← (ensureList w).zipIdx.mapM fun (t, i) => decodeTrigger i t nm
+    return wrap (.waitForTrigger (trigs.filterMap id) (← timeout? j nm) (← continueOnTimeout? j))
   if let some vs := field? j "variables" then
     return wrap (.variables (← (← orderedMapping "variables" vs).mapM fun (k, v) => do pure (k, ← decodeComplex v nm)))
   throw s!"action not supported: {j.compress}"
