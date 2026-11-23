@@ -21,6 +21,7 @@
 -/
 import HALean.Template.Syntax
 import HALean.Template.DateParse
+import HALean.Core.State
 open Lean
 
 namespace HALean.Template
@@ -151,23 +152,11 @@ def TESTS : List String :=
    "divisibleby", "even", "odd", "is_state", "is_state_attr", "has_value", "is_number",
    "datetime"]
 
-/-- `[\da-z_]+` without a leading/trailing `_` and without `__`. -/
-def validSlug (s : String) : Bool :=
-  !s.isEmpty && s.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'z') || c == '_')
-    && !s.startsWith "_" && !s.endsWith "_" && (s.splitOn "__").length == 1
+/-- `homeassistant.core.valid_domain` (proved: `HALean.Core.validDomain_iff`) -/
+def validDomain (s : String) : Bool := HALean.Core.validDomain s
 
-/-- The regexes end in `$`, which also matches before one trailing newline. -/
-def dropFinalNewline (s : String) : String :=
-  if s.endsWith "\n" then (s.dropEnd 1).toString else s
-
-/-- `homeassistant.core.valid_domain` -/
-def validDomain (s : String) : Bool := validSlug (dropFinalNewline s)
-
-/-- `homeassistant.core.valid_entity_id`: `"light.x\n"` is valid, as upstream. -/
-def validEntityId (s : String) : Bool :=
-  match (dropFinalNewline s).splitOn "." with
-  | [d, o] => validSlug d && validSlug o
-  | _ => false
+/-- `homeassistant.core.valid_entity_id` (proved: `HALean.Core.validEntityId_iff`) -/
+def validEntityId (s : String) : Bool := HALean.Core.validEntityId s
 
 /-! ## Errors and conversions -/
 

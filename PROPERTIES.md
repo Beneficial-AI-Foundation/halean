@@ -49,6 +49,25 @@ In `HALean/Automation/Proofs.lean` and `HALean/Template/Proofs.lean`:
 These are about single functions (e.g. the admission decision `admit`), not
 yet about whole executions of `Engine.step`.
 
+## Functions proved to compute what upstream computes
+
+The theorems above are properties. These go further: for a whole function,
+what the upstream Python returns is written down as a Lean predicate (a
+regex clause by clause, a string method's documented result), and the
+translation is proved to decide exactly that predicate. The manifest marks
+these entries `proven`. The remaining trust is in the predicate matching
+Python, which is short enough to check by eye.
+
+| Upstream function | Theorem (`HALean/Core/StateSpec.lean`) | Spec |
+|---|---|---|
+| `core.py::valid_entity_id` | `validEntityId_iff` | `EntityIdRe`: `^(?!.+__)(?!_)[\da-z_]+(?<!_)\.(?!_)[\da-z_]+(?<!_)$`, `$` also before one final newline |
+| `core.py::valid_domain` | `validDomain_iff` | `DomainRe`: `^(?!.+__)(?!_)[\da-z_]+(?<!_)$` |
+| `core.py::split_entity_id` | `splitEntityId_some` | `str.partition(".")`, `ValueError` (here `none`) when either side is empty |
+
+`\d` is read as the ASCII digits; Python's class also has other Unicode
+digits, which is why callers reject non-ASCII ids. The template engine uses
+the same proved functions.
+
 ## Engine properties (true for every configuration)
 
 The main obstacle for most of these: `drive`, `finishRun` and `fireDue` in

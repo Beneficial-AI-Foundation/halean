@@ -62,6 +62,14 @@ def partitionDot (cs : List Char) : List Char × Option (List Char) :=
   | (d, _ :: rest) => (d, some rest)
   | (d, []) => (d, none)
 
+/-- `valid_entity_id` on the id without its final newline: no `__` and a
+slug, a dot, a slug. -/
+def entityIdBody (cs : List Char) : Bool :=
+  !hasDoubleUnderscore cs &&
+  match partitionDot cs with
+  | (d, some o) => validSlug d && validSlug o
+  | _ => false
+
 /-- `homeassistant.core.valid_entity_id`:
 `VALID_ENTITY_ID.match(entity_id)` with
 `^(?!.+__)(?!_)[\da-z_]+(?<!_)\.(?!_)[\da-z_]+(?<!_)$`.
@@ -70,11 +78,15 @@ upstream and here. `(?!.+__)` rules out `__` anywhere after the first
 character (the first one cannot be `_` anyway). ASCII input only. -/
 def validEntityId (entityId : String) : Bool :=
   let cs := entityId.toList
+  entityIdBody (if cs.getLast? == some '\n' then cs.dropLast else cs)
+
+/-- `homeassistant.core.valid_domain`: `VALID_DOMAIN.match(domain)` with
+`^(?!.+__)(?!_)[\da-z_]+(?<!_)$` (`$` also before one final newline).
+ASCII input only. -/
+def validDomain (domain : String) : Bool :=
+  let cs := domain.toList
   let cs := if cs.getLast? == some '\n' then cs.dropLast else cs
-  !hasDoubleUnderscore cs &&
-  match partitionDot cs with
-  | (d, some o) => validSlug d && validSlug o
-  | _ => false
+  !hasDoubleUnderscore cs && validSlug cs
 
 /-- `homeassistant.core.split_entity_id` (`ValueError` → `none`). -/
 def splitEntityId (entityId : String) : Option (String × String) :=
