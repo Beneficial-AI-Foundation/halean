@@ -147,11 +147,14 @@ Proved in `HALean/Core/EventBusProofs.lean`:
 | `once_at_most_once` | from a new bus, after any sequence of operations, every `async_listen_once` listener has been delivered at most once (including when it is unsubscribed mid-dispatch, re-fires its own type, or the event type is `*`) |
 | `gone_silent` | a listener that is not in the table (and whose key is never reused) receives nothing more, whatever happens next |
 | `unsub_gone` | after its remove callback runs, a listener stored once under its own event type is out of the table |
+| `reachable_wf` | every bus reachable from `Bus.new` satisfies `WF`: table keys were handed out already, no listener list repeats a key, and every stored remove callback `(et, k)` names a handed-out key whose listener sits only in the entry for `et` that `Table.get` finds (event types need not be distinct: `init` may repeat them) |
+| `unsub_gone_reachable`, `unsub_gone_wf` | on any reachable (or well-formed) bus, running the remove callback stored under `id` takes its listener out of the table, with no further hypotheses |
+| `unsub_silent` | from a new bus, after any operations, unsubscribing `id` means its listener receives nothing more and stays out of the table over any later operations |
 | `snapshot_match_all`, `snapshot_excluded` | a dispatch iterates over the type's listeners, then the `MATCH_ALL` ones, except for `homeassistant_close` / `state_reported` |
 
-Next candidates: the well-formedness invariant `unsub_gone` assumes (event
-types distinct, each job stored once under its own type) holds for every
-reachable bus; `drain` always empties the queue within
+Next candidates: (done: the well-formedness invariant behind `unsub_gone`
+holds for every reachable bus, `reachable_wf` / `unsub_gone_reachable` /
+`unsub_silent`); `drain` always empties the queue within
 `_MAX_QUEUED_EVENT_DISPATCHES` rounds (so the fuel is never the reason it
 stops); events fired during a dispatch are delivered in FIFO order after it.
 

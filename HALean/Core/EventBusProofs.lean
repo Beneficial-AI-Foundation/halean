@@ -7,6 +7,10 @@
     with `async_listen_once` receives at most one event.
   * `gone_silent`, `unsub_gone`: once a listener is out of the table (e.g.
     after its remove callback ran), it never receives anything again.
+  * `reachable_wf`, `unsub_gone_reachable`, `unsub_silent`: every bus
+    reachable from `Bus.new` is well formed (`WF`), so unsubscribing takes the
+    listener out of the table with no side conditions, and it receives nothing
+    over any later operations.
 -/
 import HALean.Core.EventBus
 
@@ -661,7 +665,8 @@ theorem get_touch {t : Table} {et : String} : (t.touch et).get et = t.get et := 
 only under the event type its remove callback names, at most once, in a
 table whose event types are distinct (true of every table the bus builds:
 each job is stored once, under its own event type), then after the remove
-callback runs, `k` is `Gone`, and by `gone_silent` it receives nothing more. -/
+callback runs, `k` is `Gone`, and by `gone_silent` it receives nothing more.
+`unsub_gone_reachable` below drops the hypotheses for every reachable bus. -/
 theorem unsub_gone {b : Bus} {et : String} {k : Nat} (hk : k < b.nextKey)
     (honly : ∀ p ∈ b.listeners, ∀ x ∈ p.2, x.key = k → p.1 = et)
     (hnd : (b.listeners.map (·.1)).Nodup)
@@ -693,3 +698,565 @@ theorem unsub_gone {b : Bus} {et : String} {k : Nat} (hk : k < b.nextKey)
     rcases mem_set hp' with ⟨_, h2⟩ | ⟨hp, hne⟩
     · rw [h2] at hx; exact removeFirst_some hr hone x hx e
     · exact hne (honly' p hp x hx e)
+
+/-! ### Every reachable bus is well formed
+
+`unsub_gone` takes its hypotheses about the table as given. The invariant
+`WF` below supplies them for every remove callback the bus hands out, on every
+bus reachable from `Bus.new`. Event types are *not* assumed distinct: `init`
+installs whatever counts it is given, duplicates included, and `Table.set`
+overwrites every entry of a type, so what holds is weaker and enough: every
+entry that holds a listener a remove callback names is under that callback's
+event type and equal to the entry `Table.get` finds. -/
+
+/-- `t.get e` is empty or the list of an entry for `e`. -/
+theorem get_cases (t : Table) (e : String) :
+    t.get e = [] ∨ ∃ p ∈ t, p.1 = e ∧ p.2 = t.get e := by
+  induction t with
+  | nil => simp [Table.get, List.lookup]
+  | cons q t ih =>
+    obtain ⟨a, l⟩ := q
+    simp only [Table.get, List.lookup] at ih ⊢
+    split
+    · rename_i h
+      exact .inr ⟨(a, l), List.mem_cons_self .., (by simpa using h : e = a).symm, rfl⟩
+    · rcases ih with h | ⟨p, hp, h1, h2⟩
+      · exact .inl h
+      · exact .inr ⟨p, List.mem_cons_of_mem _ hp, h1, h2⟩
+
+theorem get_touch_any (t : Table) (e a : String) : (t.touch e).get a = t.get a := by
+  unfold Table.touch
+  split
+  · rfl
+  · rename_i hn
+    clear hn
+    simp only [Table.get]
+    induction t with
+    | nil => simp only [List.nil_append, List.lookup]; split <;> rfl
+    | cons q t ih =>
+      simp only [List.cons_append, List.lookup]
+      split
+      · rfl
+      · exact ih
+
+theorem get_set_ne {t : Table} {e a : String} {l : List Job} (h : a ≠ e) :
+    (t.set e l).get a = t.get a := by
+  induction t with
+  | nil => rfl
+  | cons q t ih =>
+    simp only [Table.set, List.map_cons, Table.get] at ih ⊢
+    by_cases hq : q.1 = e
+    · have h1 : (q.1 == e) = true := by simpa using hq
+      have h2 : (a == e) = false := by simpa using h
+      have h3 : (a == q.1) = false := by rw [hq]; exact h2
+      simp only [h1, ↓reduceIte, List.lookup, h2, h3]
+      exact ih
+    · have h1 : (q.1 == e) = false := by simpa using hq
+      simp only [h1, Bool.false_eq_true, ↓reduceIte, List.lookup]
+      split
+      · rfl
+      · exact ih
+
+theorem get_set_self {t : Table} {e : String} {l : List Job} (h : ∃ q ∈ t, q.1 = e) :
+    (t.set e l).get e = l := by
+  induction t with
+  | nil => obtain ⟨q, hq, _⟩ := h; simp at hq
+  | cons q t ih =>
+    simp only [Table.set, List.map_cons, Table.get] at ih ⊢
+    by_cases hq : q.1 = e
+    · have h1 : (q.1 == e) = true := by simpa using hq
+      simp only [h1, ↓reduceIte, List.lookup, beq_self_eq_true, Option.getD_some]
+    · have h1 : (q.1 == e) = false := by simpa using hq
+      have h2 : (e == q.1) = false := by
+        simp only [beq_eq_false_iff_ne]; exact fun h => hq h.symm
+      simp only [h1, Bool.false_eq_true, ↓reduceIte, List.lookup, h2]
+      obtain ⟨r, hr, hre⟩ := h
+      rcases List.mem_cons.mp hr with rfl | hr
+      · exact absurd hre hq
+      · exact ih ⟨r, hr, hre⟩
+
+theorem get_pop_ne {t : Table} {e a : String} (h : a ≠ e) : (t.pop e).get a = t.get a := by
+  induction t with
+  | nil => rfl
+  | cons q t ih =>
+    simp only [Table.pop, Table.get, List.filter_cons] at ih ⊢
+    by_cases hq : q.1 = e
+    · have h1 : (q.1 != e) = false := by simpa using hq
+      have h3 : (a == q.1) = false := by rw [hq]; simpa using h
+      simp only [h1, Bool.false_eq_true, ↓reduceIte, List.lookup, h3]
+      exact ih
+    · have h1 : (q.1 != e) = true := by simpa using hq
+      simp only [h1, ↓reduceIte, List.lookup]
+      split
+      · rfl
+      · exact ih
+
+theorem exists_touch (t : Table) (e : String) : ∃ q ∈ t.touch e, q.1 = e := by
+  unfold Table.touch
+  split
+  · rename_i h
+    obtain ⟨q, hq, he⟩ := List.any_eq_true.mp h
+    exact ⟨q, hq, by simpa using he⟩
+  · exact ⟨(e, []), by simp, rfl⟩
+
+theorem mem_of_lookup {β : Type} {l : List (String × β)} {a : String} {v : β}
+    (h : l.lookup a = some v) : (a, v) ∈ l := by
+  induction l with
+  | nil => simp [List.lookup] at h
+  | cons q l ih =>
+    obtain ⟨b, w⟩ := q
+    simp only [List.lookup] at h
+    split at h
+    · rename_i hb
+      cases h
+      have : a = b := by simpa using hb
+      subst this
+      exact List.mem_cons_self ..
+    · exact List.mem_cons_of_mem _ (ih h)
+
+theorem removeFirst_sublist {k : Nat} {l l' : List Job} (h : removeFirst k l = some l') :
+    l'.Sublist l := by
+  induction l generalizing l' with
+  | nil => simp [removeFirst] at h
+  | cons j js ih =>
+    simp only [removeFirst] at h
+    split at h
+    · cases h; exact List.sublist_cons_self ..
+    · cases hr : removeFirst k js with
+      | none => simp [hr] at h
+      | some r =>
+        simp [hr] at h; subst h
+        exact (ih hr).cons_cons j
+
+/-- No two listeners in a list share a key. -/
+def KeysDistinct (l : List Job) : Prop := l.Pairwise fun x y => x.key ≠ y.key
+
+theorem KeysDistinct.filter_le_one {l : List Job} (h : KeysDistinct l) (k : Nat) :
+    (l.filter fun x => x.key == k).length ≤ 1 := by
+  induction l with
+  | nil => simp
+  | cons j js ih =>
+    unfold KeysDistinct at h
+    rw [List.pairwise_cons] at h
+    simp only [List.filter_cons]
+    split
+    · rename_i hj
+      have hk : j.key = k := by simpa using hj
+      have : (js.filter fun x => x.key == k) = [] := by
+        apply List.filter_eq_nil_iff.mpr
+        intro y hy e
+        have hy' : y.key = k := by simpa using e
+        exact h.1 y hy (hk.trans hy'.symm)
+      simp [this]
+    · exact ih h.2
+
+/-- Every entry holding job `k` is under `et` and is the entry `Table.get et`
+finds. -/
+def Canon (t : Table) (et : String) (k : Nat) : Prop :=
+  ∀ p ∈ t, ∀ x ∈ p.2, x.key = k → p.1 = et ∧ p.2 = t.get et
+
+theorem Canon.touch {t : Table} {et e : String} {k : Nat} (hc : Canon t et k) :
+    Canon (t.touch e) et k := by
+  intro p hp x hx hk
+  rcases mem_touch hp with hp | rfl
+  · obtain ⟨h1, h2⟩ := hc p hp x hx hk
+    exact ⟨h1, by rw [get_touch_any]; exact h2⟩
+  · simp at hx
+
+theorem Canon.set {t : Table} {et e : String} {k : Nat} {l : List Job} (hc : Canon t et k)
+    (hl : ∀ x ∈ l, x.key = k → x ∈ t.get e) : Canon (t.set e l) et k := by
+  intro p hp x hx hk
+  rcases mem_set hp with ⟨h1, h2⟩ | ⟨hp, hne⟩
+  · rw [h2] at hx
+    have hg := hl x hx hk
+    rcases get_cases t e with h0 | ⟨q, hq, hq1, hq2⟩
+    · rw [h0] at hg; simp at hg
+    · have hxq : x ∈ q.2 := by rw [hq2]; exact hg
+      obtain ⟨he, -⟩ := hc q hq x hxq hk
+      have hee : e = et := hq1 ▸ he
+      subst hee
+      exact ⟨h1, by rw [h2, get_set_self ⟨q, hq, hq1⟩]⟩
+  · obtain ⟨h1, h2⟩ := hc p hp x hx hk
+    have hne' : et ≠ e := h1 ▸ hne
+    exact ⟨h1, by rw [get_set_ne hne']; exact h2⟩
+
+theorem Canon.pop {t : Table} {et e : String} {k : Nat} (hc : Canon t et k) :
+    Canon (t.pop e) et k := by
+  intro p hp x hx hk
+  have hp' := List.mem_filter.mp hp
+  obtain ⟨h1, h2⟩ := hc p hp'.1 x hx hk
+  have hne : et ≠ e := by rw [← h1]; simpa using hp'.2
+  exact ⟨h1, by rw [get_pop_ne hne]; exact h2⟩
+
+/-- **Well-formedness.** Keys in the table were handed out already, no list
+holds a key twice, and every stored remove callback `(et, k)` names a key
+handed out already whose listener, wherever it is, is in the entry for `et`
+that `Table.get` finds. -/
+structure WF (b : Bus) : Prop where
+  lt : ∀ x, InTable x b.listeners → x.key < b.nextKey
+  distinct : ∀ p ∈ b.listeners, KeysDistinct p.2
+  handles : ∀ h ∈ b.handles, h.2.2 < b.nextKey ∧ Canon b.listeners h.2.1 h.2.2
+
+theorem WF.same {b b' : Bus} (hw : WF b) (h1 : b'.listeners = b.listeners)
+    (h2 : b'.nextKey = b.nextKey) (h3 : b'.handles = b.handles) : WF b' := by
+  obtain ⟨a, c, d⟩ := hw
+  exact ⟨h1 ▸ h2 ▸ a, h1 ▸ c, h1 ▸ h2 ▸ h3 ▸ d⟩
+
+theorem distinct_get {t : Table} (hd : ∀ p ∈ t, KeysDistinct p.2) (e : String) :
+    KeysDistinct (t.get e) := by
+  rcases get_cases t e with h | ⟨p, hp, _, h⟩
+  · rw [h]; exact List.Pairwise.nil
+  · rw [← h]; exact hd p hp
+
+theorem distinct_touch {t : Table} (hd : ∀ p ∈ t, KeysDistinct p.2) (e : String) :
+    ∀ p ∈ t.touch e, KeysDistinct p.2 := by
+  intro p hp
+  rcases mem_touch hp with hp | rfl
+  · exact hd p hp
+  · exact List.Pairwise.nil
+
+theorem distinct_set {t : Table} (hd : ∀ p ∈ t, KeysDistinct p.2) {e : String} {l : List Job}
+    (hl : KeysDistinct l) : ∀ p ∈ t.set e l, KeysDistinct p.2 := by
+  intro p hp
+  rcases mem_set hp with ⟨_, h⟩ | ⟨hp, _⟩
+  · rw [h]; exact hl
+  · exact hd p hp
+
+theorem asyncRemoveListener_wf (b : Bus) (e : String) (k : Nat) (hw : WF b) :
+    WF (asyncRemoveListener b e k) := by
+  have hd1 := distinct_touch hw.distinct e
+  unfold asyncRemoveListener
+  dsimp only
+  split
+  · exact ⟨fun x hx => hw.lt x (inTable_touch hx), hd1,
+      fun h hh => ⟨(hw.handles h hh).1, (hw.handles h hh).2.touch⟩⟩
+  · rename_i l hl
+    have hsub := removeFirst_sublist hl
+    have hlt : ∀ x, InTable x ((b.listeners.touch e).set e l) → x.key < b.nextKey := by
+      intro x hx
+      rcases inTable_set hx with hx | hx
+      · exact hw.lt x (inTable_touch (inTable_get (hsub.subset hx)))
+      · exact hw.lt x (inTable_touch hx)
+    have hd2 := distinct_set (e := e) hd1 ((distinct_get hd1 e).sublist hsub)
+    have hc2 : ∀ h ∈ b.handles, Canon ((b.listeners.touch e).set e l) h.2.1 h.2.2 :=
+      fun h hh => (hw.handles h hh).2.touch.set (fun x hx _ => hsub.subset hx)
+    split
+    · exact ⟨fun x hx => hlt x (inTable_pop hx),
+        fun p hp => hd2 p (List.mem_filter.mp hp).1,
+        fun h hh => ⟨(hw.handles h hh).1, (hc2 h hh).pop⟩⟩
+    · exact ⟨hlt, hd2, fun h hh => ⟨(hw.handles h hh).1, hc2 h hh⟩⟩
+
+theorem listenFilterableJob_wf (b : Bus) (j : Job) (id : String) (hw : WF b) :
+    WF { (listenFilterableJob b j).1 with
+      handles := (id, (listenFilterableJob b j).2) :: (listenFilterableJob b j).1.handles } := by
+  simp only [listenFilterableJob]
+  have hd1 := distinct_touch hw.distinct j.eventType
+  have hlt1 : ∀ x, InTable x (b.listeners.touch j.eventType) → x.key < b.nextKey :=
+    fun x hx => hw.lt x (inTable_touch hx)
+  have hlt2 : ∀ x ∈ (b.listeners.touch j.eventType).get j.eventType, x.key < b.nextKey :=
+    fun x hx => hlt1 x (inTable_get hx)
+  refine ⟨?_, ?_, ?_⟩
+  · intro x hx
+    rcases inTable_set hx with hx | hx
+    · rcases List.mem_append.mp hx with hx | hx
+      · exact Nat.lt_succ_of_lt (hlt2 x hx)
+      · simp at hx; subst hx; exact Nat.lt_succ_self _
+    · exact Nat.lt_succ_of_lt (hlt1 x hx)
+  · apply distinct_set hd1
+    unfold KeysDistinct
+    rw [List.pairwise_append]
+    refine ⟨distinct_get hd1 _, List.pairwise_singleton .., ?_⟩
+    intro x hx y hy
+    simp at hy; subst hy
+    exact Nat.ne_of_lt (hlt2 x hx)
+  · intro h hh
+    rcases List.mem_cons.mp hh with rfl | hh
+    · refine ⟨Nat.lt_succ_self _, ?_⟩
+      intro p hp x hx hk
+      rcases mem_set hp with ⟨h1, h2⟩ | ⟨hp, _⟩
+      · exact ⟨h1, by rw [h2, get_set_self (exists_touch ..)]⟩
+      · exact absurd hk (Nat.ne_of_lt (hlt1 x ⟨p, hp, hx⟩))
+    · obtain ⟨hk, hc⟩ := hw.handles h hh
+      refine ⟨Nat.lt_succ_of_lt hk, hc.touch.set ?_⟩
+      intro x hx hxk
+      rcases List.mem_append.mp hx with hx | hx
+      · exact hx
+      · simp at hx; subst hx; simp at hxk; omega
+
+theorem listenOp_wf {b b' : Bus} {id et once filter ri react rt}
+    (h : listenOp b id et once filter ri react rt = .ok b') (hw : WF b) : WF b' := by
+  unfold listenOp at h
+  split at h
+  · rename_i b1 h1 heq
+    injection h with h; subst h
+    obtain ⟨j, hj⟩ := listen_ok heq
+    have := listenFilterableJob_wf b j id hw
+    rw [hj] at this
+    exact this
+  · cases h
+
+theorem unsubOp_wf {b b' : Bus} {id} (h : unsubOp b id = .ok b') (hw : WF b) : WF b' := by
+  unfold unsubOp at h
+  split at h
+  · cases h
+  · injection h with h; subst h; exact asyncRemoveListener_wf _ _ _ hw
+
+theorem fireNested_wf (b : Bus) (q : Queued) (hw : WF b) : WF (fireNested b q).1 := by
+  unfold fireNested
+  split
+  · exact hw
+  · exact WF.same hw rfl rfl rfl
+
+theorem react1_wf (now : Nat) (ev : Event) (b : Bus) (r : Reaction) (hw : WF b) :
+    WF (react1 now ev b r).1 := by
+  cases r with
+  | fire f =>
+    simp only [react1]
+    split
+    · exact hw
+    · exact fireNested_wf _ _ hw
+  | listen id et once filter ri react rt =>
+    simp only [react1]
+    split
+    · rename_i b' h; exact listenOp_wf h hw
+    · exact hw
+  | unsub id =>
+    simp only [react1]
+    split
+    · rename_i b' h; exact unsubOp_wf h hw
+    · exact hw
+  | raise e => exact hw
+
+theorem runReactions_wf (now : Nat) (ev : Event) (b : Bus) (rs : List Reaction) (hw : WF b) :
+    WF (runReactions now ev b rs).1 := by
+  induction rs generalizing b with
+  | nil => exact hw
+  | cons r rs ih =>
+    simp only [runReactions]
+    have h1 := react1_wf now ev b r hw
+    split
+    · rename_i b' e heq; rw [heq] at h1; exact h1
+    · rename_i b' heq; rw [heq] at h1; exact ih b' h1
+
+theorem callListener_wf (now : Nat) (b : Bus) (job : Job) (ev : Event) (hw : WF b) :
+    WF (callListener now b job ev).1 := by
+  unfold callListener
+  dsimp only
+  split
+  · exact runReactions_wf _ _ _ _ (WF.same hw rfl rfl rfl)
+  · exact WF.same hw rfl rfl rfl
+
+theorem runJob_wf (now : Nat) (b : Bus) (job : Job) (ev : Event) (hw : WF b) :
+    WF (runJob now b job ev).1 := by
+  unfold runJob
+  split
+  · exact hw
+  split
+  · split
+    · exact hw
+    · exact callListener_wf _ _ _ _
+        (WF.same (asyncRemoveListener_wf b job.eventType job.key hw) rfl rfl rfl)
+  · exact callListener_wf _ _ _ _ hw
+
+theorem ensureEvent_wf (b : Bus) (q : Queued) (ev? : Option Event) (hw : WF b) :
+    WF (ensureEvent b q ev?).1 := by
+  cases ev? with
+  | some ev => exact hw
+  | none => simp only [ensureEvent, makeEvent]; split <;> exact WF.same hw rfl rfl rfl
+
+theorem logJobError_wf (b : Bus) (err : Option Err) (hw : WF b) : WF (logJobError b err) := by
+  cases err with
+  | some e => exact WF.same hw rfl rfl rfl
+  | none => exact hw
+
+theorem dispatchLoop_wf (now : Nat) (q : Queued) (acc : Bus × Option Event) (js : List Job)
+    (hw : WF acc.1) : WF (dispatchLoop now q acc js).1 := by
+  induction js generalizing acc with
+  | nil => exact hw
+  | cons j js ih =>
+    obtain ⟨b, ev?⟩ := acc
+    simp only [dispatchLoop]
+    split
+    · exact ih _ (WF.same hw rfl rfl rfl)
+    · exact ih _ hw
+    · have h0 := ensureEvent_wf b q ev? hw
+      generalize ensureEvent b q ev? = m at h0 ⊢
+      obtain ⟨b0, ev⟩ := m
+      dsimp only
+      have h1 := runJob_wf now b0 j ev h0
+      generalize runJob now b0 j ev = r at h1 ⊢
+      obtain ⟨b1, err⟩ := r
+      exact ih _ (logJobError_wf b1 err h1)
+
+theorem dispatch_wf (now : Nat) (b : Bus) (q : Queued) (hw : WF b) : WF (dispatch now b q) :=
+  dispatchLoop_wf now q (b, none) _ hw
+
+theorem drain_wf (now n : Nat) (b : Bus) (hw : WF b) : WF (drain now n b) := by
+  induction n generalizing b with
+  | zero => exact hw
+  | succ n ih =>
+    simp only [drain]
+    split
+    · exact hw
+    · exact ih _ (dispatch_wf now _ _ (WF.same hw rfl rfl rfl))
+
+theorem asyncFire_wf {now : Nat} {b b' : Bus} {f : FireArgs} {ctx : Option Context}
+    (h : asyncFire now b f ctx = .ok b') (hw : WF b) : WF b' := by
+  unfold asyncFire at h
+  split at h
+  · cases h
+  · dsimp only at h
+    split at h
+    · generalize hq : fireNested b (mkQueued now f ctx) = r at h
+      obtain ⟨b1, e⟩ := r
+      cases e with
+      | none =>
+        injection h with h; subst h
+        have := fireNested_wf b (mkQueued now f ctx) hw
+        rw [hq] at this
+        exact this
+      | some e => cases h
+    · injection h with h; subst h
+      have h1 := drain_wf now MAX_QUEUED_EVENT_DISPATCHES _
+        (dispatch_wf now { b with dispatching := true, queuedCount := 0 } (mkQueued now f ctx)
+          (WF.same hw rfl rfl rfl))
+      exact WF.same h1 rfl rfl rfl
+
+theorem initTable_wf (next : Nat) (cs : List (String × Nat)) :
+    (∀ x, InTable x (initTable next cs).1 → x.key < (initTable next cs).2) ∧
+    ∀ p ∈ (initTable next cs).1, KeysDistinct p.2 := by
+  induction cs generalizing next with
+  | nil => exact ⟨fun _ ⟨_, hp, _⟩ => by simp [initTable] at hp, fun p hp => by simp [initTable] at hp⟩
+  | cons c cs ih =>
+    obtain ⟨et, n⟩ := c
+    have ih' := ih (next + n)
+    have hf := (initTable_fresh (next + n) cs).2
+    simp only [initTable]
+    refine ⟨fun x ⟨p, hp, hx⟩ => ?_, fun p hp => ?_⟩
+    · rcases List.mem_cons.mp hp with rfl | hp
+      · simp only [List.mem_map, List.mem_range] at hx
+        obtain ⟨i, hi, rfl⟩ := hx
+        dsimp only
+        omega
+      · exact ih'.1 x ⟨p, hp, hx⟩
+    · rcases List.mem_cons.mp hp with rfl | hp
+      · unfold KeysDistinct
+        rw [List.pairwise_map]
+        exact (List.nodup_range).imp fun h e => h (by simpa using e)
+      · exact ih'.2 p hp
+
+theorem step_wf (now : Nat) (b : Bus) (op : Op) (hw : WF b) : WF (step now b op).1 := by
+  cases op with
+  | init counts =>
+    have h := initTable_wf b.nextKey counts
+    exact ⟨h.1, h.2, fun _ hh => by simp [step] at hh⟩
+  | listeners => exact hw
+  | fire f =>
+    simp only [step]
+    split
+    · rename_i b' h; exact asyncFire_wf h hw
+    · exact hw
+  | call r =>
+    simp only [step]
+    split
+    · rename_i b' h
+      cases r with
+      | listen => exact listenOp_wf h hw
+      | unsub => exact unsubOp_wf h hw
+      | raise => cases h
+      | fire => cases h; exact hw
+    · exact hw
+
+theorem run_wf (b : Bus) (ops : List (Nat × Op)) (hw : WF b) : WF (run b ops) := by
+  induction ops generalizing b with
+  | nil => exact hw
+  | cons op ops ih => exact ih _ (step_wf _ _ _ hw)
+
+theorem wf_new : WF Bus.new := by
+  refine ⟨?_, ?_, fun _ hh => by simp [Bus.new] at hh⟩
+  · rintro x ⟨p, hp, hx⟩
+    simp only [Bus.new, List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl <;> simp at hx
+    subst hx; decide
+  · intro p hp
+    simp only [Bus.new, List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl <;> simp [KeysDistinct]
+
+/-- Every bus reachable from `Bus.new` is well formed. -/
+theorem reachable_wf (ops : List (Nat × Op)) : WF (run Bus.new ops) :=
+  run_wf _ ops wf_new
+
+/-- Running the remove callback `(et, k)` of a well-formed bus's table makes
+`k` `Gone`. -/
+theorem remove_gone {b : Bus} {et : String} {k : Nat} (hk : k < b.nextKey)
+    (hc : Canon b.listeners et k) (hd : ∀ p ∈ b.listeners, KeysDistinct p.2) :
+    Gone k (asyncRemoveListener b et k) := by
+  have hc1 : Canon (b.listeners.touch et) et k := hc.touch
+  have hd1 := distinct_touch hd et
+  unfold asyncRemoveListener
+  dsimp only
+  split
+  · rename_i hr
+    refine ⟨fun x ⟨p, hp, hx⟩ e => ?_, hk⟩
+    obtain ⟨_, h2⟩ := hc1 p hp x hx e
+    rw [h2] at hx
+    exact removeFirst_none hr x hx e
+  · rename_i l hr
+    refine ⟨fun x ⟨p, hp, hx⟩ e => ?_, hk⟩
+    have hp' : p ∈ (b.listeners.touch et).set et l := by
+      split at hp
+      · exact (List.mem_filter.mp hp).1
+      · exact hp
+    rcases mem_set hp' with ⟨_, h2⟩ | ⟨hp, hne⟩
+    · rw [h2] at hx
+      exact removeFirst_some hr ((distinct_get hd1 et).filter_le_one k) x hx e
+    · exact hne (hc1 p hp x hx e).1
+
+/-- **Unsubscribing removes the listener, on any well-formed bus.** If the
+remove callback stored under `id` is `(et, k)`, running it (top level, or as
+a listener's reaction mid-dispatch: every intermediate bus is well formed too)
+leaves job `k` `Gone`. -/
+theorem unsub_gone_wf {b b' : Bus} {id et : String} {k : Nat} (hw : WF b)
+    (hh : b.handles.lookup id = some (et, k)) (hu : unsubOp b id = .ok b') : Gone k b' := by
+  obtain ⟨hk, hc⟩ := hw.handles _ (mem_of_lookup hh)
+  unfold unsubOp at hu
+  rw [hh] at hu
+  injection hu with hu
+  subst hu
+  exact remove_gone hk hc hw.distinct
+
+/-- **Unsubscribing removes the listener for good**, unconditionally: on any
+bus reachable from `Bus.new`, running the remove callback `(et, k)` stored
+under `id` leaves job `k` `Gone`. -/
+theorem unsub_gone_reachable (ops : List (Nat × Op)) {id et : String} {k : Nat} {b' : Bus}
+    (hh : (run Bus.new ops).handles.lookup id = some (et, k))
+    (hu : unsubOp (run Bus.new ops) id = .ok b') : Gone k b' :=
+  unsub_gone_wf (reachable_wf ops) hh hu
+
+theorem run_append (b : Bus) (xs ys : List (Nat × Op)) : run b (xs ++ ys) = run (run b xs) ys := by
+  induction xs generalizing b with
+  | nil => rfl
+  | cons x xs ih => exact ih _
+
+/-- **An unsubscribed listener hears nothing more.** From a new bus, after
+any operations `ops`, unsubscribe `id` (whose remove callback names job `k`);
+whatever operations `later` follow (fires with arbitrary listener reactions,
+listens, unsubscribes, `init`), job `k` receives no further deliveries and
+stays out of the table. -/
+theorem unsub_silent (ops : List (Nat × Op)) (now : Nat) (id et : String) (k : Nat)
+    (hh : (run Bus.new ops).handles.lookup id = some (et, k)) (later : List (Nat × Op)) :
+    jobCount k (run Bus.new (ops ++ (now, .call (.unsub id)) :: later)).deliveries =
+      jobCount k (run Bus.new (ops ++ [(now, .call (.unsub id))])).deliveries ∧
+    Gone k (run Bus.new (ops ++ (now, .call (.unsub id)) :: later)) := by
+  have hstep : run Bus.new (ops ++ [(now, .call (.unsub id))]) =
+      asyncRemoveListener (run Bus.new ops) et k := by
+    rw [run_append]
+    simp [run, step, step.react1Top, unsubOp, hh]
+  have hg : Gone k (run Bus.new (ops ++ [(now, .call (.unsub id))])) := by
+    rw [hstep]
+    exact unsub_gone_reachable ops hh (by simp [unsubOp, hh])
+  have := gone_silent _ later k hg
+  have e : ops ++ (now, .call (.unsub id)) :: later =
+      (ops ++ [(now, .call (.unsub id))]) ++ later := by simp
+  rw [e, run_append]
+  exact this

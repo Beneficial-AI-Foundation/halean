@@ -372,9 +372,10 @@ lowercase).
 `HALean/Core/EventBusProofs.lean` (event bus): `once_at_most_once` (over any
 sequence of operations, with any listener reactions, a `listen_once` listener
 is delivered at most once), `gone_silent` (a listener that is out of the table
-never receives anything again), `unsub_gone` (running a remove callback takes
-the listener out of the table, given that it is stored once under its event
-type), `snapshot_match_all` / `snapshot_excluded` (a dispatch iterates over the
+never receives anything again), `reachable_wf` (every bus reachable from
+`Bus.new` is well formed), `unsub_gone_reachable` and `unsub_silent` (on any
+reachable bus, unsubscribing takes the listener out of the table, and it
+receives nothing over any later operations), `snapshot_match_all` / `snapshot_excluded` (a dispatch iterates over the
 event type's listeners, then the `MATCH_ALL` ones unless the type is excluded).
 `HALean/Script/Proofs.lean`: `callResponse_no_response`, `callResponse_dict`
 (a caller asking for a response gets a dict or an error), `entityState_on`,
