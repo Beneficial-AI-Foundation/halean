@@ -1218,28 +1218,36 @@ entries:
   - HALean.Core.PreparedCall.event
   - HALean.Core.finishCall
   - HALean.Core.Hass.callService
+  - HALean.Core.Hass.resume
+  - HALean.Core.Hass.Frame
   status: proven
   notes: theorems call_none_return_response_errors, call_only_needs_return_response, call_return_response_needs_blocking,
     call_after_remove_not_found; for script.* services the engine merges the target into the data and
     requires a dict response (mergeTarget, callResponse); split into prepareCall/finishCall; the joined
-    core (Hass.callService) fires call_service through the bus and runs scripted handlers
+    core (Hass.callService) fires call_service through the bus and runs scripted handlers; a handler that
+    suspends suspends a blocking caller (Frame.handlerRet) and runs in its own task for a non-blocking
+    one
   hash: 7744c175387f8dfc
 - python: core.py::ServiceRegistry._run_service_call_catch_exceptions
   lean:
   - HALean.Core.Registry.asyncCall
   - HALean.Core.finishCall
   - HALean.Core.Hass.callService
+  - HALean.Core.Hass.resume
   status: translated
-  notes: Unauthorized and CancelledError are not modelled (handlers cannot raise them)
+  notes: Unauthorized and CancelledError are not modelled (handlers cannot raise them); after a suspension
+    the error is logged when the task resumes and raises (Frame.handlerRet, finishCall)
   hash: cffaa1470685a01a
 - python: core.py::ServiceRegistry._execute_service
   lean:
   - HALean.Core.runHandler
   - HALean.Core.Hass.callService
+  - HALean.Core.Hass.resume
+  - HALean.Core.Hass.Frame
   status: translated
   hash: 86419bad1cbb5b7b
-  notes: 'the joined core''s handlers are coroutine functions that never suspend: their script runs, then
-    the spec'
+  notes: coroutine-function handlers (scripted, may suspend); @callback and executor handlers are not
+    modelled
 - python: exceptions.py::HomeAssistantError
   lean:
   - HALean.Core.PyError
@@ -1309,6 +1317,8 @@ entries:
   lean:
   - HALean.Core.EventBus.runJob
   - HALean.Core.Hass.useOnce
+  - HALean.Core.Hass.runJob
+  - HALean.Core.Hass.runListener
   status: proven
   notes: theorem once_at_most_once
   hash: aa61852d36a4e2bc
@@ -1360,9 +1370,12 @@ entries:
   - HALean.Core.EventBus.snapshot
   - HALean.Core.EventBus.filterPasses
   - HALean.Core.Hass.dispatchLoop
+  - HALean.Core.Hass.runListener
   status: proven
-  notes: theorems snapshot_match_all, snapshot_excluded, gone_silent; theorem dispatchLoop_deliveries
-    (joined core)
+  notes: 'theorems snapshot_match_all, snapshot_excluded, gone_silent; theorems dispatchLoop_deliveries,
+    runListener_deliveries (joined core: a coroutine listener''s synchronous prefix runs in the dispatch,
+    its task is parked and the dispatch goes on); a task done at once is dropped, so its exception is
+    logged there (gcLog)'
   hash: 8d8cde5261ec0c08
 - python: core.py::EventBus.async_listen
   lean:
@@ -1397,8 +1410,11 @@ entries:
   - HALean.Core.EventBus.runJob
   - HALean.Core.Hass.runJob
   - HALean.Core.Hass.recordDelivery
+  - HALean.Core.Hass.runListener
+  - HALean.Core.Hass.Hass.spawn
   status: translated
-  notes: callback jobs only (run at once); coroutine and executor listeners are not modelled
+  notes: callback jobs run at once; coroutine-function listeners go through _async_add_hass_job (eager
+    task); executor jobs (threads) are not modelled; theorem runListener_deliveries (eager start)
   hash: e6a860ed9b453a87
 - python: components/script/config.py::_async_validate_config_item
   lean:
@@ -1588,15 +1604,73 @@ entries:
 - python: core.py::HomeAssistant.async_create_task
   lean:
   - HALean.Core.Hass.runAction
+  - HALean.Core.Hass.Hass.spawn
+  - HALean.Core.Hass.Frame
   status: translated
-  notes: 'eager_start=True: a listener''s service call (a coroutine that never suspends) runs to completion
-    before the listener goes on; its outcome is caught and recorded'
+  notes: 'eager_start=True: a @callback listener''s service call runs in an eager task (Hass.spawn); if
+    the handler suspends, the call goes on in that task (frames ending in callAct, which records the outcome
+    and swallows the error)'
   hash: 48bbbb4fd49b6cdc
 - python: core.py::HomeAssistant.async_create_task_internal
   lean:
   - HALean.Core.Hass.runAction
   - HALean.Core.Hass.callService
+  - HALean.Core.Hass.Hass.spawn
+  - HALean.Core.Hass.Hass.park
+  - HALean.Core.Hass.TaskRec
   status: translated
-  notes: 'eager start: the task finishes inside the call when the coroutine never suspends (non-blocking
-    async_call, listener calls)'
+  notes: 'eager start (create_eager_task): done at once, the task is not added to _tasks (dropped; an
+    exception is logged as it is freed); suspended, it is added to _tasks with the done callback _tasks.remove
+    (Handle.done); eager_start=False is never used by the modelled paths'
   hash: d7fb8bc29e8f1fa4
+- python: core.py::HomeAssistant._async_add_hass_job
+  lean:
+  - HALean.Core.Hass.runListener
+  - HALean.Core.Hass.Hass.spawn
+  - HALean.Core.Hass.Hass.park
+  - HALean.Core.Hass.TaskRec
+  - HALean.Core.Hass.Handle
+  status: proven
+  notes: coroutine functions only (create_eager_task, then _tasks / _background_tasks with the done callback);
+    callback jobs never reach it in the model (async_run_hass_job runs them); executor jobs are not modelled;
+    theorems runListener_deliveries (eager start), keeps (only appends to the ready queue)
+  hash: 38c5d0642a60a8e9
+- python: core.py::HomeAssistant.async_block_till_done
+  lean:
+  - HALean.Core.Hass.step
+  - HALean.Core.Hass.Frame
+  - HALean.Core.Hass.resume
+  - HALean.Core.Hass.endRound
+  - HALean.Core.Hass.startRound
+  - HALean.Core.Hass.runLoop
+  - HALean.Core.Hass.drive
+  status: proven
+  notes: await asyncio.sleep(0), then rounds of asyncio.wait over _tasks (wait_background_tasks=False;
+    no background tasks exist in the model); the tasks list keeps failed tasks alive until the next check
+    (endRound), and two such exceptions would be logged in set order (rejected); a round that never ends
+    is rejected (loop fuel, or nothing left to run); the debug logging of blocked tasks is not modelled;
+    theorem blockTillDone_no_tasks
+  hash: d969365a73403d63
+- python: core.py::HomeAssistant._await_and_log_pending
+  lean:
+  - HALean.Core.Hass.startRound
+  - HALean.Core.Hass.runHandle
+  status: translated
+  notes: 'one asyncio.wait round (BLOCK_LOG_TIMEOUT never elapses on the frozen clock): _on_completion
+    per task (Handle.onc), the waiter wakes the main task when the counter reaches 0'
+  hash: 80a12bd30bba5473
+- python: core.py::HassJobType
+  lean:
+  - HALean.Core.Hass.Hass
+  - HALean.Core.Hass.Action
+  status: translated
+  notes: Coroutinefunction (async listeners, Hass.asyncJobs; all handlers) and Callback (other listeners);
+    Executor is rejected
+  hash: 184728ae5b61b29a
+- python: core.py::get_hassjob_callable_job_type
+  lean:
+  - HALean.Core.Hass.runListener
+  status: translated
+  notes: 'a scripted listener is an async def (async: true) or a @callback; partials and executor callables
+    are not modelled'
+  hash: bd4cb85c2ed15f5d

@@ -7,6 +7,10 @@
     service, listening or unsubscribing. Every event any of these fire is
     queued; the bus stays in its dispatch, and no `_OneTimeListener` is used
     up.
+  * `runListener_deliveries` (eager start): a listener run during a dispatch,
+    `@callback` or coroutine function, delivers the event to itself before
+    the dispatch goes on, and nothing else; a coroutine's synchronous prefix
+    runs at once and the rest waits in its task.
   * `dispatchLoop_deliveries`: a dispatch delivers the one `Event` to exactly
     the listeners of the snapshot that pass their filter (each once, in
     snapshot order, a `listen_once` listener only if it has not run yet),
@@ -19,7 +23,10 @@
     and so on.
 
   "Not rejected" (no `Entry.unsupported` in the output) is the only
-  hypothesis about fuel and call depth.
+  hypothesis about fuel and call depth. The statements are those of the core
+  before tasks were modelled: coroutine listeners and suspending handlers
+  needed no extra hypothesis. The scheduler's own theorems are in
+  `HassSchedProofs.lean`.
 -/
 import HALean.Core.Hass
 
@@ -127,6 +134,45 @@ theorem ctxOr_quiet (h : Hass) (c : Option Context) (now : Nat) (hd : h.bus.disp
     have k := genContext_keeps h now
     exact ⟨k.1.trans hd, k.2, NoDeliv.nil⟩
 
+/-! ## The loop's primitives keep the bus -/
+
+theorem park_bus (h : Hass) (t : Nat) (w : Wait) : (h.park t w).bus = h.bus := by
+  unfold Hass.park Hass.enqueue Hass.setFut
+  cases w with
+  | soon => rfl
+  | fut f => dsimp only; split <;> rfl
+  | round => rfl
+
+theorem spawn_bus (h : Hass) (r : Res) : (h.spawn r).1.bus = h.bus := by
+  unfold Hass.spawn
+  cases r with
+  | ok => rfl
+  | err => rfl
+  | susp w k => dsimp only; rw [park_bus]
+
+theorem spawn_noDeliv (h : Hass) (r : Res) : NoDeliv (h.spawn r).2 := by
+  unfold Hass.spawn
+  cases r with
+  | ok => exact NoDeliv.nil
+  | err => intro e he; simp [gcLog] at he; subst he; rfl
+  | susp => exact NoDeliv.nil
+
+theorem foldl_enqueue_bus (ws : List Nat) (h : Hass) :
+    (ws.foldl (fun h t => h.enqueue (.step t)) h).bus = h.bus := by
+  induction ws generalizing h with
+  | nil => rfl
+  | cons w ws ih => simp only [List.foldl]; rw [ih]; rfl
+
+theorem resolve_bus {h h' : Hass} {f : String} (hr : h.resolve f = some h') : h'.bus = h.bus := by
+  unfold Hass.resolve at hr
+  split at hr
+  · cases hr
+  · cases hr; rw [foldl_enqueue_bus]; rfl
+
+theorem Quiet.spawn {a b : Hass} {o : Out} (q : Quiet a b o) (r : Res) :
+    Quiet a (b.spawn r).1 (o ++ (b.spawn r).2) :=
+  ⟨by rw [spawn_bus]; exact q.disp, by rw [spawn_bus]; exact q.once, q.nod.append (spawn_noDeliv b r)⟩
+
 /-! ## Nothing is delivered while dispatching -/
 
 theorem quiet (n : Nat) :
@@ -177,6 +223,7 @@ theorem quiet (n : Nat) :
         simp only [runActions]
         split
         · exact q1
+        · exact q1
         · exact q1.trans (ihAs env _ as q1.disp)
     have hC : ∀ env h a, h.bus.dispatching = true →
         Quiet h (callService (n + 1) env h a).1 (callService (n + 1) env h a).2.1 := by
@@ -193,15 +240,20 @@ theorem quiet (n : Nat) :
             have q1 := ihF env.now _ q q0.disp
             split
             · exact q0.trans0 q1
-            · dsimp only
-              exact Quiet.append_logs ((q0.trans0 q1).trans (ihAs _ _ _ q1.disp)) _
+            · have q2 := fun env' as => (q0.trans0 q1).trans (ihAs env' _ as q1.disp)
+              split
+              · split
+                · exact q2 _ _
+                · exact (q2 _ _).spawn _
+              · exact Quiet.append_logs (q2 _ _) _
+              · exact Quiet.append_logs (q2 _ _) _
     have hA : ∀ env h a, h.bus.dispatching = true →
         Quiet h (runAction (n + 1) env h a).1 (runAction (n + 1) env h a).2.1 := by
       intro env h a hd
       have q00 : Quiet h h [] := ⟨hd, rfl, NoDeliv.nil⟩
       cases a with
       | fire f => simp only [runAction]; exact ihF _ _ _ hd
-      | listen id et once filter react rt =>
+      | listen id et once filter react rt isAsync =>
         simp only [runAction]
         split
         · rename_i b hb
@@ -240,12 +292,12 @@ theorem quiet (n : Nat) :
       | call id args c caught =>
         simp only [runAction]
         have q := ihC env h { args with context := resolveCtx env c } hd
-        have q' := (⟨q.disp, q.once, q.nod.append (NoDeliv.single_call id _)⟩ :
-          Quiet h _ ((callService n env h { args with context := resolveCtx env c }).2.1 ++
-            [.callResult id (callService n env h { args with context := resolveCtx env c }).2.2]))
         split
-        · split <;> exact q'
-        · exact q'
+        · exact ⟨q.disp, q.once, q.nod.append (NoDeliv.single_call id _)⟩
+        · exact ⟨q.disp, q.once, q.nod.append (NoDeliv.single_call id _)⟩
+        · split
+          · exact q.spawn _
+          · exact q
       | register d s body result schema sr =>
         simp only [runAction]
         split
@@ -263,6 +315,14 @@ theorem quiet (n : Nat) :
             (q00.start ?_ (ihL _ _ _ ?_))
           · rfl
           · exact hd
+      | sleep => simp only [runAction]; exact q00
+      | wait f => simp only [runAction]; split <;> exact q00
+      | resolve f =>
+        simp only [runAction]
+        split
+        · rename_i h' hr
+          exact ⟨(resolve_bus hr) ▸ hd, by rw [resolve_bus hr], NoDeliv.nil⟩
+        · exact ⟨hd, rfl, NoDeliv.single_unsup _⟩
     exact ⟨hF, hL, hAs, hA, hC⟩
 
 /-! ## What a dispatch delivers -/
@@ -334,6 +394,42 @@ theorem recordDelivery_keeps (h : Hass) (job : Job) (ev : Event) :
     (recordDelivery h job ev).2.1 = [.delivery job.key job.listener ev] := by
   simp [recordDelivery]
 
+theorem syncOutcome_noDeliv (r : Res) : NoDeliv (syncOutcome r).1 := by
+  cases r with
+  | ok => exact NoDeliv.nil
+  | err => exact NoDeliv.nil
+  | susp => exact NoDeliv.single_unsup _
+
+/-- **Eager start.** A listener run during a dispatch, a `@callback` or a
+coroutine function alike, delivers the event to itself, before the dispatch
+goes on, and nothing else: a coroutine's synchronous prefix runs at once
+(`create_eager_task`), and whatever it does up to its first suspension only
+queues events, like a `@callback`'s script; the rest waits in its task. -/
+theorem runListener_deliveries (n now : Nat) (h : Hass) (job : Job) (ev : Event)
+    (hd : h.bus.dispatching = true) (hu : NoUnsup (runListener n now h job ev).2.1) :
+    (runListener n now h job ev).1.bus.dispatching = true ∧
+    (runListener n now h job ev).1.bus.onceRemoved = h.bus.onceRemoved ∧
+    deliveries (runListener n now h job ev).2.1 = [(job.key, job.listener, ev)] := by
+  cases n with
+  | zero => exact (NoUnsup.not_unsup (by simpa [runListener] using hu)).elim
+  | succ n =>
+    have rd := recordDelivery_keeps h job ev
+    simp only [runListener] at hu ⊢
+    by_cases hr : (recordDelivery h job ev).2.2 = true
+    · simp only [hr, ↓reduceIte] at hu ⊢
+      have q := (quiet n).2.2.1
+        { now := now, ctx := some ev.context, inListener := !h.asyncJobs.contains job.key } _
+        ((recordDelivery h job ev).1.scriptOf job.key) (rd.1.trans hd)
+      split
+      · refine ⟨by rw [spawn_bus]; exact q.disp, by rw [spawn_bus, q.once, rd.2.1], ?_⟩
+        rw [deliveries_append, deliveries_append, deliveries_nil_of_noDeliv q.nod,
+          deliveries_nil_of_noDeliv (spawn_noDeliv _ _), rd.2.2]; simp [deliveries]
+      · refine ⟨q.disp, q.once.trans rd.2.1, ?_⟩
+        rw [deliveries_append, deliveries_append, deliveries_nil_of_noDeliv q.nod,
+          deliveries_nil_of_noDeliv (syncOutcome_noDeliv _), rd.2.2]; simp [deliveries]
+    · simp only [hr, Bool.false_eq_true, ↓reduceIte] at hu ⊢
+      exact ⟨rd.1.trans hd, rd.2.1, by rw [rd.2.2]; simp [deliveries]⟩
+
 /-- A listener run during a dispatch delivers the event to itself (unless it
 is opaque or a `listen_once` that already ran) and nothing else. -/
 theorem runJob_deliveries (n now : Nat) (h : Hass) (job : Job) (ev : Event)
@@ -348,37 +444,20 @@ theorem runJob_deliveries (n now : Nat) (h : Hass) (job : Job) (ev : Event)
   cases n with
   | zero => exact (NoUnsup.not_unsup (by simpa [runJob] using hu)).elim
   | succ n =>
-    have qA := (quiet n).2.2.1
     cases hs : job.system
     · cases ho : job.once
-      · have rd := recordDelivery_keeps h job ev
-        simp only [runJob, hs, ho, Bool.false_eq_true, ↓reduceIte] at hu ⊢
-        by_cases hr : (recordDelivery h job ev).2.2 = true
-        · simp only [hr, ↓reduceIte] at hu ⊢
-          have q := qA { now := now, ctx := some ev.context, inListener := true } _
-            ((recordDelivery h job ev).1.scriptOf job.key) (rd.1.trans hd)
-          refine ⟨q.disp, q.once.trans rd.2.1, ?_⟩
-          rw [deliveries_append, deliveries_nil_of_noDeliv q.nod, rd.2.2]; simp [deliveries]
-        · simp only [hr, Bool.false_eq_true, ↓reduceIte] at hu ⊢
-          exact ⟨rd.1.trans hd, rd.2.1, by rw [rd.2.2]; simp [deliveries]⟩
+      · simp only [runJob, hs, ho, Bool.false_eq_true, ↓reduceIte] at hu ⊢
+        obtain ⟨l1, l2, l3⟩ := runListener_deliveries n now h job ev hd hu
+        exact ⟨l1, by rw [l2]; simp, by rw [l3]; simp⟩
       · cases hc : h.bus.onceRemoved.contains job.key
         · have k := useOnce_keeps h job
-          have rd := recordDelivery_keeps (useOnce h job).1 job ev
           simp only [runJob, hs, ho, hc, Bool.false_eq_true, ↓reduceIte] at hu ⊢
-          by_cases hr : (recordDelivery (useOnce h job).1 job ev).2.2 = true
-          · simp only [hr, ↓reduceIte] at hu ⊢
-            have q := qA { now := now, ctx := some ev.context, inListener := true }
-              (recordDelivery (useOnce h job).1 job ev).1
-              ((recordDelivery (useOnce h job).1 job ev).1.scriptOf job.key) (rd.1.trans (k.1.trans hd))
-            refine ⟨q.disp, ?_, ?_⟩
-            · rw [q.once, rd.2.1, k.2.1]; simp
-            · rw [deliveries_append, deliveries_append, deliveries_nil_of_noDeliv k.2.2,
-                deliveries_nil_of_noDeliv q.nod, rd.2.2]; simp [deliveries]
-          · simp only [hr, Bool.false_eq_true, ↓reduceIte] at hu ⊢
-            refine ⟨rd.1.trans (k.1.trans hd), by rw [rd.2.1, k.2.1]; simp, ?_⟩
-            rw [deliveries_append, deliveries_nil_of_noDeliv k.2.2, rd.2.2]; simp [deliveries]
+          obtain ⟨l1, l2, l3⟩ := runListener_deliveries n now (useOnce h job).1 job ev
+            (k.1.trans hd) hu.right
+          refine ⟨l1, by rw [l2, k.2.1]; simp, ?_⟩
+          rw [deliveries_append, deliveries_nil_of_noDeliv k.2.2, l3]; simp
         · have hc' : job.key ∈ h.bus.onceRemoved := by simpa using hc
-          simp [runJob, hs, ho, hc, hc', hd, deliveries]
+          simp [runJob, hs, ho, hc', hd, deliveries]
     · simp [runJob, hs, hd, deliveries]
 
 /-- A dispatch delivers the event to exactly the `deliverable` listeners of

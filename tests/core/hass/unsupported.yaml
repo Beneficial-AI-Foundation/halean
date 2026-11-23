@@ -32,3 +32,60 @@
           - call: {id: self, domain: test, service: again, blocking: true}
     - {op: call, domain: test, service: again, blocking: true, unsupported: true}
     - {op: get, entity_id: counter.depth}
+
+- name: async_rejected_inputs
+  ops:
+    # a @callback cannot await; only asyncio.sleep(0) is modelled
+    - {op: listen, id: a, event_type: x, react: [{sleep: 0}], unsupported: true}
+    - {op: listen, id: a, event_type: x, react: [{wait: f}], unsupported: true}
+    - {op: listen, id: a, event_type: x, async: true, react: [{sleep: 1}], unsupported: true}
+    - {op: register, domain: test, service: s, handler: {do: [{wait: 3}]}, unsupported: true}
+    - {op: listen, id: ok, event_type: x, async: true, react: [{sleep: 0}, {fire: {event_type: y}}]}
+    - {op: fire, event_type: x}
+
+- name: async_never_returning_rejected
+  # HA would never return (or log in set order): checked on the model only
+  engine_only: true
+  manual: true
+  ops:
+    - op: listen
+      id: w
+      event_type: go
+      async: true
+      react: [{wait: never}]
+    - {op: fire, event_type: go}
+    # the task waits on a future nobody resolves
+    - {op: block_till_done, unsupported: true}
+    - {op: resolve, id: never}
+    - {op: block_till_done}
+    # the main task waits on a future nobody resolves
+    - op: register
+      domain: test
+      service: stuck
+      handler: {do: [{wait: never2}]}
+    - {op: call, domain: test, service: stuck, blocking: true, unsupported: true}
+    # two task exceptions freed together by block_till_done: set order
+    - op: listen
+      id: x1
+      event_type: two
+      async: true
+      react: [{sleep: 0}, {raise: ValueError, message: one}]
+    - op: listen
+      id: x2
+      event_type: two
+      async: true
+      react: [{sleep: 0}, {raise: ValueError, message: two}]
+    - {op: fire, event_type: two}
+    - {op: block_till_done, unsupported: true}
+    # freed one at a time (outside block_till_done): fine
+    - {op: sleep}
+    - {op: sleep}
+    - {op: block_till_done}
+    # an async listener that re-fires its own event after each suspension
+    - op: listen
+      id: loop
+      event_type: ping
+      async: true
+      react: [{sleep: 0}, {fire: {event_type: ping}}]
+    - {op: fire, event_type: ping}
+    - {op: block_till_done, unsupported: true}

@@ -11,7 +11,7 @@ function by function, so it can be formally verified and still track upstream.
 | State machine (`hass.states`) | `HALean/Core/StateMachine.lean` | `halean-core-states` (test driver) | done, tested against real HA |
 | Event bus (`hass.bus`) | `HALean/Core/EventBus.lean` | `halean-core-events` (test driver) | subset done (callback listeners), tested against real HA |
 | Service registry (`hass.services`) | `HALean/Core/ServiceRegistry.lean` | `halean-core-services` | subset done, tested against real HA |
-| Core (`hass`: states, bus and services joined) | `HALean/Core/Hass.lean` | `halean-core` (test driver) | subset done (callback listeners, never-suspending handlers), tested against real HA |
+| Core (`hass`: states, bus and services joined) | `HALean/Core/Hass.lean` | `halean-core` (test driver) | subset done (callback and `async def` listeners, handlers that suspend, tasks and the event loop's ready queue, `async_block_till_done`), tested against real HA |
 
 `HALean/Core/` holds what every service shares (states, time, JSON). The three
 core services also run joined (`HALean/Core/Hass.lean`): the state machine and
@@ -291,19 +291,58 @@ the bus model, so `MATCH_ALL` and filtered listeners receive them with the
 upstream payloads, contexts and order, and events fired during a dispatch are
 queued as the bus does. Listeners and handlers are scripts over the whole core
 (`Action`): fire, listen / listen once / unsubscribe, raise, set or remove a
-state, call a service (blocking or not, nested), register or remove a service.
+state, call a service (blocking or not, nested), register or remove a service,
+resolve a future, and in a coroutine `await asyncio.sleep(0)` or `await` a
+future.
+
+**Tasks and the event loop.** Listeners are `@callback`s or `async def`s;
+handlers are `async def`s. A coroutine runs synchronously until it really
+suspends, as upstream's eager tasks do: `async_run_hass_job` starts a
+coroutine listener with `create_eager_task` inside the dispatch, a
+non-blocking `async_call` starts its handler the same way
+(`_run_service_call_catch_exceptions`), a blocking one awaits it in the
+caller's own task, and a `@callback` listener's service call runs in an eager
+task (`hass.async_create_task`). A suspension returns the coroutine's
+remaining frames (`Res.susp`): they become a task in `hass._tasks`
+(`Hass.tasks`), or suspend the caller. The loop is explicit and pure: a FIFO
+ready queue (`Hass.ready`) of `Task.__step` / `__wakeup` handles,
+done callbacks (`_tasks.remove`) and `asyncio.wait`'s `_on_completion`, run in
+order (`BaseEventLoop._run_once`) whenever the operation itself, the main
+task, is suspended: in a blocking call whose handler suspends, in `sleep`
+(`await asyncio.sleep(0)`), or in `block_till_done`
+(`hass.async_block_till_done()`: `sleep(0)`, then rounds of `asyncio.wait`
+over `_tasks` until none is left). Futures (`loop.create_future()`, by name)
+wake their waiters in the order they awaited. A task that ends with an
+exception (only a coroutine listener's can: the others catch and record or
+log) is never awaited, so CPython frees it when its last reference goes and
+HA's loop exception handler logs `Error doing job: Task exception was never
+retrieved` (logger `homeassistant`): at once for a task done during its
+eager start, when its done callback has run otherwise, or, if
+`async_block_till_done`'s `tasks` list holds it, when the next check drops
+that list. The scheduler's theorems (FIFO, `block_till_done` leaves no
+task) are in `HALean/Core/HassSchedProofs.lean`.
 
 `halean-core` takes one operation per JSON line (`set`, `remove`, `get`,
 `fire`, `listen`, `listen_once`, `unsub`, `listeners`, `register`,
-`remove_service`, `has`, `call`, each with the clock `now` in µs) and answers
+`remove_service`, `has`, `call`, `resolve`, `sleep`, `block_till_done`, each
+with the clock `now` in µs) and answers
 with the result and one ordered trace: deliveries (`Event.as_dict()`, states
 as `as_dict()`), the outcome of every scripted service call, and the
-`homeassistant.core` log records (format in `HALean/Core/HassMain.lean`).
-`tests/differential/test_core.py` runs each case in `tests/core/hass/*.yaml`
-on a real in-process `hass` (frozen clock; `@callback` listeners and
-`async def` handlers built from the same scripts) and on `halean-core`, and
-requires the same result and trace for every operation. Random context ids
-are renamed `ctx#<n>` in order of first appearance on both sides.
+`homeassistant.core` and `homeassistant` log records (format in
+`HALean/Core/HassMain.lean`). `tests/differential/test_core.py` runs each
+case in `tests/core/hass/*.yaml` on a real in-process `hass` (frozen clock;
+`@callback` and `async def` listeners and `async def` handlers built from the
+same scripts; HA's own loop exception handler from `homeassistant.runner`)
+and on `halean-core`, and requires the same result and trace for every
+operation. After each operation both sides run `block_till_done`, unless the
+case is `manual` (then only its own `sleep` / `block_till_done` operations
+and suspending blocking calls let the loop run, and the case must end with no
+task left). Rejections HA cannot show (it would never return) are checked on
+the model alone (`engine_only`). Random context ids are renamed `ctx#<n>` in
+order of first appearance on both sides. The tests are sensitive to the
+scheduler: making the ready queue LIFO fails all 15 async cases; freeing a
+failed task at its done callback even while `async_block_till_done` holds it
+fails 3; dropping `async_block_till_done`'s initial `sleep(0)` fails 1.
 
 Types: one `Context` (`State.lean`) for states, bus and registry (the
 registry's former `ServiceContext` is gone; a fresh `Context()` in the
@@ -319,14 +358,24 @@ executables, tests and proofs are unchanged.
 
 | Supported | Rejected (`unsupported`), or not modelled |
 |---|---|
-| Everything the three separate models support, joined: `async_set` / `async_remove` fire through the bus (context and `time_fired` as upstream; `async_remove` without a context lets the `Event` make one); registering and removing services fire `service_registered` / `service_removed` (no context); `async_call` fires `call_service` with the call's context before the handler runs; while a dispatch runs, every event fired by a listener, by a handler that listener called, or by a state that handler set is queued and dispatched afterwards in FIFO order (the 10,000-events limit raises `HomeAssistantError` in the firing script, with upstream's message); a handler called when nothing is dispatching delivers its events before the call returns; listener scripts (`@callback`): fire, listen, listen once, unsubscribe, raise, set, remove, call (in a task started eagerly: it finishes before the listener goes on, its outcome is recorded and never reaches the listener), register, remove a service; handler scripts (`async def` that never suspends): the same, with nested calls awaited (errors propagate unless `catch`), then return a value / echo / raise; `inherit` passes the event's or the call's context on; listener errors logged as `Error running job`, non-blocking handler errors as `Error executing service`, filters as in the bus model | coroutine and executor listeners, handlers that suspend (`await asyncio.sleep`, futures) or are `@callback`s; the exceptions whose message is not modelled (`run_immediately`, non-`@callback` filters, `listen_once` with a filter, `state_reported` without one, event types over 64 characters); `time_fired` on a scripted fire; `eq` filters on `old_state` / `new_state` / `last_reported` / `old_last_reported` (State objects and datetimes); non-ASCII entity ids, domains and services; service calls nested deeper than 32 (HA would hit `RecursionError`); everything the separate models reject |
+| Everything the three separate models support, joined: `async_set` / `async_remove` fire through the bus (context and `time_fired` as upstream; `async_remove` without a context lets the `Event` make one); registering and removing services fire `service_registered` / `service_removed` (no context); `async_call` fires `call_service` with the call's context before the handler runs; while a dispatch runs, every event fired by a listener, by a handler that listener called, or by a state that handler set is queued and dispatched afterwards in FIFO order (the 10,000-events limit raises `HomeAssistantError` in the firing script, with upstream's message); a handler called when nothing is dispatching delivers its events before the call returns; listener scripts (`@callback`): fire, listen, listen once, unsubscribe, raise, set, remove, call (in a task started eagerly: its outcome is recorded and never reaches the listener; if the handler suspends, the call goes on in that task), register, remove a service, resolve a future; coroutine listeners (`async def`): the same, plus `await asyncio.sleep(0)` and awaiting a future, with calls awaited inline (errors propagate unless `catch`), started as eager tasks (synchronous prefix inside the dispatch; a task survives the listener's removal); handler scripts (`async def`, may suspend): the same, with nested calls awaited, then return a value / echo / raise; blocking calls await a suspended handler (the caller suspends, the loop runs other tasks in FIFO order), non-blocking ones return `None` and the handler goes on in its task; `hass.async_block_till_done()` (`block_till_done`) and `await asyncio.sleep(0)` (`sleep`) as operations; `inherit` passes the event's or the call's context on; listener errors logged as `Error running job`, non-blocking handler errors as `Error executing service` (when they happen, also after a suspension), a coroutine listener's as `Error doing job: Task exception was never retrieved` when the task is freed; filters as in the bus model | executor jobs (threads: their interleaving with the loop is not deterministic) and `@callback` handlers; `await` in a `@callback`; `asyncio.sleep` with a delay (timers); futures resolved twice (`asyncio.InvalidStateError`, whose name clashes with HA's) or with an exception; a `block_till_done` or blocking call that would never return (a task or the main task waiting on a future nobody resolves, endless rescheduling: more than 100,000 handles per operation); two failed tasks freed by the same `block_till_done` check (logged in `_tasks`'s set order); cancellation, `async_create_background_task`, `eager_start=False`, timeouts; the exceptions whose message is not modelled (`run_immediately`, non-`@callback` filters, `listen_once` with a filter, `state_reported` without one, event types over 64 characters); `time_fired` on a scripted fire; `eq` filters on `old_state` / `new_state` / `last_reported` / `old_last_reported` (State objects and datetimes); non-ASCII entity ids, domains and services; service calls nested deeper than 32 (HA would hit `RecursionError`); everything the separate models reject |
 
 Known gaps: event data is compared as JSON (states as `as_dict()` taken
 when the event is fired; within one operation the clock does not move, so a
 later report cannot change `last_reported` of a state already queued);
 Python's `RecursionError` is not modelled (rejected instead, see above); HA
 listeners that exist before the model starts (`init`) are opaque, as in the
-bus model.
+bus model (in the pinned release they are all `@callback`s, so they start no
+tasks). The moment a failed task is logged follows CPython's reference
+counting (when its last reference goes), which the model tracks for the
+references HA itself holds (`_tasks`, the eager start's return value,
+`async_block_till_done`'s list); a caller that kept a reference to the task
+would delay the log. Only the main task's own `sleep(0)` and
+`block_till_done` are operations: the loop never runs between two operations
+on its own (as in the test, whose task does not yield in between), so a
+task's resumption can wait across operations. The ready queue's FIFO order is
+proved for the handles the model creates; I/O, timers and other HA tasks
+that would interleave on a running instance are not modelled.
 
 ### Event bus (`HALean/Core/EventBus.lean`)
 
