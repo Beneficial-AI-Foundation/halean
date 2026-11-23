@@ -90,8 +90,10 @@ inductive TriggerKind where
       (fromKeyOnly : Bool)  -- `from` present and `to` absent (for `_check_same_state`)
   | numericState (entityIds : List String) (below above : Option Bound)
       (attr : Option String) (forP : Option ForPeriod) (valueTemplate : Option Template.Tmpl := none)
-  /-- Fixed local times of day, in whole seconds. -/
-  | time (ats : List Nat) (weekday : Option (List String))
+  /-- `ats`: fixed local times of day (whole seconds); `entities`: `input_datetime` or
+  timestamp `sensor` entities with an offset (µs), each rescheduled when its
+  state changes. -/
+  | time (ats : List Nat) (entities : List (String × Int)) (weekday : Option (List String))
   | timePattern (hours minutes seconds : Pattern)
   /-- Legacy `zone` trigger (`trigger: zone`): `enter` is `true` for
   `event: enter`, `false` for `leave`. -/
@@ -475,12 +477,32 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := []) : D (Option T
       pure <| TriggerKind.numericState (← entityIds j) below above (str? j "attribute")
         (← forPeriod? j "for" (tnm ++ ["trigger"])) (← valueTemplate? j (tnm ++ ["trigger"]))
     | "time" => do
-      let ats ← (ensureList ((field? j "at").getD .null)).mapM fun v => match v with
-        | .str s => match timeOfDaySec s with
-          | some sec => pure sec
-          | none => throw s!"time trigger 'at: {s}' (entities/offsets) is not supported"
+      -- `_TIME_TRIGGER_ENTITY`: an entity of domain input_datetime or sensor
+      let timeEntity (s : String) : Bool :=
+        match s.splitOn "." with
+        | [d, o] => (d == "input_datetime" || d == "sensor") && !o.isEmpty
+        | _ => false
+      let items ← (ensureList ((field? j "at").getD .null)).mapM fun v => match v with
+        | .str s =>
+          if Template.isTemplateString s then throw s!"templated time trigger 'at: {s}' is not supported"
+          else match timeOfDaySec s with
+          | some sec => pure (Sum.inl sec)
+          | none =>
+            if timeEntity s then pure (Sum.inr (s, (0 : Int)))
+            else throw s!"invalid time trigger 'at: {s}'"
+        | .obj _ => do
+          let some eid := str? v "entity_id" | throw "time trigger 'at' needs an entity_id"
+          if !timeEntity eid then throw s!"time trigger entity must be input_datetime or sensor: {eid}"
+          let off ← match field? v "offset" with
+            | none => pure 0
+            | some o => match cvTimePeriod (Template.Value.ofJson o) with
+              | .ok us => pure us
+              | .error e => throw s!"invalid time trigger offset {o.compress}: {e}"
+          pure (Sum.inr (eid, off))
         | _ => throw s!"unsupported time trigger 'at': {v.compress}"
-      pure <| TriggerKind.time ats (← weekday? j)
+      let ats := items.filterMap fun x => match x with | .inl s => some s | _ => none
+      let ents := items.filterMap fun x => match x with | .inr e => some e | _ => none
+      pure <| TriggerKind.time ats ents (← weekday? j)
     | "time_pattern" => do
       let pat (k : String) (mx : Nat) : D (Option Pattern) :=
         match field? j k with

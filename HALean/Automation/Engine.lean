@@ -149,6 +149,14 @@ structure PendingFor where
   periodKey : Option (Owner × Nat × String) := none
   deriving Repr, Inhabited
 
+/-- When a time trigger's entity fires: once at an instant (UTC µs,
+`async_track_point_in_time`), or daily at a local second of the day
+(`async_track_time_change`). -/
+inductive TimeSched where
+  | point (us : Int)
+  | daily (sec : Nat)
+  deriving Repr, Inhabited, BEq
+
 /-- The triggers of a `wait_for_trigger` step while its run waits, and the
 variables they see (`dict(self._variables)` before `wait` is set). -/
 structure WaitTrig where
@@ -190,6 +198,9 @@ structure Engine where
   /-- The next event of each `sun` trigger: (owner, trigger idx) → UTC µs
   (`async_track_point_in_utc_time`). -/
   sunNext : List ((Owner × Nat) × Int) := []
+  /-- The entity listeners of time triggers: (owner, trigger idx, entity,
+  offset µs) → schedule. -/
+  timeEnt : List ((Owner × Nat × String × Int) × TimeSched) := []
   deriving Inhabited
 
 inductive Input where
@@ -281,6 +292,7 @@ def cleanupWait (e : Engine) (rid : Nat) : Engine :=
            waitTrigs := e.waitTrigs.filter (·.runId != rid),
            pendings := e.pendings.filter (·.owner != o),
            sunNext := e.sunNext.filter (·.1.1 != o),
+           timeEnt := e.timeEnt.filter (·.1.1 != o),
            armed := e.armed.filter (·.1 != o),
            periods := e.periods.filter (·.1.1 != o) }
 
@@ -298,6 +310,72 @@ def setupWait (r : Run) (t : Template.Tmpl) : EM Unit := do
   let (_, info) := Template.renderWithInfo t { states := e.states, now := e.now, vars } true
   setE { e with tmplTrigs := (e.tmplTrigs.filter (·.owner != .wait r.id)) ++
     [{ owner := .wait r.id, trigIdx := 0, tmpl := some t, vars, info }] }
+
+/-- `time.py::update_entity_trigger`: replace the entity's listener with one
+for its new state. An `input_datetime` with a date fires once at that local
+time (plus offset) if it is not in the past; with only a time, daily (the
+offset wraps around the day); a timestamp or uptime `sensor` fires once at
+its time (plus offset) if it is in the future. An error (a missing or
+non-integer attribute, an invalid date) is the exception HA would log. -/
+def updateTimeEntity (o : Owner) (idx : Nat) (eid : String) (off : Int)
+    (new : Option EntityState) : EM Unit := do
+  let key := (o, idx, eid, off)
+  let e ← getE
+  setE { e with timeEnt := e.timeEnt.filter (·.1 != key) }
+  let some s := new | return
+  let nowUs : Int := (e.now.utc : Int) * 1000
+  let tz := e.now.tzOffsetSec
+  let dom := (eid.splitOn ".").headD ""
+  let intAttr (k : String) : Except String Int :=
+    match s.attr? k with
+    | some (.num n) => if n.exponent == 0 then pure n.mantissa
+                       else throw s!"TypeError: '{k}' is not an integer"
+    | some (.bool b) => pure (if b then 1 else 0)
+    | some v => throw s!"TypeError: '{k}' is not an integer: {v.compress}"
+    | none => throw s!"KeyError: '{k}'"
+  let flag (k : String) : Except String Bool :=
+    match s.attr? k with
+    | some v => pure (Template.truthy (Template.Value.ofJson v))
+    | none => throw s!"KeyError: '{k}'"
+  let sched : Except String (Option TimeSched) :=
+    if dom == "input_datetime" then do
+      let hasDate ← flag "has_date"
+      let (y, mo, d) ← if hasDate then
+          pure (← intAttr "year", ← intAttr "month", ← intAttr "day") else pure (0, 0, 0)
+      let hasTime ← flag "has_time"
+      let (h, mi, sec) ← if hasTime then
+          pure (← intAttr "hour", ← intAttr "minute", ← intAttr "second") else pure (0, 0, 0)
+      if hasDate then
+        let c : Template.Civil := { year := y, month := mo.toNat, day := d.toNat,
+                                    hour := h.toNat, minute := mi.toNat, second := sec.toNat, micro := 0 }
+        if mo < 1 || d < 1 || h < 0 || mi < 0 || sec < 0 then throw "ValueError: invalid date"
+        if let some why := c.valid then throw s!"ValueError: {why}"
+        -- `datetime(..., tzinfo=default time zone) + offset`
+        let at_ := Template.fromCivil c - tz * Template.US_PER_SEC + off
+        return if at_ ≥ nowUs then some (.point at_) else none
+      else if hasTime then
+        if h < 0 || h > 23 || mi < 0 || mi > 59 || sec < 0 || sec > 59 then throw "ValueError: invalid time"
+        -- the offset is applied to the time of day and wraps around
+        let tod := Int.fmod ((h * 3600 + mi * 60 + sec) * Template.US_PER_SEC + off) Template.US_PER_DAY
+        return some (.daily (tod / Template.US_PER_SEC).toNat)
+      else return none
+    else if dom == "sensor"
+        && ((s.attr? "device_class") == some (.str "timestamp") || (s.attr? "device_class") == some (.str "uptime"))
+        && s.state != "unavailable" && s.state != "unknown" then do
+      match ((Template.parseDatetime s.state).run.run' {}) with
+      | .error m => throw m
+      | .ok none => return none
+      | .ok (some (.datetime us (some _))) =>
+        let at_ := us + off
+        return if at_ > nowUs then some (.point at_) else none
+      | .ok (some _) => throw "TypeError: can't compare offset-naive and offset-aware datetimes"
+    else return none
+  match sched with
+  | .ok none => pure ()
+  | .ok (some sc) =>
+    let e ← getE
+    setE { e with timeEnt := e.timeEnt ++ [(key, sc)] }
+  | .error m => emit [.log "error" s!"Error in time trigger for {eid}: {m}"]
 
 /-- Attach triggers (`async_attach_trigger`): numeric_state entities that
 start outside the range are armed ("Each entity that starts outside the
@@ -317,6 +395,12 @@ def attachTriggers (o : Owner) (trigs : List Trigger) : EM Unit := do
         let vt := vtm.map fun tm => (tm, (tmplCtxOf e o).vars ++ [("trigger", numericTriggerVar t eid below above attr)])
         if let .ok false := numericStateOne e.condEnv eid below above attr vt then
           armed := armed ++ [(o, t.idx, eid)]
+    | .time _ ents _ =>
+      for (eid, off) in ents do
+        setE { (← getE) with armed, tmplTrigs := tts, sunNext := sun }
+        updateTimeEntity o t.idx eid off (e.states.get? eid)
+        let e' ← getE
+        armed := e'.armed; tts := e'.tmplTrigs; sun := e'.sunNext
     | .sun sunrise off =>
       -- `schedule_next_event()`
       match e.location with
@@ -332,7 +416,7 @@ def attachTriggers (o : Owner) (trigs : List Trigger) : EM Unit := do
         tts := tts ++ [{ owner := o, trigIdx := t.idx, info }]
         logs := logs ++ [.log "warning" s!"Error initializing 'template' trigger for '{a.alias}': {msg}"]
     | _ => pure ()
-  setE { e with armed, tmplTrigs := tts, sunNext := sun }
+  setE { (← getE) with armed, tmplTrigs := tts, sunNext := sun }
   emit logs
 
 mutual
@@ -876,6 +960,10 @@ def onStateChanged (eid : String) (old new : Option EntityState) : EM Unit := do
       | .numericState .. => onNumericTrigger o t eid old new
       | .template .. => onTemplateTrigger o t eid old new
       | .zone .. => onZoneTrigger o t eid old new
+      | .time _ ents _ =>
+        -- `update_entity_trigger_event`
+        for (eid', off) in ents do
+          if eid' == eid then updateTimeEntity o t.idx eid off new
       | _ => pure ()
   let done ← onWaitTrackers eid old new
   -- `state_for_cancel_listener`s: drop timers whose condition broke
@@ -922,13 +1010,22 @@ def fireTimeTriggers (sec : Nat) (tz : Int) : EM Unit := do
     for t in trigs do
       if !(← getE).listening o then break
       match t.kind with
-      | .time ats wd =>
-        if ats.contains tod && (wd.map (·.contains inst.weekday)).getD true then
+      | .time ats _ wd =>
+        let dayOk := (wd.map (·.contains inst.weekday)).getD true
+        let nowV : Template.Value := .datetime (sec * 1000000 + TIME_CHANGE_MICROSECOND) (some tz)
+        if ats.contains tod && dayOk then
           fire o {
             id := t.id, idx := t.idx, platform := "time",
             description := "time",
-            value := triggerValue t "time" [("now", .datetime (sec * 1000000 + TIME_CHANGE_MICROSECOND) (some tz)),
+            value := triggerValue t "time" [("now", nowV),
               ("description", .str "time"), ("entity_id", .none)] }
+        -- entities with only a time: `async_track_time_change` at that second
+        for ((o', idx, eid, _), sc) in (← getE).timeEnt do
+          if o' == o && idx == t.idx && sc == .daily tod && dayOk then
+            let desc := s!"time set in {eid}"
+            fire o {
+              id := t.id, idx := t.idx, platform := "time", entityId := some eid, description := desc,
+              value := triggerValue t "time" [("now", nowV), ("description", .str desc), ("entity_id", .str eid)] }
       | .template .. =>
         -- `async_track_utc_time_change(second=0)` while the last render used the clock
         if sec % 60 == 0 then
@@ -1033,6 +1130,33 @@ partial def fireSun (t : Millis) : EM Unit := do
   | _, _ => setE { e with sunNext := rest }
   fireSun t
 
+/-- Time-trigger entities due at or before `t` (ms): each fires once, with
+`now` the scheduled instant in local time (`async_track_point_in_time`). -/
+partial def fireTimePoints (t : Millis) : EM Unit := do
+  let e ← getE
+  let due : List ((Owner × Nat × String × Int) × Int) := e.timeEnt.filterMap fun (k, sc) =>
+    match sc with
+    | .point us => if us ≤ (t : Int) * 1000 then some (k, us) else none
+    | .daily _ => none
+  -- the earliest first; ties in creation order
+  let first := due.foldl (fun acc x => match acc with
+    | some y => if x.2 < y.2 then some x else acc
+    | none => some x) none
+  let some ((o, idx, eid, off), at_) := first | return
+  setE { e with timeEnt := e.timeEnt.filter (·.1 != (o, idx, eid, off)) }
+  let tz := e.now.tzOffsetSec
+  let inst : Instant := { utc := (at_ / 1000).toNat, tzOffsetSec := tz }
+  let trig? := ((e.owners.find? (·.1 == o)).map (·.2)).bind fun ts => ts.find? (·.idx == idx)
+  if let some tr := trig? then
+    if let .time _ _ wd := tr.kind then
+      if (wd.map (·.contains inst.weekday)).getD true then
+        let desc := s!"time set in {eid}"
+        fire o { id := tr.id, idx := tr.idx, platform := "time", entityId := some eid, description := desc,
+                 value := triggerValue tr "time" [("now", .datetime at_ (some tz)),
+                   ("description", .str desc), ("entity_id", .str eid)] }
+        resumeWoken
+  fireTimePoints t
+
 /-- Advance the clock to `now`, firing time triggers second by second. -/
 def advanceTo (now : Instant) : EM Unit := do
   let e ← getE
@@ -1044,6 +1168,7 @@ def advanceTo (now : Instant) : EM Unit := do
     setE { e with now := { utc := sec * 1000, tzOffsetSec := now.tzOffsetSec } }
     fireDue (sec * 1000)
     fireSun (sec * 1000)
+    fireTimePoints (sec * 1000)
     fireTimeTriggers sec now.tzOffsetSec
     -- a templated `for:` that rendered to 0 is due at once
     fireDue (sec * 1000)

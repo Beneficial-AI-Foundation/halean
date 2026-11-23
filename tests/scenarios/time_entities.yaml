@@ -1,0 +1,63 @@
+# `time` triggers on entities: an input_datetime with a date (once, at that
+# local time), with only a time (daily, the offset wraps the time of day), a
+# timestamp sensor with an offset, rescheduling when the entity changes,
+# times in the past, a sensor that is not a timestamp, and the weekday
+# filter. t0 is Tuesday 2023-11-14 22:13:20 UTC.
+automations:
+  - id: alarm
+    triggers: [{trigger: time, at: input_datetime.alarm}]
+    actions:
+      - event: alarm
+        event_data:
+          now: "{{ trigger.now.isoformat() }}"
+          d: "{{ trigger.description }} {{ trigger.entity_id }} {{ trigger.platform }}"
+  - id: daily
+    triggers: [{trigger: time, at: {entity_id: input_datetime.daily, offset: "-00:00:05"}}]
+    actions:
+      - event: daily
+        event_data: {now: "{{ trigger.now.isoformat() }}"}
+  - id: sensor
+    triggers: [{trigger: time, at: [{entity_id: sensor.next_alarm, offset: 2}, "22:13:25"]}]
+    actions:
+      - event: sensor
+        event_data: {d: "{{ trigger.description }}", now: "{{ trigger.now.isoformat() }}"}
+  - id: not_today
+    triggers: [{trigger: time, at: input_datetime.daily, weekday: mon}]
+    actions: [{event: never}]
+  - id: ignored
+    triggers: [{trigger: time, at: [input_datetime.past, sensor.plain, input_datetime.nothing]}]
+    actions: [{event: never}]
+states:
+  - {entity_id: input_datetime.alarm, state: "2023-11-14 22:13:30",
+     attributes: {has_date: true, has_time: true, year: 2023, month: 11, day: 14, hour: 22, minute: 13, second: 30}}
+  - {entity_id: input_datetime.daily, state: "22:13:40",
+     attributes: {has_date: false, has_time: true, hour: 22, minute: 13, second: 40}}
+  - {entity_id: sensor.next_alarm, state: "2023-11-14T22:13:50+00:00", attributes: {device_class: timestamp}}
+  - {entity_id: input_datetime.past, state: "2023-11-14 22:00:00",
+     attributes: {has_date: true, has_time: true, year: 2023, month: 11, day: 14, hour: 22, minute: 0, second: 0}}
+  - {entity_id: sensor.plain, state: "2023-11-14T22:13:45+00:00"}
+  - {entity_id: input_datetime.nothing, state: "x", attributes: {has_date: false, has_time: false}}
+steps:
+  - {at: 5, send: {type: tick},
+     expect: [{type: automation_triggered, id: sensor}, {type: fire_event, event_type: sensor, data: {d: time}}]}
+  - {at: 10, send: {type: tick},
+     expect: [{type: automation_triggered, id: alarm},
+              {type: fire_event, event_type: alarm,
+               data: {now: "2023-11-14T22:13:30+00:00", d: "time set in input_datetime.alarm input_datetime.alarm time"}}]}
+  - {at: 12, set: [input_datetime.alarm, "2023-11-14 22:14:00"],
+     attributes: {has_date: true, has_time: true, year: 2023, month: 11, day: 14, hour: 22, minute: 14, second: 0}}
+  - {at: 15, send: {type: tick},
+     expect: [{type: automation_triggered, id: daily},
+              {type: fire_event, event_type: daily, data: {now: "2023-11-14T22:13:35.500000+00:00"}}]}
+  - {at: 32, send: {type: tick},
+     expect: [{type: automation_triggered, id: sensor},
+              {type: fire_event, event_type: sensor,
+               data: {d: "time set in sensor.next_alarm", now: "2023-11-14T22:13:52+00:00"}}]}
+  - {at: 35, set: [sensor.next_alarm, "2023-11-14T22:13:58+00:00"], attributes: {device_class: timestamp}}
+  # both due at 22:14:00 (the sensor's 22:13:58 plus 2 s): the alarm's listener is older
+  - {at: 40, send: {type: tick},
+     expect: [{type: automation_triggered, id: alarm}, {type: fire_event, event_type: alarm},
+              {type: automation_triggered, id: sensor},
+              {type: fire_event, event_type: sensor, data: {now: "2023-11-14T22:14:00+00:00"}}]}
+  - {at: 45, set: [sensor.next_alarm, unavailable], attributes: {device_class: timestamp}}
+  - {at: 60, send: {type: tick}}
