@@ -49,7 +49,8 @@ entries:
   - HALean.Automation.timeCond
   - HALean.Automation.resolveTimeBound
   status: translated
-  notes: timestamp/uptime sensor bounds are converted with the shell's tz offset, like the local time; dates only ciso8601 would parse raise 'unsupported'
+  notes: timestamp/uptime sensor bounds are converted with the shell's tz offset, like the local time;
+    dates only ciso8601 would parse raise 'unsupported'
   hash: 75942a34ea3c0149
 - python: helpers/condition.py::state_from_config
   lean:
@@ -172,6 +173,7 @@ entries:
   lean:
   - HALean.Automation.admit
   - HALean.Automation.triggerAutomation
+  - HALean.Automation.startScript
   status: proven
   notes: theorems single_exclusive, restart_never_rejects, admit_bounded, queued_waits
   hash: de80e422d227b5fe
@@ -228,10 +230,10 @@ entries:
   - HALean.Automation.fireTimePoints
   - HALean.Automation.onStateChanged
   status: translated
-  notes: a templated at is rendered at load time with the static trigger_variables (limited, so it
-    cannot read states or the clock; tz-dependent date functions and wait_for_trigger are rejected,
-    as are renders that are not a valid at); an error in update_entity_trigger is logged (at attach, HA would fail
-    to attach the trigger); the local time zone is the current UTC offset
+  notes: a templated at is rendered at load time with the static trigger_variables (limited, so it cannot
+    read states or the clock; tz-dependent date functions and wait_for_trigger are rejected, as are renders
+    that are not a valid at); an error in update_entity_trigger is logged (at attach, HA would fail to
+    attach the trigger); the local time zone is the current UTC offset
   hash: 6f3973d45d42a3d4
 - python: components/homeassistant/triggers/time_pattern.py::async_attach_trigger
   lean:
@@ -985,3 +987,196 @@ entries:
   - HALean.Automation.Sun.sunEvent
   status: translated
   hash: 5a4601882dbc512f
+- python: components/script/config.py::_async_validate_config_item
+  lean:
+  - HALean.Script.decodeScript
+  - HALean.Script.decodeFields
+  - HALean.Script.isSlug
+  status: translated
+  notes: 'SCRIPT_ENTITY_SCHEMA and the object id check; an invalid config is rejected (HA makes it an
+    unavailable entity). Also rejected: blueprints, script.reload actions, device/area/floor/label targets
+    of script.turn_on/off/toggle, waits mentioning script entities, the trigger condition, last_action,
+    last_triggered other than this.attributes.last_triggered, templates using names that are not fields,
+    variables or passed by other scripts. Selectors are not validated'
+  hash: 7efb00d1a6f51373
+- python: components/script/config.py::async_validate_config
+  lean:
+  - HALean.Script.decodeAll
+  - HALean.Script.passedNames
+  status: translated
+  hash: ef7bd5c5d9982295
+- python: components/script/__init__.py::async_setup.turn_on_service
+  lean:
+  - HALean.Script.planCall
+  - HALean.Automation.callLocal
+  status: translated
+  notes: a script that does not start (mode, max, a variables error) makes HA wait for its next state
+    write; HALean fails the call instead (logged)
+  hash: 2a331ea2dd98f904
+- python: components/script/__init__.py::async_setup.turn_off_service
+  lean:
+  - HALean.Script.planCall
+  - HALean.Automation.callLocal
+  status: translated
+  hash: 973b52f0ca0f14a4
+- python: components/script/__init__.py::async_setup.toggle_service
+  lean:
+  - HALean.Script.planCall
+  - HALean.Automation.callLocal
+  status: translated
+  hash: ab6703cdc5876d2d
+- python: components/script/__init__.py::async_setup.reload_service
+  lean:
+  - HALean.Script.Service.step
+  status: translated
+  notes: the shell sends the new scripts.yaml as a reload input
+  hash: 494a53751f8dfbf8
+- python: components/script/__init__.py::_async_process_config
+  lean:
+  - HALean.Script.reloadScripts
+  - HALean.Script.addScripts
+  - HALean.Script.Service.step
+  status: translated
+  hash: 45ee0d798b6066b6
+- python: components/script/__init__.py::ScriptEntity.__init__
+  lean:
+  - HALean.Script.decodeScript
+  status: translated
+  hash: e768330910cee9d1
+- python: components/script/__init__.py::ScriptEntity.extra_state_attributes
+  lean:
+  - HALean.Script.entityAttributes
+  - HALean.Script.scriptThis
+  status: translated
+  notes: last_action is not modelled (opaque in this, left out of the written state)
+  hash: 4dc35356e4ae6abe
+- python: components/script/__init__.py::ScriptEntity.is_on
+  lean:
+  - HALean.Script.entityState
+  status: translated
+  hash: 221c66056b59f8a1
+- python: components/script/__init__.py::ScriptEntity.async_change_listener
+  lean:
+  - HALean.Automation.writeEntity
+  status: translated
+  notes: written at run start, end and stop; HA also writes on every step (last_action only)
+  hash: 35261bd05d05b134
+- python: components/script/__init__.py::ScriptEntity.async_turn_on
+  lean:
+  - HALean.Automation.callLocal
+  status: translated
+  hash: 87986ca49bcfadb5
+- python: components/script/__init__.py::ScriptEntity._async_start_run
+  lean:
+  - HALean.Automation.startScript
+  - HALean.Automation.callLocal
+  - HALean.Automation.continueNow
+  status: translated
+  notes: 'script_stack: copied for wait=True, fresh for turn_on'
+  hash: f8b34c1450b62023
+- python: components/script/__init__.py::ScriptEntity._async_run
+  lean:
+  - HALean.Automation.startScript
+  - HALean.Script.scriptThis
+  status: translated
+  hash: 0ffae8c2d1bd3c80
+- python: components/script/__init__.py::ScriptEntity.async_turn_off
+  lean:
+  - HALean.Automation.callLocal
+  - HALean.Automation.stopRun
+  status: translated
+  hash: 2d37c3739edd4666
+- python: components/script/__init__.py::ScriptEntity._service_handler
+  lean:
+  - HALean.Script.planCall
+  - HALean.Script.callResponse
+  - HALean.Automation.answer
+  status: translated
+  hash: f9c3009765c8ace4
+- python: components/script/__init__.py::ScriptEntity.async_added_to_hass
+  lean:
+  - HALean.Script.addScripts
+  - HALean.Script.lastTriggeredOf
+  status: translated
+  notes: last_triggered is restored from the state HA had (init) or the removed entity (reload)
+  hash: d68285853143d032
+- python: components/script/__init__.py::ScriptEntity.async_will_remove_from_hass
+  lean:
+  - HALean.Script.reloadScripts
+  status: translated
+  hash: 086cdb4776f6f321
+- python: helpers/script.py::Script.async_stop
+  lean:
+  - HALean.Automation.callLocal
+  - HALean.Automation.stopRun
+  status: translated
+  hash: 63fc0f26c17bdf9e
+- python: helpers/script.py::_ScriptRun.async_stop
+  lean:
+  - HALean.Automation.stopRun
+  - HALean.Automation.stoppedQuietly
+  status: translated
+  notes: stopping a run stops the script runs it waits for; its caller gets None when it was stopped in
+    a delay, wait or parallel step (_async_futures_with_timeout includes the stop future), CancelledError
+    elsewhere
+  hash: 977e3352673aea31
+- python: helpers/script.py::_ScriptRun._finish
+  lean:
+  - HALean.Automation.finishRun
+  - HALean.Automation.writeEntity
+  - HALean.Automation.releaseQueue
+  status: translated
+  hash: 3d58b0406cfaa70e
+- python: helpers/script.py::_ScriptRun._async_run_long_action
+  lean:
+  - HALean.Automation.cancelRun
+  - HALean.Automation.stoppedQuietly
+  status: translated
+  notes: CancelledError from an awaited script run ends a parallel branch, or the whole run
+  hash: 68bc36a7369be134
+- python: helpers/script.py::Script.is_running
+  lean:
+  - HALean.Script.entityState
+  status: translated
+  hash: 1b7e96e61970c87c
+- python: helpers/script.py::Script.runs
+  lean:
+  - HALean.Automation.writeEntity
+  - HALean.Automation.runsOf
+  status: translated
+  hash: 4a8314df3e8b4834
+- python: helpers/script.py::Script.supports_max
+  lean:
+  - HALean.Script.supportsMax
+  status: translated
+  hash: 0cd1b746590deb79
+- python: helpers/service.py::async_extract_entities
+  lean:
+  - HALean.Script.extractTargets
+  - HALean.Script.compEntityIds
+  status: translated
+  notes: group entity ids are not expanded (an error)
+  hash: c771763722bd568a
+- python: helpers/entity.py::Entity.__async_remove_impl
+  lean:
+  - HALean.Script.reloadScripts
+  status: translated
+  hash: 05fde65c70ce2bf8
+- python: helpers/entity_registry.py::RegistryEntry.write_unavailable_state
+  lean:
+  - HALean.Script.unavailableAttributes
+  status: translated
+  hash: fcf81cfed5d984d5
+- python: helpers/restore_state.py::RestoreStateData.async_restore_entity_removed
+  lean:
+  - HALean.Script.reloadScripts
+  status: translated
+  hash: 7b50fac7c0bb194c
+- python: core.py::ServiceRegistry.async_call
+  lean:
+  - HALean.Automation.mergeTarget
+  - HALean.Script.callResponse
+  - HALean.Script.normalizeTargetIds
+  status: translated
+  notes: 'for script.* services only: target merged into the data, the response must be a dict'
+  hash: 7744c175387f8dfc

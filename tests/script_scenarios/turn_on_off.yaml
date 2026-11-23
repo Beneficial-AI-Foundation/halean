@@ -1,0 +1,88 @@
+description: >
+  script.turn_on starts the script without waiting (its first steps run
+  before turn_on returns), passing `variables`; script.turn_off stops every
+  run; script.toggle does one or the other; `this` is the entity's state
+  before the run starts. A script turning another one on and off continues
+  once the other one started / stopped.
+scripts:
+  blink:
+    alias: Blink
+    mode: queued
+    max: 4
+    sequence:
+      - action: light.toggle
+        data:
+          what: "{{ what | default('none') }}"
+          was: "{{ this.state }}"
+          current: "{{ this.attributes.current }}"
+          triggered: "{{ this.attributes.last_triggered }}"
+      - delay: 5
+      - action: light.toggle
+        data:
+          what: done
+  controller:
+    sequence:
+      - action: script.turn_on
+        target:
+          entity_id: script.blink
+        data:
+          variables:
+            what: from controller
+      - event: after_turn_on
+        event_data:
+          blink: "{{ states('script.blink') }}"
+      - delay: 1
+      - action: script.turn_off
+        target:
+          entity_id: [script.blink]
+      - event: after_turn_off
+        event_data:
+          blink: "{{ states('script.blink') }}"
+      - action: script.toggle
+        data:
+          entity_id: script.blink
+      - event: after_toggle
+        event_data:
+          blink: "{{ states('script.blink') }}"
+steps:
+  - at: 1
+    call: turn_on
+    data:
+      entity_id: script.blink
+      variables: {what: first}
+    expect:
+      call_done: [[0, true, null]]
+      call_service: [[light, toggle, {what: first, was: "off", current: 0, triggered: null}]]
+      states:
+        script.blink: ["on", {current: 1, max: 4, mode: queued}]
+  - at: 2
+    result: 0
+  - at: 3
+    call: turn_on
+    data:
+      entity_id: script.blink
+    expect:
+      call_done: [[1, true, null]]
+      states:
+        script.blink: ["on", {current: 2}]
+  - at: 4
+    call: toggle
+    data: {entity_id: script.blink}
+    expect:
+      states:
+        script.blink: ["off", {current: 0, last_triggered: "2023-11-14T22:13:23+00:00"}]
+  - at: 5
+    call: controller
+  - at: 6
+    result: 1
+  - at: 7
+  - at: 8
+    result: 2
+  - at: 10
+  - at: 12
+  - at: 13
+  - at: 14
+    result: 3
+    expect:
+      states:
+        script.blink: ["off", {current: 0}]

@@ -1,0 +1,72 @@
+description: >
+  Script-level `variables` are rendered when a run starts, in order, each
+  seeing the run variables and the ones before it; a variable the caller
+  passes wins. They see `this` (the entity before the run). An error
+  rendering them is raised to the caller. A target given to a script call is
+  merged into the run variables.
+scripts:
+  dim:
+    alias: Dim lights
+    icon: mdi:lightbulb
+    fields:
+      level: {}
+      entity_id: {}
+    variables:
+      level: 10
+      half: "{{ level / 2 }}"
+      runs: "{{ this.attributes.current }}"
+      prev: "{{ this.attributes.last_triggered is none }}"
+      icon_seen: "{{ this.attributes.icon }}"
+    sequence:
+      - action: light.turn_on
+        data:
+          level: "{{ level }}"
+          half: "{{ half }}"
+          runs: "{{ runs }}"
+          prev: "{{ prev }}"
+          icon: "{{ icon_seen }}"
+          target: "{{ entity_id | default('none') }}"
+  broken:
+    fields:
+      x: {}
+    variables:
+      y: "{{ x.missing.deeper }}"
+    sequence:
+      - action: test.never
+  front:
+    sequence:
+      - action: script.dim
+        target:
+          entity_id: light.kitchen
+        data:
+          level: 40
+      - action: script.broken
+        continue_on_error: true
+      - event: front_after_broken
+steps:
+  - at: 1
+    call: dim
+    expect:
+      call_service: [[light, turn_on, {level: 10, half: 5.0, runs: 0, prev: true, icon: "mdi:lightbulb", target: none}]]
+  - at: 2
+    result: 0
+  - at: 3
+    call: dim
+    data: {level: 30}
+    expect:
+      call_service: [[light, turn_on, {level: 30, half: 15.0, runs: 0, prev: false, icon: "mdi:lightbulb", target: none}]]
+  - at: 4
+    result: 1
+  - at: 5
+    call: broken
+    data: {x: 1}
+    expect:
+      call_done: [[2, false, invalid]]
+      states:
+        script.broken: ["off", {current: 0, last_triggered: null}]
+  - at: 6
+    call: front
+  - at: 7
+    result: 2
+    expect:
+      call_done: [[3, false, invalid]]
