@@ -1,0 +1,190 @@
+# Event bus: changes during a dispatch, the queue of nested fires, unsubscribing.
+
+- name: nested_fire_is_queued
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react: [{fire: {event_type: y, data: {from: a}}}]
+    - {op: listen, id: b, event_type: x}
+    - {op: listen, id: c, event_type: y}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: x, expect: {deliveries: [a, b, m, c, m]}}
+
+- name: queue_is_fifo
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react: [{fire: {event_type: y}}, {fire: {event_type: z}}]
+    - op: listen
+      id: on_y
+      event_type: y
+      react: [{fire: {event_type: w}}]
+    - {op: listen, id: on_z, event_type: z}
+    - {op: listen, id: on_w, event_type: w}
+    - {op: listen, id: late, event_type: x}
+    - {op: fire, event_type: x, expect: {deliveries: [a, late, on_y, on_z, on_w]}}
+
+- name: nested_fire_keeps_time_and_context
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react:
+        - {fire: {event_type: inherited, context: inherit, data: {n: 1}}}
+        - {fire: {event_type: fresh}}
+        - {fire: {event_type: given, origin: remote, context: {id: given-ctx, user_id: u}}}
+        - {fire: {event_type: timed, time_fired: 1700000000000001}}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: x, context: {id: top-ctx, parent_id: p}}
+    - {op: fire, event_type: x}
+
+- name: added_during_dispatch
+  # a listener added during a dispatch misses that event but gets queued ones
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react_times: 1
+      react:
+        - {listen: {id: new_x, event_type: x}}
+        - {listen: {id: new_m, event_type: "*"}}
+        - {fire: {event_type: x, data: {second: true}}}
+    - {op: listen, id: b, event_type: x}
+    - {op: fire, event_type: x, expect: {deliveries: [a, b, a, b, new_x, new_m]}}
+    - {op: listeners}
+
+- name: removed_during_dispatch
+  # a listener removed during a dispatch still gets that event, not queued ones
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react_times: 1
+      react: [{unsub: b}, {unsub: m}, {fire: {event_type: x}}]
+    - {op: listen, id: b, event_type: x}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: x, expect: {deliveries: [a, b, m, a]}}
+    - {op: listeners}
+
+- name: unsub_self_during_dispatch
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react: [{unsub: a}, {fire: {event_type: x}}]
+    - {op: listen, id: b, event_type: x}
+    - {op: fire, event_type: x, expect: {deliveries: [a, b, b]}}
+    - {op: listeners}
+
+- name: reaction_error
+  # an exception ends that listener's reactions; the dispatch goes on
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react: [{fire: {event_type: y}}, {raise: HomeAssistantError}, {fire: {event_type: z}}]
+    - {op: listen, id: b, event_type: x, react: [{raise: ValueError}]}
+    - {op: listen, id: m, event_type: "*"}
+    - op: fire
+      event_type: x
+      expect:
+        deliveries: [a, b, m, m]
+        logs: ["Error running job: HomeAssistantError", "Error running job: ValueError"]
+
+- name: errors_inside_listeners
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react_times: 1
+      react:
+        - {listen_once: {id: bad1, event_type: x, filter: true}}
+        - {fire: {event_type: after_type_error}}
+    - op: listen
+      id: b
+      event_type: x
+      react_times: 1
+      react:
+        - {listen: {id: bad2, event_type: x, run_immediately: true}}
+    - op: listen
+      id: c
+      event_type: x
+      react_times: 1
+      react:
+        - {fire: {event_type: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"}}
+    - op: listen
+      id: d
+      event_type: x
+      react_times: 1
+      react:
+        - {listen: {id: bad3, event_type: state_reported}}
+        - {unsub: nobody}
+    - op: fire
+      event_type: x
+      expect:
+        deliveries: [a, b, c, d]
+        logs:
+          - "Error running job: TypeError"
+          - "Error running job: RuntimeError"
+          - "Error running job: MaxLengthExceeded"
+          - "Error running job: HomeAssistantError"
+    - {op: listeners}
+
+- name: double_unsub
+  ops:
+    - {op: listen, id: a, event_type: x}
+    - {op: listen, id: b, event_type: x}
+    - {op: unsub, id: a, expect: {logs: []}}
+    - {op: listeners}
+    - {op: unsub, id: a, expect: {logs: ["Unable to remove unknown job listener"], result: {ok: true}}}
+    - {op: listeners}
+    - {op: unsub, id: b}
+    - {op: listeners}
+    # the key is gone now; a second removal brings it back, empty
+    - {op: unsub, id: b, expect: {logs: ["Unable to remove unknown job listener"]}}
+    - {op: listeners}
+    - {op: fire, event_type: x, expect: {deliveries: []}}
+    - {op: unsub, id: never_listened, expect: {result: {error: KeyError}}}
+
+- name: unsub_match_all_keeps_key
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: unsub, id: m}
+    - {op: listeners}
+    - {op: fire, event_type: x, expect: {deliveries: []}}
+
+- name: same_id_twice
+  # two subscriptions recording under one id; the handle is the newest one
+  ops:
+    - {op: listen, id: a, event_type: x}
+    - {op: listen, id: a, event_type: x}
+    - {op: fire, event_type: x, expect: {deliveries: [a, a]}}
+    - {op: unsub, id: a}
+    - {op: fire, event_type: x, expect: {deliveries: [a]}}
+    - {op: listeners}
+
+- name: react_times
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react_times: 3
+      react: [{fire: {event_type: x}}]
+    - {op: fire, event_type: x, expect: {deliveries: [a, a, a, a]}}
+    - {op: fire, event_type: x, expect: {deliveries: [a]}}
+
+- name: endless_loop_is_cut
+  # a listener re-firing its own event: 10 000 queued events are dispatched,
+  # the next fire raises inside the listener and is logged
+  ops:
+    - op: listen
+      id: loop
+      event_type: loop
+      react: [{fire: {event_type: loop, context: inherit}}]
+    - {op: fire, event_type: loop, expect: {logs: ["Error running job: HomeAssistantError"]}}
+    # the counter restarts with every top-level fire
+    - {op: unsub, id: loop}
+    - {op: listen, id: twice, event_type: loop, react_times: 2, react: [{fire: {event_type: loop}}]}
+    - {op: fire, event_type: loop, expect: {deliveries: [twice, twice, twice], logs: []}}

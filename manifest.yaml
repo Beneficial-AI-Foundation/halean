@@ -983,3 +983,119 @@ entries:
   - HALean.Automation.Sun.sunEvent
   status: translated
   hash: 5a4601882dbc512f
+- python: core.py::Context.__init__
+  lean:
+  - HALean.Core.EventBus.Context
+  status: translated
+  notes: id, user_id, parent_id; a random id (ulid_now) is never generated, contexts come from the input
+  hash: ea459f32889b9ee7
+- python: core.py::Context._as_dict
+  lean:
+  - HALean.Core.EventBus.Context.asDict
+  status: translated
+  hash: 48371bbce84a91a3
+- python: core.py::EventOrigin
+  lean:
+  - HALean.Core.EventBus.Origin
+  - HALean.Core.EventBus.Origin.value
+  status: translated
+  hash: 1eece10bc0d99842
+- python: core.py::Event.__init__
+  lean:
+  - HALean.Core.EventBus.makeEvent
+  status: translated
+  notes: data or {}; time_fired_timestamp or time.time() (resolved in mkQueued); without a context, Context(id=ulid_at_time(ts))
+    gets the symbolic id ulid@<int(ts*1000)>#<n>
+  hash: 9e46d45176ccd8a9
+- python: core.py::Event.time_fired
+  lean:
+  - HALean.Core.EventBus.Event.timeFiredIso
+  - HALean.Core.EventBus.utcMicrosOfTimestamp
+  status: translated
+  notes: datetime.fromtimestamp on the float (modf, fraction rounded half-even to µs)
+  hash: b440bdb7debbba6d
+- python: core.py::Event._as_dict
+  lean:
+  - HALean.Core.EventBus.Event.asDict
+  status: translated
+  hash: 70c155cd5ae9dc2a
+- python: core.py::_OneTimeListener.__call__
+  lean:
+  - HALean.Core.EventBus.runJob
+  status: proven
+  notes: theorem once_at_most_once
+  hash: aa61852d36a4e2bc
+- python: core.py::_verify_event_type_length_or_raise
+  lean:
+  - HALean.Core.EventBus.asyncFire
+  - HALean.Core.EventBus.react1
+  status: translated
+  notes: length in code points
+  hash: b16d8504a527547f
+- python: core.py::EventBus.__init__
+  lean:
+  - HALean.Core.EventBus.Bus.new
+  status: translated
+  notes: the logging_changed listener is an opaque system job
+  hash: 33bba6c27cac3ff2
+- python: core.py::EventBus.async_listeners
+  lean:
+  - HALean.Core.EventBus.asyncListeners
+  status: translated
+  hash: e4f6c609aa473dd6
+- python: core.py::EventBus.async_fire
+  lean:
+  - HALean.Core.EventBus.asyncFire
+  - HALean.Core.EventBus.react1
+  status: translated
+  notes: the thread check is not modelled (no threads)
+  hash: 51ce6e2cede8140c
+- python: core.py::EventBus.async_fire_internal
+  lean:
+  - HALean.Core.EventBus.asyncFire
+  - HALean.Core.EventBus.fireNested
+  - HALean.Core.EventBus.drain
+  status: translated
+  notes: listeners only run inside a dispatch, so fires from listeners always take the queueing branch
+    (fireNested); drain runs at most _MAX_QUEUED_EVENT_DISPATCHES rounds, which the queue limit guarantees
+    is enough (not proved yet)
+  hash: 2674dec492745b7d
+- python: core.py::EventBus._async_dispatch
+  lean:
+  - HALean.Core.EventBus.dispatch
+  - HALean.Core.EventBus.dispatchLoop
+  - HALean.Core.EventBus.snapshot
+  - HALean.Core.EventBus.filterPasses
+  status: proven
+  notes: theorems snapshot_match_all, snapshot_excluded, gone_silent
+  hash: 8d8cde5261ec0c08
+- python: core.py::EventBus.async_listen
+  lean:
+  - HALean.Core.EventBus.asyncListen
+  status: translated
+  notes: run_immediately is reported with ReportBehavior.ERROR for every caller, so passing it raises
+    RuntimeError
+  hash: c0ca20f0c3632cdd
+- python: core.py::EventBus._async_listen_filterable_job
+  lean:
+  - HALean.Core.EventBus.listenFilterableJob
+  status: translated
+  hash: 897c48f4f958f469
+- python: core.py::EventBus.async_listen_once
+  lean:
+  - HALean.Core.EventBus.asyncListenOnce
+  status: translated
+  notes: no event_filter parameter (TypeError)
+  hash: 72566737d3e90782
+- python: core.py::EventBus._async_remove_listener
+  lean:
+  - HALean.Core.EventBus.asyncRemoveListener
+  status: proven
+  notes: the defaultdict access re-creates an empty list on a double removal; theorem unsub_gone
+  hash: f7a8cd4f4b95f0f4
+- python: core.py::HomeAssistant.async_run_hass_job
+  lean:
+  - HALean.Core.EventBus.runJob
+  status: translated
+  notes: callback jobs only (run at once); coroutine and executor listeners are not modelled
+  hash: e6a860ed9b453a87
