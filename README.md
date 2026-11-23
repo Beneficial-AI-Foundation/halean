@@ -11,8 +11,12 @@ function by function, so it can be formally verified and still track upstream.
 | State machine (`hass.states`) | `HALean/Core/StateMachine.lean` | `halean-core-states` (test driver) | done, tested against real HA |
 | Event bus (`hass.bus`) | `HALean/Core/EventBus.lean` | `halean-core-events` (test driver) | subset done (callback listeners), tested against real HA |
 | Service registry (`hass.services`) | `HALean/Core/ServiceRegistry.lean` | `halean-core-services` | subset done, tested against real HA |
+| Core (`hass`: states, bus and services joined) | `HALean/Core/Hass.lean` | `halean-core` (test driver) | subset done (callback listeners, never-suspending handlers), tested against real HA |
 
-`HALean/Core/` holds what every service shares (states, time, JSON). All
+`HALean/Core/` holds what every service shares (states, time, JSON). The three
+core services also run joined (`HALean/Core/Hass.lean`): the state machine and
+the registry fire through the bus model, and listeners and handlers act on the
+whole core. All
 services share one `manifest.yaml`, one pinned HA release, one bridge and one
 test setup. Integrations (devices, cloud services) stay in Python.
 
@@ -266,14 +270,63 @@ dependency like Jinja2, so its version is pinned too (`upstream.probatio`,
 |---|---|
 | `async_register` (names lowercased, a service replaced in place, `service_registered`), `async_remove` (`service_removed`, empty domains dropped, a warning for an unknown service), `has_service`, `supports_response` (`KeyError` for a missing domain or service), `async_services` and `async_services_for_domain` (insertion order; the latter does not lowercase, like HA); `async_call`: lookup as given then lowercased, `ServiceNotFound`, the `return_response` rules (`blocking` needed, `NONE` refuses it, `ONLY` requires it), `target` merged into the data, schema validation (`Required`/`Optional` with defaults, `int`/`float`/`str`/`bool`/`object`, `PREVENT`/`ALLOW`/`REMOVE_EXTRA`, probatio's error order and messages including the difflib "did you mean" hint and path rendering), `call_service` with the unvalidated data, handler errors raised when blocking and logged (with the `ServiceCall` repr) when not, the response must be a dict | non-ASCII domain or service names (`str.lower()` is modelled for ASCII), handler exceptions other than `HomeAssistantError`, `ServiceValidationError`, `Invalid`, `ValueError`, `RuntimeError`; schema types and validators beyond the five types (`cv.*`, `Coerce`, `In`, nested schemas, `Exclusive`, ...); non-dict `data`/`target` |
 
-Known gaps: handlers run to completion when called (job types, awaiting, and
-handlers that fire events or call services are not modelled; a non-blocking
-call's handler finishes before `async_call` returns, as HA's eager task does
-for a handler that never awaits); `Unauthorized` and cancellation in
+Known gaps: handlers run to completion when called (job types and awaiting
+are not modelled; a non-blocking call's handler finishes before `async_call`
+returns, as HA's eager task does for a handler that never awaits). Here a
+handler is a spec; handlers that set states, fire events or call services run
+in the joined core (below), where `async_call` is the same
+`Registry.prepareCall` / `finishCall` around a scripted handler; `Unauthorized` and cancellation in
 background calls; the thread-safe wrappers (`register`, `remove`, `call`,
 `services`) and `description_placeholders`; `repr()` of strings with
 non-printable non-ASCII characters (Python escapes them, HALean does not);
 `NaN`/`Infinity` in the input JSON.
+
+### Core (`HALean/Core/Hass.lean`)
+
+The three core services joined, as `homeassistant.core.HomeAssistant` wires
+them: `Hass` holds the state machine, the bus and the registry, and every
+event the state machine (`state_changed`, `state_reported`) and the registry
+(`service_registered`, `service_removed`, `call_service`) fire goes through
+the bus model, so `MATCH_ALL` and filtered listeners receive them with the
+upstream payloads, contexts and order, and events fired during a dispatch are
+queued as the bus does. Listeners and handlers are scripts over the whole core
+(`Action`): fire, listen / listen once / unsubscribe, raise, set or remove a
+state, call a service (blocking or not, nested), register or remove a service.
+
+`halean-core` takes one operation per JSON line (`set`, `remove`, `get`,
+`fire`, `listen`, `listen_once`, `unsub`, `listeners`, `register`,
+`remove_service`, `has`, `call`, each with the clock `now` in µs) and answers
+with the result and one ordered trace: deliveries (`Event.as_dict()`, states
+as `as_dict()`), the outcome of every scripted service call, and the
+`homeassistant.core` log records (format in `HALean/Core/HassMain.lean`).
+`tests/differential/test_core.py` runs each case in `tests/core/hass/*.yaml`
+on a real in-process `hass` (frozen clock; `@callback` listeners and
+`async def` handlers built from the same scripts) and on `halean-core`, and
+requires the same result and trace for every operation. Random context ids
+are renamed `ctx#<n>` in order of first appearance on both sides.
+
+Types: one `Context` (`State.lean`) for states, bus and registry (the
+registry's former `ServiceContext` is gone; a fresh `Context()` in the
+standalone registry is written `new`). The bus's `Event` is the only
+`homeassistant.core.Event`; what the state machine (`SMEvent`) and the
+registry (`FiredEvent`, formerly its own `Event`) return are the
+`async_fire_internal` calls they make, which the core turns into bus
+`Queued` entries. `ServiceRegistry.async_call` is now
+`Registry.prepareCall` + handler + `finishCall`, shared by the standalone
+registry and the core. Listener and handler scripts are kept beside the bus
+(by job key) and the registry (by service), so the separate models, their
+executables, tests and proofs are unchanged.
+
+| Supported | Rejected (`unsupported`), or not modelled |
+|---|---|
+| Everything the three separate models support, joined: `async_set` / `async_remove` fire through the bus (context and `time_fired` as upstream; `async_remove` without a context lets the `Event` make one); registering and removing services fire `service_registered` / `service_removed` (no context); `async_call` fires `call_service` with the call's context before the handler runs; while a dispatch runs, every event fired by a listener, by a handler that listener called, or by a state that handler set is queued and dispatched afterwards in FIFO order (the 10,000-events limit raises `HomeAssistantError` in the firing script, with upstream's message); a handler called when nothing is dispatching delivers its events before the call returns; listener scripts (`@callback`): fire, listen, listen once, unsubscribe, raise, set, remove, call (in a task started eagerly: it finishes before the listener goes on, its outcome is recorded and never reaches the listener), register, remove a service; handler scripts (`async def` that never suspends): the same, with nested calls awaited (errors propagate unless `catch`), then return a value / echo / raise; `inherit` passes the event's or the call's context on; listener errors logged as `Error running job`, non-blocking handler errors as `Error executing service`, filters as in the bus model | coroutine and executor listeners, handlers that suspend (`await asyncio.sleep`, futures) or are `@callback`s; the exceptions whose message is not modelled (`run_immediately`, non-`@callback` filters, `listen_once` with a filter, `state_reported` without one, event types over 64 characters); `time_fired` on a scripted fire; `eq` filters on `old_state` / `new_state` / `last_reported` / `old_last_reported` (State objects and datetimes); non-ASCII entity ids, domains and services; service calls nested deeper than 32 (HA would hit `RecursionError`); everything the separate models reject |
+
+Known gaps: event data is compared as JSON (states as `as_dict()` taken
+when the event is fired; within one operation the clock does not move, so a
+later report cannot change `last_reported` of a state already queued);
+Python's `RecursionError` is not modelled (rejected instead, see above); HA
+listeners that exist before the model starts (`init`) are opaque, as in the
+bus model.
 
 ### Event bus (`HALean/Core/EventBus.lean`)
 
@@ -377,6 +430,15 @@ never receives anything again), `reachable_wf` (every bus reachable from
 reachable bus, unsubscribing takes the listener out of the table, and it
 receives nothing over any later operations), `snapshot_match_all` / `snapshot_excluded` (a dispatch iterates over the
 event type's listeners, then the `MATCH_ALL` ones unless the type is excluded).
+`HALean/Core/HassProofs.lean` (joined core): `quiet` (while the bus is
+dispatching, no script delivers anything: firing, setting or removing states,
+calling services whose handlers do all of this again, registering services;
+everything is queued and no `listen_once` listener is used up),
+`dispatchLoop_deliveries` (a dispatch delivers the event to exactly the
+snapshot listeners that pass their filter, once each, in order, whatever their
+scripts do), `fireInternal_first` / `set_delivers_first` (when nothing is
+dispatching, a successful `async_set`'s `state_changed` reaches exactly those
+listeners before anything else is delivered).
 `HALean/Script/Proofs.lean`: `callResponse_no_response`, `callResponse_dict`
 (a caller asking for a response gets a dict or an error), `entityState_on`,
 `stopped_nested_cancels`, `supportsMax_iff`.

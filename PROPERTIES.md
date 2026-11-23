@@ -159,6 +159,32 @@ holds for every reachable bus, `reachable_wf` / `unsub_gone_reachable` /
 stops); events fired during a dispatch are delivered in FIFO order after it.
 
 
+## The joined core
+
+`HALean/Core/Hass.lean` joins the three: the state machine and the registry
+fire through the bus model, and listeners and service handlers are scripts
+over the whole core (set or remove states, fire, call services, register
+services, listen, unsubscribe). Everything runs inside one fuel-bounded mutual
+recursion (`fireInternal`, `dispatchLoop`, `drain`, `runJob`, `runActions`,
+`runAction`, `callService`); "not rejected" means the output has no
+`Entry.unsupported` (fuel or call depth). Proved in
+`HALean/Core/HassProofs.lean`:
+
+| Theorem | Says |
+|---|---|
+| `quiet` | while the bus is dispatching, nothing a script does delivers an event, at any nesting: fires, state writes and removals, service calls (with their `call_service`, their handlers' state writes and nested calls), service (un)registration are all queued; the bus stays in its dispatch and no `listen_once` listener is used up |
+| `runJob_deliveries` | a listener run during a dispatch delivers the event to itself only (unless opaque or a `listen_once` that already ran), and only uses up its own `listen_once` |
+| `dispatchLoop_deliveries` | a dispatch delivers the one `Event` to exactly the `deliverable` listeners of the snapshot (filter passes; not a used-up `listen_once`), once each, in snapshot order |
+| `fireInternal_first` | when nothing is dispatching, the deliveries of a fire start with exactly those deliveries (the event has the fired type, data and context); everything the listeners caused comes after |
+| `set_delivers_first` | the same for a successful `async_set`: its `state_changed` (or `state_reported`) reaches each matching listener present when it is fired exactly once, before any cascade |
+
+Next candidates: a handler's state write called (blocking) when nothing is
+dispatching is delivered before `async_call` returns; FIFO order of the queue
+across services (the events queued during a dispatch are delivered in the
+order their `async_fire_internal` calls happened, including those of nested
+handlers); the bus well-formedness invariant (`reachable_wf`) for every
+reachable core, which would drop the opaque-listener caveats.
+
 
 ```bash
 lake build                          # builds the engine and checks all proofs

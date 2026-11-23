@@ -31,20 +31,29 @@ def SMEvent.eventType : SMEvent → String
   | .stateChanged .. => EVENT_STATE_CHANGED
   | .stateReported .. => EVENT_STATE_REPORTED
 
+/-- The event data with states as `as_dict()` and datetimes as
+`isoformat()` (what a listener can observe of it). -/
+def SMEvent.dataJson : SMEvent → Json
+  | .stateChanged eid o n _ _ =>
+    Json.mkObj [("entity_id", .str eid),
+                ("old_state", (o.map State.asDict).getD .null),
+                ("new_state", (n.map State.asDict).getD .null)]
+  | .stateReported eid lr olr n _ _ =>
+    Json.mkObj [("entity_id", .str eid), ("last_reported", .str (isoUtc lr)),
+                ("old_last_reported", .str (isoUtc olr)), ("new_state", n.asDict)]
+
+def SMEvent.context : SMEvent → Context
+  | .stateChanged _ _ _ c _ | .stateReported _ _ _ _ c _ => c
+
+def SMEvent.timeFired : SMEvent → Int
+  | .stateChanged _ _ _ _ t | .stateReported _ _ _ _ _ t => t
+
 /-- The event as the differential test sees it: data with states as
 `as_dict()` and datetimes as `isoformat()`, plus `Event.context`,
 `Event.time_fired` and `Event.origin`. -/
 def SMEvent.toJson (e : SMEvent) : Json :=
-  let (data, ctx, t) := match e with
-    | .stateChanged eid o n c t =>
-      (Json.mkObj [("entity_id", .str eid),
-                   ("old_state", (o.map State.asDict).getD .null),
-                   ("new_state", (n.map State.asDict).getD .null)], c, t)
-    | .stateReported eid lr olr n c t =>
-      (Json.mkObj [("entity_id", .str eid), ("last_reported", .str (isoUtc lr)),
-                   ("old_last_reported", .str (isoUtc olr)), ("new_state", n.asDict)], c, t)
-  Json.mkObj [("event_type", .str e.eventType), ("data", data), ("context", ctx.asDict),
-              ("time_fired", .str (isoUtc t)), ("origin", .str "LOCAL")]
+  Json.mkObj [("event_type", .str e.eventType), ("data", e.dataJson), ("context", e.context.asDict),
+              ("time_fired", .str (isoUtc e.timeFired)), ("origin", .str "LOCAL")]
 
 /-- `StateMachine` with its `States` dict. The dict is an insertion-ordered
 association list, like Python's dict: overwriting keeps the position,

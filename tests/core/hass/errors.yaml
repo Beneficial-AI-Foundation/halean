@@ -1,0 +1,132 @@
+# Joined core: exceptions in listeners and (nested) service handlers.
+# Run with: uv run tests/differential/run.py -k core
+
+- name: nested_handler_error_propagates
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - op: register
+      domain: test
+      service: broken
+      handler:
+        do: [{set: {entity_id: sensor.before_error, state: "1", context: inherit}}]
+        raise: HomeAssistantError
+        message: inner failed
+    - op: register
+      domain: test
+      service: outer
+      handler:
+        do:
+          - call: {id: inner, domain: test, service: broken, blocking: true, context: inherit}
+          - set: {entity_id: sensor.never, state: "1"}
+    - op: call
+      domain: test
+      service: outer
+      blocking: true
+      expect:
+        result: {error: {exception: HomeAssistantError, error_kind: ha_error, message: inner failed}}
+        calls: ["inner:error"]
+    - {op: get, entity_id: sensor.never}
+    # not blocking: the error is logged with the ServiceCall
+    - {op: call, domain: test, service: outer, data: {a: 1}, now: 1795710646000000}
+
+- name: nested_handler_error_caught
+  ops:
+    - op: register
+      domain: test
+      service: broken
+      handler: {raise: ValueError, message: bad value}
+    - op: register
+      domain: test
+      service: tolerant
+      handler:
+        do:
+          - call: {id: try1, domain: test, service: broken, blocking: true, catch: true}
+          - call: {id: try2, domain: test, service: nope, blocking: true, catch: true}
+          - call: {id: background, domain: test, service: broken}
+          - set: {entity_id: sensor.after, state: "ok", context: inherit}
+        return: {done: true}
+      supports_response: optional
+    - {op: listen, id: sc, event_type: state_changed}
+    - op: call
+      domain: test
+      service: tolerant
+      blocking: true
+      return_response: true
+      expect: {calls: ["try1:error", "try2:error", "background:ok"], deliveries: [sc]}
+
+- name: listener_errors
+  ops:
+    - op: listen
+      id: raiser
+      event_type: go
+      react:
+        - set: {entity_id: sensor.partial, state: "1"}
+        - raise: RuntimeError
+          message: listener broke
+        - set: {entity_id: sensor.never, state: "1"}
+    - op: listen
+      id: bad_set
+      event_type: go
+      react: [{set: {entity_id: "not an id", state: "1"}}]
+    - op: listen
+      id: bad_state
+      event_type: go
+      react: [{set: {entity_id: sensor.long, state: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}}]
+    - op: listen
+      id: bad_unsub
+      event_type: go
+      react: [{unsub: nobody}]
+    - {op: listen, id: sc, event_type: state_changed}
+    - {op: fire, event_type: go, expect: {deliveries: [raiser, bad_set, bad_state, bad_unsub, sc]}}
+
+- name: handler_set_errors
+  ops:
+    - op: register
+      domain: test
+      service: bad_entity
+      handler:
+        do: [{set: {entity_id: "Light.Bad Id", state: "on"}}]
+    - op: register
+      domain: test
+      service: bad_entity_bg
+      handler:
+        do: [{set: {entity_id: "light..x", state: "on"}}]
+    - {op: call, domain: test, service: bad_entity, blocking: true}
+    - {op: call, domain: test, service: bad_entity_bg}
+    - op: listen
+      id: caller
+      event_type: go
+      react: [{call: {id: from_listener, domain: test, service: bad_entity, blocking: true}}]
+    - {op: fire, event_type: go, expect: {calls: ["from_listener:error"]}}
+
+- name: filter_errors_in_cascade
+  ops:
+    - {op: listen, id: picky, event_type: state_changed, filter: {raise: true}}
+    - {op: listen, id: has_entity, event_type: state_changed, filter: {has: entity_id}}
+    - op: listen
+      id: setter
+      event_type: state_changed
+      filter: {eq: {entity_id: input_boolean.a}}
+      react: [{set: {entity_id: input_boolean.b, state: "on"}}]
+    - {op: set, entity_id: input_boolean.a, state: "on", expect: {deliveries: [has_entity, setter, has_entity]}}
+
+- name: endless_cascade_hits_queue_limit
+  # a listener that re-fires its own event: after 10,000 queued events the
+  # next fire raises in the listener (logged); the queued ones still run
+  ops:
+    - op: listen
+      id: loop
+      event_type: ping
+      react: [{fire: {event_type: ping}}]
+    - {op: fire, event_type: ping}
+    - {op: listeners}
+
+- name: endless_state_cascade_hits_queue_limit
+  # the same through the state machine: a listener toggling its own entity
+  ops:
+    - op: listen
+      id: toggler
+      event_type: state_changed
+      react_times: 10002
+      react: [{set: {entity_id: counter.x, state: "a", force_update: true}}]
+    - {op: set, entity_id: counter.x, state: "b"}
