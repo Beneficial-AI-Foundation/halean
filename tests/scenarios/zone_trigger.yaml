@@ -40,10 +40,12 @@ steps:
      expect: [{type: automation_triggered, id: enter}, {type: fire_event, event_type: entered}]}
   - {at: 5, set: [device_tracker.phone, unknown]}
   - {at: 6, set: [device_tracker.phone, not_home], attributes: {latitude: 52.3712, longitude: 4.89}}
-  # the radius boundary: 99.999 m is inside, the next float (100.0 m) is not
-  - {at: 7, set: [device_tracker.phone, x], attributes: {latitude: 52.37089867496289, longitude: 4.89},
+  # the radius boundary: 99.999 m is inside, 100.0 m is not. The raw distances
+  # (99.99917 m, 100.00017 m) are kept away from round(km, 6)'s ties, where the
+  # last ulp of the host's libm would decide the rounding (for HA too).
+  - {at: 7, set: [device_tracker.phone, x], attributes: {latitude: 52.370898672, longitude: 4.89},
      expect: [{type: automation_triggered, id: enter}, {type: fire_event, event_type: entered}]}
-  - {at: 8, set: [device_tracker.phone, x], attributes: {latitude: 52.370898674962895, longitude: 4.89},
+  - {at: 8, set: [device_tracker.phone, x], attributes: {latitude: 52.370898681, longitude: 4.89},
      expect: [{type: automation_triggered, id: leave}, {type: fire_event, event_type: left}]}
   - {at: 9, set: [person.alice, office], attributes: {in_zones: [zone.office]},
      expect: [{type: automation_triggered, id: person_enter}, {type: fire_event, event_type: alice_in}]}
