@@ -471,6 +471,11 @@ Known gaps:
 `match_invert`, `match_all`, `single_exclusive`, `restart_never_rejects`,
 `admit_bounded` (queued/parallel never exceed `max`), `queued_waits`, `templateCond_static`.
 
+`HALean/Core/StateSpec.lean` (functions proved to compute what upstream
+computes, see PROPERTIES.md): `validEntityId_iff`, `validDomain_iff`
+(each accepts exactly the strings its regex matches), `splitEntityId_some`
+(`str.partition(".")` with both sides non-empty).
+
 `HALean/Template/Proofs.lean`: `render_static` (static templates are never
 evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 

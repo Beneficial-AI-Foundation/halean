@@ -415,17 +415,21 @@ entries:
   hash: 228619f46826b358
 - python: core.py::valid_entity_id
   lean:
-  - HALean.Template.validEntityId
   - HALean.Core.validEntityId
-  status: translated
-  notes: ASCII digits only (Python's \d also matches other Unicode digits; the state machine rejects non-ASCII
-    ids); both accept one trailing newline like `$`
+  - HALean.Core.entityIdBody
+  - HALean.Template.validEntityId
+  status: proven
+  notes: 'theorem validEntityId_iff: accepts exactly the strings VALID_ENTITY_ID matches (EntityIdRe, with
+    `$` before one final newline); \d read as ASCII digits (Python''s class is Unicode-aware; callers reject
+    non-ASCII ids). The template engine uses the same function.'
   hash: c35f0c404975c6ca
 - python: core.py::valid_domain
   lean:
+  - HALean.Core.validDomain
   - HALean.Template.validDomain
-  status: translated
-  notes: ASCII digits only; one trailing newline is accepted like `$`
+  status: proven
+  notes: 'theorem validDomain_iff: accepts exactly the strings VALID_DOMAIN matches (DomainRe); \d read as
+    ASCII digits'
   hash: 5711c45cc3274624
 - python: components/template/trigger.py::async_attach_trigger
   lean:
@@ -998,7 +1002,10 @@ entries:
 - python: core.py::split_entity_id
   lean:
   - HALean.Core.splitEntityId
-  status: translated
+  - HALean.Core.partitionDot
+  status: proven
+  notes: 'theorem splitEntityId_some: some (d, o) exactly when the id is d ++ "." ++ o with no dot in d and
+    both non-empty (str.partition(".")); none is the ValueError'
   hash: c2f1fff7221fbf32
 - python: core.py::validate_state
   lean:
