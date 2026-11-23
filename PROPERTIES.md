@@ -38,6 +38,10 @@ In `HALean/Automation/Proofs.lean` and `HALean/Template/Proofs.lean`:
 | `evalAnd_nil`, `evalOr_nil`, `evalNot_disabled`, `evalAnd_all_disabled`, ... | edge cases of HA's three-valued conditions (true / false / `None` for disabled) |
 | `match_invert`, `match_all` | `not_to` is exactly the complement of `to`; no `from`/`to` matches everything |
 | `render_static`, `templateCond_static` | a template without `{{ }}`/`{% %}` is never evaluated |
+| `has_after_register` (`HALean/Core/ServiceRegistryProofs.lean`) | service registration is case-insensitive: after registering `Light.Turn_On`, `has_service` is true for every spelling with the same lowercase form |
+| `has_after_remove`, `call_after_remove_not_found` | after `async_remove`, `has_service` is false and `async_call` raises `ServiceNotFound` (lowercased names), fires no event and logs nothing |
+| `call_none_return_response_errors`, `call_only_needs_return_response`, `call_return_response_needs_blocking` | the `return_response` rules of `async_call`: each violation raises `ServiceValidationError` before the schema, the event or the handler |
+| `wf_register`, `wf_remove` | every reachable registry has only lowercase domain and service keys (the invariant the call theorems assume) |
 
 These are about single functions (e.g. the admission decision `admit`), not
 yet about whole executions of `Engine.step`.
