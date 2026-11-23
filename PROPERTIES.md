@@ -42,6 +42,9 @@ In `HALean/Automation/Proofs.lean` and `HALean/Template/Proofs.lean`:
 | `has_after_remove`, `call_after_remove_not_found` | after `async_remove`, `has_service` is false and `async_call` raises `ServiceNotFound` (lowercased names), fires no event and logs nothing |
 | `call_none_return_response_errors`, `call_only_needs_return_response`, `call_return_response_needs_blocking` | the `return_response` rules of `async_call`: each violation raises `ServiceValidationError` before the schema, the event or the handler |
 | `wf_register`, `wf_remove` | every reachable registry has only lowercase domain and service keys (the invariant the call theorems assume) |
+| `checkIn_ok_iff`, `checkNotIn_ok_iff` (`HALean/Core/ProbatioProofs.lean`) | a schema's `In` accepts exactly the members of its container (Python `==`, so `True` is a member of `[1]`) and returns the value unchanged; `NotIn` exactly the non-members |
+| `checkRange_ok`, `checkRange_min`, `checkRange_max`, `checkRange_not_number` | `Range` never accepts a number outside its bounds (inclusive or exclusive), nor a value that is not a number, and returns what it accepts unchanged |
+| `ensureList_is_list`, `checkCoerce_int`, `checkPort_range` | `EnsureList` always yields a list; `Coerce(int)` only yields ints; `Port` only ints from 1 to 65535 |
 
 These are about single functions (e.g. the admission decision `admit`), not
 yet about whole executions of `Engine.step`.
@@ -134,6 +137,20 @@ of all operations); the domain index agrees with a separately maintained
 per-domain dict, as upstream keeps it; event-level properties once the event
 bus is translated (every `state_changed` carries the previous `new_state` as
 its `old_state`).
+
+## Service schemas
+
+`HALean/Core/Schema.lean` runs a probatio schema (`Validator.run`, `partial`
+for now); the leaf validators are total and proved in
+`HALean/Core/ProbatioProofs.lean` (table above). Next candidates, once
+`Validator.run` is total (structural recursion over the nested `Validator`):
+a schema accepts its own output (idempotence; it fails upstream too when an
+`Inclusive` key's default fills only part of its group, so the statement needs
+that side condition); with `ALLOW_EXTRA` and only `Optional` keys without defaults, a
+schema accepts every dict whose values pass (and returns it unchanged when no
+validator coerces); `Any` with a single branch behaves exactly like that branch;
+the error list of a failed mapping is ordered by data order, then schema order,
+then groups.
 
 ## Event bus
 

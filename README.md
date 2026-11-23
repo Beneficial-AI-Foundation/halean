@@ -250,7 +250,8 @@ fraction or exponent sign (`1e16`) reads as an int.
 `now`) and answers with the result or the exception, the events fired and the
 `homeassistant.core` log records (format in `HALean/Core/ServicesMain.lean`).
 Handlers are specs (return a value, echo the `ServiceCall`, raise an exception)
-and schemas are flat `probatio` mapping schemas, so behaviour is observable.
+and schemas are `probatio` mapping schemas built from a spec, so behaviour is
+observable.
 Exceptions carry the same `error_kind` as the automation protocol's
 `service_result`: `invalid` (`probatio.Invalid`), `ha_error`
 (`HomeAssistantError` and subclasses), `other`.
@@ -264,11 +265,27 @@ For every operation it compares the result (`repr()`), the exception (class,
 data, time fired, context) and warnings/errors logged. Random context ids are
 compared structurally (`new`). Schemas are validated by `probatio`, a
 dependency like Jinja2, so its version is pinned too (`upstream.probatio`,
-0.13.0, checked by `test_probatio_matches_pin`).
+0.13.0, checked by `test_probatio_matches_pin`); its translated functions are
+in `manifest.yaml` as `probatio:<file>::<name>`, hashed by `tools/drift.py`
+against the same pinned version.
+
+**Schemas** (`HALean/Core/Probatio.lean`, `ConfigValidation.lean`,
+`Schema.lean`). A spec (format in `HALean/Core/ServicesJson.lean`) is turned
+into a real `probatio.Schema` by `tests/differential/schema_spec.py`, with the
+real `config_validation` objects for `cv.*`, and decoded by HALean; both sides
+validate the same data. `tests/core/services/validators.yaml` exercises every
+validator on accepted, coerced and rejected input (result `repr()`, or the
+exception class and `str()`, including paths such as `light.color.g`,
+`rows[2].z`, `['odd key']['x.y']`, `<group>`). Errors are kept as probatio's
+flattened `MultipleInvalid` leaves, so `Any` picks the deepest one exactly.
+
+| Supported (exact) | Rejected (`unsupported`) |
+|---|---|
+| keys: `Required`, `Optional`, `Exclusive` (with `required=`, group defaults), `Inclusive`, defaults (validated through the value schema); extra policies, inherited by nested mappings; types `int` (a `bool` is one), `float` (the numeric tower: an `int` becomes a float), `str`, `bool`, `object`, `list`, `dict`, `timedelta`; scalar literals; nested mappings; list schemas `[v, ...]` (one element schema, several (the last error), none); `All`; `Any` (first match; "expected a or b" when every branch has a label, else the deepest error, first on a tie; "no valid value found"); `In` / `NotIn` (Python `==`, sorted member list as `sorted()` gives it or insertion order when it raises, the 40-member cap, "did you mean"); `Range` (`min`/`max`, `min_included`/`max_included`, "invalid value or type" for non-numbers); `Clamp`; `Length`; `Coerce(int)`, `Coerce(float)`, `Coerce(str)` (Python's `int()`/`float()`/`str()`, incl. the 4300-digit limit); `Lower`; `Upper`; `EnsureList`; `Port`; `AtLeastOne`. `cv.string`, `cv.boolean` (all spellings; the message shows the lowered, stripped text), `cv.positive_int`, `cv.positive_float`, `cv.small_float`, `cv.byte`, `cv.port`, `cv.ensure_list`, `cv.entity_id`, `cv.entity_ids` (comma lists, dict keys; a `TypeError` for a scalar escapes the schema, as upstream), `cv.comp_entity_ids`, `cv.entity_domain` (a domain or a list), `cv.color_hex`, `cv.slug`, `cv.time_period` (`_str`, `_seconds`, `_dict`), `cv.positive_time_period`, `cv.positive_time_period_dict` | `msg=` on any validator or marker; `Match`/`cv.matches_regex` (Python regex semantics); `In(fold_case=, space=)`; `Coerce` of other types; non-scalar literals and `In` members; type or callable keys, `Extra`, `Remove`, `Forbidden`, `Alias`, `Secret`, nested `Schema` objects with their own policy (except `time_period_dict`'s); `cv.percentage` (not in HA's `cv`), `cv.time`, `cv.date`, `cv.template`, `cv.url`, `cv.icon` and every other `cv.*`; at call time, data a text-handling validator reads that is not printable ASCII (Python's `str.lower()`, `strip()` and `int()` are Unicode-aware), a `timedelta` that would overflow or be NaN, `util.slugify` of text with HTML entities |
 
 | Supported | Rejected (`unsupported`, nothing changes) |
 |---|---|
-| `async_register` (names lowercased, a service replaced in place, `service_registered`), `async_remove` (`service_removed`, empty domains dropped, a warning for an unknown service), `has_service`, `supports_response` (`KeyError` for a missing domain or service), `async_services` and `async_services_for_domain` (insertion order; the latter does not lowercase, like HA); `async_call`: lookup as given then lowercased, `ServiceNotFound`, the `return_response` rules (`blocking` needed, `NONE` refuses it, `ONLY` requires it), `target` merged into the data, schema validation (`Required`/`Optional` with defaults, `int`/`float`/`str`/`bool`/`object`, `PREVENT`/`ALLOW`/`REMOVE_EXTRA`, probatio's error order and messages including the difflib "did you mean" hint and path rendering), `call_service` with the unvalidated data, handler errors raised when blocking and logged (with the `ServiceCall` repr) when not, the response must be a dict | non-ASCII domain or service names (`str.lower()` is modelled for ASCII), handler exceptions other than `HomeAssistantError`, `ServiceValidationError`, `Invalid`, `ValueError`, `RuntimeError`; schema types and validators beyond the five types (`cv.*`, `Coerce`, `In`, nested schemas, `Exclusive`, ...); non-dict `data`/`target` |
+| `async_register` (names lowercased, a service replaced in place, `service_registered`), `async_remove` (`service_removed`, empty domains dropped, a warning for an unknown service), `has_service`, `supports_response` (`KeyError` for a missing domain or service), `async_services` and `async_services_for_domain` (insertion order; the latter does not lowercase, like HA); `async_call`: lookup as given then lowercased, `ServiceNotFound`, the `return_response` rules (`blocking` needed, `NONE` refuses it, `ONLY` requires it), `target` merged into the data, schema validation (the subset above, probatio's error order and messages including the difflib "did you mean" hint and path rendering; another exception out of a validator propagates), `call_service` with the unvalidated data, handler errors raised when blocking and logged (with the `ServiceCall` repr) when not, the response must be a dict | non-ASCII domain or service names (`str.lower()` is modelled for ASCII), handler exceptions other than `HomeAssistantError`, `ServiceValidationError`, `Invalid`, `ValueError`, `RuntimeError`; validators outside the subset above; non-dict `data`/`target` |
 
 Known gaps: handlers run to completion when called (job types and awaiting
 are not modelled; a non-blocking call's handler finishes before `async_call`
@@ -471,6 +488,14 @@ case-insensitive), `has_after_remove` and `call_after_remove_not_found` (after
 `call_return_response_needs_blocking`; `wf_register`/`wf_remove` (keys stay
 lowercase).
 
+`HALean/Core/ProbatioProofs.lean` (schemas): `checkIn_ok_iff` / `checkNotIn_ok_iff`
+(`In` accepts exactly the members of its container, under Python `==`, and
+returns the value unchanged; `NotIn` exactly the non-members),
+`checkRange_ok` / `checkRange_min` / `checkRange_max` / `checkRange_not_number`
+(`Range` accepts only numbers within its bounds, unchanged, and never a string,
+`None`, list or dict), `ensureList_is_list` / `ensureList_list`,
+`checkCoerce_int` (`Coerce(int)` only produces ints), `checkPort_range`.
+
 `HALean/Core/EventBusProofs.lean` (event bus): `once_at_most_once` (over any
 sequence of operations, with any listener reactions, a `listen_once` listener
 is delivered at most once), `gone_silent` (a listener that is out of the table
@@ -497,6 +522,11 @@ listeners before anything else is delivered).
 * **The translation is tested against Python, not proven equivalent.** All differential
   scenarios and all template cases match real HA at the pinned
   release, but they cover only the paths they exercise.
+* Service schemas: the codegen path probatio switches a schema to after 50
+  validations (`CompilePolicy.AUTO`) is not translated; it is meant to behave
+  like the interpreted engine, which is what HALean follows and what the
+  differential tests (few calls per schema) exercise. `Validator.run` is
+  `partial`, so the proofs are about the leaf validators, not whole schemas.
 * Lean's JSON objects are sorted by key. Where HA depends on the written
   order (`variables`), the shell sends ordered `[key, value]` lists
   (`bridge/protocol.py`). Elsewhere a dict printed by a template, such as

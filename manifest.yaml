@@ -410,6 +410,7 @@ entries:
 - python: helpers/config_validation.py::boolean
   lean:
   - HALean.Template.cvBoolean
+  - HALean.Core.cvBoolean
   status: translated
   hash: 228619f46826b358
 - python: core.py::valid_entity_id
@@ -782,11 +783,13 @@ entries:
 - python: helpers/config_validation.py::time_period_str
   lean:
   - HALean.Automation.timePeriodStr
+  - HALean.Core.cvTimePeriodStr
   status: translated
   hash: 3cecd2ee5dde4a98
 - python: helpers/config_validation.py::time_period_seconds
   lean:
   - HALean.Automation.timePeriodSeconds
+  - HALean.Core.cvTimePeriodSeconds
   status: translated
   hash: b88a742d03b3805d
 - python: helpers/script.py::_ScriptRun._async_step_wait_template
@@ -1674,3 +1677,298 @@ entries:
   notes: 'a scripted listener is an async def (async: true) or a @callback; partials and executor callables
     are not modelled'
   hash: bd4cb85c2ed15f5d
+- python: probatio:schema.py::Schema.__call__
+  lean:
+  - HALean.Core.SchemaSpec.validate
+  - HALean.Core.multipleInvalidStr
+  status: translated
+  notes: a lone Invalid is wrapped in MultipleInvalid; the top level is always a mapping (probatio 0.13.0)
+  hash: c2a9739bc64fa383
+- python: probatio:_compile.py::_make_candidate
+  lean:
+  - HALean.Core.ServicesJson.decodeField
+  - HALean.Core.Field
+  - HALean.Core.KeyMarker
+  status: translated
+  notes: literal string keys with Required/Optional/Exclusive/Inclusive and defaults; type and callable
+    keys, Remove, Forbidden, Alias, Secret, Extra and msg= are rejected (probatio 0.13.0)
+  hash: dc43eb30915bddd9
+- python: probatio:_compile.py::_TypeCheck.__call__
+  lean:
+  - HALean.Core.checkType
+  status: translated
+  notes: int, str, bool, object, list, dict, timedelta (probatio 0.13.0)
+  hash: 4ea693cfd0cc0389
+- python: probatio:_compile.py::_FloatCheck.__call__
+  lean:
+  - HALean.Core.checkType
+  status: translated
+  notes: an int (not a bool) becomes a float unless it is too large (probatio 0.13.0)
+  hash: c24e2d9fc10a6792
+- python: probatio:_compile.py::_compile_literal
+  lean:
+  - HALean.Core.checkLiteral
+  status: translated
+  notes: scalar literals only (probatio 0.13.0)
+  hash: 42a9ee19f4d8f6cb
+- python: probatio:_compile.py::_compile_callable
+  lean:
+  - HALean.Core.CvFn.run
+  status: translated
+  notes: Invalid passes through, other exceptions escape (VErr.raise); no translated cv function raises
+    ValueError (probatio 0.13.0)
+  hash: df39bd26b2792395
+- python: probatio:_engine.py::_MappingValidator.__call__
+  lean:
+  - HALean.Core.runMapping
+  status: translated
+  notes: nested mappings inherit the schema extra policy (compile ctx and combinator rebinding) (probatio
+    0.13.0)
+  hash: ff6a8d28aa6c70f0
+- python: probatio:_engine.py::_MappingValidator._collect
+  lean:
+  - HALean.Core.runMapping
+  - HALean.Core.prependAll
+  status: translated
+  notes: MultipleInvalid flattened into leaves (probatio 0.13.0)
+  hash: d6c4d99c464e696f
+- python: probatio:_engine.py::_MappingValidator._unmatched
+  lean:
+  - HALean.Core.runMapping
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 8713d19ffb439e41
+- python: probatio:_engine.py::_MappingValidator._extra_key_error
+  lean:
+  - HALean.Core.extraKeyError
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 7dc035fc25d562f3
+- python: probatio:_engine.py::_MappingValidator._finalize
+  lean:
+  - HALean.Core.runMapping
+  status: translated
+  notes: defaults validated through the value schema; Exclusive defaults are group-level (probatio 0.13.0)
+  hash: 219135c32ee393d1
+- python: probatio:_engine.py::_MappingValidator._check_groups
+  lean:
+  - HALean.Core.runMapping
+  - HALean.Core.groupsOf
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: a4a7bd54d91e91d9
+- python: probatio:_engine.py::_MappingValidator._empty_exclusive_group
+  lean:
+  - HALean.Core.runMapping
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: a842b5e88f05bf9b
+- python: probatio:_engine.py::_SequenceValidator.__call__
+  lean:
+  - HALean.Core.runSequence
+  status: translated
+  notes: list schemas only (probatio 0.13.0)
+  hash: cf25072fd77ad480
+- python: probatio:_engine.py::_SequenceValidator._validate_item
+  lean:
+  - HALean.Core.runSequence
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 568257520e77e258
+- python: probatio:validators/combinators.py::All.__call__
+  lean:
+  - HALean.Core.runAll
+  status: translated
+  notes: no msg= (probatio 0.13.0)
+  hash: dc244db6ca03785c
+- python: probatio:validators/combinators.py::Any.__call__
+  lean:
+  - HALean.Core.runAny
+  status: translated
+  notes: the typed and float-superset fast paths decide like _run_any; no msg= (probatio 0.13.0)
+  hash: 3bf55061949076fc
+- python: probatio:validators/combinators.py::_run_any
+  lean:
+  - HALean.Core.runAny
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: f00fe18b65a3c249
+- python: probatio:validators/combinators.py::_branch_label
+  lean:
+  - HALean.Core.Validator.label?
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: a918176f587a6c84
+- python: probatio:validators/combinators.py::_expected_label
+  lean:
+  - HALean.Core.expectedLabel
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 86f3885fe3bcc42d
+- python: probatio:validators/comparison.py::Range.__call__
+  lean:
+  - HALean.Core.checkRange
+  - HALean.Core.rangeOk
+  - HALean.Core.rangeError
+  status: translated
+  notes: numeric bounds; theorems checkRange_ok, checkRange_min, checkRange_max, checkRange_not_number
+    (probatio 0.13.0)
+  hash: 93c8cef7e03b6558
+- python: probatio:validators/comparison.py::Clamp.__call__
+  lean:
+  - HALean.Core.checkClamp
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 4de10c7deb445858
+- python: probatio:validators/comparison.py::Length.__call__
+  lean:
+  - HALean.Core.checkLength
+  status: translated
+  notes: int bounds (probatio 0.13.0)
+  hash: 14b0ebb687f7618e
+- python: probatio:validators/comparison.py::In.__call__
+  lean:
+  - HALean.Core.checkIn
+  status: translated
+  notes: a list of scalars, no fold_case/space/msg; theorem checkIn_ok_iff (probatio 0.13.0)
+  hash: 15cb2c874a9b827f
+- python: probatio:validators/comparison.py::NotIn.__call__
+  lean:
+  - HALean.Core.checkNotIn
+  status: translated
+  notes: theorem checkNotIn_ok_iff (probatio 0.13.0)
+  hash: 52b7ef43bbd51724
+- python: probatio:validators/comparison.py::_sorted_for_message
+  lean:
+  - HALean.Core.sortedForMessage
+  status: translated
+  notes: 'for scalar containers: strings or numbers sort, a mix (or None among two or more) keeps the
+    order (probatio 0.13.0)'
+  hash: 9fcb20d58c928b27
+- python: probatio:validators/coerce.py::Coerce.__call__
+  lean:
+  - HALean.Core.checkCoerce
+  - HALean.Core.pyInt?
+  - HALean.Core.pyFloat?
+  status: translated
+  notes: Coerce(int|float|str); theorem checkCoerce_int (probatio 0.13.0)
+  hash: 31694890838aa7c2
+- python: probatio:validators/strings.py::Lower
+  lean:
+  - HALean.Core.checkLower
+  status: translated
+  notes: ASCII text (str.lower is Unicode-aware) (probatio 0.13.0)
+  hash: 4327b1253561683d
+- python: probatio:validators/strings.py::Upper
+  lean:
+  - HALean.Core.checkUpper
+  status: translated
+  notes: ASCII text (probatio 0.13.0)
+  hash: da4fab8e7a249cb2
+- python: probatio:validators/structural.py::EnsureList.__call__
+  lean:
+  - HALean.Core.ensureList
+  status: translated
+  notes: theorems ensureList_is_list, ensureList_list (probatio 0.13.0)
+  hash: c49de88626b86ce6
+- python: probatio:validators/network.py::Port.__call__
+  lean:
+  - HALean.Core.checkPort
+  status: translated
+  notes: theorem checkPort_range (probatio 0.13.0)
+  hash: 66cf69ac126b7433
+- python: probatio:validators/conditional.py::AtLeastOne.__call__
+  lean:
+  - HALean.Core.checkAtLeastOne
+  status: translated
+  notes: no msg= (probatio 0.13.0)
+  hash: bdff50a2523885be
+- python: probatio:error.py::render_path
+  lean:
+  - HALean.Core.renderPath
+  status: translated
+  notes: str keys, list indices and group components (probatio 0.13.0)
+  hash: cf2f22446292c744
+- python: probatio:error.py::_format_candidates
+  lean:
+  - HALean.Core.formatCandidates
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: f668de10910e591d
+- python: probatio:error.py::_SuggestionInvalid.candidates
+  lean:
+  - HALean.Core.suggestionSuffix
+  - HALean.Core.getCloseMatches
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 40964530facf0fda
+- python: probatio:error.py::MultipleInvalid.__str__
+  lean:
+  - HALean.Core.multipleInvalidStr
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 6b9021cabb592c17
+- python: probatio:error.py::Invalid.__str__
+  lean:
+  - HALean.Core.SchemaError.str
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 0ac8e2888bb66e3a
+- python: probatio:_messages.py::_display
+  lean:
+  - HALean.Core.displayList
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: f378bd05a599ea20
+- python: helpers/config_validation.py::string
+  lean:
+  - HALean.Core.cvString
+  status: translated
+  hash: c173f10ea85725a2
+- python: helpers/config_validation.py::entity_id
+  lean:
+  - HALean.Core.cvEntityId
+  status: translated
+  notes: ASCII text
+  hash: dbc7dfa0be606d9f
+- python: helpers/config_validation.py::_entity_ids
+  lean:
+  - HALean.Core.cvEntityIds
+  - HALean.Core.pyIter
+  status: translated
+  notes: allow_uuid=False only (entity_ids); iterating a scalar raises TypeError
+  hash: 7965187b5a15af43
+- python: helpers/config_validation.py::entity_ids
+  lean:
+  - HALean.Core.cvEntityIds
+  status: translated
+  notes: also comp_entity_ids = Any(All(Lower, Any('all', 'none')), entity_ids), a probatio object (ServicesJson.decodeCv)
+  hash: 69ddec22ba139559
+- python: helpers/config_validation.py::entity_domain
+  lean:
+  - HALean.Core.cvEntityDomain
+  status: translated
+  hash: 2a8140f124446e54
+- python: helpers/config_validation.py::entities_domain
+  lean:
+  - HALean.Core.cvEntitiesDomain
+  status: translated
+  hash: 4207a513081d9f95
+- python: helpers/config_validation.py::color_hex
+  lean:
+  - HALean.Core.cvColorHex
+  status: translated
+  hash: 75953f21a90fc817
+- python: helpers/config_validation.py::slug
+  lean:
+  - HALean.Core.cvSlug
+  status: translated
+  notes: via util.slugify (ASCII, no HTML entities)
+  hash: e852e9be1fdcd195
+- python: helpers/config_validation.py::positive_timedelta
+  lean:
+  - HALean.Core.cvPositiveTimedelta
+  status: translated
+  notes: also positive_time_period, time_period, time_period_dict, positive_int, positive_float, small_float,
+    byte, port, ensure_list (probatio objects, ServicesJson.decodeCv)
+  hash: 460f9ea8eaf01a24

@@ -231,22 +231,24 @@ theorem quiet (n : Nat) :
       simp only [callService]
       split
       · exact ⟨hd, rfl, NoDeliv.single_unsup _⟩
-      · have q0 := ctxOr_quiet h a.context env.now hd
-        split
-        · exact q0
-        · split
-          · exact ⟨q0.disp, q0.once, NoDeliv.single_unsup _⟩
-          · rename_i q _
-            have q1 := ihF env.now _ q q0.disp
-            split
-            · exact q0.trans0 q1
-            · have q2 := fun env' as => (q0.trans0 q1).trans (ihAs env' _ as q1.disp)
+      · split
+        · exact ⟨hd, rfl, NoDeliv.single_unsup _⟩
+        · have q0 := ctxOr_quiet h a.context env.now hd
+          split
+          · exact q0
+          · split
+            · exact ⟨q0.disp, q0.once, NoDeliv.single_unsup _⟩
+            · rename_i q _
+              have q1 := ihF env.now _ q q0.disp
               split
-              · split
-                · exact q2 _ _
-                · exact (q2 _ _).spawn _
-              · exact Quiet.append_logs (q2 _ _) _
-              · exact Quiet.append_logs (q2 _ _) _
+              · exact q0.trans0 q1
+              · have q2 := fun env' as => (q0.trans0 q1).trans (ihAs env' _ as q1.disp)
+                split
+                · split
+                  · exact q2 _ _
+                  · exact (q2 _ _).spawn _
+                · exact Quiet.append_logs (q2 _ _) _
+                · exact Quiet.append_logs (q2 _ _) _
     have hA : ∀ env h a, h.bus.dispatching = true →
         Quiet h (runAction (n + 1) env h a).1 (runAction (n + 1) env h a).2.1 := by
       intro env h a hd

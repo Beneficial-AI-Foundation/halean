@@ -35,6 +35,7 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import Context, HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.translation import async_load_integrations
+from schema_spec import make_schema
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 CASES = [c for f in sorted((ROOT / "tests" / "core" / "services").glob("*.yaml"))
@@ -51,9 +52,6 @@ EXCEPTIONS = {
     "ValueError": ValueError,
     "RuntimeError": RuntimeError,
 }
-TYPES = {"int": int, "float": float, "str": str, "bool": bool, "any": object}
-EXTRA = {"prevent": probatio.PREVENT_EXTRA, "allow": probatio.ALLOW_EXTRA,
-         "remove": probatio.REMOVE_EXTRA}
 
 
 def _fresh(s: str) -> str:
@@ -73,17 +71,6 @@ def make_handler(spec: dict):
         async def handler(call: ServiceCall):
             return copy.deepcopy(spec["return"])
     return handler
-
-
-def make_schema(spec: dict | None):
-    if spec is None:
-        return None
-    fields = {}
-    for f in spec["fields"]:
-        marker = probatio.Required if f.get("required") else probatio.Optional
-        kw = {"default": copy.deepcopy(f["default"])} if "default" in f else {}
-        fields[marker(f["key"], **kw)] = TYPES[f["type"]]
-    return probatio.Schema(fields, extra=EXTRA[spec.get("extra", "prevent")])
 
 
 def error_kind(err: BaseException) -> str:

@@ -604,6 +604,7 @@ def callService : Nat → Env → Hass → CallArgs → Hass × Out × Res
   | n + 1, env, h, a =>
     if env.depth ≥ MAX_CALL_DEPTH then (h, [.unsupported "call depth"], .err exhausted)
     else
+      if let some why := h.services.unsupportedCall? a then (h, [.unsupported why], .err exhausted) else
       let hc := h.ctxOr a.context env.now
       match hc.1.services.prepareCall a hc.2 with
       | .error e => (hc.1, [], .err e)
