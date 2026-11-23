@@ -1,0 +1,88 @@
+description: >
+  Script calls inside `repeat` and `choose`, and stopping runs at different
+  places. A run stopped inside a sub-script (here a delay inside `if`) is
+  cancelled, so the call waiting for it raises; a run stopped at a
+  top-level `wait_template` just ends (the call returns None).
+states:
+  - entity_id: input_boolean.go
+    state: "off"
+scripts:
+  square:
+    fields:
+      x: {}
+    sequence:
+      - variables:
+          out:
+            sq: "{{ x * x }}"
+      - stop: done
+        response_variable: out
+  sum_squares:
+    fields:
+      n: {}
+    sequence:
+      - variables:
+          total: 0
+      - repeat:
+          count: "{{ n }}"
+          sequence:
+            - action: script.square
+              data:
+                x: "{{ repeat.index }}"
+              response_variable: r
+            - variables:
+                total: "{{ total + r.sq }}"
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ total > 10 }}"
+            sequence:
+              - action: script.square
+                data:
+                  x: "{{ total }}"
+                response_variable: big
+              - variables:
+                  total: "{{ big.sq }}"
+      - variables:
+          result:
+            total: "{{ total }}"
+      - stop: done
+        response_variable: result
+  nested_delay:
+    sequence:
+      - if:
+          - condition: state
+            entity_id: input_boolean.go
+            state: "off"
+        then:
+          - delay: 10
+      - action: test.after_if
+  waiting:
+    sequence:
+      - wait_template: "{{ is_state('input_boolean.go', 'on') }}"
+      - action: test.after_wait
+steps:
+  - at: 1
+    call: sum_squares
+    data: {n: 2}
+    return_response: true
+    expect:
+      call_done: [[0, true, {total: 5}]]
+  - at: 2
+    call: sum_squares
+    data: {n: 3}
+    return_response: true
+    expect:
+      call_done: [[1, true, {total: 196}]]
+  - at: 3
+    call: nested_delay
+  - at: 3
+    call: waiting
+  - at: 4
+    call: turn_off
+    data: {entity_id: all}
+    expect:
+      call_done: [[2, false, cancelled], [3, true, null], [4, true, null]]
+  - at: 5
+    set: [input_boolean.go, "on"]
+    expect:
+      call_service: []

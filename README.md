@@ -7,7 +7,7 @@ function by function, so it can be formally verified and still track upstream.
 |---|---|---|---|
 | Automation engine (triggers → conditions → actions, run modes) | `HALean/Automation/` | `halean-automation` | done, tested against real HA |
 | Templates (Jinja) | `HALean/Template/` | `halean-template` (test driver) | subset done, used by automations, tested against real HA |
-| Scripts | `HALean/Script/` | | planned |
+| Scripts (`script.*` entities and services) | `HALean/Script/` | `halean-script` | subset done, tested against real HA (no bridge yet) |
 | State machine (`hass.states`) | `HALean/Core/StateMachine.lean` | `halean-core-states` (test driver) | done, tested against real HA |
 | Event bus (`hass.bus`) | `HALean/Core/EventBus.lean` | `halean-core-events` (test driver) | subset done (callback listeners), tested against real HA |
 | Service registry (`hass.services`) | `HALean/Core/ServiceRegistry.lean` | `halean-core-services` | subset done, tested against real HA |
@@ -54,6 +54,7 @@ export ELAN_HOME=/Volumes/MacStorage/AppData/elan
 export PATH=$ELAN_HOME/bin:$PATH
 lake build                       # engine + all proofs
 uv run tests/run_scenarios.py    # behaviour scenarios (engine only)
+uv run tests/run_script_scenarios.py  # script scenarios (halean-script only)
 uv run tests/differential/run.py # scenarios + template cases through a real Home Assistant vs Lean
 uv run tests/bridge_e2e.py       # bridge against a fake HA WebSocket server
 uv run --with astral==2.2 tests/sun/compare.py  # sunrise/sunset vs astral, to the microsecond
@@ -124,7 +125,7 @@ git -C upstream/ha-core sparse-checkout set --no-cone /homeassistant/components/
   /homeassistant/helpers/ /homeassistant/components/homeassistant/triggers/ \
   /homeassistant/const.py /homeassistant/core.py /homeassistant/components/template/trigger.py \
   /homeassistant/util/dt.py /homeassistant/util/__init__.py /homeassistant/util/location.py \
-  /homeassistant/components/zone/ /homeassistant/components/sun/
+  /homeassistant/components/zone/ /homeassistant/components/sun/ /homeassistant/components/script/
 ```
 
 ## Tracking upstream
@@ -296,6 +297,43 @@ Known gaps: the clock is whole microseconds and `time.time()` is
 when the model starts (`init`) receive events but are opaque (they do nothing);
 `drain`'s bound (`_MAX_QUEUED_EVENT_DISPATCHES` rounds) is justified by the
 queue limit but not proved yet.
+### Scripts (`HALean/Script/`)
+
+`halean-script` runs the scripts of a `scripts.yaml` (`object_id: config`)
+as `script.<object_id>` entities, with the automation engine's executor: a
+script entity is an `Automation` without triggers, and
+`HALean/Script/Entity.lean` plans what each `script.*` service does, which
+the engine carries out (`startScript`, `callLocal`, `stopRun` in
+`Engine.lean`). Inputs are `init` (scripts as ordered `[object_id, config]`
+pairs, `bridge/protocol.py` `protocol_scripts`), `call` (a blocking call of
+`script.<service>`, answered by `call_done`), `reload`, and the engine's
+`state_changed` / `event` / `tick` / `service_result`. Script entity states
+come out as `set_state`.
+
+| Supported | Rejected at load, stays in HA |
+|---|---|
+| `sequence` with every action automations support; `alias`, `icon` (an attribute), `description`, `fields` (metadata only: HA does not apply `default`s either), `variables` (rendered at each start on top of the run variables, which win; they see `this`), `mode`/`max`, `max_exceeded` (only logs); `this` (`state.as_dict()` before the run starts) and `context` (opaque); calling `script.<object_id>` (blocking, the call data are the run variables, a target is merged in as HA's schema leaves it; `stop` + `response_variable` is the response, `{}` when falsy, an error for a caller asking for a response when it is not a dict); `script.turn_on` (starts the script, which runs up to its first wait before the call returns; `variables`), `script.turn_off`, `script.toggle` (targets by `entity_id`, `all`, `none`); scripts calling scripts, with the recursion guard (`script_stack`) for `restart`/`queued` scripts; the entity's state (`on` while it has runs) and attributes `last_triggered`, `mode`, `current`, `max`, `icon`, `friendly_name`; `script_started` events; errors of the called script raised in the caller's step (`continue_on_error` by kind), `stop` with `error: true` swallowed by the called script; stopping a run (`turn_off`, `restart`, reload) stops the scripts it waits for, and its caller gets `None` when it was stopped in a top-level delay, wait or `parallel` step and `CancelledError` elsewhere; a cancellation reaching a `parallel` branch ends only that branch; reload (unchanged scripts keep running, changed and removed ones are stopped, removed ones become `unavailable`, `last_triggered` is restored) | invalid configs (HA would make them unavailable entities), blueprints, `script.reload` actions, device/area/floor/label targets of `turn_on`/`turn_off`/`toggle`, `wait_template`/`wait_for_trigger` that mention script entities, the `trigger` condition, `last_action`, `last_triggered` other than `this.attributes.last_triggered`, templates using names that are not the script's fields or variables, a variable an action defines, or a variable another script passes when calling it |
+
+Every scenario in `tests/script_scenarios/` (except `unsupported.yaml`)
+also runs through HA's own `script` integration
+(`tests/differential/test_scripts.py`), which must give the same service
+calls, events, call outcomes and script entity states after every step.
+Known gaps:
+
+* **No bridge yet.** `halean-script` is tested in-process against HA only;
+  writing its entity states into HA and answering HA's `script.*` service
+  calls through the bridge is still to do.
+* `last_action` is not modelled (rejected in templates, left out of the
+  written state, opaque in `this`), and state writes do not notify
+  listeners (waits on script entities are rejected). HA writes the state on
+  every step; HALean only when the state or a modelled attribute changes.
+* Turning on a script that does not start (`single` and running, at `max`,
+  or a `variables` error) makes HA's `turn_on` wait for the script's next
+  state write, whenever that is. HALean fails the call instead, with a log.
+* When several outside calls end in the same step, the order they finish in
+  (asyncio task wake-ups) is not modelled.
+* Field selectors are not validated. Reload compares configs as sent, so
+  reordering a script's `variables` counts as a change (HA compares dicts).
 
 ## Proved so far (`HALean/Automation/Proofs.lean`)
 
@@ -328,6 +366,9 @@ never receives anything again), `unsub_gone` (running a remove callback takes
 the listener out of the table, given that it is stored once under its event
 type), `snapshot_match_all` / `snapshot_excluded` (a dispatch iterates over the
 event type's listeners, then the `MATCH_ALL` ones unless the type is excluded).
+`HALean/Script/Proofs.lean`: `callResponse_no_response`, `callResponse_dict`
+(a caller asking for a response gets a dict or an error), `entityState_on`,
+`stopped_nested_cancels`, `supportsMax_iff`.
 
 ## Known gaps and deviations
 

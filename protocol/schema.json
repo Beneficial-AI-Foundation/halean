@@ -76,9 +76,40 @@
           {"properties": {"type": {"const": "automation_triggered"}, "id": {"type": "string"}, "name": {"type": "string"}, "source": {"type": "string"}}},
           {"properties": {"type": {"const": "log"}, "level": {"enum": ["debug", "warning", "error"]}, "message": {"type": "string"}}},
           {"properties": {"type": {"const": "unsupported"}, "id": {"type": "string"}, "reason": {"type": "string"}},
-           "description": "Only in the reply to init: this automation was not loaded and should stay in HA."}
+           "description": "Only in the reply to init (and, for scripts, reload): this automation or script (object id) was not loaded and should stay in HA."},
+          {"properties": {"type": {"const": "set_state"}, "entity_id": {"type": "string"}, "state": {"type": "string"}, "attributes": {"type": "object"}},
+           "description": "halean-script: write the state of a script entity it owns (on/off, unavailable once removed by a reload)."},
+          {"properties": {"type": {"const": "call_done"}, "call_id": {"type": "integer"}, "ok": {"type": "boolean"},
+            "response": {"description": "When ok: the response (null unless return_response)."},
+            "error_kind": {"enum": ["invalid", "ha_error", "other", "cancelled"]}, "message": {"type": "string"}},
+           "description": "halean-script: the answer to a script_call with the same call_id."}
         ]}}
       }
+    },
+    "script_init": {
+      "allOf": [{"$ref": "#/$defs/clock"}],
+      "description": "halean-script: like init, with scripts instead of automations. A script.* state in states restores that script's last_triggered.",
+      "properties": {
+        "type": {"const": "init"},
+        "scripts": {"type": "array", "items": {"type": "array", "prefixItems": [{"type": "string"}, {"type": "object"}]},
+          "description": "scripts.yaml as ordered [object_id, config] pairs (bridge/protocol.py protocol_scripts)"},
+        "states": {"type": "array", "items": {"$ref": "#/$defs/state"}}
+      }
+    },
+    "script_call": {
+      "allOf": [{"$ref": "#/$defs/clock"}],
+      "required": ["call_id", "service"],
+      "description": "halean-script: a call of script.<service> (an object id, turn_on, turn_off or toggle), blocking like ServiceRegistry.async_call(blocking=True). Answered by call_done.",
+      "properties": {
+        "type": {"const": "call"}, "call_id": {"type": "integer"}, "service": {"type": "string"},
+        "data": {"type": "object", "description": "service data with the target merged in"},
+        "return_response": {"type": "boolean"}
+      }
+    },
+    "script_reload": {
+      "allOf": [{"$ref": "#/$defs/clock"}],
+      "description": "halean-script: script.reload with the new scripts.yaml.",
+      "properties": {"type": {"const": "reload"}, "scripts": {"$ref": "#/$defs/script_init/properties/scripts"}}
     },
     "error": {
       "properties": {"type": {"const": "error"}, "message": {"type": "string"}},

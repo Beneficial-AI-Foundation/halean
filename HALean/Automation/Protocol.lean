@@ -91,6 +91,11 @@ def Cmd.toJson : Cmd → Json
   | .automationTriggered id name src => Json.mkObj
       [("type", "automation_triggered"), ("id", id), ("name", name), ("source", src)]
   | .log lvl msg => Json.mkObj [("type", "log"), ("level", lvl), ("message", msg)]
+  | .setState eid st attrs => Json.mkObj
+      [("type", "set_state"), ("entity_id", eid), ("state", st), ("attributes", attrs)]
+  | .callDone id ok resp kind msg => Json.mkObj <|
+      ([("type", Json.str "call_done"), ("call_id", (id : Json)), ("ok", (ok : Json))] : List (String × Json)) ++
+      (if ok then [("response", resp)] else [("error_kind", Json.str kind), ("message", Json.str msg)])
 
 /-- Process one input line. -/
 def processLine (e : Engine) (line : String) : Engine × Json :=

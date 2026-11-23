@@ -1,0 +1,119 @@
+description: >
+  Run modes for direct calls: a call of a running `single` script returns at
+  once with no response; `parallel` refuses calls beyond `max`; `queued`
+  makes the caller wait for its turn; `restart` stops the running run: the
+  call waiting for it is cancelled when the run was in a service call, and
+  returns None when it was in a delay.
+scripts:
+  one:
+    sequence:
+      - action: test.one
+      - variables:
+          out: {mode: "{{ this.attributes.mode }}"}
+      - stop: done
+        response_variable: out
+  many:
+    fields:
+      n: {}
+    mode: parallel
+    max: 2
+    sequence:
+      - action: test.many
+        data:
+          n: "{{ n }}"
+  line:
+    fields:
+      n: {}
+    mode: queued
+    sequence:
+      - action: test.line
+        data:
+          n: "{{ n }}"
+  again:
+    fields:
+      n: {}
+    mode: restart
+    sequence:
+      - action: test.again
+        data:
+          n: "{{ n }}"
+      - delay: 3
+      - action: test.again_done
+        data:
+          n: "{{ n }}"
+steps:
+  # single
+  - at: 1
+    call: one
+    return_response: true
+  - at: 2
+    call: one
+    return_response: true
+    expect:
+      call_done: [[1, true, {}]]
+  - at: 3
+    result: 0
+    expect:
+      call_done: [[0, true, {mode: single}]]
+  # parallel, max 2
+  - at: 4
+    call: many
+    data: {n: 1}
+  - at: 4
+    call: many
+    data: {n: 2}
+  - at: 4
+    call: many
+    data: {n: 3}
+    expect:
+      call_done: [[4, true, null]]
+  - at: 5
+    result: 2
+  - at: 5
+    result: 1
+  # queued
+  - at: 6
+    call: line
+    data: {n: 1}
+  - at: 6
+    call: line
+    data: {n: 2}
+    expect:
+      call_service: []
+      states:
+        script.line: ["on", {current: 2}]
+  - at: 7
+    result: 3
+    expect:
+      call_service: [[test, line, {n: 2}]]
+      call_done: [[5, true, null]]
+  - at: 8
+    result: 4
+  # restart: a run stopped in a service call raises CancelledError in its
+  # caller; one stopped in a delay just ends (the caller gets None)
+  - at: 9
+    call: again
+    data: {n: 1}
+  - at: 10
+    call: again
+    data: {n: 2}
+    expect:
+      call_done: [[7, false, cancelled]]
+      call_service: [[test, again, {n: 2}]]
+  - at: 11
+    result: 6
+  - at: 12
+    call: again
+    data: {n: 3}
+    expect:
+      call_done: [[8, true, null]]
+      call_service: [[test, again, {n: 3}]]
+  - at: 13
+    result: 7
+  - at: 16
+    expect:
+      call_service: [[test, again_done, {n: 3}]]
+  - at: 17
+    result: 8
+    expect:
+      call_done: [[9, true, null]]
