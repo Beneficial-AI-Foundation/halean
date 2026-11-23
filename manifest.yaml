@@ -417,8 +417,8 @@ entries:
   - HALean.Template.validEntityId
   - HALean.Core.validEntityId
   status: translated
-  notes: ASCII digits only (Python's \d also matches other Unicode digits; the state machine rejects
-    non-ASCII ids); both accept one trailing newline like `$`
+  notes: ASCII digits only (Python's \d also matches other Unicode digits; the state machine rejects non-ASCII
+    ids); both accept one trailing newline like `$`
   hash: c35f0c404975c6ca
 - python: core.py::valid_domain
   lean:
@@ -1099,8 +1099,11 @@ entries:
 - python: core.py::StateMachine.async_remove
   lean:
   - HALean.Core.StateMachine.asyncRemove
+  - HALean.Core.Hass.runAction
+  - HALean.Core.Hass.smQueued
   status: proven
-  notes: theorems remove_then_get_none, remove_then_lookup_none, remove_keys
+  notes: theorems remove_then_get_none, remove_then_lookup_none, remove_keys; in the joined core its event
+    goes through the bus model with the given context or none
   hash: b96d7c0813c83f16
 - python: core.py::StateMachine.async_reserve
   lean:
@@ -1116,6 +1119,7 @@ entries:
 - python: core.py::StateMachine.async_set
   lean:
   - HALean.Core.StateMachine.asyncSet
+  - HALean.Core.Hass.runAction
   status: translated
   notes: timestamp (or time.time()) is the caller's `now`, in whole microseconds; str() of the state via
     the template service's pyStr
@@ -1124,9 +1128,11 @@ entries:
   lean:
   - HALean.Core.StateMachine.asyncSetInternal
   - HALean.Core.StateMachine.attrsEq
+  - HALean.Core.Hass.runAction
+  - HALean.Core.Hass.smQueued
   status: proven
   notes: state_info not modelled; theorems set_same_only_reports, set_same_state_keeps_last_changed, set_frame,
-    set_keys
+    set_keys; in the joined core its events go through the bus model (Hass.runAction, theorem set_delivers_first)
   hash: f5eef30edc4da775
 - python: core.py::SupportsResponse
   lean:
@@ -1177,8 +1183,11 @@ entries:
 - python: core.py::ServiceRegistry._async_register
   lean:
   - HALean.Core.Registry.register
+  - HALean.Core.Hass.runAction
+  - HALean.Core.Hass.firedQueued
   status: proven
-  notes: theorem has_after_register (case-insensitive)
+  notes: theorem has_after_register (case-insensitive); in the joined core service_registered goes through
+    the bus model
   hash: 0ae8830ee181c4b6
 - python: core.py::ServiceRegistry.async_remove
   lean:
@@ -1188,8 +1197,11 @@ entries:
 - python: core.py::ServiceRegistry._async_remove
   lean:
   - HALean.Core.Registry.remove
+  - HALean.Core.Hass.runAction
+  - HALean.Core.Hass.firedQueued
   status: proven
-  notes: theorems has_after_remove, call_after_remove_not_found
+  notes: theorems has_after_remove, call_after_remove_not_found; in the joined core service_removed goes
+    through the bus model
   hash: 2558fcbc0d59e76a
 - python: core.py::ServiceRegistry.async_call
   lean:
@@ -1199,22 +1211,35 @@ entries:
   - HALean.Automation.mergeTarget
   - HALean.Script.callResponse
   - HALean.Script.normalizeTargetIds
+  - HALean.Core.Registry.prepareCall
+  - HALean.Core.responseCheck
+  - HALean.Core.mergeTarget
+  - HALean.Core.PreparedCall
+  - HALean.Core.PreparedCall.event
+  - HALean.Core.finishCall
+  - HALean.Core.Hass.callService
   status: proven
-  notes: 'theorems call_none_return_response_errors, call_only_needs_return_response, call_return_response_needs_blocking,
-    call_after_remove_not_found; for script.* services the engine merges the target into the data and requires
-    a dict response (mergeTarget, callResponse)'
+  notes: theorems call_none_return_response_errors, call_only_needs_return_response, call_return_response_needs_blocking,
+    call_after_remove_not_found; for script.* services the engine merges the target into the data and
+    requires a dict response (mergeTarget, callResponse); split into prepareCall/finishCall; the joined
+    core (Hass.callService) fires call_service through the bus and runs scripted handlers
   hash: 7744c175387f8dfc
 - python: core.py::ServiceRegistry._run_service_call_catch_exceptions
   lean:
   - HALean.Core.Registry.asyncCall
+  - HALean.Core.finishCall
+  - HALean.Core.Hass.callService
   status: translated
   notes: Unauthorized and CancelledError are not modelled (handlers cannot raise them)
   hash: cffaa1470685a01a
 - python: core.py::ServiceRegistry._execute_service
   lean:
   - HALean.Core.runHandler
+  - HALean.Core.Hass.callService
   status: translated
   hash: 86419bad1cbb5b7b
+  notes: 'the joined core''s handlers are coroutine functions that never suspend: their script runs, then
+    the spec'
 - python: exceptions.py::HomeAssistantError
   lean:
   - HALean.Core.PyError
@@ -1248,8 +1273,12 @@ entries:
 - python: core.py::Context.__init__
   lean:
   - HALean.Core.Context
+  - HALean.Core.Registry.freshContext
+  - HALean.Core.Hass.Hass.genContext
+  - HALean.Core.Hass.Hass.ctxOr
   status: translated
-  notes: id, user_id, parent_id; a random id (ulid_now) is never generated, contexts come from the input
+  notes: id, user_id, parent_id; one Context type for states, bus and registry. A random id is symbolic
+    (the bus's and the joined core's ulid@<ms>#<n>, the standalone registry's `new`)
   hash: ea459f32889b9ee7
 - python: core.py::EventOrigin
   lean:
@@ -1279,6 +1308,7 @@ entries:
 - python: core.py::_OneTimeListener.__call__
   lean:
   - HALean.Core.EventBus.runJob
+  - HALean.Core.Hass.useOnce
   status: proven
   notes: theorem once_at_most_once
   hash: aa61852d36a4e2bc
@@ -1304,6 +1334,7 @@ entries:
   lean:
   - HALean.Core.EventBus.asyncFire
   - HALean.Core.EventBus.react1
+  - HALean.Core.Hass.runAction
   status: translated
   notes: the thread check is not modelled (no threads)
   hash: 51ce6e2cede8140c
@@ -1312,10 +1343,15 @@ entries:
   - HALean.Core.EventBus.asyncFire
   - HALean.Core.EventBus.fireNested
   - HALean.Core.EventBus.drain
+  - HALean.Core.Hass.fireInternal
+  - HALean.Core.Hass.fireList
+  - HALean.Core.Hass.drain
+  - HALean.Core.Hass.queueFull
   status: translated
   notes: listeners only run inside a dispatch, so fires from listeners always take the queueing branch
     (fireNested); drain runs at most _MAX_QUEUED_EVENT_DISPATCHES rounds, which the queue limit guarantees
-    is enough (not proved yet)
+    is enough (not proved yet); the joined core's fireInternal runs scripted listeners over the whole
+    core (theorems quiet, fireInternal_first)
   hash: 2674dec492745b7d
 - python: core.py::EventBus._async_dispatch
   lean:
@@ -1323,12 +1359,15 @@ entries:
   - HALean.Core.EventBus.dispatchLoop
   - HALean.Core.EventBus.snapshot
   - HALean.Core.EventBus.filterPasses
+  - HALean.Core.Hass.dispatchLoop
   status: proven
-  notes: theorems snapshot_match_all, snapshot_excluded, gone_silent
+  notes: theorems snapshot_match_all, snapshot_excluded, gone_silent; theorem dispatchLoop_deliveries
+    (joined core)
   hash: 8d8cde5261ec0c08
 - python: core.py::EventBus.async_listen
   lean:
   - HALean.Core.EventBus.asyncListen
+  - HALean.Core.Hass.runAction
   status: translated
   notes: run_immediately is reported with ReportBehavior.ERROR for every caller, so passing it raises
     RuntimeError
@@ -1341,18 +1380,23 @@ entries:
 - python: core.py::EventBus.async_listen_once
   lean:
   - HALean.Core.EventBus.asyncListenOnce
+  - HALean.Core.Hass.runAction
   status: translated
   notes: no event_filter parameter (TypeError)
   hash: 72566737d3e90782
 - python: core.py::EventBus._async_remove_listener
   lean:
   - HALean.Core.EventBus.asyncRemoveListener
+  - HALean.Core.Hass.removeListener
   status: proven
-  notes: the defaultdict access re-creates an empty list on a double removal; theorems unsub_gone, unsub_gone_reachable (no side conditions on reachable buses), unsub_silent
+  notes: the defaultdict access re-creates an empty list on a double removal; theorems unsub_gone, unsub_gone_reachable
+    (no side conditions on reachable buses), unsub_silent
   hash: f7a8cd4f4b95f0f4
 - python: core.py::HomeAssistant.async_run_hass_job
   lean:
   - HALean.Core.EventBus.runJob
+  - HALean.Core.Hass.runJob
+  - HALean.Core.Hass.recordDelivery
   status: translated
   notes: callback jobs only (run at once); coroutine and executor listeners are not modelled
   hash: e6a860ed9b453a87
@@ -1541,3 +1585,18 @@ entries:
   - HALean.Script.reloadScripts
   status: translated
   hash: 7b50fac7c0bb194c
+- python: core.py::HomeAssistant.async_create_task
+  lean:
+  - HALean.Core.Hass.runAction
+  status: translated
+  notes: 'eager_start=True: a listener''s service call (a coroutine that never suspends) runs to completion
+    before the listener goes on; its outcome is caught and recorded'
+  hash: 48bbbb4fd49b6cdc
+- python: core.py::HomeAssistant.async_create_task_internal
+  lean:
+  - HALean.Core.Hass.runAction
+  - HALean.Core.Hass.callService
+  status: translated
+  notes: 'eager start: the task finishes inside the call when the coroutine never suspends (non-blocking
+    async_call, listener calls)'
+  hash: d7fb8bc29e8f1fa4

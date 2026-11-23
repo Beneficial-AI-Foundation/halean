@@ -1,0 +1,158 @@
+# Joined core: service handlers that act on states, events and other services.
+# Run with: uv run tests/differential/run.py -k core
+
+- name: handler_sets_state_and_fires
+  # blocking call at top level: call_service is dispatched before the handler
+  # runs; the handler's state_changed and event are dispatched as they happen
+  # (nothing is dispatching), before the call returns
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - op: register
+      domain: test
+      service: turn_on
+      handler:
+        do:
+          - set: {entity_id: light.kitchen, state: "on", attributes: {by: service}, context: inherit}
+          - fire: {event_type: turned_on, data: {entity: light.kitchen}, context: inherit}
+        return: {ok: true}
+      supports_response: optional
+    - op: call
+      domain: test
+      service: turn_on
+      data: {brightness: 5}
+      blocking: true
+      return_response: true
+      context: {id: caller, user_id: bob}
+      expect: {deliveries: ["m:call_service", "m:state_changed", "m:turned_on"]}
+    - {op: get, entity_id: light.kitchen}
+    # not blocking: the eager task runs the handler before async_call returns
+    - {op: call, domain: test, service: turn_on, now: 1795710646000000}
+    - {op: has, domain: TEST, service: Turn_On}
+
+- name: handler_calls_another_service
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - op: register
+      domain: test
+      service: inner
+      handler:
+        do: [{set: {entity_id: switch.inner, state: "on", context: inherit}}]
+        echo: true
+      supports_response: optional
+    - op: register
+      domain: test
+      service: outer
+      handler:
+        do:
+          - set: {entity_id: switch.outer, state: "start", context: inherit}
+          - call: {id: nested, domain: test, service: inner, data: {x: 1}, blocking: true, return_response: true, context: inherit}
+          - set: {entity_id: switch.outer, state: "done", context: inherit}
+    - op: call
+      domain: test
+      service: outer
+      blocking: true
+      expect:
+        deliveries: ["m:call_service", "m:state_changed", "m:call_service", "m:state_changed", "m:state_changed"]
+        calls: ["nested:ok"]
+    # without a context the outer call makes one; the inner call is given none
+    # either, so it makes its own
+    - op: register
+      domain: test
+      service: outer2
+      handler:
+        do: [{call: {id: nested2, domain: test, service: inner, blocking: true}}]
+    - {op: call, domain: test, service: outer2, blocking: true, now: 1795710646000000}
+
+- name: match_all_sees_call_service_then_state_changed
+  # a listener calls a service while the bus is dispatching: the call runs at
+  # once (eager task), but call_service and the handler's state_changed are
+  # queued behind the current event, in that order
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - op: register
+      domain: light
+      service: turn_on
+      handler:
+        do: [{set: {entity_id: light.hall, state: "on", context: inherit}}]
+    - op: listen
+      id: motion
+      event_type: state_changed
+      filter: {eq: {entity_id: binary_sensor.motion}}
+      react:
+        - call: {id: light_on, domain: light, service: turn_on, data: {entity_id: light.hall}, blocking: true, context: inherit}
+        - fire: {event_type: after_call, context: inherit}
+    - {op: listen, id: late, event_type: state_changed}
+    - op: set
+      entity_id: binary_sensor.motion
+      state: "on"
+      expect:
+        deliveries: ["motion:state_changed", "late:state_changed", "m:state_changed", "m:call_service", "late:state_changed", "m:state_changed", "m:after_call"]
+        calls: ["light_on:ok"]
+
+- name: register_and_remove_from_listeners
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - op: listen
+      id: setup
+      event_type: setup_now
+      react:
+        - register: {domain: dyn, service: hello, handler: {do: [{fire: {event_type: hello_ran, context: inherit}}], return: 1}}
+        - call: {id: first_call, domain: dyn, service: hello, blocking: true}
+        - remove_service: {domain: dyn, service: hello}
+        - remove_service: {domain: dyn, service: hello}
+        - call: {id: second_call, domain: dyn, service: hello, blocking: true}
+    - op: fire
+      event_type: setup_now
+      expect:
+        deliveries: ["setup:setup_now", "m:setup_now", "m:service_registered", "m:call_service", "m:hello_ran", "m:service_removed"]
+        calls: ["first_call:ok", "second_call:error"]
+    - {op: has, domain: dyn, service: hello}
+    - {op: remove_service, domain: dyn, service: hello}
+    - op: register
+      domain: dyn
+      service: Again
+      handler: {return: null}
+    - {op: remove_service, domain: DYN, service: again}
+
+- name: handler_registers_listener
+  # a handler subscribes a listener that reacts to the next state change
+  ops:
+    - op: register
+      domain: test
+      service: arm
+      handler:
+        do:
+          - listen_once:
+              id: armed
+              event_type: state_changed
+              react: [{set: {entity_id: alarm.siren, state: "on", context: inherit}}]
+    - {op: listen, id: sc, event_type: state_changed}
+    - {op: call, domain: test, service: arm, blocking: true}
+    - {op: listeners}
+    - {op: set, entity_id: door.front, state: open, expect: {deliveries: [sc, armed, sc]}}
+    - {op: set, entity_id: door.front, state: closed, expect: {deliveries: [sc]}}
+
+- name: listener_call_with_response_and_schema
+  ops:
+    - op: register
+      domain: calc
+      service: double
+      schema: {fields: [{key: n, type: int, required: true}]}
+      supports_response: only
+      handler:
+        do: [{set: {entity_id: sensor.calc, state: "busy", context: inherit}}]
+        echo: true
+    - op: listen
+      id: asker
+      event_type: ask
+      react:
+        - call: {id: good, domain: calc, service: double, data: {n: 2}, blocking: true, return_response: true}
+        - call: {id: bad_schema, domain: calc, service: double, data: {n: x}, blocking: true, return_response: true}
+        - call: {id: no_response, domain: calc, service: double, data: {n: 2}, blocking: true}
+        - call: {id: missing, domain: calc, service: triple, blocking: true}
+        - fire: {event_type: asked}
+    - {op: listen, id: m, event_type: "*"}
+    - op: fire
+      event_type: ask
+      expect: {calls: ["good:ok", "bad_schema:error", "no_response:error", "missing:error"]}
+    - {op: call, domain: calc, service: double, data: {n: 3}, target: {entity_id: sensor.x}, blocking: true, return_response: true}

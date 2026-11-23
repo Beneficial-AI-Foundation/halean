@@ -7,6 +7,8 @@
   * `HALean.Template`    – service 2: Jinja templates (used by automations)
   * `HALean.Core.StateMachine` – the state machine (`hass.states`)
   * `HALean.Core.ServiceRegistry` – the service registry (`hass.services`)
+  * `HALean.Core.Hass` – the joined core: states, bus and services together,
+    proofs in `HassProofs`
   * `HALean.Script`      – service 3: scripts (`script.*` entities and services)
 -/
 import HALean.Core.Types
@@ -18,4 +20,6 @@ import HALean.Core.StateMachine
 import HALean.Core.Proofs
 import HALean.Core.ServiceRegistry
 import HALean.Core.ServiceRegistryProofs
+import HALean.Core.Hass
+import HALean.Core.HassProofs
 import HALean.Script

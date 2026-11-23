@@ -1,0 +1,99 @@
+# Joined core: state machine and service registry firing through the bus.
+# Run with: uv run tests/differential/run.py -k core
+
+- name: listener_sets_another_state
+  # a state_changed listener sets light.b; the second state_changed is queued
+  # and reaches every listener after the first one is fully dispatched
+  ops:
+    - op: listen
+      id: follow
+      event_type: state_changed
+      filter: {eq: {entity_id: light.a}}
+      react:
+        - set: {entity_id: light.b, state: "on", context: inherit}
+    - {op: listen, id: sc, event_type: state_changed}
+    - {op: listen, id: all, event_type: "*"}
+    - op: set
+      entity_id: light.a
+      state: "on"
+      attributes: {brightness: 10}
+      expect: {deliveries: [follow, sc, all, sc, all]}
+    - {op: get, entity_id: light.b}
+    # same state and attributes: only state_reported (no MATCH_ALL), nobody listens
+    - {op: set, entity_id: light.a, state: "on", attributes: {brightness: 10}, expect: {deliveries: []}}
+    - {op: set, entity_id: light.a, state: "off", now: 1795710646000000}
+
+- name: chain_of_listeners
+  # a -> b -> c, each step queued behind the dispatch of the previous change;
+  # contexts are inherited along the chain
+  ops:
+    - op: listen
+      id: ab
+      event_type: state_changed
+      filter: {eq: {entity_id: sensor.a}}
+      react: [{set: {entity_id: sensor.b, state: "1", context: inherit}}]
+    - op: listen
+      id: bc
+      event_type: state_changed
+      filter: {eq: {entity_id: sensor.b}}
+      react: [{set: {entity_id: sensor.c, state: "2", context: inherit}}, {fire: {event_type: c_set, data: {n: 1}, context: inherit}}]
+    - {op: listen, id: m, event_type: "*"}
+    - op: set
+      entity_id: sensor.a
+      state: "0"
+      context: {id: user-ctx, user_id: alice}
+      expect: {deliveries: ["ab:state_changed", "m:state_changed", "bc:state_changed", "m:state_changed", "m:state_changed", "m:c_set"]}
+    - {op: get, entity_id: sensor.c}
+    # attribute-only change keeps last_changed of sensor.a
+    - {op: set, entity_id: sensor.a, state: "0", attributes: {unit: x}, now: 1795710646500000}
+
+- name: listeners_added_and_removed_during_cascade
+  ops:
+    # first listener: adds `late` and removes `victim` while dispatching
+    - op: listen
+      id: first
+      event_type: state_changed
+      react:
+        - listen: {id: late, event_type: state_changed}
+        - unsub: victim
+        - set: {entity_id: light.y, state: "on"}
+      react_times: 1
+    - {op: listen, id: victim, event_type: state_changed}
+    - {op: listen_once, id: once, event_type: state_changed}
+    # victim still gets light.x (snapshot) but not the queued light.y; late
+    # misses light.x but gets light.y; once only the first
+    - op: set
+      entity_id: light.x
+      state: "on"
+      expect: {deliveries: [first, victim, once, first, late]}
+    - {op: listeners}
+    # removing victim again only logs
+    - {op: unsub, id: victim}
+    - {op: set, entity_id: light.x, state: "off", expect: {deliveries: [first, late]}}
+
+- name: remove_state_cascade
+  ops:
+    - op: listen
+      id: cleanup
+      event_type: state_changed
+      filter: {eq: {entity_id: light.main}}
+      react: [{remove: {entity_id: light.child}}]
+    - {op: listen, id: sc, event_type: state_changed}
+    - {op: set, entity_id: light.child, state: "on"}
+    - {op: set, entity_id: light.main, state: "on", expect: {deliveries: [cleanup, sc, sc]}}
+    - {op: get, entity_id: light.child}
+    - {op: remove, entity_id: light.main, context: {id: rm-ctx}}
+    - {op: remove, entity_id: light.main}
+
+- name: state_reported_through_the_bus
+  ops:
+    - {op: listen, id: rep, event_type: state_reported, filter: true}
+    - {op: listen, id: m, event_type: "*"}
+    - op: listen
+      id: again
+      event_type: state_changed
+      react: [{set: {entity_id: sensor.t, state: "5", context: inherit}}]
+      react_times: 1
+    - {op: set, entity_id: sensor.t, state: "5", expect: {deliveries: [again, m, rep]}}
+    - {op: set, entity_id: sensor.t, state: "5", now: 1795710647000000, expect: {deliveries: [rep]}}
+    - {op: set, entity_id: sensor.t, state: "5", force_update: true, now: 1795710648000000, expect: {deliveries: [again, m]}}

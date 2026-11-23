@@ -12,10 +12,19 @@
 
   Every operation takes the clock (`now`) explicitly and returns the events it
   fires (`EVENT_SERVICE_REGISTERED`, `EVENT_SERVICE_REMOVED`,
-  `EVENT_CALL_SERVICE`) and what it logs. Contexts are random upstream
-  (`Context()` draws a ULID); a fresh one is `ServiceContext.fresh` here.
+  `EVENT_CALL_SERVICE`) and what it logs. Contexts are `HALean.Core.Context`
+  (`State.lean`), shared with the state machine and the event bus. A fresh
+  `Context()` draws a random ULID upstream; the standalone registry writes it
+  `new` (`Registry.freshContext`), the joined core (`HALean/Core/Hass.lean`)
+  passes a symbolic one in.
+
+  `async_call` is split in two so the core can run a handler that acts on the
+  whole of `hass`: `Registry.prepareCall` (everything before `call_service` is
+  fired) and `finishCall` (what happens with the handler's outcome).
+  `Registry.asyncCall` composes them with a handler spec.
 -/
 import HALean.Core.Probatio
+import HALean.Core.State
 
 namespace HALean.Core
 open HALean.Template
@@ -58,22 +67,20 @@ structure Service where
 insertion-ordered association lists. -/
 abbrev Registry := List (String × List (String × Service))
 
-/-- `homeassistant.core.Context`. `id = none` is a fresh `Context()`, whose id
-is a random ULID upstream. -/
-structure ServiceContext where
-  id : Option String := none
-  userId : Option String := none
-  parentId : Option String := none
-  deriving BEq, Repr, Inhabited
+/-- A fresh `Context()` in the standalone registry: its id is a random ULID
+upstream, written `new` here (the differential test renames HA's the same
+way). -/
+def Registry.freshContext : Context := { id := "new" }
 
-def ServiceContext.fresh : ServiceContext := {}
-
-/-- An event fired on the bus (`EventBus.async_fire_internal`). -/
-structure Event where
+/-- An `EventBus.async_fire_internal` call the registry makes: event type,
+data, and the context it passes (`none`: no context, so the bus's `Event`
+makes one). `timeFired` is the clock when it is fired (ms). The joined core
+(`HALean/Core/Hass.lean`) hands these to the bus model. -/
+structure FiredEvent where
   eventType : String
   data : List (String × Value)
   timeFired : Millis
-  context : ServiceContext := .fresh
+  context : Option Context := none
   deriving Inhabited
 
 structure LogRecord where
@@ -98,7 +105,8 @@ structure PyError where
 def errorKind (exception : String) : String :=
   if exception == "Invalid" || exception == "MultipleInvalid" then "invalid"
   else if exception == "HomeAssistantError" || exception == "ServiceValidationError"
-    || exception == "ServiceNotFound" then "ha_error"
+    || exception == "ServiceNotFound" || exception == "InvalidEntityFormatError"
+    || exception == "InvalidStateError" then "ha_error"
   else "other"
 
 /-- The handler exceptions a `HandlerSpec.raise` may name. -/
@@ -191,7 +199,7 @@ def Registry.asyncServicesForDomain (r : Registry) (domain : String) : List (Str
 /-- `ServiceRegistry._async_register` (called by `async_register`): lowercase
 domain and service, replace or add the service, fire `service_registered`. -/
 def Registry.register (r : Registry) (domain service : String) (svc : Service)
-    (now : Millis) : Registry × List Event :=
+    (now : Millis) : Registry × List FiredEvent :=
   let domain := domain.toLower
   let service := service.toLower
   let r := match assocGet? r domain with
@@ -203,7 +211,7 @@ def Registry.register (r : Registry) (domain service : String) (svc : Service)
 /-- `ServiceRegistry._async_remove` (called by `async_remove`): removing an
 unknown service only logs a warning; a domain left empty is dropped. -/
 def Registry.remove (r : Registry) (domain service : String) (now : Millis) :
-    Registry × List Event × List LogRecord :=
+    Registry × List FiredEvent × List LogRecord :=
   let domain := domain.toLower
   let service := service.toLower
   match assocGet? r domain with
@@ -226,7 +234,7 @@ structure ServiceCall where
   domain : String
   service : String
   data : List (String × Value)
-  context : ServiceContext
+  context : Context
   returnResponse : Bool
 
 /-- `homeassistant/util/__init__.py::repr_helper` -/
@@ -236,10 +244,9 @@ partial def reprHelper : Value → Except String String
     pure (", ".intercalate parts)
   | v => pyStr v
 
-/-- `ServiceCall.__repr__`. A fresh context's id is random upstream; it is
-written `new` here. -/
+/-- `ServiceCall.__repr__` -/
 def ServiceCall.repr (c : ServiceCall) : Except String String := do
-  let ctx := c.context.id.getD "new"
+  let ctx := c.context.id
   if c.data.isEmpty then return s!"<ServiceCall {c.domain}.{c.service} (c:{ctx})>"
   return s!"<ServiceCall {c.domain}.{c.service} (c:{ctx}): {← reprHelper (dictOf c.data)}>"
 
@@ -249,7 +256,7 @@ def runHandler (h : HandlerSpec) (c : ServiceCall) : Except PyError Value :=
   | .ret v => .ok v
   | .echo => .ok <| dictOf [("domain", .str c.domain), ("service", .str c.service),
       ("data", dictOf c.data), ("return_response", .bool c.returnResponse),
-      ("context_id", .str (c.context.id.getD "new"))]
+      ("context_id", .str c.context.id)]
   | .raise exc msg => .error { exception := exc, message := msg }
 
 /-- The arguments of `ServiceRegistry.async_call`. `data`/`target` `none`
@@ -259,7 +266,7 @@ structure CallArgs where
   service : String
   data : Option (List (String × Value)) := none
   blocking : Bool := false
-  context : Option ServiceContext := none
+  context : Option Context := none
   target : Option (List (String × Value)) := none
   returnResponse : Bool := false
 
@@ -267,7 +274,7 @@ structure CallArgs where
 it raised), the events it fired and what it logged. -/
 structure CallOutcome where
   result : Except PyError Value
-  events : List Event := []
+  events : List FiredEvent := []
   logs : List LogRecord := []
 
 /-- The handler lookup of `async_call`: `self._services[domain][service]` with
@@ -294,67 +301,101 @@ def pyTypeStr : Value → String
 def serviceValidationError (key : String) (ph : List (String × String)) : PyError :=
   translatedError "ServiceValidationError" key ph
 
-/-- `ServiceRegistry.async_call` (with `_execute_service` and
-`_run_service_call_catch_exceptions`).
+/-- What `async_call` has worked out when it fires `call_service` and runs the
+handler: the names it goes on with, the `Service` it found, the
+`ServiceCall`, and the merged, unvalidated data that `call_service` carries. -/
+structure PreparedCall where
+  domain : String
+  service : String
+  svc : Service
+  call : ServiceCall
+  serviceData : List (String × Value)
 
-* The lookup tries the names as given, then lowercased (`ServiceNotFound`
-  carries the lowercased names).
-* `return_response=True` needs `blocking=True` and a service that supports
-  responses; a `SupportsResponse.ONLY` service needs `return_response=True`.
-  All three raise `ServiceValidationError`.
-* `target` is merged into the data (`service_data.update(target)`), then the
-  schema validates it (`probatio.Invalid` propagates).
-* `call_service` is fired with the merged, unvalidated data, then the handler
-  runs. Not blocking: its errors are logged, never raised, and the result is
-  `None`. Blocking: its errors propagate, and a response is returned only when
-  asked for, and must be a dict (`HomeAssistantError` otherwise). -/
-def Registry.asyncCall (r : Registry) (a : CallArgs) (now : Millis) : CallOutcome := Id.run do
-  let context := a.context.getD ServiceContext.fresh
-  -- `service_data = service_data or {}`
-  let serviceData := a.data.getD []
-  let some (domain, service, handler) := r.find a.domain a.service
-    | return { result := .error (serviceNotFound a.domain.toLower a.service.toLower) }
+/-- The `return_response` rules of `async_call`: `return_response=True` needs
+`blocking=True` and a service that supports responses; a
+`SupportsResponse.ONLY` service needs `return_response=True`. -/
+def responseCheck (a : CallArgs) (sr : SupportsResponse) : Option PyError :=
   let rr := [("return_response", "return_response=True")]
   if a.returnResponse then
     if !a.blocking then
-      return { result := .error (serviceValidationError "service_should_be_blocking"
-        [("return_response", "return_response=True"), ("non_blocking_argument", "blocking=False")]) }
-    if handler.supportsResponse == .none then
-      return { result := .error (serviceValidationError "service_does_not_support_response" rr) }
-  else if handler.supportsResponse == .only then
-    return { result := .error (serviceValidationError "service_lacks_response_request" rr) }
-  -- `if target: service_data.update(target)`
-  let serviceData := match a.target with
-    | some t@(_ :: _) => t.foldl (fun d (k, v) => assocSet d k v) serviceData
-    | _ => serviceData
-  let validated := match handler.schema with
-    | some sch => sch.validate serviceData
-    | none => .ok serviceData
-  if let .error errs := validated then
-    return { result := .error { exception := "MultipleInvalid", message := multipleInvalidStr errs } }
-  let processed := match validated with | .ok d => d | .error _ => []
-  let call : ServiceCall := { domain, service, data := processed, context := context,
-                              returnResponse := a.returnResponse }
-  let evData := [("domain", Value.str domain), ("service", .str service),
-    ("service_data", dictOf serviceData)]
-  let ev : Event := { eventType := "call_service", timeFired := now, context := context, data := evData }
-  let res := runHandler handler.handler call
+      some (serviceValidationError "service_should_be_blocking"
+        [("return_response", "return_response=True"), ("non_blocking_argument", "blocking=False")])
+    else if sr == .none then some (serviceValidationError "service_does_not_support_response" rr)
+    else none
+  else if sr == .only then some (serviceValidationError "service_lacks_response_request" rr)
+  else none
+
+/-- `if target: service_data.update(target)` -/
+def mergeTarget (data : List (String × Value)) : Option (List (String × Value)) → List (String × Value)
+  | some t@(_ :: _) => t.foldl (fun d (k, v) => assocSet d k v) data
+  | _ => data
+
+/-- `ServiceRegistry.async_call` up to `call_service` (`context` is already
+`context or Context()`):
+
+* The lookup tries the names as given, then lowercased (`ServiceNotFound`
+  carries the lowercased names).
+* The `return_response` rules (`responseCheck`), all `ServiceValidationError`.
+* `target` is merged into the data, then the schema validates it
+  (`probatio.Invalid` propagates). -/
+def Registry.prepareCall (r : Registry) (a : CallArgs) (context : Context) :
+    Except PyError PreparedCall :=
+  match r.find a.domain a.service with
+  | none => .error (serviceNotFound a.domain.toLower a.service.toLower)
+  | some (domain, service, handler) =>
+    match responseCheck a handler.supportsResponse with
+    | some e => .error e
+    | none =>
+      -- `service_data = service_data or {}`, then the target
+      let serviceData := mergeTarget (a.data.getD []) a.target
+      let validated := match handler.schema with
+        | some sch => sch.validate serviceData
+        | none => .ok serviceData
+      match validated with
+      | .error errs => .error { exception := "MultipleInvalid", message := multipleInvalidStr errs }
+      | .ok processed =>
+        .ok { domain, service, svc := handler, serviceData,
+              call := { domain, service, data := processed, context, returnResponse := a.returnResponse } }
+
+/-- The `call_service` event `async_call` fires (with the call's context). -/
+def PreparedCall.event (p : PreparedCall) (now : Millis) : FiredEvent :=
+  { eventType := "call_service", timeFired := now, context := some p.call.context,
+    data := [("domain", .str p.domain), ("service", .str p.service),
+             ("service_data", dictOf p.serviceData)] }
+
+/-- `async_call` after the handler ran (`res` is its outcome). Not blocking:
+its errors are logged by `_run_service_call_catch_exceptions`, never raised,
+and the result is `None`. Blocking: its errors propagate, and a response is
+returned only when asked for, and must be a dict (`HomeAssistantError`
+otherwise). -/
+def finishCall (a : CallArgs) (call : ServiceCall) (res : Except PyError Value) :
+    Except PyError Value × List LogRecord :=
   if !a.blocking then
-    -- `_run_service_call_catch_exceptions`: `_LOGGER.exception(...)`
     let logs := match res with
       | .ok _ => []
       | .error e =>
         let callRepr := match call.repr with | .ok s => s | .error m => m
         [{ level := "error", message := s!"Error executing service: {callRepr}",
            exception := some s!"{e.exception}: {e.message}" }]
-    return { result := .ok .none, events := [ev], logs }
-  match res with
-  | .error e => return { result := .error e, events := [ev] }
-  | .ok resp =>
-    if !a.returnResponse then return { result := .ok .none, events := [ev] }
-    match resp with
-    | .dict _ => return { result := .ok resp, events := [ev] }
-    | v => return { result := .error (translatedError "HomeAssistantError" "service_reponse_invalid"
-        [("response_data_type", pyTypeStr v)]), events := [ev] }
+    (.ok .none, logs)
+  else match res with
+    | .error e => (.error e, [])
+    | .ok resp =>
+      if !a.returnResponse then (.ok .none, [])
+      else match resp with
+        | .dict _ => (.ok resp, [])
+        | v => (.error (translatedError "HomeAssistantError" "service_reponse_invalid"
+            [("response_data_type", pyTypeStr v)]), [])
+
+/-- `ServiceRegistry.async_call` (with `_execute_service` and
+`_run_service_call_catch_exceptions`) for a handler spec:
+`prepareCall`, `call_service` with the merged, unvalidated data, the
+handler, `finishCall`. -/
+def Registry.asyncCall (r : Registry) (a : CallArgs) (now : Millis) : CallOutcome :=
+  match r.prepareCall a (a.context.getD Registry.freshContext) with
+  | .error e => { result := .error e }
+  | .ok p =>
+    let (result, logs) := finishCall a p.call (runHandler p.svc.handler p.call)
+    { result, events := [p.event now], logs }
 
 end HALean.Core

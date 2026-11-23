@@ -1,0 +1,34 @@
+# Joined core: inputs outside the model are rejected (HA does not run them).
+# Run with: uv run tests/differential/run.py -k core
+
+- name: rejected_inputs
+  ops:
+    - {op: listen, id: a, event_type: x, run_immediately: true, unsupported: true}
+    - {op: listen, id: a, event_type: state_changed, filter: {eq: {new_state: null}}, unsupported: true}
+    - {op: listen_once, id: a, event_type: x, filter: true, unsupported: true}
+    - {op: listen, id: a, event_type: state_reported, unsupported: true}
+    - {op: listen, id: a, event_type: x, filter: true, filter_callback: false, unsupported: true}
+    - {op: fire, event_type: x, time_fired: 1795710645000000, unsupported: true}
+    - {op: set, entity_id: light.é, state: "on", unsupported: true}
+    - {op: call, domain: tést, service: x, unsupported: true}
+    - op: listen
+      id: a
+      event_type: x
+      react: [{call: {id: c, domain: d, service: s, catch: true}}]
+      unsupported: true
+    - {op: listen, id: ok, event_type: x}
+    - {op: fire, event_type: x}
+
+- name: runaway_recursion_rejected
+  # a handler that calls itself: HA would end in RecursionError; the model
+  # stops at MAX_CALL_DEPTH and rejects the operation, changing nothing
+  ops:
+    - op: register
+      domain: test
+      service: again
+      handler:
+        do:
+          - set: {entity_id: counter.depth, state: "x", force_update: true}
+          - call: {id: self, domain: test, service: again, blocking: true}
+    - {op: call, domain: test, service: again, blocking: true, unsupported: true}
+    - {op: get, entity_id: counter.depth}

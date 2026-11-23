@@ -270,8 +270,7 @@ fires nothing and logs nothing. -/
 theorem call_not_found (r : Registry) (hwf : r.WF) (a : CallArgs) (now : Millis)
     (hno : r.hasService a.domain a.service = false) :
     r.asyncCall a now = { result := .error (serviceNotFound a.domain.toLower a.service.toLower) } := by
-  unfold Registry.asyncCall
-  simp [find_none r hwf _ _ hno]
+  simp [Registry.asyncCall, Registry.prepareCall, find_none r hwf _ _ hno]
 
 theorem call_after_remove_not_found (r : Registry) (hwf : r.WF) (d s : String) (now now' : Millis)
     (a : CallArgs) (hd : a.domain.toLower = d.toLower) (hs : a.service.toLower = s.toLower) :
@@ -290,8 +289,7 @@ theorem call_return_response_needs_blocking (r : Registry) (hwf : r.WF) (a : Cal
     (hrr : a.returnResponse = true) (hb : a.blocking = false) :
     r.asyncCall a now = { result := .error (serviceValidationError "service_should_be_blocking"
         [("return_response", "return_response=True"), ("non_blocking_argument", "blocking=False")]) } := by
-  unfold Registry.asyncCall
-  simp [find_some r hwf a svc hl, hrr, hb]
+  simp [Registry.asyncCall, Registry.prepareCall, responseCheck, find_some r hwf a svc hl, hrr, hb]
 
 theorem call_none_return_response_errors (r : Registry) (hwf : r.WF) (a : CallArgs)
     (now : Millis) (svc : Service)
@@ -301,8 +299,7 @@ theorem call_none_return_response_errors (r : Registry) (hwf : r.WF) (a : CallAr
   cases hb : a.blocking
   · exact ⟨_, _, call_return_response_needs_blocking r hwf a now svc hl hrr hb⟩
   · refine ⟨"service_does_not_support_response", [("return_response", "return_response=True")], ?_⟩
-    unfold Registry.asyncCall
-    simp [find_some r hwf a svc hl, hrr, hb, hnone]
+    simp [Registry.asyncCall, Registry.prepareCall, responseCheck, find_some r hwf a svc hl, hrr, hb, hnone]
 
 theorem call_only_needs_return_response (r : Registry) (hwf : r.WF) (a : CallArgs)
     (now : Millis) (svc : Service)
@@ -310,7 +307,6 @@ theorem call_only_needs_return_response (r : Registry) (hwf : r.WF) (a : CallArg
     (honly : svc.supportsResponse = .only) (hrr : a.returnResponse = false) :
     r.asyncCall a now = { result := .error (serviceValidationError "service_lacks_response_request"
         [("return_response", "return_response=True")]) } := by
-  unfold Registry.asyncCall
-  simp [find_some r hwf a svc hl, hrr, honly]
+  simp [Registry.asyncCall, Registry.prepareCall, responseCheck, find_some r hwf a svc hl, hrr, honly]
 
 end HALean.Core
