@@ -38,6 +38,10 @@ In `HALean/Automation/Proofs.lean` and `HALean/Template/Proofs.lean`:
 | `evalAnd_nil`, `evalOr_nil`, `evalNot_disabled`, `evalAnd_all_disabled`, ... | edge cases of HA's three-valued conditions (true / false / `None` for disabled) |
 | `match_invert`, `match_all` | `not_to` is exactly the complement of `to`; no `from`/`to` matches everything |
 | `render_static`, `templateCond_static` | a template without `{{ }}`/`{% %}` is never evaluated |
+| `has_after_register` (`HALean/Core/ServiceRegistryProofs.lean`) | service registration is case-insensitive: after registering `Light.Turn_On`, `has_service` is true for every spelling with the same lowercase form |
+| `has_after_remove`, `call_after_remove_not_found` | after `async_remove`, `has_service` is false and `async_call` raises `ServiceNotFound` (lowercased names), fires no event and logs nothing |
+| `call_none_return_response_errors`, `call_only_needs_return_response`, `call_return_response_needs_blocking` | the `return_response` rules of `async_call`: each violation raises `ServiceValidationError` before the schema, the event or the handler |
+| `wf_register`, `wf_remove` | every reachable registry has only lowercase domain and service keys (the invariant the call theorems assume) |
 
 These are about single functions (e.g. the admission decision `admit`), not
 yet about whole executions of `Engine.step`.
@@ -110,7 +114,48 @@ own semantics for numbers, strings and comparisons. Candidate properties:
 * **Errors, not wrong answers.** Every value HALean does not model yet
   (datetimes, for instance) leads to an error, never to a different result.
 
-## Running things
+## State machine
+
+`HALean/Core/StateMachine.lean` is pure too: each operation maps a
+`StateMachine` (and the clock) to a new one plus the events fired. Proved in
+`HALean/Core/Proofs.lean`:
+
+| Theorem | Says |
+|---|---|
+| `set_same_only_reports` | same state and Python-equal attributes (no `force_update`): the stored state is the old one with only `last_reported` moved, and the only event is `state_reported` |
+| `set_same_state_keeps_last_changed` | setting the same state never moves `last_changed`, whatever the attributes |
+| `set_frame` | a set stores the entity and changes no other entity |
+| `set_keys`, `remove_keys`, `mem_domainEntityIds` | the entity ids (of a domain) are exactly those set and not removed since |
+| `remove_then_get_none` | remove, then `get`, is `None` |
+| `reserve_then_unavailable` | a reserved id is not available |
+
+Next candidates: every stored entity id is valid and lower case (an invariant
+of all operations); the domain index agrees with a separately maintained
+per-domain dict, as upstream keeps it; event-level properties once the event
+bus is translated (every `state_changed` carries the previous `new_state` as
+its `old_state`).
+
+## Event bus
+
+`HALean/Core/EventBus.lean`: `step : now → Bus → Op → Bus × Result`, with
+abstract listeners whose scripted reactions (fire, listen, unsubscribe, raise)
+run inside the dispatch. Every delivery is recorded in `Bus.deliveries`.
+Proved in `HALean/Core/EventBusProofs.lean`:
+
+| Theorem | Says |
+|---|---|
+| `once_at_most_once` | from a new bus, after any sequence of operations, every `async_listen_once` listener has been delivered at most once (including when it is unsubscribed mid-dispatch, re-fires its own type, or the event type is `*`) |
+| `gone_silent` | a listener that is not in the table (and whose key is never reused) receives nothing more, whatever happens next |
+| `unsub_gone` | after its remove callback runs, a listener stored once under its own event type is out of the table |
+| `snapshot_match_all`, `snapshot_excluded` | a dispatch iterates over the type's listeners, then the `MATCH_ALL` ones, except for `homeassistant_close` / `state_reported` |
+
+Next candidates: the well-formedness invariant `unsub_gone` assumes (event
+types distinct, each job stored once under its own type) holds for every
+reachable bus; `drain` always empties the queue within
+`_MAX_QUEUED_EVENT_DISPATCHES` rounds (so the fuel is never the reason it
+stops); events fired during a dispatch are delivered in FIFO order after it.
+
+
 
 ```bash
 lake build                          # builds the engine and checks all proofs

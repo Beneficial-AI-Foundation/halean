@@ -20,6 +20,7 @@
 -/
 import Lean.Data.Json
 import HALean.Template.Time
+import HALean.Core.State
 open Lean
 
 namespace HALean.Core.EventBus
@@ -38,13 +39,7 @@ def MAX_QUEUED_EVENT_DISPATCHES : Nat := 10000
 
 /-! ### Values -/
 
-/-- `core.py::Context` (`id`, `user_id`, `parent_id`; `origin_event` is not
-observable through the bus). -/
-structure Context where
-  id : String
-  userId : Option String := none
-  parentId : Option String := none
-  deriving BEq, Inhabited, Repr
+/- Contexts are `HALean.Core.Context` (`core.py::Context`, in `State.lean`). -/
 
 /-- `core.py::EventOrigin` -/
 inductive Origin | «local» | remote
@@ -152,11 +147,6 @@ structure Event where
 /-- `Event.time_fired`, as `isoformat()` prints it. -/
 def Event.timeFiredIso (e : Event) : String :=
   HALean.Template.isoformat (utcMicrosOfTimestamp e.timeFiredTimestamp) (some 0)
-
-/-- `Context._as_dict` -/
-def Context.asDict (c : Context) : Json :=
-  let opt : Option String → Json := fun | some s => .str s | none => .null
-  Json.mkObj [("id", .str c.id), ("parent_id", opt c.parentId), ("user_id", opt c.userId)]
 
 /-- `Event._as_dict` / `Event.as_dict` -/
 def Event.asDict (e : Event) : Json :=

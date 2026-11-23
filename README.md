@@ -8,7 +8,9 @@ function by function, so it can be formally verified and still track upstream.
 | Automation engine (triggers → conditions → actions, run modes) | `HALean/Automation/` | `halean-automation` | done, tested against real HA |
 | Templates (Jinja) | `HALean/Template/` | `halean-template` (test driver) | subset done, used by automations, tested against real HA |
 | Scripts | `HALean/Script/` | | planned |
-| State machine, event bus, service registry | `HALean/Core/` | | planned |
+| State machine (`hass.states`) | `HALean/Core/StateMachine.lean` | `halean-core-states` (test driver) | done, tested against real HA |
+| Event bus (`hass.bus`) | `HALean/Core/EventBus.lean` | `halean-core-events` (test driver) | subset done (callback listeners), tested against real HA |
+| Service registry (`hass.services`) | `HALean/Core/ServiceRegistry.lean` | `halean-core-services` | subset done, tested against real HA |
 
 `HALean/Core/` holds what every service shares (states, time, JSON). All
 services share one `manifest.yaml`, one pinned HA release, one bridge and one
@@ -163,8 +165,8 @@ doesn't run twice.
 
 | Area | Supported | Rejected at load, stays in HA |
 |---|---|---|
-| Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, `for`, re-rendered like HA's template tracker: only for what the last render read, every minute when it used `now()`, rate limits for loops over states), `time` (fixed `at`, `input_datetime` entities with a date or only a time, timestamp/uptime sensors, `offset`, weekday; rescheduled when the entity changes), `time_pattern`, `event` (flat `event_data`), legacy `zone` (enter/leave by coordinates, Vincenty distance like HA's, or a person's/device tracker's `in_zones`), legacy `sun` (sunrise/sunset with `offset`, astral's NOAA calculation at HA's location and elevation); `for:` static or templated (a template string or a mapping of templates, rendered with the trigger variables when the trigger matches, then `cv.positive_time_period`; an error means no trigger) | `this` in trigger templates (its value depends on HA's startup phase), other sun events (dawn, dusk, noon, elevation, ...), `zone.entered`/`zone.left` and other new-style triggers, `homeassistant`, `mqtt`, `webhook`, device triggers, templated `time` `at` |
-| Conditions | `and`/`or`/`not` (incl. shorthand), `state` (match any/all, `for`, attribute, `input_*` references), `numeric_state` (incl. `value_template`), `time` (fixed, `input_datetime`, `time` entities, midnight crossing, weekday), `trigger`, `template` (incl. the `"{{ ... }}"` shorthand), `zone` (several entities and zones), `sun` (before/after sunrise/sunset with offsets, the night as before sunrise or after sunset, polar days), `enabled: false` | platform conditions, timestamp-sensor bounds (error) |
+| Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, `for`, re-rendered like HA's template tracker: only for what the last render read, every minute when it used `now()`, rate limits for loops over states), `time` (fixed or templated `at`: a limited template rendered with the static `trigger_variables`; `input_datetime` entities with a date or only a time, timestamp/uptime sensors, `offset`, weekday; rescheduled when the entity changes), `time_pattern`, `event` (flat `event_data`), legacy `zone` (enter/leave by coordinates, Vincenty distance like HA's, or a person's/device tracker's `in_zones`), legacy `sun` (sunrise/sunset with `offset`, astral's NOAA calculation at HA's location and elevation); `for:` static or templated (a template string or a mapping of templates, rendered with the trigger variables when the trigger matches, then `cv.positive_time_period`; an error means no trigger) | `this` in trigger templates (its value depends on HA's startup phase), other sun events (dawn, dusk, noon, elevation, ...), `zone.entered`/`zone.left` and other new-style triggers, `homeassistant`, `mqtt`, `webhook`, device triggers, a templated `time` `at` that reads states, the clock or the time zone, or is in a `wait_for_trigger` |
+| Conditions | `and`/`or`/`not` (incl. shorthand), `state` (match any/all, `for`, attribute, `input_*` references), `numeric_state` (incl. `value_template`), `time` (fixed, `input_datetime`, `time` entities, timestamp/uptime sensors, midnight crossing, weekday), `trigger`, `template` (incl. the `"{{ ... }}"` shorthand), `zone` (several entities and zones), `sun` (before/after sunrise/sunset with offsets, the night as before sunrise or after sunset, polar days), `enabled: false` | platform conditions |
 | Automations | automation `variables` (rendered in order before conditions) and static `trigger_variables`; `this` in variables, conditions and actions (the automation entity's `state.as_dict()`: `entity_id` derived from the name like HA, `state`, `attributes` `id`/`last_triggered`/`mode`/`current`/`max`/`friendly_name`); names default to `automation <n>` like HA | `this` when the entity id needs transliteration (non-ASCII names, also for every later automation) or HTML entities, templated `trigger_variables`, per-trigger `variables` |
 | Actions | service call (blocking; templates in `data` and `target`; `response_variable`), `stop` with `response_variable`, `delay` (static or templated), `condition`, `choose`, `if`/`else`, `repeat` count (incl. templated)/for_each/while/until with the `repeat` variable, `variables`, `stop` (+`error`), `event` (templates in `event_data`), `sequence`, `wait_template` (`timeout`, static or templated, `continue_on_timeout`, the `wait` variable; tracked like HA's `async_track_template`), `wait_for_trigger` (any supported trigger, seeing the run's variables; `timeout`, `continue_on_timeout`, `wait.trigger`), `parallel` (branches share variables except `wait`; errors and `stop` are raised once every branch is done), `continue_on_error`, static `enabled` | templated action names, a whole-`data` template, device actions, `scene` |
 | Run modes | `single`, `restart`, `queued` (FIFO), `parallel`, `max`, conditions checked before admission | `max_exceeded` log levels |
@@ -204,6 +206,97 @@ in `tests/scenarios/`:
   fires on admission, before the run starts.
 * `repeat` aborts after 10,000 iterations.
 
+### State machine (`HALean/Core/StateMachine.lean`)
+
+`homeassistant/core.py`'s `State` and `StateMachine` as a pure model:
+`asyncSet : StateMachine → ... → (now : Int) → Except SMError (StateMachine × List SMEvent)`.
+The clock is an argument (microseconds), and so are contexts; a context the
+caller does not pass is a fresh symbolic ULID (`ulid:0`, `ulid:1`, ... in order).
+`halean-core-states` runs it as JSON lines (one operation per line, the result
+plus the events fired). `tests/differential/test_states.py` applies every
+operation sequence in `tests/core/states/*.yaml` to HA's own `hass.states` and to
+`halean-core-states`, and compares results and `state_changed`/`state_reported`
+events (type, data, context, time fired, origin, in order) with their Python
+types; HA's random ULIDs are renamed in order of appearance and must encode the
+operation's clock.
+
+| Supported | Rejected (`unsupported`), or not modelled |
+|---|---|
+| `async_set` (`str()` of the state, `validate_state`, lower-cased id, `attributes or {}`, `force_update`, `context`, `timestamp`), `async_set_internal` (over-long state → `unknown`), the report rule (same state and Python-equal attributes: only `last_reported` moves, the same object is reported, `state_reported` fires with `old_last_reported`), `last_changed` kept on attribute-only changes, equal attributes keep the old object (`{a: 1}` stays when `{a: 1.0}` is set), `valid_entity_id` (incl. the trailing newline `$` allows) for new entities, `async_remove`, `get` (with the lower-case retry), `is_state`, `async_entity_ids` / `_count` / `async_all` (no filter, a `str` filter lower-cased, an iterable not), the dict and domain-index order, `async_reserve` / `async_available`; `State`: `domain`, `object_id`, `name`, `last_*_timestamp`, `as_dict`, `as_compressed_state`, `Context._as_dict` | non-ASCII entity ids and domain filters (`str.lower()` and `\d` are Unicode-aware), `state_info`, non-JSON attribute values, `State.from_dict`, `__repr__`, `as_dict_json`/`json_fragment`, the thread-safe wrappers (`set`, `remove`, `entity_ids`, `all`) |
+
+Known gaps: timestamps are whole microseconds (`timestamp = us / 1e6`, which
+the harness passes explicitly); HA's `as_dict()` is cached and keeps a stale
+`last_reported` after a report, where HALean's `asDict` is always fresh
+(`test_as_dict_cache_is_stale_after_report` pins the upstream behaviour);
+attribute dicts print with sorted keys; a JSON float written without a
+fraction or exponent sign (`1e16`) reads as an int.
+### Service registry (`HALean/Core/ServiceRegistry.lean`)
+
+`hass.services` (`ServiceRegistry` in `homeassistant/core.py`) as a pure model.
+`halean-core-services` takes one operation per JSON line (`register`, `remove`,
+`has`, `supports_response`, `list`, `list_domain`, `call`, each with an explicit
+`now`) and answers with the result or the exception, the events fired and the
+`homeassistant.core` log records (format in `HALean/Core/ServicesMain.lean`).
+Handlers are specs (return a value, echo the `ServiceCall`, raise an exception)
+and schemas are flat `probatio` mapping schemas, so behaviour is observable.
+Exceptions carry the same `error_kind` as the automation protocol's
+`service_result`: `invalid` (`probatio.Invalid`), `ha_error`
+(`HomeAssistantError` and subclasses), `other`.
+
+`tests/differential/test_services.py` runs each case in
+`tests/core/services/*.yaml` on a real `hass.services` (frozen clock) with
+handlers and schemas built from the same specs, and on `halean-core-services`.
+For every operation it compares the result (`repr()`), the exception (class,
+`str()`, `error_kind`, translation key and placeholders), the events
+(`service_registered`, `service_removed`, `call_service`: type, `repr()` of the
+data, time fired, context) and warnings/errors logged. Random context ids are
+compared structurally (`new`). Schemas are validated by `probatio`, a
+dependency like Jinja2, so its version is pinned too (`upstream.probatio`,
+0.13.0, checked by `test_probatio_matches_pin`).
+
+| Supported | Rejected (`unsupported`, nothing changes) |
+|---|---|
+| `async_register` (names lowercased, a service replaced in place, `service_registered`), `async_remove` (`service_removed`, empty domains dropped, a warning for an unknown service), `has_service`, `supports_response` (`KeyError` for a missing domain or service), `async_services` and `async_services_for_domain` (insertion order; the latter does not lowercase, like HA); `async_call`: lookup as given then lowercased, `ServiceNotFound`, the `return_response` rules (`blocking` needed, `NONE` refuses it, `ONLY` requires it), `target` merged into the data, schema validation (`Required`/`Optional` with defaults, `int`/`float`/`str`/`bool`/`object`, `PREVENT`/`ALLOW`/`REMOVE_EXTRA`, probatio's error order and messages including the difflib "did you mean" hint and path rendering), `call_service` with the unvalidated data, handler errors raised when blocking and logged (with the `ServiceCall` repr) when not, the response must be a dict | non-ASCII domain or service names (`str.lower()` is modelled for ASCII), handler exceptions other than `HomeAssistantError`, `ServiceValidationError`, `Invalid`, `ValueError`, `RuntimeError`; schema types and validators beyond the five types (`cv.*`, `Coerce`, `In`, nested schemas, `Exclusive`, ...); non-dict `data`/`target` |
+
+Known gaps: handlers run to completion when called (job types, awaiting, and
+handlers that fire events or call services are not modelled; a non-blocking
+call's handler finishes before `async_call` returns, as HA's eager task does
+for a handler that never awaits); `Unauthorized` and cancellation in
+background calls; the thread-safe wrappers (`register`, `remove`, `call`,
+`services`) and `description_placeholders`; `repr()` of strings with
+non-printable non-ASCII characters (Python escapes them, HALean does not);
+`NaN`/`Infinity` in the input JSON.
+
+### Event bus (`HALean/Core/EventBus.lean`)
+
+`hass.bus` (`EventBus`, with `Event`/`EventOrigin`/`Context` as far as the bus
+needs them) as a pure model: `step : (now : Nat) → Bus → Op → Bus × Result`.
+Listeners are abstract. Each records what it receives (`Event.as_dict()`) and
+runs a scripted list of reactions on receipt (fire an event, listen, listen
+once, unsubscribe, raise), optionally only for its first `react_times`
+receipts, so every ordering decision of the bus can be observed.
+`halean-core-events` takes one operation per JSON line (`listen`,
+`listen_once`, `unsub`, `fire`, `listeners`, each with the clock `now` in µs)
+and answers with the result, the deliveries in order and the errors logged
+(format in `HALean/Core/EventsMain.lean`). `tests/differential/test_events.py`
+runs each case in `tests/core/events/*.yaml` on HA's own `hass.bus` (frozen
+clock, `async_block_till_done()` after every operation) and on
+`halean-core-events`, starting the model from HA's current listener table.
+The two must agree exactly on results, deliveries and the `homeassistant.core`
+errors logged. Contexts HA creates have random ULIDs. They are compared as
+`ulid@<ms>#<n>`: the ULID must encode the same millisecond, and the same events
+must share one.
+
+| Supported | Rejected (`unsupported`), or not modelled |
+|---|---|
+| `async_listen` (with `event_filter`: skipped without calling it when the data is `None`, exceptions logged; a non-`@callback` filter and `state_reported` without a filter raise; `run_immediately` raises), `async_listen_once` (removed before it runs; the `remove is None` guard; a filter is a `TypeError`), `MATCH_ALL` (after the specific listeners, never for `homeassistant_close`/`state_reported`, twice for an event of type `*`), `async_fire`/`async_fire_internal` (event type length in code points; listeners iterate over a snapshot, so listeners added during a dispatch miss that event and removed ones still get it; events fired during a dispatch are queued and dispatched afterwards in FIFO order with their fire time captured; the 10,000-events limit raises in the firing listener), `Event` created once per dispatch on the first listener that runs (`data or {}`, `time_fired or time.time()` with the float's µs rounding, a generated context's ULID millisecond), `as_dict`, `async_listeners` (dict order), unsubscribing (a double removal is logged and leaves an empty list behind through the `defaultdict`; `MATCH_ALL` is never dropped), listener exceptions logged | coroutine and executor listeners (only `@callback` listeners), the thread-safe wrappers (`fire`, `listen`, `listen_once`, `listeners`), `EventType` typing, `json_fragment`, `__repr__`, filters beyond equality / presence / constant / raising, non-object event data, contexts without an id |
+
+Known gaps: the clock is whole microseconds and `time.time()` is
+`sec + usec / 1e6` (the float freezegun returns); listeners that HA already had
+when the model starts (`init`) receive events but are opaque (they do nothing);
+`drain`'s bound (`_MAX_QUEUED_EVENT_DISPATCHES` rounds) is justified by the
+queue limit but not proved yet.
+
 ## Proved so far (`HALean/Automation/Proofs.lean`)
 
 `evalAnd_nil`, `evalOr_nil`, `evalCond_disabled`, `evalNot_disabled`,
@@ -214,10 +307,32 @@ in `tests/scenarios/`:
 `HALean/Template/Proofs.lean`: `render_static` (static templates are never
 evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
 
+`HALean/Core/Proofs.lean` (state machine): `set_same_only_reports` (same state
+and attributes: only `last_reported` changes, only `state_reported` fires),
+`set_same_state_keeps_last_changed`, `set_frame` (a set touches no other
+entity), `set_keys` / `remove_keys` / `mem_domainEntityIds` (the ids of a
+domain are exactly those set and not removed since), `remove_then_get_none`,
+`reserve_then_unavailable`.
+
+`HALean/Core/ServiceRegistryProofs.lean`: `has_after_register` (registration is
+case-insensitive), `has_after_remove` and `call_after_remove_not_found` (after
+`async_remove`, `has_service` is false and a call raises `ServiceNotFound`),
+`call_none_return_response_errors`, `call_only_needs_return_response`,
+`call_return_response_needs_blocking`; `wf_register`/`wf_remove` (keys stay
+lowercase).
+
+`HALean/Core/EventBusProofs.lean` (event bus): `once_at_most_once` (over any
+sequence of operations, with any listener reactions, a `listen_once` listener
+is delivered at most once), `gone_silent` (a listener that is out of the table
+never receives anything again), `unsub_gone` (running a remove callback takes
+the listener out of the table, given that it is stored once under its event
+type), `snapshot_match_all` / `snapshot_excluded` (a dispatch iterates over the
+event type's listeners, then the `MATCH_ALL` ones unless the type is excluded).
+
 ## Known gaps and deviations
 
-* **The translation is tested against Python, not proven equivalent.** All 42
-  differential scenarios and all template cases match real HA at the pinned
+* **The translation is tested against Python, not proven equivalent.** All differential
+  scenarios and all template cases match real HA at the pinned
   release, but they cover only the paths they exercise.
 * Lean's JSON objects are sorted by key. Where HA depends on the written
   order (`variables`), the shell sends ordered `[key, value]` lists
@@ -285,11 +400,10 @@ Properties worth proving or model-checking are collected in
 [PROPERTIES.md](PROPERTIES.md).
 
 
-1. Templates, part 6: `this`, templated `for:`.
-2. Generate differential scenarios automatically (random automations within the supported
+1. Generate differential scenarios automatically (random automations within the supported
    subset plus random event sequences) to cover far more paths than hand-written ones.
-3. Make the run loop total and prove run-level properties: a `single` automation never has
+2. Make the run loop total and prove run-level properties: a `single` automation never has
    two live runs, and a `queued` one runs in arrival order.
-4. User-level properties over a whole `automations.yaml`: conflicting commands to the
+3. User-level properties over a whole `automations.yaml`: conflicting commands to the
    same entity, and trigger loops (an action that re-triggers itself).
-5. Widen the subset: the other sun events and conditions (dawn, dusk, elevation), templated time triggers, the time condition's sensor bounds.
+4. Widen the subset: the other sun events and conditions (dawn, dusk, elevation), templated `trigger_variables`.

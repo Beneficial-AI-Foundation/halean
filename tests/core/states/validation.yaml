@@ -1,0 +1,57 @@
+# Entity id and state validation (valid_entity_id, validate_state,
+# MAX_LENGTH_STATE_STATE) and what HALean rejects.
+
+- name: invalid_entity_ids
+  ops:
+    - {op: set, entity_id: light, state: "on"}
+    - {op: set, entity_id: light., state: "on"}
+    - {op: set, entity_id: .kitchen, state: "on"}
+    - {op: set, entity_id: light.kitchen.lamp, state: "on"}
+    - {op: set, entity_id: _light.kitchen, state: "on"}
+    - {op: set, entity_id: light_.kitchen, state: "on"}
+    - {op: set, entity_id: light._kitchen, state: "on"}
+    - {op: set, entity_id: light.kitchen_, state: "on"}
+    - {op: set, entity_id: li__ght.kitchen, state: "on"}
+    - {op: set, entity_id: light.kit__chen, state: "on"}
+    - {op: set, entity_id: light.kit-chen, state: "on"}
+    - {op: set, entity_id: "light.kitchen ", state: "on"}
+    - {op: set, entity_id: "", state: "on"}
+    - {op: entity_ids, expect: []}
+
+- name: valid_entity_id_edges
+  ops:
+    - {op: set, entity_id: a.b, state: "1"}
+    - {op: set, entity_id: 3d_printer.nozzle_2, state: "1"}
+    - {op: set, entity_id: l_i_g_h_t.k_1, state: "1"}
+    - {op: set, entity_id: "light.trailing\n", state: "1"}   # `$` matches before a final newline
+    - {op: set, entity_id: "light.two\n\n", state: "1"}
+    - {op: entity_ids}
+    - {op: inspect, entity_id: "light.trailing\n"}
+
+- name: state_length_limit
+  ops:
+    - {op: set, entity_id: sensor.long, state: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+    - {op: get, entity_id: sensor.long}
+    - {op: set, entity_id: sensor.long, state: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+    - {op: set, entity_id: sensor.long, state: "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"}
+    - {op: get, entity_id: sensor.long}
+
+# async_set_internal skips validate_state and falls back to `unknown` instead
+# (only when the state changes); it expects a lower-case id.
+- name: set_internal_long_state_becomes_unknown
+  ops:
+    - {op: set_internal, entity_id: sensor.long, state: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+    - {op: get, entity_id: sensor.long}
+    - {op: set_internal, entity_id: Sensor.Upper, state: "1"}
+    - {op: set_internal, entity_id: sensor.n, state: "1", attributes: null, now: "2026-11-20T16:31:00+00:00"}
+    - {op: set_internal, entity_id: sensor.n, state: "1", attributes: null, now: "2026-11-20T16:31:01+00:00"}   # None != {}: a change
+    - {op: set_internal, entity_id: sensor.n, state: "1", attributes: {}, now: "2026-11-20T16:31:02+00:00"}
+    - {op: get, entity_id: sensor.n}
+
+- name: non_ascii_rejected
+  ops:
+    - {op: set, entity_id: light.küche, state: "on", unsupported: true}
+    - {op: get, entity_id: light.küche, unsupported: true}
+    - {op: entity_ids, domain_filter: lïght, unsupported: true}
+    - {op: set, entity_id: light.kueche, state: "an", attributes: {friendly_name: Küche}}
+    - {op: inspect, entity_id: light.kueche}

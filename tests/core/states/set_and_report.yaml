@@ -1,0 +1,114 @@
+# async_set: new states, state changes, attribute-only changes, reports.
+# `now` carries over to later operations; it starts at 2026-11-20T16:30:45.123456Z.
+
+- name: new_state_then_get
+  ops:
+    - {op: set, entity_id: light.kitchen, state: "on", attributes: {brightness: 100}}
+    - {op: get, entity_id: light.kitchen}
+    - {op: get, entity_id: Light.Kitchen}          # falls back to the lower-cased id
+    - {op: get, entity_id: light.nothing, expect: null}
+    - {op: is_state, entity_id: light.kitchen, state: "on", expect: true}
+    - {op: is_state, entity_id: LIGHT.KITCHEN, state: "on", expect: true}
+    - {op: is_state, entity_id: light.kitchen, state: "On", expect: false}
+    - {op: is_state, entity_id: light.nothing, state: "on", expect: false}
+    - {op: inspect, entity_id: light.kitchen}
+
+- name: upper_case_id_is_lowered
+  ops:
+    - {op: set, entity_id: Sensor.Outside_Temp, state: "21.5"}
+    - {op: entity_ids, expect: [sensor.outside_temp]}
+    - {op: get, entity_id: sensor.outside_temp}
+
+- name: state_change_moves_last_changed
+  ops:
+    - {op: set, entity_id: switch.pump, state: "off", now: "2026-11-20T10:00:00+00:00"}
+    - {op: set, entity_id: switch.pump, state: "on", now: "2026-11-20T10:00:01.000001+00:00"}
+    - {op: inspect, entity_id: switch.pump}
+    - {op: set, entity_id: switch.pump, state: "off", now: "2026-11-20T10:00:02.5+00:00"}
+    - {op: get, entity_id: switch.pump}
+
+- name: attribute_change_keeps_last_changed
+  ops:
+    - {op: set, entity_id: sensor.t, state: "20", attributes: {unit_of_measurement: "°C"}, now: "2026-11-20T10:00:00.250000+00:00"}
+    - {op: set, entity_id: sensor.t, state: "20", attributes: {unit_of_measurement: "°C", friendly_name: Temp}, now: "2026-11-20T10:00:05+00:00"}
+    - {op: inspect, entity_id: sensor.t}
+    - {op: get, entity_id: sensor.t}
+
+- name: same_state_and_attributes_only_reports
+  ops:
+    - {op: set, entity_id: sensor.t, state: "20", attributes: {a: 1}, now: "2026-11-20T10:00:00+00:00"}
+    - {op: set, entity_id: sensor.t, state: "20", attributes: {a: 1}, now: "2026-11-20T10:00:10.123456+00:00"}
+    - {op: inspect, entity_id: sensor.t}
+    - {op: get, entity_id: sensor.t}
+    - {op: set, entity_id: sensor.t, state: "20", attributes: {a: 1}, now: "2026-11-20T10:00:20+00:00"}
+    - {op: set, entity_id: sensor.t, state: "21", attributes: {a: 1}, now: "2026-11-20T10:00:30+00:00"}
+    - {op: inspect, entity_id: sensor.t}
+
+- name: force_update_fires_state_changed
+  ops:
+    - {op: set, entity_id: sensor.t, state: "20", now: "2026-11-20T10:00:00+00:00"}
+    - {op: set, entity_id: sensor.t, state: "20", force_update: true, now: "2026-11-20T10:00:01+00:00"}
+    - {op: inspect, entity_id: sensor.t}
+    - {op: set, entity_id: sensor.t, state: "20", attributes: {x: 1}, force_update: true, now: "2026-11-20T10:00:02+00:00"}
+    - {op: inspect, entity_id: sensor.t}
+
+# Python's == on attributes: 1 == 1.0 == True, so these are "the same" and the
+# old attribute object is kept (or only a report fires).
+- name: attribute_equality_is_pythons
+  ops:
+    - {op: set, entity_id: sensor.n, state: "x", attributes: {a: 1, l: [1, 2]}, now: "2026-11-20T10:00:00+00:00"}
+    - {op: set, entity_id: sensor.n, state: "x", attributes: {a: 1.0, l: [1.0, 2]}, now: "2026-11-20T10:00:01+00:00"}
+    - {op: set, entity_id: sensor.n, state: "x", attributes: {a: true, l: [true, 2.0]}, now: "2026-11-20T10:00:02+00:00"}
+    - {op: get, entity_id: sensor.n}
+    - {op: set, entity_id: sensor.n, state: "y", attributes: {a: 1.0, l: [1, 2]}, now: "2026-11-20T10:00:03+00:00"}
+    - {op: get, entity_id: sensor.n}   # the old {a: 1} is kept
+    - {op: set, entity_id: sensor.n, state: "y", attributes: {a: "1", l: [1, 2]}, now: "2026-11-20T10:00:04+00:00"}
+    - {op: set, entity_id: sensor.n, state: "y", attributes: {a: "1", l: [1, 2], nested: {b: null}}, now: "2026-11-20T10:00:05+00:00"}
+    - {op: set, entity_id: sensor.n, state: "y", attributes: {a: "1", l: [1, 2], nested: {b: null}}, now: "2026-11-20T10:00:06+00:00"}
+    - {op: get, entity_id: sensor.n}
+
+- name: attributes_none_and_empty
+  ops:
+    - {op: set, entity_id: sensor.e, state: "a"}
+    - {op: set, entity_id: sensor.e, state: "a", attributes: {}, now: "2026-11-20T16:30:46+00:00"}
+    - {op: set, entity_id: sensor.e, state: "a", attributes: null, now: "2026-11-20T16:30:47+00:00"}
+    - {op: get, entity_id: sensor.e}
+
+- name: non_string_states_are_str
+  ops:
+    - {op: set, entity_id: sensor.i, state: 5}
+    - {op: set, entity_id: sensor.f, state: 1.5}
+    - {op: set, entity_id: sensor.g, state: 0.1}
+    - {op: set, entity_id: sensor.b, state: true}
+    - {op: set, entity_id: sensor.z, state: null}
+    - {op: all}
+    - {op: set, entity_id: sensor.i, state: "5", now: "2026-11-20T16:31:00+00:00"}   # same as str(5): a report
+
+- name: names
+  ops:
+    - {op: set, entity_id: light.living_room_lamp, state: "on"}
+    - {op: inspect, entity_id: light.living_room_lamp}
+    - {op: set, entity_id: light.living_room_lamp, state: "on", attributes: {friendly_name: Lamp}}
+    - {op: inspect, entity_id: light.living_room_lamp}
+    - {op: set, entity_id: light.living_room_lamp, state: "on", attributes: {friendly_name: ""}}
+    - {op: inspect, entity_id: light.living_room_lamp}
+    - {op: set, entity_id: light.living_room_lamp, state: "on", attributes: {friendly_name: 0}}
+    - {op: inspect, entity_id: light.living_room_lamp}
+    - {op: set, entity_id: light.living_room_lamp, state: "on", attributes: {friendly_name: 7}}
+    - {op: inspect, entity_id: light.living_room_lamp}
+    - {op: set, entity_id: light.living_room_lamp, state: "on", attributes: {friendly_name: [a]}}
+    - {op: inspect, entity_id: light.living_room_lamp}
+    - {op: set, entity_id: light.living_room_lamp, state: "on", attributes: {friendly_name: null}}
+    - {op: inspect, entity_id: light.living_room_lamp}
+
+- name: timestamps_and_compressed_state
+  ops:
+    - {op: set, entity_id: sensor.c, state: "1", now: "2026-11-20T10:00:00.000001+00:00"}
+    - {op: inspect, entity_id: sensor.c}
+    - {op: set, entity_id: sensor.c, state: "1", attributes: {x: 0.1}, now: "2026-11-20T10:00:00.999999+00:00"}
+    - {op: inspect, entity_id: sensor.c}
+    - {op: set, entity_id: sensor.c, state: "1", attributes: {x: 0.1}, now: "2026-11-20T10:00:01.7+00:00"}
+    - {op: inspect, entity_id: sensor.c}
+    - {op: set, entity_id: sensor.old, state: "x", now: "1999-12-31T23:59:59.999999+00:00"}
+    - {op: inspect, entity_id: sensor.old}
+    - {op: get, entity_id: sensor.old}
