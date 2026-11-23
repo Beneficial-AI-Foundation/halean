@@ -1,0 +1,145 @@
+description: >
+  Errors and stops across script calls. A failed service call inside the
+  called script is raised in the caller's call step (where
+  continue_on_error decides, by the exception's kind); `stop` with `error:
+  true` is swallowed by the called script; a response that is not a dict
+  is an error for a caller that asked for it. Turning the called script
+  off cancels the caller when the callee was in a service call, and lets
+  it continue when the callee was in a delay; in a `parallel` branch the
+  cancellation only ends the branch. A queued script calling itself is a
+  disallowed recursion (the call returns None).
+scripts:
+  worker:
+    fields:
+      tag: {}
+    sequence:
+      - action: test.work
+        data:
+          tag: "{{ tag }}"
+  aborts:
+    sequence:
+      - stop: giving up
+        error: true
+  listy:
+    sequence:
+      - variables:
+          out: [1, 2]
+      - stop: done
+        response_variable: out
+  sleeper:
+    sequence:
+      - delay: 10
+  boss:
+    sequence:
+      - action: script.worker
+        data:
+          tag: tolerated
+        continue_on_error: true
+      - event: boss_step
+        event_data: {step: 1}
+      - action: script.aborts
+      - event: boss_step
+        event_data: {step: 2}
+      - action: script.listy
+        response_variable: l
+        continue_on_error: true
+      - event: boss_step
+        event_data: {step: 3, l: "{{ l is defined }}"}
+      - action: script.worker
+        data:
+          tag: fatal
+      - event: boss_step
+        event_data: {step: 4}
+  waiter:
+    sequence:
+      - action: script.sleeper
+      - event: waiter_done
+      - action: script.worker
+        data:
+          tag: from waiter
+      - event: waiter_after_worker
+  fan:
+    sequence:
+      - parallel:
+          - sequence:
+              - action: script.worker
+                data:
+                  tag: branch
+              - event: fan_branch_after_worker
+          - sequence:
+              - delay: 2
+              - event: fan_branch_two
+      - event: fan_done
+  loop:
+    mode: queued
+    fields:
+      depth: {}
+    sequence:
+      - event: loop_enter
+        event_data: {depth: "{{ depth }}"}
+      - condition: template
+        value_template: "{{ depth < 2 }}"
+      - action: script.loop
+        data:
+          depth: "{{ depth + 1 }}"
+      - event: loop_after_call
+        event_data: {depth: "{{ depth }}"}
+steps:
+  - at: 1
+    call: boss
+  - at: 2
+    result: 0
+    ok: false
+    error_kind: ha_error
+    expect:
+      call_service: [[test, work, {tag: fatal}]]
+      fire_event:
+        - [boss_step, {step: 1}]
+        - [script_started, {name: aborts, entity_id: script.aborts}]
+        - [boss_step, {step: 2}]
+        - [script_started, {name: listy, entity_id: script.listy}]
+        - [boss_step, {step: 3, l: false}]
+        - [script_started, {name: worker, entity_id: script.worker}]
+  - at: 3
+    result: 1
+    ok: false
+    error_kind: other
+    expect:
+      call_done: [[0, false, other]]
+  # the callee is in a delay when it is turned off: the caller goes on
+  - at: 4
+    call: waiter
+  - at: 5
+    call: turn_off
+    data: {entity_id: script.sleeper}
+    expect:
+      fire_event: [[waiter_done, {}], [script_started, {name: worker, entity_id: script.worker}]]
+      call_done: [[2, true, null]]
+  # the callee is in a service call when it is turned off: the caller is cancelled
+  - at: 6
+    call: turn_off
+    data: {entity_id: script.worker}
+    expect:
+      call_done: [[1, false, cancelled], [3, true, null]]
+      states:
+        script.waiter: ["off", {current: 0}]
+  # in a parallel branch, only the branch ends
+  - at: 7
+    call: fan
+  - at: 8
+    call: turn_off
+    data: {entity_id: script.worker}
+  - at: 9
+    expect:
+      fire_event: [[fan_branch_two, {}], [fan_done, {}]]
+  # disallowed recursion
+  - at: 10
+    call: loop
+    data: {depth: 0}
+    expect:
+      fire_event:
+        - [script_started, {name: loop, entity_id: script.loop}]
+        - [loop_enter, {depth: 0}]
+        - [script_started, {name: loop, entity_id: script.loop}]
+        - [loop_after_call, {depth: 0}]
+      call_done: [[6, true, null]]

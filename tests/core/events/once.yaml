@@ -1,0 +1,96 @@
+# Event bus: async_listen_once.
+
+- name: once_then_removed
+  ops:
+    - {op: listen_once, id: o, event_type: x}
+    - {op: listen, id: a, event_type: x}
+    - {op: listeners}
+    - {op: fire, event_type: x, expect: {deliveries: [o, a]}}
+    - {op: listeners}
+    - {op: fire, event_type: x, expect: {deliveries: [a]}}
+
+- name: once_alone_pops_key
+  ops:
+    - {op: listen_once, id: o, event_type: x}
+    - {op: listen, id: b, event_type: y}
+    - {op: listeners}
+    - {op: fire, event_type: x, expect: {deliveries: [o]}}
+    - {op: listeners}
+    # listening again appends the key at the end of the dict
+    - {op: listen, id: c, event_type: x}
+    - {op: listeners}
+
+- name: once_unsub_before
+  ops:
+    - {op: listen_once, id: o, event_type: x}
+    - {op: unsub, id: o, expect: {logs: []}}
+    - {op: fire, event_type: x, expect: {deliveries: []}}
+    - {op: listeners}
+
+- name: once_unsub_after_fired
+  # the remove callback runs a second time: logged, and the defaultdict
+  # access leaves an empty list for the event type
+  ops:
+    - {op: listen_once, id: o, event_type: x}
+    - {op: fire, event_type: x, expect: {deliveries: [o]}}
+    - {op: unsub, id: o, expect: {logs: ["Unable to remove unknown job listener"], result: {ok: true}}}
+    - {op: listeners}
+
+- name: once_unsubs_itself
+  ops:
+    - op: listen_once
+      id: o
+      event_type: x
+      react: [{unsub: o}]
+    - {op: fire, event_type: x, expect: {deliveries: [o], logs: ["Unable to remove unknown job listener"]}}
+    - {op: listeners}
+
+- name: once_unsubscribed_mid_dispatch
+  # removed by an earlier listener of the same dispatch: still in the
+  # dispatch's snapshot and its `remove` is still set, so it runs (and the
+  # second removal is logged)
+  ops:
+    - {op: listen, id: killer, event_type: x, react: [{unsub: o}]}
+    - {op: listen_once, id: o, event_type: x}
+    - op: fire
+      event_type: x
+      expect: {deliveries: [killer, o], logs: ["Unable to remove unknown job listener"]}
+    - {op: fire, event_type: x, expect: {deliveries: [killer], logs: ["Unable to remove unknown job listener"]}}
+    - {op: listeners}
+
+- name: once_refires_own_type
+  # the nested fire is queued until the dispatch ends, when the once listener is gone
+  ops:
+    - op: listen_once
+      id: o
+      event_type: x
+      react: [{fire: {event_type: x, data: {again: true}}}]
+    - {op: listen, id: a, event_type: x}
+    - {op: fire, event_type: x, expect: {deliveries: [o, a, a]}}
+    - {op: listeners}
+
+- name: once_with_filter_is_a_type_error
+  ops:
+    - {op: listen_once, id: o, event_type: x, filter: true, expect: {result: {error: TypeError}}}
+    - {op: listeners}
+    - {op: fire, event_type: x, data: {}, expect: {deliveries: []}}
+
+- name: once_match_all
+  ops:
+    - {op: listen_once, id: o, event_type: "*"}
+    - {op: listen, id: a, event_type: x}
+    - {op: fire, event_type: x, expect: {deliveries: [a, o]}}
+    - {op: listeners}
+    - {op: fire, event_type: y, expect: {deliveries: []}}
+
+- name: once_registers_another_once
+  ops:
+    - op: listen_once
+      id: o1
+      event_type: x
+      react: [{listen_once: {id: o2, event_type: x}}]
+    - {op: fire, event_type: x, expect: {deliveries: [o1]}}
+    - {op: listeners}
+    - {op: fire, event_type: x, expect: {deliveries: [o2]}}
+    - {op: fire, event_type: x, expect: {deliveries: []}}
+    - {op: listeners}

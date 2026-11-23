@@ -1,0 +1,113 @@
+# Service schemas (probatio mapping schemas) applied by ServiceRegistry.async_call.
+# Every case registers test_s.svc with the schema below and an echo handler,
+# so a successful call shows the validated data.
+
+- name: schema_required_optional_types
+  ops:
+    - {op: register, domain: test_s, service: svc, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: brightness, type: int, required: true},
+                         {key: color, type: str, default: red},
+                         {key: level, type: float},
+                         {key: flag, type: bool},
+                         {key: anything, type: any}]}}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true, data: {brightness: 5}}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true, data: {color: blue}}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true,
+       data: {level: 3, brightness: true, flag: false, anything: [1, {a: null}], color: green}}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true,
+       data: {brightness: 2.0}}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true,
+       data: {brightness: "2"}}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true,
+       data: {brightness: 1, level: true}}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true,
+       data: {brightness: 1, level: "1.5"}}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true,
+       data: {brightness: 1, level: 2.5, flag: 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true,
+       data: {brightness: 1, color: null}}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true,
+       data: {brightness: 1, level: 123456789012345678901234567890}}
+    # an int too large for a float is rejected by the float check
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true,
+       data: {brightness: 1, level: 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}}
+    # errors are collected in data order, missing required keys last
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true,
+       data: {flag: x, level: y}}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true,
+       data: {zzz: 1, flag: x}}
+
+- name: schema_extra_keys_and_hints
+  ops:
+    - {op: register, domain: test_s, service: svc, handler: {echo: true}, supports_response: optional,
+       schema: {fields: [{key: color, type: str}, {key: colour, type: str}, {key: cola, type: str},
+                         {key: colors, type: str}, {key: brightness, type: int},
+                         {key: abcx, type: int}, {key: abxd, type: int}, {key: red, type: str}]}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {rid: 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {colr: red}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {brightnes: 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {abcd: 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {zzz: 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {"a b": 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {"it's": 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {"x.y": 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {"<grp>": 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {"-x": 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {"_a-b9": 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {"": 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {"tab\there": 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {"ünïcode": 1}}
+    # target keys are merged into the data before validation
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {color: red},
+       target: {entity_id: light.kitchen}}
+    # a failed validation fires no call_service event
+    - {op: call, domain: test_s, service: svc, blocking: false, data: {color: 1}}
+
+- name: schema_extra_policies
+  ops:
+    - {op: register, domain: test_s, service: allow, handler: {echo: true}, supports_response: only,
+       schema: {extra: allow, fields: [{key: a, type: int, required: true}]}}
+    - {op: register, domain: test_s, service: remove, handler: {echo: true}, supports_response: only,
+       schema: {extra: remove, fields: [{key: a, type: int, required: true}]}}
+    - {op: register, domain: test_s, service: prevent, handler: {echo: true}, supports_response: only,
+       schema: {extra: prevent, fields: [{key: a, type: int, required: true}]}}
+    - {op: call, domain: test_s, service: allow, blocking: true, return_response: true,
+       data: {z: 1, a: 2, b: [3]}, target: {entity_id: light.x}}
+    - {op: call, domain: test_s, service: remove, blocking: true, return_response: true,
+       data: {z: 1, a: 2, b: [3]}, target: {entity_id: light.x}}
+    - {op: call, domain: test_s, service: prevent, blocking: true, return_response: true,
+       data: {z: 1, a: 2, b: [3]}, target: {entity_id: light.x}}
+    - {op: call, domain: test_s, service: allow, blocking: true, return_response: true, data: {z: 1}}
+    - {op: call, domain: test_s, service: remove, blocking: true, return_response: true, data: {z: 1}}
+
+- name: schema_defaults
+  ops:
+    - {op: register, domain: test_s, service: svc, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: req_default, type: int, required: true, default: 7},
+                         {key: bad_default, type: int, default: "x"},
+                         {key: float_default, type: float, default: 2}]}}
+    - {op: register, domain: test_s, service: ok, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: z_last, type: str, default: z},
+                         {key: req_default, type: int, required: true, default: 7},
+                         {key: float_default, type: float, default: 2},
+                         {key: null_default, type: any, default: null},
+                         {key: list_default, type: any, default: [1, 2]}]}}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true}
+    - {op: call, domain: test_s, service: svc, blocking: true, return_response: true,
+       data: {bad_default: 1}}
+    - {op: call, domain: test_s, service: ok, blocking: true, return_response: true}
+    - {op: call, domain: test_s, service: ok, blocking: true, return_response: true,
+       data: {float_default: 1.5, req_default: 0, extra: 1}}
+    - {op: call, domain: test_s, service: ok, blocking: true, return_response: true,
+       data: {float_default: 1.5, req_default: 0}}
+
+- name: schema_required_order
+  ops:
+    - {op: register, domain: test_s, service: svc, handler: {echo: true},
+       schema: {fields: [{key: z, type: int, required: true}, {key: a, type: int, required: true},
+                         {key: m, type: str}]}}
+    - {op: call, domain: test_s, service: svc, blocking: true}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {a: 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {m: 1, z: 1, a: 1}}
+    - {op: call, domain: test_s, service: svc, blocking: true, data: {z: 1, a: 1}}

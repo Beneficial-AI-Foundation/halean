@@ -73,6 +73,10 @@
 - template: "{{ states('sensor.temp') }}"
   states: [{entity_id: sensor.temp, state: "21.5"}]
 - {template: "{{ states('sensor.missing') }}"}
+# the regexes' `$` allows one trailing newline: valid ids and domains, read like any other
+- {template: "{{ states('sensor.missing\\n') }} {{ states['sensor.gone\\n'] }} {{ states['light\\n'] | list }}", render_info: true}
+- {template: "{{ states('sensor.x\\n\\n') }}"}
+- {template: "{{ states['light\\n\\n'] }}"}
 - template: "{{ states('sensor.temp') | float + 1 }}"
   states: [{entity_id: sensor.temp, state: "21.5"}]
 - template: "{{ states('sensor.temp') | float(0) }}"

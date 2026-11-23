@@ -1,0 +1,59 @@
+description: >
+  Automations and scripts in one engine, as the bridge runs them with
+  --scripts: an automation calls a script and uses its response (the script
+  runs in HALean, not in HA), another starts a script with script.turn_on
+  and the script entity is `on` while it runs; a script reads a variable
+  only an automation passes.
+scripts:
+  greet:
+    sequence:
+      - event: hello
+        event_data: {name: "{{ who }}"}
+      - action: light.turn_on
+        target: {entity_id: light.hall}
+      - variables:
+          out: {greeted: "{{ who }}"}
+      - stop: done
+        response_variable: out
+  slow:
+    mode: single
+    sequence:
+      - delay: 2
+      - event: slow_done
+automations:
+  - id: caller
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - action: script.greet
+        data: {who: Anna}
+        response_variable: r
+      - event: answered
+        event_data: {r: "{{ r.greeted }}"}
+  - id: starter
+    triggers: [{trigger: state, entity_id: input_boolean.a, to: "on"}]
+    actions:
+      - action: script.turn_on
+        target: {entity_id: script.slow}
+      - event: started
+states:
+  - {entity_id: input_boolean.a, state: "off"}
+  - {entity_id: light.hall, state: "off"}
+steps:
+  - at: 1
+    event: {event_type: go}
+    expect:
+      call_service: [[light, turn_on, {entity_id: [light.hall]}]]
+      fire_event: [[script_started, {name: greet, entity_id: script.greet}], [hello, {name: Anna}]]
+  - at: 2
+    result: 0
+    expect:
+      fire_event: [[answered, {r: Anna}]]
+  - at: 3
+    set: [input_boolean.a, "on"]
+    expect:
+      fire_event: [[script_started, {name: slow, entity_id: script.slow}], [started, {}]]
+      states: {script.slow: ["on", {current: 1}]}
+  - at: 5
+    expect:
+      fire_event: [[slow_done, {}]]
+      states: {script.slow: ["off", {current: 0}]}

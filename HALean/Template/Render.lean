@@ -156,12 +156,16 @@ def validSlug (s : String) : Bool :=
   !s.isEmpty && s.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'z') || c == '_')
     && !s.startsWith "_" && !s.endsWith "_" && (s.splitOn "__").length == 1
 
-/-- `homeassistant.core.valid_domain` -/
-def validDomain (s : String) : Bool := validSlug s
+/-- The regexes end in `$`, which also matches before one trailing newline. -/
+def dropFinalNewline (s : String) : String :=
+  if s.endsWith "\n" then (s.dropEnd 1).toString else s
 
-/-- `homeassistant.core.valid_entity_id` -/
+/-- `homeassistant.core.valid_domain` -/
+def validDomain (s : String) : Bool := validSlug (dropFinalNewline s)
+
+/-- `homeassistant.core.valid_entity_id`: `"light.x\n"` is valid, as upstream. -/
 def validEntityId (s : String) : Bool :=
-  match s.splitOn "." with
+  match (dropFinalNewline s).splitOn "." with
   | [d, o] => validSlug d && validSlug o
   | _ => false
 

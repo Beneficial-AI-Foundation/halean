@@ -1,0 +1,40 @@
+# `time` triggers with a templated `at`: rendered once, as a limited template
+# with the trigger_variables, when the trigger attaches. The result is a time
+# or an input_datetime/sensor entity, like a static `at`.
+# t0 is Tuesday 2023-11-14 22:13:20 UTC.
+automations:
+  - id: clock
+    trigger_variables: {m: 13, s: "25"}
+    triggers: [{trigger: time, at: "22:{{ m }}:{{ s }}"}]
+    actions:
+      - event: clock
+        event_data: {d: "{{ trigger.description }} {{ trigger.now.isoformat() }}"}
+  - id: entity
+    trigger_variables: {which: alarm}
+    triggers: [{trigger: time, at: ["input_datetime.{{ which }}", "{{ '22:13:40' }}"], weekday: tue}]
+    actions:
+      - event: entity
+        event_data: {d: "{{ trigger.description }} {{ trigger.entity_id }}"}
+  - id: filters
+    trigger_variables: {times: ["22:13:45", "23:00"]}
+    triggers: [{trigger: time, at: "{{ times | first | replace('45', '50') }}"}]
+    actions: [{event: filters}]
+  - id: other_day
+    trigger_variables: {t: "22:13:35"}
+    triggers: [{trigger: time, at: "{{ t }}", weekday: [mon, wed]}]
+    actions: [{event: never}]
+states:
+  - {entity_id: input_datetime.alarm, state: "22:13:30",
+     attributes: {has_date: false, has_time: true, hour: 22, minute: 13, second: 30}}
+steps:
+  - {at: 5, send: {type: tick},
+     expect: [{type: automation_triggered, id: clock},
+              {type: fire_event, event_type: clock, data: {d: "time 2023-11-14T22:13:25.500000+00:00"}}]}
+  - {at: 10, send: {type: tick},
+     expect: [{type: automation_triggered, id: entity},
+              {type: fire_event, event_type: entity, data: {d: "time set in input_datetime.alarm input_datetime.alarm"}}]}
+  - {at: 15, send: {type: tick}}
+  - {at: 20, send: {type: tick},
+     expect: [{type: automation_triggered, id: entity},
+              {type: fire_event, event_type: entity, data: {d: "time None"}}]}
+  - {at: 30, send: {type: tick}, expect: [{type: automation_triggered, id: filters}, {type: fire_event, event_type: filters}]}

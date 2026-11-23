@@ -1,0 +1,92 @@
+description: >
+  Calling script.<object_id> directly: the call data are the run variables,
+  `fields` defaults are UI metadata (not applied), `stop` with
+  `response_variable` is the call's response, and a script calling another
+  script waits for it (here across a delay) and gets its response. The
+  entity is `on` while it runs; `current` and `last_triggered` follow.
+scripts:
+  greet:
+    alias: Greet someone
+    icon: mdi:hand-wave
+    description: Says hello
+    fields:
+      who:
+        description: Who to greet
+        example: Anna
+        required: true
+        selector:
+          text: {}
+      times:
+        default: 3
+    sequence:
+      - action: notify.send
+        data:
+          message: "Hello {{ who }} ({{ times is defined }})"
+      - variables:
+          out:
+            greeted: "{{ who }}"
+      - stop: done
+        response_variable: out
+  slow_double:
+    mode: parallel
+    max: 3
+    sequence:
+      - delay: 2
+      - variables:
+          result:
+            value: "{{ n * 2 }}"
+      - stop: done
+        response_variable: result
+  caller:
+    sequence:
+      - action: script.slow_double
+        data:
+          n: 21
+        response_variable: r
+      - event: doubled
+        event_data:
+          value: "{{ r.value }}"
+          state: "{{ states('script.slow_double') }}"
+      - action: script.greet
+        data:
+          who: "{{ r.value }}"
+        response_variable: g
+      - stop: finished
+        response_variable: g
+steps:
+  - at: 1
+    call: greet
+    data: {who: Anna}
+    return_response: true
+    expect:
+      call_service: [[notify, send, {message: "Hello Anna (False)"}]]
+      fire_event: [[script_started, {name: Greet someone, entity_id: script.greet}]]
+      call_done: []
+  - at: 2
+    result: 0
+    expect:
+      call_done: [[0, true, {greeted: Anna}]]
+  - at: 3
+    call: caller
+    expect:
+      states:
+        script.caller: ["on", {current: 1}]
+        script.slow_double: ["on", {current: 1, max: 3, mode: parallel}]
+  - at: 4
+    call: slow_double
+    data: {n: 1}
+    return_response: true
+  - at: 5
+    expect:
+      fire_event: [[doubled, {value: 42, state: "on"}],
+                   [script_started, {name: Greet someone, entity_id: script.greet}]]
+      call_service: [[notify, send, {message: "Hello 42 (False)"}]]
+  - at: 6
+    expect:
+      call_done: [[2, true, {value: 2}]]
+  - at: 7
+    result: 1
+    expect:
+      call_done: [[1, true, null]]
+      states:
+        script.caller: ["off", {current: 0, last_triggered: "2023-11-14T22:13:23+00:00"}]

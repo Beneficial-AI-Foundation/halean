@@ -44,3 +44,17 @@ def protocol_automations(automations: list) -> list:
                 auto[key] = _pairs(auto[key])
         _order_actions(auto.get("actions", auto.get("action")))
     return out
+
+
+def protocol_scripts(scripts: dict | None) -> list:
+    """scripts.yaml (`object_id: config`) as the script service expects it:
+    ordered [object_id, config] pairs, with `variables` mappings (the
+    script's and those of `variables` actions) as ordered [key, value] lists."""
+    out = []
+    for key, cfg in json.loads(json.dumps(scripts or {})).items():  # deep copy
+        if isinstance(cfg, dict):
+            if isinstance(cfg.get("variables"), dict):
+                cfg["variables"] = _pairs(cfg["variables"])
+            _order_actions(cfg.get("sequence"))
+        out.append([key, cfg])
+    return out
