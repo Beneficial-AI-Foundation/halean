@@ -164,26 +164,47 @@ stops); events fired during a dispatch are delivered in FIFO order after it.
 `HALean/Core/Hass.lean` joins the three: the state machine and the registry
 fire through the bus model, and listeners and service handlers are scripts
 over the whole core (set or remove states, fire, call services, register
-services, listen, unsubscribe). Everything runs inside one fuel-bounded mutual
-recursion (`fireInternal`, `dispatchLoop`, `drain`, `runJob`, `runActions`,
-`runAction`, `callService`); "not rejected" means the output has no
-`Entry.unsupported` (fuel or call depth). Proved in
-`HALean/Core/HassProofs.lean`:
+services, listen, unsubscribe, and in a coroutine `await asyncio.sleep(0)`
+or a future). Everything synchronous runs inside one fuel-bounded mutual
+recursion (`fireInternal`, `dispatchLoop`, `drain`, `runJob`,
+`runListener`, `runActions`, `runAction`, `callService`); a coroutine that
+suspends returns its remaining frames (`Res.susp`), which become a task
+(`Hass.tasks`) or suspend the main task, and the event loop is explicit: a
+FIFO ready queue of handles (`Hass.ready`: task steps and wakeups, the done
+callback `_tasks.remove`, `asyncio.wait`'s `_on_completion`) run by
+`runLoop` while the main task (the operation) is suspended. "Not rejected"
+means the output has no `Entry.unsupported` (fuel, call depth, loop fuel, a
+main task left waiting). Proved in `HALean/Core/HassProofs.lean`:
 
 | Theorem | Says |
 |---|---|
-| `quiet` | while the bus is dispatching, nothing a script does delivers an event, at any nesting: fires, state writes and removals, service calls (with their `call_service`, their handlers' state writes and nested calls), service (un)registration are all queued; the bus stays in its dispatch and no `listen_once` listener is used up |
+| `quiet` | while the bus is dispatching, nothing a script does delivers an event, at any nesting: fires, state writes and removals, service calls (with their `call_service`, their handlers' state writes and nested calls, and the tasks they start), service (un)registration, futures resolved are all queued; the bus stays in its dispatch and no `listen_once` listener is used up |
+| `runListener_deliveries` | **eager start**: a listener run during a dispatch, `@callback` or `async def` alike, delivers the event to itself before the dispatch goes on, and nothing else; a coroutine's synchronous prefix runs at once, the rest waits in its task |
 | `runJob_deliveries` | a listener run during a dispatch delivers the event to itself only (unless opaque or a `listen_once` that already ran), and only uses up its own `listen_once` |
-| `dispatchLoop_deliveries` | a dispatch delivers the one `Event` to exactly the `deliverable` listeners of the snapshot (filter passes; not a used-up `listen_once`), once each, in snapshot order |
+| `dispatchLoop_deliveries` | a dispatch delivers the one `Event` to exactly the `deliverable` listeners of the snapshot (filter passes; not a used-up `listen_once`), once each, in snapshot order, coroutine listeners included |
 | `fireInternal_first` | when nothing is dispatching, the deliveries of a fire start with exactly those deliveries (the event has the fired type, data and context); everything the listeners caused comes after |
 | `set_delivers_first` | the same for a successful `async_set`: its `state_changed` (or `state_reported`) reaches each matching listener present when it is fired exactly once, before any cascade |
+
+The statements are those of the core without tasks; none needed a new
+hypothesis ("no async jobs" was not required). In
+`HALean/Core/HassSchedProofs.lean`, about the scheduler:
+
+| Theorem | Says |
+|---|---|
+| `keeps` | nothing synchronous (firing, dispatching, listeners, scripts, service calls, starting eager tasks, parking suspended ones, resolving futures) reorders the ready queue: it only appends to it, and the main task's frames are untouched |
+| `runHandle_fifo`, `resume_main_fifo` | **FIFO**: when the loop pops a handle (a task's step, a done callback, `_on_completion`, or the main task's step) and runs it, the handles behind it stay in front of everything it queues, so a task resumed (by `sleep(0)` or a resolved future) runs before every handle queued later |
+| `blockTillDone_no_tasks` | when `hass.async_block_till_done()` returns, no task is left in `hass._tasks` |
 
 Next candidates: a handler's state write called (blocking) when nothing is
 dispatching is delivered before `async_call` returns; FIFO order of the queue
 across services (the events queued during a dispatch are delivered in the
 order their `async_fire_internal` calls happened, including those of nested
 handlers); the bus well-formedness invariant (`reachable_wf`) for every
-reachable core, which would drop the opaque-listener caveats.
+reachable core, which would drop the opaque-listener caveats; after
+`block_till_done` the ready queue is empty (needs the invariant "every step
+or done handle names a task in `_tasks`"); every task's frames end in a
+frame that swallows its error, except a coroutine listener's (so only those
+log `Error doing job`).
 
 
 ```bash

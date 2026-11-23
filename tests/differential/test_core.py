@@ -15,9 +15,26 @@ handler can set states, fire events and call other services:
   as `State._as_dict` computed afresh) and runs its `react` script, up to
   `react_times` receipts; a service call in it runs in a task
   (`hass.async_create_task`, which starts eagerly) that records the outcome;
-* a handler is an `async def` that never suspends: it runs its `do` script
-  (awaiting nested calls, whose errors propagate unless `catch`), then
-  returns `return` (default `None`), echoes the call, or raises.
+* a listener with `async: true` is an `async def`: `async_run_hass_job` runs
+  it as an eager task, so it records the event and runs its script up to its
+  first real suspension inside the dispatch; its service calls are awaited
+  inline (errors propagate unless `catch`); an exception ends the task and is
+  logged when the task is finalized (`Error doing job: Task exception was
+  never retrieved`, by HA's own loop exception handler, installed here as
+  `homeassistant.runner` installs it);
+* a handler is an `async def`: it runs its `do` script (awaiting nested
+  calls, whose errors propagate unless `catch`), then returns `return`
+  (default `None`), echoes the call, or raises;
+* in a coroutine, `sleep: 0` is `await asyncio.sleep(0)` and `wait: <id>`
+  awaits the future `<id>` (made with `loop.create_future()` on first use);
+  `resolve: <id>` (a script action or an operation) is `set_result(None)`.
+
+After every operation the harness awaits `hass.async_block_till_done()`, and
+the model runs its `block_till_done` (the trace of both is the operation's),
+unless the case says `manual: true`: then only the explicit `sleep`
+(`await asyncio.sleep(0)`) and `block_till_done` operations, and a blocking
+call whose handler suspends, let the event loop run. A case must end with no
+task left (checked with a final `block_till_done`).
 
 The trace interleaves, in the order they happen: deliveries, the outcome of
 each scripted service call, and `homeassistant.core` log records (warning and
@@ -29,6 +46,7 @@ Run:  uv run tests/differential/run.py -k core
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import json
 import logging
@@ -42,6 +60,7 @@ import pytest
 import yaml
 from freezegun.api import FrozenDateTimeFactory
 
+from homeassistant import runner as ha_runner
 from homeassistant.core import Context, EventOrigin, HomeAssistant, State, SupportsResponse, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.translation import async_load_integrations
@@ -131,6 +150,12 @@ class Runner:
         self.hass = hass
         self.trace: list[dict] = []
         self.handles: dict[str, object] = {}
+        self.futures: dict[str, asyncio.Future] = {}
+
+    def future(self, fid: str) -> asyncio.Future:
+        if fid not in self.futures:
+            self.futures[fid] = self.hass.loop.create_future()
+        return self.futures[fid]
 
     # --- arguments -------------------------------------------------------
 
@@ -160,14 +185,22 @@ class Runner:
         lid, react, times = spec["id"], spec.get("react") or [], spec.get("react_times")
         count = 0
 
-        @callback
-        def listener(event) -> None:
-            nonlocal count
-            count += 1
-            self.trace.append({"delivery": lid, "event": jsonable(event.as_dict())})
-            if times is None or count <= times:
-                for a in react:
-                    self.act(a, event.context, in_listener=True)
+        if spec.get("async"):
+            async def listener(event) -> None:
+                nonlocal count
+                count += 1
+                self.trace.append({"delivery": lid, "event": jsonable(event.as_dict())})
+                if times is None or count <= times:
+                    await self.run_async(react, event.context)
+        else:
+            @callback
+            def listener(event) -> None:
+                nonlocal count
+                count += 1
+                self.trace.append({"delivery": lid, "event": jsonable(event.as_dict())})
+                if times is None or count <= times:
+                    for a in react:
+                        self.act(a, event.context, in_listener=True)
 
         kwargs = {}
         if spec.get("filter") is not None:
@@ -180,13 +213,7 @@ class Runner:
         body = spec.get("do") or []
 
         async def handler(call):
-            for a in body:
-                if "call" in a:
-                    c = a["call"]
-                    await self.call(c, self._context(c.get("context"), call.context),
-                                    c.get("catch", False))
-                else:
-                    self.act(a, call.context, in_listener=False)
+            await self.run_async(body, call.context)
             if "raise" in spec:
                 raise EXCEPTIONS[spec["raise"]](spec.get("message", ""))
             if spec.get("echo"):
@@ -195,6 +222,20 @@ class Runner:
             return copy.deepcopy(spec.get("return"))
 
         return handler
+
+    async def run_async(self, actions: list, inherited: Context | None) -> None:
+        """A coroutine's script: service calls are awaited inline, and it may
+        suspend."""
+        for a in actions:
+            if "call" in a:
+                c = a["call"]
+                await self.call(c, self._context(c.get("context"), inherited), c.get("catch", False))
+            elif "sleep" in a:
+                await asyncio.sleep(a["sleep"])
+            elif "wait" in a:
+                await self.future(a["wait"])
+            else:
+                self.act(a, inherited, in_listener=False)
 
     async def call(self, c: dict, ctx: Context | None, caught: bool):
         try:
@@ -250,6 +291,8 @@ class Runner:
         elif "remove_service" in a:
             r = a["remove_service"]
             hass.services.async_remove(r["domain"], r["service"])
+        elif "resolve" in a:
+            self.future(a["resolve"]).set_result(None)
         else:
             raise AssertionError(f"unknown action {a}")
 
@@ -287,6 +330,12 @@ class Runner:
                     op.get("blocking", False), self._context(op.get("context")),
                     copy.deepcopy(op.get("target")), op.get("return_response", False))
                 res = repr(r)
+            elif kind == "resolve":
+                self.act({"resolve": op["id"]}, None, False)
+            elif kind == "sleep":
+                await asyncio.sleep(0)
+            elif kind == "block_till_done":
+                await hass.async_block_till_done()
             else:
                 raise AssertionError(f"unknown op {kind}")
         except Exception as err:  # noqa: BLE001
@@ -295,16 +344,23 @@ class Runner:
 
 
 class _Records(logging.Handler):
-    """`homeassistant.core` records (warning and above), into the trace."""
+    """`homeassistant.core` and `homeassistant` records (warning and above),
+    into the trace."""
 
     def __init__(self, trace: list) -> None:
         super().__init__(logging.WARNING)
         self.trace = trace
 
     def emit(self, r: logging.LogRecord) -> None:
+        if r.name not in ("homeassistant", "homeassistant.core"):
+            return
         msg = str(r.msg)
         if msg.startswith("Error running job"):
             message = "Error running job"
+        elif msg.startswith("Error doing job"):
+            # `_async_loop_exception_handler`: the context's message (the
+            # task's repr and, in debug mode, its creation stack dropped)
+            message = f"Error doing job: {r.args[0]}"
         elif msg.startswith("Unable to remove unknown job listener"):
             message = "Unable to remove unknown job listener"
         else:
@@ -353,14 +409,29 @@ async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
     init = engine({"op": "init", "listeners": base, "now": 0})
     assert init["result"] == {"ok": None}, init
 
+    now = case.get("now", NOW)
+    if case.get("engine_only"):
+        # rejections HA cannot show (it would never return): the model only
+        for i, op in enumerate(case["ops"]):
+            now = op.get("now", now)
+            msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+            lean = engine({**msg, "now": now})
+            assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+        return
+
     runner = Runner(hass)
     records = _Records(runner.trace)
-    core_logger = logging.getLogger("homeassistant.core")
-    core_logger.addHandler(records)
+    ha_logger = logging.getLogger("homeassistant")
+    ha_logger.addHandler(records)
+    # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+    loop = asyncio.get_running_loop()
+    test_handler = loop.get_exception_handler()
+    loop.set_exception_handler(ha_runner._async_loop_exception_handler)
     rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
-    now = case.get("now", NOW)
+    manual = case.get("manual", False)
+    ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
     try:
-        for i, op in enumerate(case["ops"]):
+        for i, op in enumerate(ops):
             now = op.get("now", now)
             msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
             lean = engine({**msg, "now": now})
@@ -368,12 +439,19 @@ async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
                 assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
                 continue
             assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+            if not manual:
+                settle = engine({"op": "block_till_done", "now": now})
+                # HA would never return from `async_block_till_done`
+                assert "unsupported" not in settle, \
+                    f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+                lean["trace"] += settle["trace"]
             assert op.get("domain", "x").lower() not in baseline
 
             freezer.move_to(EPOCH + timedelta(microseconds=now))
             runner.trace.clear()
             result = await runner.op(op)
-            await hass.async_block_till_done()
+            if not manual:
+                await hass.async_block_till_done()
             ha = rename_ha({"result": result, "trace": list(runner.trace)})
             lean = rename_lean(lean)
             if ha != lean:
@@ -392,5 +470,7 @@ async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
                     got = [t["call"] + (":ok" if "ok" in t else ":error")
                            for t in ha["trace"] if "call" in t]
                     assert got == exp["calls"], f"op {i}: calls {got}"
+        assert not hass._tasks, f"tasks left: {hass._tasks}"
     finally:
-        core_logger.removeHandler(records)
+        loop.set_exception_handler(test_handler)
+        ha_logger.removeHandler(records)

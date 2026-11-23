@@ -1,0 +1,178 @@
+# Joined core: coroutine-function (async def) listeners that suspend.
+# Run with: uv run tests/differential/run.py -k core
+
+- name: two_async_listeners_interleave
+  # both start eagerly inside the dispatch (their fires are queued), then each
+  # `await asyncio.sleep(0)` puts its task at the end of the ready queue; one
+  # loop round runs them in that order, and their fires now dispatch at once
+  manual: true
+  ops:
+    - op: listen
+      id: a
+      event_type: go
+      async: true
+      react: [{fire: {event_type: a1}}, {sleep: 0}, {fire: {event_type: a2}}, {sleep: 0}, {fire: {event_type: a3}}]
+    - op: listen
+      id: b
+      event_type: go
+      async: true
+      react: [{fire: {event_type: b1}}, {sleep: 0}, {fire: {event_type: b2}}]
+    - {op: listen, id: m, event_type: "*"}
+    - op: fire
+      event_type: go
+      expect: {deliveries: ["a:go", "b:go", "m:go", "m:a1", "m:b1"]}
+    # one round: a, b, then the main task (a's second step is queued behind it)
+    - {op: sleep, expect: {deliveries: ["m:a2", "m:b2"]}}
+    - {op: sleep, expect: {deliveries: ["m:a3"]}}
+    - {op: sleep, expect: {deliveries: []}}
+
+- name: async_listener_fires_after_suspending
+  # the async listener's eager part runs in the dispatch; after its
+  # suspension its `set` is a separate dispatch, after the queued `x` of the
+  # sync listener and after the whole first dispatch
+  ops:
+    - op: listen
+      id: late
+      event_type: state_changed
+      filter: {eq: {entity_id: light.a}}
+      async: true
+      react:
+        - set: {entity_id: light.b, state: "on", context: inherit}
+        - sleep: 0
+        - set: {entity_id: light.c, state: "on", context: inherit}
+        - fire: {event_type: late_done, context: inherit}
+    - op: listen
+      id: sync
+      event_type: state_changed
+      filter: {eq: {entity_id: light.a}}
+      react: [{fire: {event_type: x, context: inherit}}]
+    - {op: listen, id: m, event_type: "*"}
+    - op: set
+      entity_id: light.a
+      state: "on"
+      context: {id: user-ctx}
+      expect:
+        deliveries: ["late:state_changed", "sync:state_changed", "m:state_changed", "m:state_changed",
+                     "m:x", "m:state_changed", "m:late_done"]
+    - {op: get, entity_id: light.c}
+
+- name: async_listener_calls_services
+  # in an async listener a service call is awaited inline: a blocking call to
+  # a suspending handler suspends the listener's task; a call that fails
+  # without `catch` ends the task (the exception is logged when it is
+  # finalized)
+  manual: true
+  ops:
+    - op: register
+      domain: test
+      service: slow
+      handler:
+        do: [{fire: {event_type: slow_started, context: inherit}}, {sleep: 0}, {fire: {event_type: slow_done, context: inherit}}]
+        return: {ok: 1}
+      supports_response: optional
+    - op: listen
+      id: caller
+      event_type: go
+      async: true
+      react:
+        - call: {id: first, domain: test, service: slow, blocking: true, return_response: true}
+        - fire: {event_type: after_first}
+        - call: {id: missing, domain: test, service: nope, blocking: true, catch: true}
+        - call: {id: background, domain: test, service: slow}
+        - call: {id: broken, domain: test, service: nope, blocking: true}
+        - fire: {event_type: never}
+    - {op: listen, id: m, event_type: "*"}
+    - op: fire
+      event_type: go
+      expect: {deliveries: ["caller:go", "m:go", "m:call_service", "m:slow_started"], calls: []}
+    - op: sleep
+      expect:
+        deliveries: ["m:slow_done", "m:after_first", "m:call_service", "m:slow_started"]
+        calls: ["first:ok", "missing:error", "background:ok", "broken:error"]
+    - {op: block_till_done, expect: {deliveries: ["m:slow_done"]}}
+
+- name: async_listener_unsubscribed_while_suspended
+  # removing the listener does not cancel its task: it still finishes
+  manual: true
+  ops:
+    - op: listen
+      id: l
+      event_type: go
+      async: true
+      react: [{sleep: 0}, {fire: {event_type: l_done, context: inherit}}]
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go, context: {id: first}, expect: {deliveries: ["l:go", "m:go"]}}
+    - {op: unsub, id: l}
+    - {op: fire, event_type: go, context: {id: second}, expect: {deliveries: ["m:go"]}}
+    - {op: listeners}
+    - {op: sleep, expect: {deliveries: ["m:l_done"]}}
+
+- name: async_listen_once_and_react_times
+  # a once listener is removed before its coroutine starts; react_times
+  # still records later receipts (the coroutine finishes without suspending)
+  ops:
+    - op: listen_once
+      id: once
+      event_type: go
+      async: true
+      react: [{sleep: 0}, {fire: {event_type: once_done}}]
+    - op: listen
+      id: twice
+      event_type: go
+      async: true
+      react_times: 1
+      react: [{sleep: 0}, {fire: {event_type: twice_done}}]
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go, expect: {deliveries: ["once:go", "twice:go", "m:go", "m:once_done", "m:twice_done"]}}
+    - {op: fire, event_type: go, expect: {deliveries: ["twice:go", "m:go"]}}
+    - {op: listeners}
+
+- name: async_listener_errors
+  # an exception before the first suspension: the eager task is done and
+  # dropped at once (logged inside the dispatch); after a suspension: logged
+  # when its done callback (`_tasks.remove`) has run and the task is freed,
+  # i.e. after the handles queued before that callback
+  manual: true
+  ops:
+    - op: listen
+      id: a
+      event_type: go
+      async: true
+      react: [{sleep: 0}, {raise: ValueError, message: boom a}]
+    - op: listen
+      id: c
+      event_type: go
+      async: true
+      react: [{fire: {event_type: c_ran}}, {raise: RuntimeError, message: boom c}]
+    - op: listen
+      id: b
+      event_type: go
+      async: true
+      react: [{sleep: 0}, {fire: {event_type: b2}}, {sleep: 0}, {fire: {event_type: b3}}]
+    - {op: listen, id: d, event_type: go}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go, expect: {deliveries: ["a:go", "c:go", "b:go", "d:go", "m:go", "m:c_ran"]}}
+    # a raises (its done callback queued after b and the main task); b2
+    - {op: sleep, expect: {deliveries: ["m:b2"]}}
+    # a is freed (logged) before b's last step
+    - {op: block_till_done, expect: {deliveries: ["m:b3"]}}
+    # the same while block_till_done waits: its `tasks` list holds `a`, so
+    # the exception is logged only when that list is dropped, after b3
+    - {op: fire, event_type: go, expect: {deliveries: ["a:go", "c:go", "b:go", "d:go", "m:go", "m:c_ran"]}}
+    - {op: block_till_done, expect: {deliveries: ["m:b2", "m:b3"]}}
+
+- name: async_listener_errors_settled
+  # the same with block_till_done after every operation
+  ops:
+    - op: listen
+      id: a
+      event_type: go
+      async: true
+      react: [{sleep: 0}, {set: {entity_id: sensor.a, state: "1"}}, {raise: ValueError, message: after sleep}]
+    - op: listen
+      id: k
+      event_type: go
+      async: true
+      react: [{unsub: nobody}]
+    - {op: listen, id: sc, event_type: state_changed}
+    - {op: fire, event_type: go, expect: {deliveries: ["a:go", "k:go", "sc:state_changed"]}}

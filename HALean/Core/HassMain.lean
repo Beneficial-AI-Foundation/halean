@@ -17,6 +17,11 @@
     {"op": "call", "domain", "service", "data"?, "target"?, "blocking"?,
      "return_response"?, "context"?}
     {"op": "init", "listeners": [["*", 0], ...]}   -- the listeners HA already has
+    {"op": "resolve", "id"}          -- `fut.set_result(None)` on the future `id`
+    {"op": "sleep"}                  -- `await asyncio.sleep(0)`
+    {"op": "block_till_done"}        -- `await hass.async_block_till_done()`
+
+  A listener with "async": true is an `async def` (otherwise a `@callback`).
 
   Scripts (a listener's `react`, a handler's `do`) are lists of actions:
     {"fire": {...}}, {"listen": {...}}, {"listen_once": {...}}, {"unsub": "id"},
@@ -26,7 +31,10 @@
     {"call": {"id", "domain", "service", "data"?, "target"?, "blocking"?,
               "return_response"?, "context"?, "catch"?}},
     {"register": {"domain", "service", "handler", "schema"?, "supports_response"?}},
-    {"remove_service": {"domain", "service"}}
+    {"remove_service": {"domain", "service"}},
+    {"resolve": "id"},
+    and in a coroutine (a handler, an async listener) only:
+    {"sleep": 0}  (`await asyncio.sleep(0)`), {"wait": "id"}  (`await` the future `id`)
   where a context is {"id", "user_id"?, "parent_id"?} or, in a script,
   "inherit" (the event's context in a listener, the call's in a handler).
   A handler is {"do"?: [...], "return": value} | {"do"?, "echo": true} |
@@ -138,25 +146,31 @@ def decodeSet (v : Value) (inScript : Bool) : Except String Action := do
     | none => throw "missing 'state'"
   return .set (← getEntityId v) st attrs (← getBool v "force_update" false) (← decodeCtxArg v inScript)
 
+/-- Where a script runs: a `@callback` listener's `react`, or a coroutine (an
+`async def` listener's `react`, a handler's `do`), which may await. -/
+inductive ScriptKind | callback | coroutine
+  deriving BEq
+
 mutual
 partial def decodeListen (v : Value) (once : Bool) : Except String Action := do
   let id ← getStr v "id"
   let et ← getStr v "event_type"
+  let isAsync ← getBool v "async" false
   if (v.get? "run_immediately").isSome then throw "run_immediately (raises; message not modelled)"
   let filter ← decodeFilter v
   if once && filter.isSome then throw "listen_once with a filter (TypeError; message not modelled)"
   if et == EVENT_STATE_REPORTED && filter.isNone then
     throw "state_reported without a filter (raises; message not modelled)"
   let react ← match v.get? "react" with
-    | some (.list rs) => rs.mapM (decodeAction · true)
+    | some (.list rs) => rs.mapM (decodeAction · (if isAsync then .coroutine else .callback))
     | none | some .none => pure []
     | _ => throw "react must be a list"
-  return .listen id et once filter react (← optNat v "react_times")
+  return .listen id et once filter react (← optNat v "react_times") isAsync
 
 partial def decodeRegister (v : Value) : Except String Action := do
   let some h := v.get? "handler" | throw "missing 'handler'"
   let body ← match h.get? "do" with
-    | some (.list as) => as.mapM (decodeAction · false)
+    | some (.list as) => as.mapM (decodeAction · .coroutine)
     | none | some .none => pure []
     | _ => throw "'do' must be a list"
   let result ← if (h.get? "return").isSome || (h.get? "echo").isSome || (h.get? "raise").isSome
@@ -164,9 +178,8 @@ partial def decodeRegister (v : Value) : Except String Action := do
   return .register (← getName v "domain") (← getName v "service") body result
     (← decodeSchema (v.get? "schema")) (← decodeSupports v)
 
-/-- One action of a script (`inListener`: a listener's `react`, otherwise a
-handler's `do`). -/
-partial def decodeAction (v : Value) (inListener : Bool) : Except String Action := do
+/-- One action of a script. -/
+partial def decodeAction (v : Value) (kind : ScriptKind) : Except String Action := do
   if let some f := v.get? "fire" then return .fire (← decodeFire f true)
   if let some l := v.get? "listen" then return ← decodeListen l false
   if let some l := v.get? "listen_once" then return ← decodeListen l true
@@ -178,11 +191,18 @@ partial def decodeAction (v : Value) (inListener : Bool) : Except String Action 
   if let some r := v.get? "remove" then return .remove (← getEntityId r) (← decodeCtxArg r true)
   if let some c := v.get? "call" then
     let caught ← getBool c "catch" false
-    if inListener && (c.get? "catch").isSome then throw "'catch' only in a handler"
+    if kind == .callback && (c.get? "catch").isSome then throw "'catch' only in a coroutine"
     return .call (← getStr c "id") (← decodeCallArgs c) (← decodeCtxArg c true) caught
   if let some r := v.get? "register" then return ← decodeRegister r
   if let some r := v.get? "remove_service" then
     return .removeService (← getName r "domain") (← getName r "service")
+  if let some (.str f) := v.get? "resolve" then return .resolve f
+  if (v.get? "sleep").isSome || (v.get? "wait").isSome then
+    if kind == .callback then throw "a @callback cannot await"
+    if let some (.int 0) := v.get? "sleep" then return .sleep
+    if (v.get? "sleep").isSome then throw "only asyncio.sleep(0) is modelled"
+    if let some (.str f) := v.get? "wait" then return .wait f
+    throw "'wait' needs a future id"
   throw "unknown action"
 end
 
@@ -212,6 +232,9 @@ def decodeOp (v : Value) : Except String (Nat × Hass.Op) := do
         | .list [.str et, .int n] => if n ≥ 0 then pure (et, n.toNat) else throw "bad count"
         | _ => throw "'listeners' entries must be [event_type, count]"
       pure (.init counts)
+    | "resolve" => pure (.act (.resolve (← getStr v "id")))
+    | "sleep" => pure .sleep
+    | "block_till_done" => pure .blockTillDone
     | o => throw s!"unknown op {o}"
   return (now, op)
 
