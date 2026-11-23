@@ -8,7 +8,8 @@
 
   * a handler returns a given value, echoes the `ServiceCall` it received, or
     raises a given exception;
-  * a schema is a flat probatio mapping schema (`HALean.Core.Probatio`).
+  * a schema is a probatio mapping schema (`HALean.Core.Probatio`, run by
+    `HALean.Core.Schema`).
 
   Every operation takes the clock (`now`) explicitly and returns the events it
   fires (`EVENT_SERVICE_REGISTERED`, `EVENT_SERVICE_REMOVED`,
@@ -23,7 +24,7 @@
   fired) and `finishCall` (what happens with the handler's outcome).
   `Registry.asyncCall` composes them with a handler spec.
 -/
-import HALean.Core.Probatio
+import HALean.Core.Schema
 import HALean.Core.State
 
 namespace HALean.Core
@@ -352,10 +353,27 @@ def Registry.prepareCall (r : Registry) (a : CallArgs) (context : Context) :
         | some sch => sch.validate serviceData
         | none => .ok serviceData
       match validated with
-      | .error errs => .error { exception := "MultipleInvalid", message := multipleInvalidStr errs }
+      | .error (.invalid errs) => .error { exception := "MultipleInvalid", message := multipleInvalidStr errs }
+      | .error (.raise exc msg) => .error { exception := exc, message := msg }
+      -- never reached: the drivers answer `unsupported` first (`unsupportedCall?`)
+      | .error (.unsupported why) => .error { exception := "unsupported", message := why }
       | .ok processed =>
         .ok { domain, service, svc := handler, serviceData,
               call := { domain, service, data := processed, context, returnResponse := a.returnResponse } }
+
+/-- `some reason` when `prepareCall` would validate the call's data with
+input the schema model does not cover (`VErr.unsupported`): the drivers
+answer `unsupported` instead of running the call. -/
+def Registry.unsupportedCall? (r : Registry) (a : CallArgs) : Option String :=
+  match r.find a.domain a.service with
+  | none => none
+  | some (_, _, handler) =>
+    match responseCheck a handler.supportsResponse, handler.schema with
+    | none, some sch =>
+      match sch.validate (mergeTarget (a.data.getD []) a.target) with
+      | .error (.unsupported why) => some why
+      | _ => none
+    | _, _ => none
 
 /-- The `call_service` event `async_call` fires (with the call's context). -/
 def PreparedCall.event (p : PreparedCall) (now : Millis) : FiredEvent :=

@@ -20,6 +20,7 @@ import HALean.Core.StateMachine
 import HALean.Core.Proofs
 import HALean.Core.ServiceRegistry
 import HALean.Core.ServiceRegistryProofs
+import HALean.Core.ProbatioProofs
 import HALean.Core.Hass
 import HALean.Core.HassProofs
 import HALean.Core.HassSchedProofs

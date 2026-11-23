@@ -15,7 +15,9 @@
 
   `handler` is `{"return": <value>}`, `{"echo": true}` or
   `{"raise": "<exception>", "message": "..."}`; `schema` is
-  `{"fields": [{"key", "type", "required"?, "default"?}], "extra"?}`.
+  `{"fields": [<field>, ...], "extra"?}` (`HALean.Core.ServicesJson`: fields
+  with types or validators, markers and defaults). A call whose data the
+  schema model cannot validate exactly is `unsupported`.
 
   Each output line is `{"ok": true, "result", "events", "logs"}` or
   `{"ok": false, "error": {...}, "events", "logs"}`. Python values (responses,
@@ -79,6 +81,7 @@ def step (r : Registry) (msg : Value) : Except String (Registry × Json) := do
       blocking := ← getBool msg "blocking" false,
       returnResponse := ← getBool msg "return_response" false,
       context := ← decodeContext (msg.get? "context") }
+    if let some why := r.unsupportedCall? args then throw why
     let out := r.asyncCall args now
     return (r, reply (out.result.map fun v => .str (reprOr v)) out.events out.logs)
   | op => throw s!"unknown op {op}"

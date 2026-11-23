@@ -1,0 +1,74 @@
+# Joined core: service schemas with probatio validators and cv.* in handlers'
+# services (HALean/Core/Schema.lean). Run with: uv run tests/differential/run.py -k core
+
+- name: handler_service_with_cv_schema
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - op: register
+      domain: light_x
+      service: turn_on
+      schema:
+        fields:
+          - {key: entity_id, value: {cv: comp_entity_ids}}
+          - {key: brightness, value: {cv: byte}, default: "255"}
+          - {key: transition, value: {cv: positive_float}}
+          - {key: effect, value: {in: [none, colorloop, random]}}
+          - {key: flash, value: {cv: boolean}}
+      supports_response: optional
+      handler:
+        do: [{set: {entity_id: light.kitchen, state: "on", context: inherit}}]
+        echo: true
+    # coerced data reach the handler; call_service carries the raw data
+    - op: call
+      domain: light_x
+      service: turn_on
+      data: {brightness: "128", transition: 2, flash: "YES"}
+      target: {entity_id: "Light.Kitchen, light.hall"}
+      blocking: true
+      return_response: true
+      expect: {deliveries: ["m:call_service", "m:state_changed"]}
+    # invalid: MultipleInvalid, no call_service, the handler does not run
+    - {op: call, domain: light_x, service: turn_on, data: {brightness: 300}, blocking: true,
+       expect: {deliveries: []}}
+    - {op: call, domain: light_x, service: turn_on, data: {effect: colorlop}, blocking: true}
+    # a TypeError escapes the schema
+    - {op: call, domain: light_x, service: turn_on, target: {entity_id: 7}, blocking: true}
+
+- name: nested_call_fails_validation
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - op: register
+      domain: test
+      service: inner
+      schema: {fields: [{key: n, value: {all: [{coerce: int}, {range: {min: 1, max: 5}}]}, required: true},
+                        {key: tags, value: {list: [{cv: slug}]}}]}
+      supports_response: only
+      handler: {echo: true}
+    - op: register
+      domain: test
+      service: outer
+      handler:
+        do:
+          - call: {id: ok, domain: test, service: inner, data: {n: "3", tags: [a_b]}, blocking: true, return_response: true, context: inherit}
+          - call: {id: range, domain: test, service: inner, data: {n: 9}, blocking: true, return_response: true, catch: true}
+          - call: {id: slug, domain: test, service: inner, data: {n: 1, tags: [ok, Not Ok]}, blocking: true, return_response: true, catch: true}
+          - set: {entity_id: sensor.outer, state: "done", context: inherit}
+          - call: {id: fatal, domain: test, service: inner, data: {}, blocking: true, return_response: true}
+    - op: call
+      domain: test
+      service: outer
+      blocking: true
+      expect: {calls: ["ok:ok", "range:error", "slug:error", "fatal:error"]}
+    - {op: get, entity_id: sensor.outer}
+    # not blocking: the outer handler's error is logged
+    - {op: call, domain: test, service: outer, now: 1795710646000000}
+
+- name: unsupported_validator_input
+  ops:
+    - op: register
+      domain: test
+      service: lower
+      schema: {fields: [{key: a, value: {lower: null}}]}
+      handler: {return: null}
+    - {op: call, domain: test, service: lower, data: {a: "ABC"}, blocking: true}
+    - {op: call, domain: test, service: lower, data: {a: "ÄBC"}, blocking: true, unsupported: true}

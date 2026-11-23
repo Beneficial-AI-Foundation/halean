@@ -223,22 +223,24 @@ theorem keeps (n : Nat) :
       simp only [callService]
       split
       · exact Keeps.refl h
-      · have k0 := Keeps.ctxOr h a.context env.now
-        split
-        · exact k0
-        · split
+      · split
+        · exact Keeps.refl h
+        · have k0 := Keeps.ctxOr h a.context env.now
+          split
           · exact k0
-          · rename_i q _
-            have k1 := k0.trans (ihF env.now _ q)
-            split
-            · exact k1
-            · have k2 := fun env' as => k1.trans (ihAs env' _ as)
+          · split
+            · exact k0
+            · rename_i q _
+              have k1 := k0.trans (ihF env.now _ q)
               split
-              · split
+              · exact k1
+              · have k2 := fun env' as => k1.trans (ihAs env' _ as)
+                split
+                · split
+                  · exact k2 _ _
+                  · exact (k2 _ _).trans (Keeps.spawn _ _)
                 · exact k2 _ _
-                · exact (k2 _ _).trans (Keeps.spawn _ _)
-              · exact k2 _ _
-              · exact k2 _ _
+                · exact k2 _ _
 
 /-! ## Resuming, and running handles -/
 
