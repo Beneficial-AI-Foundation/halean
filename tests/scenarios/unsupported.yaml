@@ -22,11 +22,31 @@ automations:
     alias: after
     triggers: [{trigger: event, event_type: go}]
     actions: [{action: notify.me, data: {message: "{{ this.entity_id }}"}}]
+  - id: at_states    # a limited template cannot read states
+    triggers: [{trigger: time, at: "{{ states('input_text.t') }}"}]
+    actions: []
+  - id: at_now       # nor the clock
+    triggers: [{trigger: time, at: "{{ (now() + timedelta(hours=1)).strftime('%H:%M') }}"}]
+    actions: []
+  - id: at_number    # renders 7, not a string: HA's attach fails
+    triggers: [{trigger: time, at: "{{ 7 }}"}]
+    actions: []
+  - id: at_invalid   # neither a time nor an input_datetime/sensor entity
+    triggers: [{trigger: time, at: "{{ '25:00' }}"}]
+    actions: []
+  - id: at_wait      # a wait_for_trigger's variables are the run's, not static
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{wait_for_trigger: [{trigger: time, at: "{{ '22:00' }}"}]}]
 expect_init:
   - {type: unsupported, id: tpl}
   - {type: unsupported, id: tpl_for}
   - {type: unsupported, id: tpl_data}
   - {type: unsupported, id: after}
+  - {type: unsupported, id: at_states}
+  - {type: unsupported, id: at_now}
+  - {type: unsupported, id: at_number}
+  - {type: unsupported, id: at_invalid}
+  - {type: unsupported, id: at_wait}
 steps:
   - {at: 1, send: {type: event, event_type: go}, logs: true,
      expect: [{type: automation_triggered, id: opaque},
