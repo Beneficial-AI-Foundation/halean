@@ -575,7 +575,9 @@ partial def finishRun (r : Run) (end_ : RunEnd) : EM Unit := do
     return
   let a := e.automations.getD r.autoIdx default
   match end_ with
-  | .error _ m => emit [.log "error" s!"Error while executing {if e.scripts.isEmpty then "automation" else "script"} {a.alias}: {m}"]
+  | .error _ m =>
+    let kind := if (e.scripts[r.autoIdx]?).any (·.objectId != "") then "script" else "automation"
+    emit [.log "error" s!"Error while executing {kind} {a.alias}: {m}"]
   | .aborted m => emit [.log "debug" s!"{a.alias} aborted: {m}"]
   | .conditionFailed => emit [.log "debug" s!"{a.alias} aborted: condition failed"]
   | .finished | .stopped .. => pure ()

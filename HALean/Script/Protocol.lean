@@ -34,7 +34,15 @@ def decodeInput (j : Json) : Except String Input := do
         let el := ((field? l "elevation").bind pyNumber?).getD 0
         pure { latitude := lat, longitude := lon, elevation := el }
       | none => none
-    return .init (← decodeScripts ((field? j "scripts").getD .null)) sts now loc
+    -- automations run in the same engine: decoded as `halean-automation` does
+    let (autos, badAutos, cfgs) ← match field? j "automations" with
+      | none => pure ([], [], [])
+      | some raw =>
+        match HALean.Automation.decodeInput j with
+        | .ok (.init autos _ _ _, bad) => pure (autos, bad, ensureList raw)
+        | .ok _ => throw "init"
+        | .error m => throw m
+    return .init (← decodeScripts ((field? j "scripts").getD .null)) sts now loc autos badAutos cfgs
   | "call" =>
     let some svc := str? j "service" | throw "call without service"
     let rr := match field? j "return_response" with | some (.bool b) => b | _ => false

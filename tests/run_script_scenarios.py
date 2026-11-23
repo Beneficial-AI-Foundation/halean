@@ -5,8 +5,9 @@
 # ///
 """Run tests/script_scenarios/*.yaml through halean-script.
 
-A scenario has `scripts` (the content of scripts.yaml), initial `states`
-and `steps`. Each step happens `at` seconds after t0 and is one of:
+A scenario has `scripts` (the content of scripts.yaml), optionally
+`automations` (run in the same engine, as the bridge does with --scripts),
+initial `states` and `steps`. Each step happens `at` seconds after t0 and is one of:
 
   call: <service>        call script.<service> from outside (blocking, like
     data: {...}          the UI or an automation); `return_response` asks
@@ -42,7 +43,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bridge"))
-from protocol import protocol_scripts  # noqa: E402
+from protocol import protocol_automations, protocol_scripts  # noqa: E402
 
 ENGINE = ROOT / ".lake" / "build" / "bin" / "halean-script"
 SCENARIOS = sorted((ROOT / "tests" / "script_scenarios").glob("*.yaml"))
@@ -101,9 +102,11 @@ def lean_run(sc: dict) -> tuple[list[str], list[dict]]:
         obs["states"] = {k: list(v) for k, v in sorted(entity_states.items())}
         return obs
 
-    observations = [send({"type": "init", "now": T0, "tz": tz,
-                          "scripts": protocol_scripts(sc["scripts"]),
-                          "states": list(current.values())})]
+    init = {"type": "init", "now": T0, "tz": tz, "scripts": protocol_scripts(sc["scripts"]),
+            "states": list(current.values())}
+    if "automations" in sc:  # run in the same engine, calling these scripts
+        init["automations"] = protocol_automations(sc["automations"])
+    observations = [send(init)]
     for st in sc["steps"]:
         now = T0 + int(st["at"] * 1000)
         if "call" in st:

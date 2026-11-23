@@ -88,9 +88,11 @@
     },
     "script_init": {
       "allOf": [{"$ref": "#/$defs/clock"}],
-      "description": "halean-script: like init, with scripts instead of automations. A script.* state in states restores that script's last_triggered.",
+      "description": "halean-script: like init, with scripts. A script.* state in states restores that script's last_triggered. Optional automations run in the same engine (after the scripts), so their calls of script.* run these scripts.",
       "properties": {
         "type": {"const": "init"},
+        "automations": {"type": "array", "description": "As in init; rejected ones are reported as unsupported with their id"},
+        "location": {"type": "object"},
         "scripts": {"type": "array", "items": {"type": "array", "prefixItems": [{"type": "string"}, {"type": "object"}]},
           "description": "scripts.yaml as ordered [object_id, config] pairs (bridge/protocol.py protocol_scripts)"},
         "states": {"type": "array", "items": {"$ref": "#/$defs/state"}}

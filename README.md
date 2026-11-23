@@ -7,7 +7,7 @@ function by function, so it can be formally verified and still track upstream.
 |---|---|---|---|
 | Automation engine (triggers → conditions → actions, run modes) | `HALean/Automation/` | `halean-automation` | done, tested against real HA |
 | Templates (Jinja) | `HALean/Template/` | `halean-template` (test driver) | subset done, used by automations, tested against real HA |
-| Scripts (`script.*` entities and services) | `HALean/Script/` | `halean-script` | subset done, tested against real HA (no bridge yet) |
+| Scripts (`script.*` entities and services) | `HALean/Script/` | `halean-script` | subset done, tested against real HA, runs with the bridge (`--scripts`) |
 | State machine (`hass.states`) | `HALean/Core/StateMachine.lean` | `halean-core-states` (test driver) | done, tested against real HA |
 | Event bus (`hass.bus`) | `HALean/Core/EventBus.lean` | `halean-core-events` (test driver) | subset done (callback listeners), tested against real HA |
 | Service registry (`hass.services`) | `HALean/Core/ServiceRegistry.lean` | `halean-core-services` | subset done, tested against real HA |
@@ -161,6 +161,13 @@ uv run bridge/bridge.py /path/to/automations.yaml --dry-run   # log calls, chang
 Automations outside the supported subset are reported as `unsupported` and stay
 in HA. For each automation the engine runs, turn off HA's own copy so it
 doesn't run twice.
+
+`--scripts /path/to/scripts.yaml` runs scripts in the same engine
+(`halean-script`): the engine's automations then call these scripts. Their
+states are written to HA over its REST API (`HA_REST_URL`, by default
+`HA_URL`'s host). HA itself cannot call them (see Known gaps under Scripts),
+so remove them from HA's `scripts.yaml`. Scripts outside the subset are
+reported as `unsupported`.
 
 ## What is translated (upstream commit in `manifest.yaml`)
 
@@ -320,9 +327,12 @@ also runs through HA's own `script` integration
 calls, events, call outcomes and script entity states after every step.
 Known gaps:
 
-* **No bridge yet.** `halean-script` is tested in-process against HA only;
-  writing its entity states into HA and answering HA's `script.*` service
-  calls through the bridge is still to do.
+* **Bridge: scripts are called by HALean's automations, not by HA.** With
+  `--scripts`, the bridge runs `halean-script` with both files, so the
+  engine's automations call HALean's scripts. HA's WebSocket API cannot
+  register services, so the UI and HA's own automations cannot call them
+  (remove those scripts from HA's `scripts.yaml`). Script entity states are
+  written over the REST API as plain states, without HA's entity registry.
 * `last_action` is not modelled (rejected in templates, left out of the
   written state, opaque in `this`), and state writes do not notify
   listeners (waits on script entities are rejected). HA writes the state on

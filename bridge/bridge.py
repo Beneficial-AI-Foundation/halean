@@ -14,7 +14,8 @@ moves messages, stamps them with the current time and translates errors.
 Usage:
   export HA_URL=ws://homeassistant.local:8123/api/websocket
   export HA_TOKEN=<long-lived access token>
-  uv run bridge/bridge.py path/to/automations.yaml [--dry-run] [--status-entity input_text.x]
+  uv run bridge/bridge.py path/to/automations.yaml [--scripts scripts.yaml] [--dry-run]
+                          [--status-entity input_text.x]
 
 --status-entity makes the engine's activity visible inside HA: the entity's
 value is set to each run the engine starts (numbered), and to warnings, so
@@ -23,6 +24,14 @@ only; it never feeds back into the engine's decisions.
 
 Automations the engine does not support are reported and left to HA. For the
 ones it runs, turn the HA copy off (automation.turn_off) so they don't run twice.
+
+--scripts runs scripts.yaml in the same engine (halean-script): the engine's
+automations then call these scripts, not HA's. HA's WebSocket API cannot
+register services, so HA itself (the UI, its own automations) cannot call
+them; remove the scripts HALean runs from HA's scripts.yaml. Their entity
+states (on/off, last_triggered, current, ...) are written to HA over its REST
+API (POST /api/states/<entity_id> at HA_REST_URL, by default HA_URL's host),
+so they show up in HA as plain states.
 """
 
 from __future__ import annotations
@@ -34,16 +43,20 @@ import json
 import logging
 import os
 import time
+import urllib.parse
+import urllib.request
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import websockets
 
-from protocol import protocol_automations
+from protocol import protocol_automations, protocol_scripts
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE = Path(os.environ.get("HALEAN_ENGINE", ROOT / ".lake" / "build" / "bin" / "halean-automation"))
+# automations and scripts in one engine (--scripts)
+SCRIPT_ENGINE = Path(os.environ.get("HALEAN_SCRIPT_ENGINE", ROOT / ".lake" / "build" / "bin" / "halean-script"))
 _LOG = logging.getLogger("halean.bridge")
 
 # HA WebSocket error codes -> engine ErrKind (see HALean/Script.lean `ErrKind`)
@@ -99,13 +112,14 @@ def to_engine_state(s: dict | None) -> dict | None:
 class Engine:
     """The Lean process. One request line in, one batch line out."""
 
-    def __init__(self) -> None:
+    def __init__(self, path: Path = ENGINE) -> None:
+        self.path = path
         self.proc: asyncio.subprocess.Process | None = None
         self.lock = asyncio.Lock()
 
     async def start(self) -> None:
         self.proc = await asyncio.create_subprocess_exec(
-            str(ENGINE), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+            str(self.path), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
         )
 
     async def send(self, msg: dict) -> list[dict]:
@@ -172,7 +186,30 @@ class Bridge:
                 self.runs += 1
                 self.announce(f"#{self.runs} {c['name']}")
             elif kind == "unsupported":
-                _LOG.warning("automation %s stays in HA: %s", c["id"], c["reason"])
+                _LOG.warning("%s stays in HA: %s", c["id"], c["reason"])
+            elif kind == "set_state":
+                # a script entity the engine owns (--scripts)
+                if self.dry_run:
+                    _LOG.info("[dry-run] set_state %s %s", c["entity_id"], c["state"])
+                else:
+                    asyncio.create_task(self.set_state(c))
+            elif kind == "call_done":
+                pass  # answers to `call` inputs, which the bridge does not send
+
+    async def set_state(self, c: dict) -> None:
+        """Write a state over HA's REST API (the WebSocket API cannot)."""
+        base = os.environ.get("HA_REST_URL")  # default: HA_URL's host, over http(s)
+        if not base:
+            u = urllib.parse.urlsplit(os.environ["HA_URL"])
+            base = f"{'https' if u.scheme == 'wss' else 'http'}://{u.netloc}"
+        url = f"{base.rstrip('/')}/api/states/{urllib.parse.quote(c['entity_id'])}"
+        body = json.dumps({"state": c["state"], "attributes": c["attributes"]}).encode()
+        req = urllib.request.Request(url, data=body, method="POST", headers={
+            "Authorization": f"Bearer {os.environ['HA_TOKEN']}", "Content-Type": "application/json"})
+        try:
+            await asyncio.to_thread(lambda: urllib.request.urlopen(req, timeout=10).read())
+        except Exception as err:  # display only: never feeds back into the engine
+            _LOG.warning("could not write %s: %s", c["entity_id"], err)
 
     async def call_service(self, c: dict) -> None:
         """Blocking service call; report the outcome back to the engine."""
@@ -224,13 +261,15 @@ class Bridge:
 async def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("automations", type=Path, help="automations.yaml (or a JSON list)")
+    p.add_argument("--scripts", type=Path, help="scripts.yaml to run in the same engine")
     p.add_argument("--dry-run", action="store_true", help="log service calls instead of sending them")
     p.add_argument("--status-entity", help="input_text entity that shows engine activity in HA")
     args = p.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     automations = yaml.safe_load(args.automations.read_text()) or []
-    engine = Engine()
+    scripts = (yaml.safe_load(args.scripts.read_text()) or {}) if args.scripts else None
+    engine = Engine(SCRIPT_ENGINE if scripts is not None else ENGINE)
     await engine.start()
 
     async with websockets.connect(os.environ["HA_URL"], max_size=None) as ws:
@@ -244,13 +283,16 @@ async def main() -> None:
         reader = asyncio.create_task(bridge.reader())
         states = (await bridge.request({"type": "get_states"}))["result"]
         config = (await bridge.request({"type": "get_config"})).get("result") or {}
-        await bridge.handle_cmds(await engine.send({
-            "type": "init", "automations": protocol_automations(automations),
-            "states": [to_engine_state(s) for s in states], **now_fields(),
-            # HA's location, for the sun trigger
-            "location": {k: config.get(k) for k in ("latitude", "longitude", "elevation")}}))
+        init = {"type": "init", "automations": protocol_automations(automations),
+                "states": [to_engine_state(s) for s in states], **now_fields(),
+                # HA's location, for the sun trigger
+                "location": {k: config.get(k) for k in ("latitude", "longitude", "elevation")}}
+        if scripts is not None:
+            init["scripts"] = protocol_scripts(scripts)
+        await bridge.handle_cmds(await engine.send(init))
         await bridge.request({"type": "subscribe_events"})  # all events
-        _LOG.info("engine running %d automations", len(automations))
+        _LOG.info("engine running %d automations%s", len(automations),
+                  f" and {len(scripts)} scripts" if scripts is not None else "")
         bridge.announce(f"engine started with {len(automations)} automations")
         await asyncio.gather(reader, bridge.ticker())
 

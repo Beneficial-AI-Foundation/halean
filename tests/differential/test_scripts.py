@@ -114,6 +114,8 @@ async def test_script_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFacto
     for scripts in configs:
         for cfg in (scripts or {}).values():
             _walk(cfg.get("sequence"), services, events)
+    for auto in sc.get("automations", []):
+        _walk(auto.get("actions", auto.get("action")), services, events)
 
     observed: dict[str, list] = {"call_service": [], "fire_event": [], "call_done": []}
     futures: list[asyncio.Future] = []
@@ -142,6 +144,10 @@ async def test_script_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFacto
 
     assert await async_setup_component(hass, "script", {"script": copy.deepcopy(sc["scripts"])})
     await _settle()
+    if "automations" in sc:
+        assert await async_setup_component(
+            hass, "automation", {"automation": copy.deepcopy(sc["automations"])})
+        await _settle()
 
     def snapshot() -> dict:
         obs = {k: list(v) for k, v in observed.items()}

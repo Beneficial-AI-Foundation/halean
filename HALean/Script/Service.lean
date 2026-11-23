@@ -22,6 +22,8 @@ structure Service where
   /-- `RestoreStateData.last_states`: the `last_triggered` (UTC µs) of script
   entities that were removed, by entity id, for when they come back. -/
   restored : List (String × Int) := []
+  /-- The configs of the automations loaded with the scripts (for reload). -/
+  automationConfigs : List Json := []
   deriving Inhabited
 
 inductive Input where
@@ -30,6 +32,11 @@ inductive Input where
   `last_triggered` (`async_get_last_state`). -/
   | init (scripts : List (String × Json)) (states : List EntityState) (now : Instant)
       (location : Option Sun.Observer := none)
+      -- automations run in the same engine (after the scripts), so their
+      -- calls of `script.*` run these scripts; those rejected (id, reason);
+      -- their configs, for the variable names they pass to scripts
+      (automations : List Automation := []) (badAutomations : List (String × String) := [])
+      (automationConfigs : List Json := [])
   /-- A call of `script.<service>` from outside (HA, a user, an automation):
   `ServiceRegistry.async_call(..., blocking=True)`. -/
   | call (callId : Nat) (service : String) (data : Json) (returnResponse : Bool) (now : Instant)
@@ -38,10 +45,13 @@ inductive Input where
   /-- A state change, event, tick or service result, as for automations. -/
   | engine (i : Automation.Input)
 
-/-- Decode every script; the names other scripts pass are allowed in all. -/
-def decodeAll (scripts : List (String × Json)) :
+/-- Decode every script; the names other scripts (and the automations
+loaded with them) pass are allowed in all. -/
+def decodeAll (scripts : List (String × Json)) (automations : List Json := []) :
     List (String × Except String (ScriptEntity × Automation)) :=
-  let extra := passedNames scripts
+  let fromAutos := automations.map fun a =>
+    ("", Json.mkObj [("sequence", (field? a "actions").getD ((field? a "action").getD .null))])
+  let extra := passedNames (scripts ++ fromAutos)
   scripts.map fun (k, j) => (k, decodeScript k j extra)
 
 /-- `parse_datetime(state.attributes["last_triggered"])` of a state. -/
@@ -60,7 +70,10 @@ def addScripts (new : List (ScriptEntity × Automation)) (restored : List (Strin
     let e ← getE
     let ai := e.automations.length
     let lt := (restored.find? (·.1 == s.entityId)).map (·.2)
-    setE { e with automations := e.automations ++ [a], scripts := e.scripts ++ [s],
+    -- `scripts` is indexed like `automations`: automations loaded with the
+    -- scripts (`init` with `automations`) get dead placeholder entries
+    let pad := (List.range (ai - e.scripts.length)).map fun _ => ({ objectId := "", entityId := "", alive := false } : ScriptEntity)
+    setE { e with automations := e.automations ++ [a], scripts := e.scripts ++ pad ++ [s],
                   lastTriggered := match lt with
                     | some us => e.lastTriggered ++ [(ai, us)]
                     | none => e.lastTriggered }
@@ -114,16 +127,22 @@ def Service.owns (sv : Service) (eid : String) : Bool :=
 were not loaded (object id, reason). -/
 def Service.step (sv : Service) (i : Input) : Service × List Cmd × List (String × String) :=
   match i with
-  | .init scripts states now loc =>
-    let decoded := decodeAll scripts
+  | .init scripts states now loc autos badAutos autoCfgs =>
+    let decoded := decodeAll scripts autoCfgs
     let ok := decoded.filterMap fun (_, r) => r.toOption
     let bad := decoded.filterMap fun (k, r) => match r with | .error m => some (k, m) | .ok _ => none
     let restored := states.filterMap fun s =>
       if s.entityId.startsWith "script." then (lastTriggeredOf s).map (s.entityId, ·) else none
     let e0 : Engine := { states := states.map (fun s => (s.entityId, s)), now,
                          lastSec := now.utc / 1000, location := loc }
-    let ((), (e, cmds)) := (addScripts ok restored).run (e0, [])
-    ({ sv with engine := e, restored }, cmds, bad)
+    let act : EM Unit := do
+      addScripts ok restored
+      let e ← getE
+      setE { e with automations := e.automations ++ autos }
+      -- the automations' triggers (`initArmed`; scripts have none)
+      initArmed
+    let ((), (e, cmds)) := act.run (e0, [])
+    ({ sv with engine := e, restored, automationConfigs := autoCfgs }, cmds, badAutos ++ bad)
   | .call cid service data rr now =>
     let act : EM Unit := do
       advanceTo now
@@ -145,7 +164,7 @@ def Service.step (sv : Service) (i : Input) : Service × List Cmd × List (Strin
     let ((), (e, cmds)) := act.run (sv.engine, [])
     ({ sv with engine := e }, cmds, [])
   | .reload scripts now =>
-    let decoded := decodeAll scripts
+    let decoded := decodeAll scripts sv.automationConfigs
     let ok := decoded.filterMap fun (_, r) => r.toOption
     let bad := decoded.filterMap fun (k, r) => match r with | .error m => some (k, m) | .ok _ => none
     let act : EM (List (String × Int)) := do
