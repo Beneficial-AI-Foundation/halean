@@ -4,7 +4,10 @@
   * `HALean.Core`        – types shared by every service (states, time, JSON)
   * `HALean.Automation`  – service 1: the automation engine
   * `HALean.Template`    – service 2: Jinja templates (used by automations)
+  * `HALean.Core.StateMachine` – the state machine (`hass.states`)
 -/
 import HALean.Core.Types
 import HALean.Automation
 import HALean.Template
+import HALean.Core.StateMachine
+import HALean.Core.Proofs

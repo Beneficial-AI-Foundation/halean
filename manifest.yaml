@@ -412,8 +412,10 @@ entries:
 - python: core.py::valid_entity_id
   lean:
   - HALean.Template.validEntityId
+  - HALean.Core.validEntityId
   status: translated
-  notes: ASCII digits only (Python's \d also matches other Unicode digits)
+  notes: ASCII digits only (Python's \d also matches other Unicode digits); HALean.Core.validEntityId
+    also accepts one trailing newline like `$` (the state machine rejects non-ASCII ids)
   hash: c35f0c404975c6ca
 - python: core.py::valid_domain
   lean:
@@ -655,8 +657,9 @@ entries:
 - python: core.py::StateMachine.get
   lean:
   - HALean.Template.hassStatesGet
+  - HALean.Core.StateMachine.get
   status: translated
-  notes: lower-case retry; only expand uses it so far
+  notes: lower-case retry; only expand uses it so far; the state machine service uses HALean.Core.StateMachine.get
   hash: 275c441583e506d4
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.strptime
   lean:
@@ -985,3 +988,139 @@ entries:
   - HALean.Automation.Sun.sunEvent
   status: translated
   hash: 5a4601882dbc512f
+- python: core.py::split_entity_id
+  lean:
+  - HALean.Core.splitEntityId
+  status: translated
+  hash: c2f1fff7221fbf32
+- python: core.py::validate_state
+  lean:
+  - HALean.Core.StateMachine.validateState
+  status: translated
+  hash: c5135f07fe4bac76
+- python: core.py::Context._as_dict
+  lean:
+  - HALean.Core.Context.asDict
+  status: translated
+  notes: context ids are inputs; a fresh ULID is the symbolic `ulid:<n>` (freshContext)
+  hash: 48371bbce84a91a3
+- python: core.py::State.__init__
+  lean:
+  - HALean.Core.State.new
+  status: translated
+  notes: state_info and last_updated_timestamp are not modelled (timestamps are whole microseconds); theorem
+    State.new_ok
+  hash: 3d0f1fe02ff4d223
+- python: core.py::State.name
+  lean:
+  - HALean.Core.State.name
+  status: translated
+  hash: 6d1a365b87df0ccc
+- python: core.py::State.last_changed_timestamp
+  lean:
+  - HALean.Core.State.lastChangedTimestamp
+  status: translated
+  hash: df3735ed5eeccd14
+- python: core.py::State.last_reported_timestamp
+  lean:
+  - HALean.Core.State.lastReportedTimestamp
+  status: translated
+  hash: 7e8e2e4b9b0d9167
+- python: core.py::State._as_dict
+  lean:
+  - HALean.Core.State.asDict
+  status: translated
+  hash: 4e8be6c4ba2c696b
+- python: core.py::State.as_dict
+  lean:
+  - HALean.Core.State.asDict
+  status: translated
+  notes: always the fresh value; upstream's cached as_dict() keeps a stale last_reported after a report
+    (test_as_dict_cache_is_stale_after_report)
+  hash: 21c0d2671923d7ed
+- python: core.py::State.as_compressed_state
+  lean:
+  - HALean.Core.State.asCompressedState
+  status: translated
+  hash: 63e3840fb027799c
+- python: core.py::State.expire
+  lean:
+  - HALean.Core.StateMachine.asyncSetInternal
+  - HALean.Core.StateMachine.asyncRemove
+  status: translated
+  notes: replaces the context by an equal copy, so it is the identity on the model
+  hash: 5317e5728aa7295e
+- python: core.py::States.__setitem__
+  lean:
+  - HALean.Core.StateMachine.setItem
+  status: translated
+  hash: 66e83cd88b08b631
+- python: core.py::States.__delitem__
+  lean:
+  - HALean.Core.StateMachine.delItem
+  status: translated
+  hash: be86184ff69ea213
+- python: core.py::States.domain_entity_ids
+  lean:
+  - HALean.Core.StateMachine.domainEntityIds
+  status: proven
+  notes: the domain index lists a domain's entities in the main dict's order, so it is a filter of the
+    dict; theorem mem_domainEntityIds
+  hash: e373ba89e83722e6
+- python: core.py::States.domain_states
+  lean:
+  - HALean.Core.StateMachine.domainStates
+  status: translated
+  hash: c0fe6c708caf2dbd
+- python: core.py::StateMachine.async_entity_ids
+  lean:
+  - HALean.Core.StateMachine.asyncEntityIds
+  status: translated
+  hash: a240d313569efac9
+- python: core.py::StateMachine.async_entity_ids_count
+  lean:
+  - HALean.Core.StateMachine.asyncEntityIdsCount
+  status: translated
+  hash: b4ae4450a4409c37
+- python: core.py::StateMachine.async_all
+  lean:
+  - HALean.Core.StateMachine.asyncAll
+  status: translated
+  hash: 92a1dd07fb25b784
+- python: core.py::StateMachine.is_state
+  lean:
+  - HALean.Core.StateMachine.isState
+  status: translated
+  hash: 2b1dac91f2be9350
+- python: core.py::StateMachine.async_remove
+  lean:
+  - HALean.Core.StateMachine.asyncRemove
+  status: proven
+  notes: theorems remove_then_get_none, remove_then_lookup_none, remove_keys
+  hash: b96d7c0813c83f16
+- python: core.py::StateMachine.async_reserve
+  lean:
+  - HALean.Core.StateMachine.asyncReserve
+  status: proven
+  notes: theorem reserve_then_unavailable
+  hash: 6cefddf984973ac1
+- python: core.py::StateMachine.async_available
+  lean:
+  - HALean.Core.StateMachine.asyncAvailable
+  status: translated
+  hash: 3fa5b6c7f6bdc202
+- python: core.py::StateMachine.async_set
+  lean:
+  - HALean.Core.StateMachine.asyncSet
+  status: translated
+  notes: timestamp (or time.time()) is the caller's `now`, in whole microseconds; str() of the state via
+    the template service's pyStr
+  hash: 17b7323a17517268
+- python: core.py::StateMachine.async_set_internal
+  lean:
+  - HALean.Core.StateMachine.asyncSetInternal
+  - HALean.Core.StateMachine.attrsEq
+  status: proven
+  notes: state_info not modelled; theorems set_same_only_reports, set_same_state_keeps_last_changed, set_frame,
+    set_keys
+  hash: f5eef30edc4da775
