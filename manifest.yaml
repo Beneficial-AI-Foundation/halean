@@ -3,6 +3,7 @@ upstream:
   commit: 357cae5c598dfcd7a0ea7dc5b1facccd4ec6037b
   tag: 2026.10.4
   jinja2: 3.1.6
+  probatio: 0.13.0
 entries:
 - python: helpers/condition.py::AndConditionChecker._async_check
   lean:
@@ -983,3 +984,116 @@ entries:
   - HALean.Automation.Sun.sunEvent
   status: translated
   hash: 5a4601882dbc512f
+- python: core.py::SupportsResponse
+  lean:
+  - HALean.Core.SupportsResponse
+  status: translated
+  hash: 04bb2b6da1dd1dd4
+- python: core.py::Service
+  lean:
+  - HALean.Core.Service
+  - HALean.Core.HandlerSpec
+  status: translated
+  notes: the job is a HandlerSpec (return a value / echo the call / raise); job types are not modelled
+  hash: 094284df366e0a38
+- python: core.py::ServiceCall
+  lean:
+  - HALean.Core.ServiceCall
+  - HALean.Core.ServiceCall.repr
+  status: translated
+  hash: 87389be097f36316
+- python: core.py::ServiceRegistry.async_services
+  lean:
+  - HALean.Core.Registry.asyncServices
+  status: translated
+  hash: 953cffd8407fc1d9
+- python: core.py::ServiceRegistry.async_services_for_domain
+  lean:
+  - HALean.Core.Registry.asyncServicesForDomain
+  status: translated
+  notes: the domain is not lowercased (upstream quirk, kept)
+  hash: e4f782a8b6a72900
+- python: core.py::ServiceRegistry.has_service
+  lean:
+  - HALean.Core.Registry.hasService
+  status: proven
+  notes: theorems has_after_register, has_after_remove; str.lower() modelled for ASCII names only
+  hash: 151ab10768e81f06
+- python: core.py::ServiceRegistry.supports_response
+  lean:
+  - HALean.Core.Registry.supportsResponse
+  status: translated
+  notes: a missing domain or service raises KeyError
+  hash: 11dbbe48615b6248
+- python: core.py::ServiceRegistry.async_register
+  lean:
+  - HALean.Core.Registry.register
+  status: translated
+  hash: 157be28562db570c
+- python: core.py::ServiceRegistry._async_register
+  lean:
+  - HALean.Core.Registry.register
+  status: proven
+  notes: theorem has_after_register (case-insensitive)
+  hash: 0ae8830ee181c4b6
+- python: core.py::ServiceRegistry.async_remove
+  lean:
+  - HALean.Core.Registry.remove
+  status: translated
+  hash: 17f146a0b07506ea
+- python: core.py::ServiceRegistry._async_remove
+  lean:
+  - HALean.Core.Registry.remove
+  status: proven
+  notes: theorems has_after_remove, call_after_remove_not_found
+  hash: 2558fcbc0d59e76a
+- python: core.py::ServiceRegistry.async_call
+  lean:
+  - HALean.Core.Registry.asyncCall
+  - HALean.Core.CallArgs
+  - HALean.Core.CallOutcome
+  status: proven
+  notes: theorems call_none_return_response_errors, call_only_needs_return_response, call_return_response_needs_blocking,
+    call_after_remove_not_found
+  hash: 7744c175387f8dfc
+- python: core.py::ServiceRegistry._run_service_call_catch_exceptions
+  lean:
+  - HALean.Core.Registry.asyncCall
+  status: translated
+  notes: Unauthorized and CancelledError are not modelled (handlers cannot raise them)
+  hash: cffaa1470685a01a
+- python: core.py::ServiceRegistry._execute_service
+  lean:
+  - HALean.Core.runHandler
+  status: translated
+  hash: 86419bad1cbb5b7b
+- python: exceptions.py::HomeAssistantError
+  lean:
+  - HALean.Core.PyError
+  - HALean.Core.translatedError
+  - HALean.Core.errorKind
+  status: translated
+  hash: 07f150568abd2218
+- python: exceptions.py::ServiceValidationError
+  lean:
+  - HALean.Core.serviceValidationError
+  status: translated
+  hash: 67a4e65b563c0e7a
+- python: exceptions.py::ServiceNotFound
+  lean:
+  - HALean.Core.serviceNotFound
+  status: translated
+  hash: eb9849a6f3f23f4a
+- python: helpers/translation.py::async_get_exception_message
+  lean:
+  - HALean.Core.exceptionMessage
+  - HALean.Core.exceptionTemplate
+  status: translated
+  notes: English strings of components/homeassistant/strings.json for the five registry errors
+  hash: 4be9bf62769f1c82
+- python: util/__init__.py::repr_helper
+  lean:
+  - HALean.Core.reprHelper
+  status: translated
+  notes: datetimes are not modelled (service data comes from JSON)
+  hash: c75104c7882e7ea6

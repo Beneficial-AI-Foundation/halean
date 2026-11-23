@@ -8,7 +8,8 @@ function by function, so it can be formally verified and still track upstream.
 | Automation engine (triggers → conditions → actions, run modes) | `HALean/Automation/` | `halean-automation` | done, tested against real HA |
 | Templates (Jinja) | `HALean/Template/` | `halean-template` (test driver) | subset done, used by automations, tested against real HA |
 | Scripts | `HALean/Script/` | | planned |
-| State machine, event bus, service registry | `HALean/Core/` | | planned |
+| State machine, event bus | `HALean/Core/` | | planned |
+| Service registry (`hass.services`) | `HALean/Core/ServiceRegistry.lean` | `halean-core-services` | subset done, tested against real HA |
 
 `HALean/Core/` holds what every service shares (states, time, JSON). All
 services share one `manifest.yaml`, one pinned HA release, one bridge and one
@@ -204,6 +205,43 @@ in `tests/scenarios/`:
   fires on admission, before the run starts.
 * `repeat` aborts after 10,000 iterations.
 
+### Service registry (`HALean/Core/ServiceRegistry.lean`)
+
+`hass.services` (`ServiceRegistry` in `homeassistant/core.py`) as a pure model.
+`halean-core-services` takes one operation per JSON line (`register`, `remove`,
+`has`, `supports_response`, `list`, `list_domain`, `call`, each with an explicit
+`now`) and answers with the result or the exception, the events fired and the
+`homeassistant.core` log records (format in `HALean/Core/ServicesMain.lean`).
+Handlers are specs (return a value, echo the `ServiceCall`, raise an exception)
+and schemas are flat `probatio` mapping schemas, so behaviour is observable.
+Exceptions carry the same `error_kind` as the automation protocol's
+`service_result`: `invalid` (`probatio.Invalid`), `ha_error`
+(`HomeAssistantError` and subclasses), `other`.
+
+`tests/differential/test_services.py` runs each case in
+`tests/core/services/*.yaml` on a real `hass.services` (frozen clock) with
+handlers and schemas built from the same specs, and on `halean-core-services`.
+For every operation it compares the result (`repr()`), the exception (class,
+`str()`, `error_kind`, translation key and placeholders), the events
+(`service_registered`, `service_removed`, `call_service`: type, `repr()` of the
+data, time fired, context) and warnings/errors logged. Random context ids are
+compared structurally (`new`). Schemas are validated by `probatio`, a
+dependency like Jinja2, so its version is pinned too (`upstream.probatio`,
+0.13.0, checked by `test_probatio_matches_pin`).
+
+| Supported | Rejected (`unsupported`, nothing changes) |
+|---|---|
+| `async_register` (names lowercased, a service replaced in place, `service_registered`), `async_remove` (`service_removed`, empty domains dropped, a warning for an unknown service), `has_service`, `supports_response` (`KeyError` for a missing domain or service), `async_services` and `async_services_for_domain` (insertion order; the latter does not lowercase, like HA); `async_call`: lookup as given then lowercased, `ServiceNotFound`, the `return_response` rules (`blocking` needed, `NONE` refuses it, `ONLY` requires it), `target` merged into the data, schema validation (`Required`/`Optional` with defaults, `int`/`float`/`str`/`bool`/`object`, `PREVENT`/`ALLOW`/`REMOVE_EXTRA`, probatio's error order and messages including the difflib "did you mean" hint and path rendering), `call_service` with the unvalidated data, handler errors raised when blocking and logged (with the `ServiceCall` repr) when not, the response must be a dict | non-ASCII domain or service names (`str.lower()` is modelled for ASCII), handler exceptions other than `HomeAssistantError`, `ServiceValidationError`, `Invalid`, `ValueError`, `RuntimeError`; schema types and validators beyond the five types (`cv.*`, `Coerce`, `In`, nested schemas, `Exclusive`, ...); non-dict `data`/`target` |
+
+Known gaps: handlers run to completion when called (job types, awaiting, and
+handlers that fire events or call services are not modelled; a non-blocking
+call's handler finishes before `async_call` returns, as HA's eager task does
+for a handler that never awaits); `Unauthorized` and cancellation in
+background calls; the thread-safe wrappers (`register`, `remove`, `call`,
+`services`) and `description_placeholders`; `repr()` of strings with
+non-printable non-ASCII characters (Python escapes them, HALean does not);
+`NaN`/`Infinity` in the input JSON.
+
 ## Proved so far (`HALean/Automation/Proofs.lean`)
 
 `evalAnd_nil`, `evalOr_nil`, `evalCond_disabled`, `evalNot_disabled`,
@@ -213,6 +251,13 @@ in `tests/scenarios/`:
 
 `HALean/Template/Proofs.lean`: `render_static` (static templates are never
 evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
+
+`HALean/Core/ServiceRegistryProofs.lean`: `has_after_register` (registration is
+case-insensitive), `has_after_remove` and `call_after_remove_not_found` (after
+`async_remove`, `has_service` is false and a call raises `ServiceNotFound`),
+`call_none_return_response_errors`, `call_only_needs_return_response`,
+`call_return_response_needs_blocking`; `wf_register`/`wf_remove` (keys stay
+lowercase).
 
 ## Known gaps and deviations
 
