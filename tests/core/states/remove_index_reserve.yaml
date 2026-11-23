@@ -1,0 +1,75 @@
+# async_remove, the domain index and its order, reservations, contexts.
+
+- name: remove_and_get
+  ops:
+    - {op: set, entity_id: light.a, state: "on", attributes: {x: 1}}
+    - {op: remove, entity_id: light.a, now: "2026-11-20T16:31:00.5+00:00", expect: true}
+    - {op: get, entity_id: light.a, expect: null}
+    - {op: remove, entity_id: light.a, expect: false}
+    - {op: remove, entity_id: light.never, expect: false}
+    - {op: set, entity_id: light.a, state: "on", attributes: {x: 1}, now: "2026-11-20T16:32:00+00:00"}
+    - {op: get, entity_id: light.a}
+    - {op: remove, entity_id: LIGHT.A, expect: true}
+
+- name: domain_index_order
+  ops:
+    - {op: set, entity_id: light.b, state: "on"}
+    - {op: set, entity_id: switch.x, state: "on"}
+    - {op: set, entity_id: light.a, state: "on"}
+    - {op: set, entity_id: light.c, state: "on"}
+    - {op: set, entity_id: sensor.s, state: "1"}
+    - {op: entity_ids}
+    - {op: entity_ids, domain_filter: light}
+    - {op: set, entity_id: light.b, state: "off"}                 # overwrite keeps the position
+    - {op: entity_ids, domain_filter: light}
+    - {op: remove, entity_id: light.b}
+    - {op: set, entity_id: light.b, state: "on"}                  # re-adding moves it to the end
+    - {op: entity_ids, domain_filter: light, expect: [light.a, light.c, light.b]}
+    - {op: entity_ids}
+    - {op: entity_ids, domain_filter: LIGHT}                      # a str filter is lower-cased
+    - {op: entity_ids, domain_filter: [sensor, light, sensor]}    # an iterable is not, duplicates repeat
+    - {op: entity_ids, domain_filter: [LIGHT], expect: []}
+    - {op: entity_ids, domain_filter: [], expect: []}
+    - {op: entity_ids, domain_filter: nothing, expect: []}
+    - {op: entity_ids_count}
+    - {op: entity_ids_count, domain_filter: Light, expect: 3}
+    - {op: entity_ids_count, domain_filter: [light, switch, light, zone], expect: 7}
+    - {op: all, domain_filter: [switch, sensor]}
+    - {op: all, domain_filter: light}
+    - {op: all}
+
+- name: reservations
+  ops:
+    - {op: available, entity_id: light.a, expect: true}
+    - {op: reserve, entity_id: light.a}
+    - {op: available, entity_id: light.a, expect: false}
+    - {op: available, entity_id: LIGHT.A, expect: false}
+    - {op: reserve, entity_id: light.a}                            # twice: HomeAssistantError
+    - {op: reserve, entity_id: Light.B}                            # not lower-cased
+    - {op: available, entity_id: light.b, expect: true}
+    - {op: available, entity_id: Light.B, expect: true}
+    - {op: set, entity_id: light.a, state: "on"}                  # async_set ignores reservations
+    - {op: available, entity_id: light.a, expect: false}
+    - {op: reserve, entity_id: light.a}                            # in the state machine: error
+    - {op: remove, entity_id: light.a}                             # also discards the reservation
+    - {op: available, entity_id: light.a, expect: true}
+    - {op: reserve, entity_id: light.c}
+    - {op: remove, entity_id: light.c, expect: false}              # nothing to remove, reservation gone
+    - {op: available, entity_id: light.c, expect: true}
+    - {op: reserve, entity_id: light.c}
+
+- name: contexts
+  ops:
+    - {op: set, entity_id: light.a, state: "on", context: {id: ctx_1}}
+    - {op: inspect, entity_id: light.a}
+    - {op: set, entity_id: light.a, state: "off", context: {id: ctx_2, user_id: user_1}}
+    - {op: inspect, entity_id: light.a}
+    - {op: set, entity_id: light.a, state: "on", context: {id: ctx_3, parent_id: ctx_2}}
+    - {op: inspect, entity_id: light.a}
+    - {op: set, entity_id: light.a, state: "on", context: {id: ctx_4, user_id: user_2}, now: "2026-11-20T16:40:00+00:00"}
+    - {op: get, entity_id: light.a}    # a report keeps the state's context
+    - {op: set, entity_id: light.a, state: "on", now: "2026-11-20T16:41:00+00:00"}
+    - {op: remove, entity_id: light.a, context: {id: ctx_5, user_id: user_1, parent_id: ctx_4}}
+    - {op: set, entity_id: light.b, state: "on"}
+    - {op: set, entity_id: light.b, state: "off", now: "2026-11-20T16:42:00.000999+00:00"}
+    - {op: remove, entity_id: light.b, now: "2026-11-20T16:43:00+00:00"}

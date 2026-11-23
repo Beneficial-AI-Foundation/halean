@@ -8,7 +8,8 @@ function by function, so it can be formally verified and still track upstream.
 | Automation engine (triggers → conditions → actions, run modes) | `HALean/Automation/` | `halean-automation` | done, tested against real HA |
 | Templates (Jinja) | `HALean/Template/` | `halean-template` (test driver) | subset done, used by automations, tested against real HA |
 | Scripts | `HALean/Script/` | | planned |
-| State machine, event bus, service registry | `HALean/Core/` | | planned |
+| State machine (`hass.states`) | `HALean/Core/StateMachine.lean` | `halean-core-states` (test driver) | done, tested against real HA |
+| Event bus, service registry | `HALean/Core/` | | planned |
 
 `HALean/Core/` holds what every service shares (states, time, JSON). All
 services share one `manifest.yaml`, one pinned HA release, one bridge and one
@@ -204,6 +205,31 @@ in `tests/scenarios/`:
   fires on admission, before the run starts.
 * `repeat` aborts after 10,000 iterations.
 
+### State machine (`HALean/Core/StateMachine.lean`)
+
+`homeassistant/core.py`'s `State` and `StateMachine` as a pure model:
+`asyncSet : StateMachine → ... → (now : Int) → Except SMError (StateMachine × List SMEvent)`.
+The clock is an argument (microseconds), and so are contexts; a context the
+caller does not pass is a fresh symbolic ULID (`ulid:0`, `ulid:1`, ... in order).
+`halean-core-states` runs it as JSON lines (one operation per line, the result
+plus the events fired). `tests/differential/test_states.py` applies every
+operation sequence in `tests/core/states/*.yaml` to HA's own `hass.states` and to
+`halean-core-states`, and compares results and `state_changed`/`state_reported`
+events (type, data, context, time fired, origin, in order) with their Python
+types; HA's random ULIDs are renamed in order of appearance and must encode the
+operation's clock.
+
+| Supported | Rejected (`unsupported`), or not modelled |
+|---|---|
+| `async_set` (`str()` of the state, `validate_state`, lower-cased id, `attributes or {}`, `force_update`, `context`, `timestamp`), `async_set_internal` (over-long state → `unknown`), the report rule (same state and Python-equal attributes: only `last_reported` moves, the same object is reported, `state_reported` fires with `old_last_reported`), `last_changed` kept on attribute-only changes, equal attributes keep the old object (`{a: 1}` stays when `{a: 1.0}` is set), `valid_entity_id` (incl. the trailing newline `$` allows) for new entities, `async_remove`, `get` (with the lower-case retry), `is_state`, `async_entity_ids` / `_count` / `async_all` (no filter, a `str` filter lower-cased, an iterable not), the dict and domain-index order, `async_reserve` / `async_available`; `State`: `domain`, `object_id`, `name`, `last_*_timestamp`, `as_dict`, `as_compressed_state`, `Context._as_dict` | non-ASCII entity ids and domain filters (`str.lower()` and `\d` are Unicode-aware), `state_info`, non-JSON attribute values, `State.from_dict`, `__repr__`, `as_dict_json`/`json_fragment`, the thread-safe wrappers (`set`, `remove`, `entity_ids`, `all`) |
+
+Known gaps: timestamps are whole microseconds (`timestamp = us / 1e6`, which
+the harness passes explicitly); HA's `as_dict()` is cached and keeps a stale
+`last_reported` after a report, where HALean's `asDict` is always fresh
+(`test_as_dict_cache_is_stale_after_report` pins the upstream behaviour);
+attribute dicts print with sorted keys; a JSON float written without a
+fraction or exponent sign (`1e16`) reads as an int.
+
 ## Proved so far (`HALean/Automation/Proofs.lean`)
 
 `evalAnd_nil`, `evalOr_nil`, `evalCond_disabled`, `evalNot_disabled`,
@@ -213,6 +239,13 @@ in `tests/scenarios/`:
 
 `HALean/Template/Proofs.lean`: `render_static` (static templates are never
 evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
+
+`HALean/Core/Proofs.lean` (state machine): `set_same_only_reports` (same state
+and attributes: only `last_reported` changes, only `state_reported` fires),
+`set_same_state_keeps_last_changed`, `set_frame` (a set touches no other
+entity), `set_keys` / `remove_keys` / `mem_domainEntityIds` (the ids of a
+domain are exactly those set and not removed since), `remove_then_get_none`,
+`reserve_then_unavailable`.
 
 ## Known gaps and deviations
 

@@ -110,7 +110,28 @@ own semantics for numbers, strings and comparisons. Candidate properties:
 * **Errors, not wrong answers.** Every value HALean does not model yet
   (datetimes, for instance) leads to an error, never to a different result.
 
-## Running things
+## State machine
+
+`HALean/Core/StateMachine.lean` is pure too: each operation maps a
+`StateMachine` (and the clock) to a new one plus the events fired. Proved in
+`HALean/Core/Proofs.lean`:
+
+| Theorem | Says |
+|---|---|
+| `set_same_only_reports` | same state and Python-equal attributes (no `force_update`): the stored state is the old one with only `last_reported` moved, and the only event is `state_reported` |
+| `set_same_state_keeps_last_changed` | setting the same state never moves `last_changed`, whatever the attributes |
+| `set_frame` | a set stores the entity and changes no other entity |
+| `set_keys`, `remove_keys`, `mem_domainEntityIds` | the entity ids (of a domain) are exactly those set and not removed since |
+| `remove_then_get_none` | remove, then `get`, is `None` |
+| `reserve_then_unavailable` | a reserved id is not available |
+
+Next candidates: every stored entity id is valid and lower case (an invariant
+of all operations); the domain index agrees with a separately maintained
+per-domain dict, as upstream keeps it; event-level properties once the event
+bus is translated (every `state_changed` carries the previous `new_state` as
+its `old_state`).
+
+
 
 ```bash
 lake build                          # builds the engine and checks all proofs
