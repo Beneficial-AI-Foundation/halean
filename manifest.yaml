@@ -3,6 +3,7 @@ upstream:
   commit: 357cae5c598dfcd7a0ea7dc5b1facccd4ec6037b
   tag: 2026.10.4
   jinja2: 3.1.6
+  probatio: 0.13.0
 entries:
 - python: helpers/condition.py::AndConditionChecker._async_check
   lean:
@@ -49,7 +50,9 @@ entries:
   - HALean.Automation.timeCond
   - HALean.Automation.resolveTimeBound
   status: translated
-  notes: timestamp/uptime sensor bounds raise 'unsupported'; local time comes from the shell's tz offset
+  notes: timestamp/uptime sensor bounds are converted with the shell's tz offset, like the local time;
+    dates only ciso8601 would parse raise 'unsupported'; a time entity is read with the template engine's
+    strptime(state, "%H:%M:%S")
   hash: 75942a34ea3c0149
 - python: helpers/condition.py::state_from_config
   lean:
@@ -172,6 +175,7 @@ entries:
   lean:
   - HALean.Automation.admit
   - HALean.Automation.triggerAutomation
+  - HALean.Automation.startScript
   status: proven
   notes: theorems single_exclusive, restart_never_rejects, admit_bounded, queued_waits
   hash: de80e422d227b5fe
@@ -228,8 +232,10 @@ entries:
   - HALean.Automation.fireTimePoints
   - HALean.Automation.onStateChanged
   status: translated
-  notes: templated at is rejected; an error in update_entity_trigger is logged (at attach, HA would fail
-    to attach the trigger); the local time zone is the current UTC offset
+  notes: a templated at is rendered at load time with the static trigger_variables (limited, so it cannot
+    read states or the clock; tz-dependent date functions and wait_for_trigger are rejected, as are renders
+    that are not a valid at); an error in update_entity_trigger is logged (at attach, HA would fail to
+    attach the trigger); the local time zone is the current UTC offset
   hash: 6f3973d45d42a3d4
 - python: components/homeassistant/triggers/time_pattern.py::async_attach_trigger
   lean:
@@ -289,7 +295,9 @@ entries:
 - python: helpers/template/__init__.py::is_template_string
   lean:
   - HALean.Template.isTemplateString
-  status: translated
+  - HALean.Template.hasJinjaOpen
+  status: proven
+  notes: 'theorem isTemplateString_iff: true exactly when "{" is in s and one of "{%", "{{", "{#" is'
   hash: 14606093095e7d2f
 - python: helpers/template/states.py::AllStates.__getattr__
   lean:
@@ -404,19 +412,33 @@ entries:
   hash: 64e9ed0ed50afea7
 - python: helpers/config_validation.py::boolean
   lean:
+  - HALean.Template.cvBooleanText
+  - HALean.Template.cvBooleanCore
+  - HALean.Template.pyIsSpace
   - HALean.Template.cvBoolean
-  status: translated
+  - HALean.Core.cvBoolean
+  status: proven
+  notes: 'theorem cvBooleanText_iff (strings): value.lower().strip() is a true/false word, for ASCII text;
+    exact for all text by two Unicode facts checked against CPython (str.isspace is the 29 code points of
+    pyIsSpace; only U+0130 and U+212A lower to text containing ASCII). Numbers and bools: direct.'
   hash: 228619f46826b358
 - python: core.py::valid_entity_id
   lean:
+  - HALean.Core.validEntityId
+  - HALean.Core.entityIdBody
   - HALean.Template.validEntityId
-  status: translated
-  notes: ASCII digits only (Python's \d also matches other Unicode digits)
+  status: proven
+  notes: 'theorem validEntityId_iff: accepts exactly the strings VALID_ENTITY_ID matches (EntityIdRe, with
+    `$` before one final newline); \d read as ASCII digits (Python''s class is Unicode-aware; callers reject
+    non-ASCII ids). The template engine uses the same function.'
   hash: c35f0c404975c6ca
 - python: core.py::valid_domain
   lean:
+  - HALean.Core.validDomain
   - HALean.Template.validDomain
-  status: translated
+  status: proven
+  notes: 'theorem validDomain_iff: accepts exactly the strings VALID_DOMAIN matches (DomainRe); \d read as
+    ASCII digits'
   hash: 5711c45cc3274624
 - python: components/template/trigger.py::async_attach_trigger
   lean:
@@ -546,8 +568,13 @@ entries:
   hash: dbd0af9665451de8
 - python: util/dt.py::parse_time
   lean:
+  - HALean.Template.parseTimeSeconds
+  - HALean.Template.parseTimeSecond
   - HALean.Template.parseTime
-  status: translated
+  status: proven
+  notes: 'theorem parseTimeSeconds_iff: some t exactly when str.split(":") has at least two parts, int()
+    of the first two (and the third if present, later parts ignored) are in time()''s ranges (PyIntSpec,
+    ASCII text). Also cv.time for time triggers and conditions (was a separate, stricter copy).'
   hash: bcb6031376e0cac5
 - python: util/dt.py::as_local
   lean:
@@ -653,8 +680,9 @@ entries:
 - python: core.py::StateMachine.get
   lean:
   - HALean.Template.hassStatesGet
+  - HALean.Core.StateMachine.get
   status: translated
-  notes: lower-case retry; only expand uses it so far
+  notes: lower-case retry; only expand uses it so far; the state machine service uses HALean.Core.StateMachine.get
   hash: 275c441583e506d4
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.strptime
   lean:
@@ -746,8 +774,13 @@ entries:
 - python: util/__init__.py::slugify
   lean:
   - HALean.Automation.slugify?
+  - HALean.Automation.slugifyChars
+  - HALean.Automation.subRuns
+  - HALean.Automation.delDigitCommas
   status: translated
-  notes: python-slugify subset; non-ASCII names reject `this`
+  notes: 'python-slugify 9.1.2 legacy pipeline, one Lean step per line (ASCII, no HTML entities; non-ASCII
+    names reject `this`). Proved about it: slugifyChars_valid (any non-empty result is a valid slug),
+    slugifyChars_of_valid (valid slugs are fixed points), slugify_fixed_iff'
   hash: 25256fd158a3834a
 - python: helpers/entity_registry.py::EntityRegistry.async_get_available_entity_id
   lean:
@@ -773,11 +806,13 @@ entries:
 - python: helpers/config_validation.py::time_period_str
   lean:
   - HALean.Automation.timePeriodStr
+  - HALean.Core.cvTimePeriodStr
   status: translated
   hash: 3cecd2ee5dde4a98
 - python: helpers/config_validation.py::time_period_seconds
   lean:
   - HALean.Automation.timePeriodSeconds
+  - HALean.Core.cvTimePeriodSeconds
   status: translated
   hash: b88a742d03b3805d
 - python: helpers/script.py::_ScriptRun._async_step_wait_template
@@ -983,3 +1018,985 @@ entries:
   - HALean.Automation.Sun.sunEvent
   status: translated
   hash: 5a4601882dbc512f
+- python: core.py::split_entity_id
+  lean:
+  - HALean.Core.splitEntityId
+  - HALean.Core.partitionDot
+  status: proven
+  notes: 'theorem splitEntityId_some: some (d, o) exactly when the id is d ++ "." ++ o with no dot in d and
+    both non-empty (str.partition(".")); none is the ValueError'
+  hash: c2f1fff7221fbf32
+- python: core.py::validate_state
+  lean:
+  - HALean.Core.StateMachine.validateState
+  status: translated
+  hash: c5135f07fe4bac76
+- python: core.py::Context._as_dict
+  lean:
+  - HALean.Core.Context.asDict
+  status: translated
+  notes: context ids are inputs; a fresh ULID is the symbolic `ulid:<n>` (freshContext)
+  hash: 48371bbce84a91a3
+- python: core.py::State.__init__
+  lean:
+  - HALean.Core.State.new
+  status: translated
+  notes: state_info and last_updated_timestamp are not modelled (timestamps are whole microseconds); theorem
+    State.new_ok
+  hash: 3d0f1fe02ff4d223
+- python: core.py::State.name
+  lean:
+  - HALean.Core.State.name
+  status: translated
+  hash: 6d1a365b87df0ccc
+- python: core.py::State.last_changed_timestamp
+  lean:
+  - HALean.Core.State.lastChangedTimestamp
+  status: translated
+  hash: df3735ed5eeccd14
+- python: core.py::State.last_reported_timestamp
+  lean:
+  - HALean.Core.State.lastReportedTimestamp
+  status: translated
+  hash: 7e8e2e4b9b0d9167
+- python: core.py::State._as_dict
+  lean:
+  - HALean.Core.State.asDict
+  status: translated
+  hash: 4e8be6c4ba2c696b
+- python: core.py::State.as_dict
+  lean:
+  - HALean.Core.State.asDict
+  status: translated
+  notes: always the fresh value; upstream's cached as_dict() keeps a stale last_reported after a report
+    (test_as_dict_cache_is_stale_after_report)
+  hash: 21c0d2671923d7ed
+- python: core.py::State.as_compressed_state
+  lean:
+  - HALean.Core.State.asCompressedState
+  status: translated
+  hash: 63e3840fb027799c
+- python: core.py::State.expire
+  lean:
+  - HALean.Core.StateMachine.asyncSetInternal
+  - HALean.Core.StateMachine.asyncRemove
+  status: translated
+  notes: replaces the context by an equal copy, so it is the identity on the model
+  hash: 5317e5728aa7295e
+- python: core.py::States.__setitem__
+  lean:
+  - HALean.Core.StateMachine.setItem
+  status: translated
+  hash: 66e83cd88b08b631
+- python: core.py::States.__delitem__
+  lean:
+  - HALean.Core.StateMachine.delItem
+  status: translated
+  hash: be86184ff69ea213
+- python: core.py::States.domain_entity_ids
+  lean:
+  - HALean.Core.StateMachine.domainEntityIds
+  status: proven
+  notes: the domain index lists a domain's entities in the main dict's order, so it is a filter of the
+    dict; theorem mem_domainEntityIds
+  hash: e373ba89e83722e6
+- python: core.py::States.domain_states
+  lean:
+  - HALean.Core.StateMachine.domainStates
+  status: translated
+  hash: c0fe6c708caf2dbd
+- python: core.py::StateMachine.async_entity_ids
+  lean:
+  - HALean.Core.StateMachine.asyncEntityIds
+  status: translated
+  hash: a240d313569efac9
+- python: core.py::StateMachine.async_entity_ids_count
+  lean:
+  - HALean.Core.StateMachine.asyncEntityIdsCount
+  status: translated
+  hash: b4ae4450a4409c37
+- python: core.py::StateMachine.async_all
+  lean:
+  - HALean.Core.StateMachine.asyncAll
+  status: translated
+  hash: 92a1dd07fb25b784
+- python: core.py::StateMachine.is_state
+  lean:
+  - HALean.Core.StateMachine.isState
+  status: translated
+  hash: 2b1dac91f2be9350
+- python: core.py::StateMachine.async_remove
+  lean:
+  - HALean.Core.StateMachine.asyncRemove
+  - HALean.Core.Hass.runAction
+  - HALean.Core.Hass.smQueued
+  status: proven
+  notes: theorems remove_then_get_none, remove_then_lookup_none, remove_keys; in the joined core its event
+    goes through the bus model with the given context or none
+  hash: b96d7c0813c83f16
+- python: core.py::StateMachine.async_reserve
+  lean:
+  - HALean.Core.StateMachine.asyncReserve
+  status: proven
+  notes: theorem reserve_then_unavailable
+  hash: 6cefddf984973ac1
+- python: core.py::StateMachine.async_available
+  lean:
+  - HALean.Core.StateMachine.asyncAvailable
+  status: translated
+  hash: 3fa5b6c7f6bdc202
+- python: core.py::StateMachine.async_set
+  lean:
+  - HALean.Core.StateMachine.asyncSet
+  - HALean.Core.Hass.runAction
+  status: translated
+  notes: timestamp (or time.time()) is the caller's `now`, in whole microseconds; str() of the state via
+    the template service's pyStr
+  hash: 17b7323a17517268
+- python: core.py::StateMachine.async_set_internal
+  lean:
+  - HALean.Core.StateMachine.asyncSetInternal
+  - HALean.Core.StateMachine.attrsEq
+  - HALean.Core.Hass.runAction
+  - HALean.Core.Hass.smQueued
+  status: proven
+  notes: state_info not modelled; theorems set_same_only_reports, set_same_state_keeps_last_changed, set_frame,
+    set_keys; in the joined core its events go through the bus model (Hass.runAction, theorem set_delivers_first)
+  hash: f5eef30edc4da775
+- python: core.py::SupportsResponse
+  lean:
+  - HALean.Core.SupportsResponse
+  status: translated
+  hash: 04bb2b6da1dd1dd4
+- python: core.py::Service
+  lean:
+  - HALean.Core.Service
+  - HALean.Core.HandlerSpec
+  status: translated
+  notes: the job is a HandlerSpec (return a value / echo the call / raise); job types are not modelled
+  hash: 094284df366e0a38
+- python: core.py::ServiceCall
+  lean:
+  - HALean.Core.ServiceCall
+  - HALean.Core.ServiceCall.repr
+  status: translated
+  hash: 87389be097f36316
+- python: core.py::ServiceRegistry.async_services
+  lean:
+  - HALean.Core.Registry.asyncServices
+  status: translated
+  hash: 953cffd8407fc1d9
+- python: core.py::ServiceRegistry.async_services_for_domain
+  lean:
+  - HALean.Core.Registry.asyncServicesForDomain
+  status: translated
+  notes: the domain is not lowercased (upstream quirk, kept)
+  hash: e4f782a8b6a72900
+- python: core.py::ServiceRegistry.has_service
+  lean:
+  - HALean.Core.Registry.hasService
+  status: proven
+  notes: theorems has_after_register, has_after_remove; str.lower() modelled for ASCII names only
+  hash: 151ab10768e81f06
+- python: core.py::ServiceRegistry.supports_response
+  lean:
+  - HALean.Core.Registry.supportsResponse
+  status: translated
+  notes: a missing domain or service raises KeyError
+  hash: 11dbbe48615b6248
+- python: core.py::ServiceRegistry.async_register
+  lean:
+  - HALean.Core.Registry.register
+  status: translated
+  hash: 157be28562db570c
+- python: core.py::ServiceRegistry._async_register
+  lean:
+  - HALean.Core.Registry.register
+  - HALean.Core.Hass.runAction
+  - HALean.Core.Hass.firedQueued
+  status: proven
+  notes: theorem has_after_register (case-insensitive); in the joined core service_registered goes through
+    the bus model
+  hash: 0ae8830ee181c4b6
+- python: core.py::ServiceRegistry.async_remove
+  lean:
+  - HALean.Core.Registry.remove
+  status: translated
+  hash: 17f146a0b07506ea
+- python: core.py::ServiceRegistry._async_remove
+  lean:
+  - HALean.Core.Registry.remove
+  - HALean.Core.Hass.runAction
+  - HALean.Core.Hass.firedQueued
+  status: proven
+  notes: theorems has_after_remove, call_after_remove_not_found; in the joined core service_removed goes
+    through the bus model
+  hash: 2558fcbc0d59e76a
+- python: core.py::ServiceRegistry.async_call
+  lean:
+  - HALean.Core.Registry.asyncCall
+  - HALean.Core.CallArgs
+  - HALean.Core.CallOutcome
+  - HALean.Automation.mergeTarget
+  - HALean.Script.callResponse
+  - HALean.Script.normalizeTargetIds
+  - HALean.Core.Registry.prepareCall
+  - HALean.Core.responseCheck
+  - HALean.Core.mergeTarget
+  - HALean.Core.PreparedCall
+  - HALean.Core.PreparedCall.event
+  - HALean.Core.finishCall
+  - HALean.Core.Hass.callService
+  - HALean.Core.Hass.resume
+  - HALean.Core.Hass.Frame
+  status: proven
+  notes: theorems call_none_return_response_errors, call_only_needs_return_response, call_return_response_needs_blocking,
+    call_after_remove_not_found; for script.* services the engine merges the target into the data and
+    requires a dict response (mergeTarget, callResponse); split into prepareCall/finishCall; the joined
+    core (Hass.callService) fires call_service through the bus and runs scripted handlers; a handler that
+    suspends suspends a blocking caller (Frame.handlerRet) and runs in its own task for a non-blocking
+    one
+  hash: 7744c175387f8dfc
+- python: core.py::ServiceRegistry._run_service_call_catch_exceptions
+  lean:
+  - HALean.Core.Registry.asyncCall
+  - HALean.Core.finishCall
+  - HALean.Core.Hass.callService
+  - HALean.Core.Hass.resume
+  status: translated
+  notes: Unauthorized and CancelledError are not modelled (handlers cannot raise them); after a suspension
+    the error is logged when the task resumes and raises (Frame.handlerRet, finishCall)
+  hash: cffaa1470685a01a
+- python: core.py::ServiceRegistry._execute_service
+  lean:
+  - HALean.Core.runHandler
+  - HALean.Core.Hass.callService
+  - HALean.Core.Hass.resume
+  - HALean.Core.Hass.Frame
+  status: translated
+  hash: 86419bad1cbb5b7b
+  notes: coroutine-function handlers (scripted, may suspend); @callback and executor handlers are not
+    modelled
+- python: exceptions.py::HomeAssistantError
+  lean:
+  - HALean.Core.PyError
+  - HALean.Core.translatedError
+  - HALean.Core.errorKind
+  status: translated
+  hash: 07f150568abd2218
+- python: exceptions.py::ServiceValidationError
+  lean:
+  - HALean.Core.serviceValidationError
+  status: translated
+  hash: 67a4e65b563c0e7a
+- python: exceptions.py::ServiceNotFound
+  lean:
+  - HALean.Core.serviceNotFound
+  status: translated
+  hash: eb9849a6f3f23f4a
+- python: helpers/translation.py::async_get_exception_message
+  lean:
+  - HALean.Core.exceptionMessage
+  - HALean.Core.exceptionTemplate
+  status: translated
+  notes: English strings of components/homeassistant/strings.json for the five registry errors
+  hash: 4be9bf62769f1c82
+- python: util/__init__.py::repr_helper
+  lean:
+  - HALean.Core.reprHelper
+  status: translated
+  notes: datetimes are not modelled (service data comes from JSON)
+  hash: c75104c7882e7ea6
+- python: core.py::Context.__init__
+  lean:
+  - HALean.Core.Context
+  - HALean.Core.Registry.freshContext
+  - HALean.Core.Hass.Hass.genContext
+  - HALean.Core.Hass.Hass.ctxOr
+  status: translated
+  notes: id, user_id, parent_id; one Context type for states, bus and registry. A random id is symbolic
+    (the bus's and the joined core's ulid@<ms>#<n>, the standalone registry's `new`)
+  hash: ea459f32889b9ee7
+- python: core.py::EventOrigin
+  lean:
+  - HALean.Core.EventBus.Origin
+  - HALean.Core.EventBus.Origin.value
+  status: translated
+  hash: 1eece10bc0d99842
+- python: core.py::Event.__init__
+  lean:
+  - HALean.Core.EventBus.makeEvent
+  status: translated
+  notes: data or {}; time_fired_timestamp or time.time() (resolved in mkQueued); without a context, Context(id=ulid_at_time(ts))
+    gets the symbolic id ulid@<int(ts*1000)>#<n>
+  hash: 9e46d45176ccd8a9
+- python: core.py::Event.time_fired
+  lean:
+  - HALean.Core.EventBus.Event.timeFiredIso
+  - HALean.Core.EventBus.utcMicrosOfTimestamp
+  status: translated
+  notes: datetime.fromtimestamp on the float (modf, fraction rounded half-even to µs)
+  hash: b440bdb7debbba6d
+- python: core.py::Event._as_dict
+  lean:
+  - HALean.Core.EventBus.Event.asDict
+  status: translated
+  hash: 70c155cd5ae9dc2a
+- python: core.py::_OneTimeListener.__call__
+  lean:
+  - HALean.Core.EventBus.runJob
+  - HALean.Core.Hass.useOnce
+  - HALean.Core.Hass.runJob
+  - HALean.Core.Hass.runListener
+  status: proven
+  notes: theorem once_at_most_once
+  hash: aa61852d36a4e2bc
+- python: core.py::_verify_event_type_length_or_raise
+  lean:
+  - HALean.Core.EventBus.asyncFire
+  - HALean.Core.EventBus.react1
+  status: translated
+  notes: length in code points
+  hash: b16d8504a527547f
+- python: core.py::EventBus.__init__
+  lean:
+  - HALean.Core.EventBus.Bus.new
+  status: translated
+  notes: the logging_changed listener is an opaque system job
+  hash: 33bba6c27cac3ff2
+- python: core.py::EventBus.async_listeners
+  lean:
+  - HALean.Core.EventBus.asyncListeners
+  status: translated
+  hash: e4f6c609aa473dd6
+- python: core.py::EventBus.async_fire
+  lean:
+  - HALean.Core.EventBus.asyncFire
+  - HALean.Core.EventBus.react1
+  - HALean.Core.Hass.runAction
+  status: translated
+  notes: the thread check is not modelled (no threads)
+  hash: 51ce6e2cede8140c
+- python: core.py::EventBus.async_fire_internal
+  lean:
+  - HALean.Core.EventBus.asyncFire
+  - HALean.Core.EventBus.fireNested
+  - HALean.Core.EventBus.drain
+  - HALean.Core.Hass.fireInternal
+  - HALean.Core.Hass.fireList
+  - HALean.Core.Hass.drain
+  - HALean.Core.Hass.queueFull
+  status: translated
+  notes: listeners only run inside a dispatch, so fires from listeners always take the queueing branch
+    (fireNested); drain runs at most _MAX_QUEUED_EVENT_DISPATCHES rounds, which the queue limit guarantees
+    is enough (not proved yet); the joined core's fireInternal runs scripted listeners over the whole
+    core (theorems quiet, fireInternal_first)
+  hash: 2674dec492745b7d
+- python: core.py::EventBus._async_dispatch
+  lean:
+  - HALean.Core.EventBus.dispatch
+  - HALean.Core.EventBus.dispatchLoop
+  - HALean.Core.EventBus.snapshot
+  - HALean.Core.EventBus.filterPasses
+  - HALean.Core.Hass.dispatchLoop
+  - HALean.Core.Hass.runListener
+  status: proven
+  notes: 'theorems snapshot_match_all, snapshot_excluded, gone_silent; theorems dispatchLoop_deliveries,
+    runListener_deliveries (joined core: a coroutine listener''s synchronous prefix runs in the dispatch,
+    its task is parked and the dispatch goes on); a task done at once is dropped, so its exception is
+    logged there (gcLog)'
+  hash: 8d8cde5261ec0c08
+- python: core.py::EventBus.async_listen
+  lean:
+  - HALean.Core.EventBus.asyncListen
+  - HALean.Core.Hass.runAction
+  status: translated
+  notes: run_immediately is reported with ReportBehavior.ERROR for every caller, so passing it raises
+    RuntimeError
+  hash: c0ca20f0c3632cdd
+- python: core.py::EventBus._async_listen_filterable_job
+  lean:
+  - HALean.Core.EventBus.listenFilterableJob
+  status: translated
+  hash: 897c48f4f958f469
+- python: core.py::EventBus.async_listen_once
+  lean:
+  - HALean.Core.EventBus.asyncListenOnce
+  - HALean.Core.Hass.runAction
+  status: translated
+  notes: no event_filter parameter (TypeError)
+  hash: 72566737d3e90782
+- python: core.py::EventBus._async_remove_listener
+  lean:
+  - HALean.Core.EventBus.asyncRemoveListener
+  - HALean.Core.Hass.removeListener
+  status: proven
+  notes: the defaultdict access re-creates an empty list on a double removal; theorems unsub_gone, unsub_gone_reachable
+    (no side conditions on reachable buses), unsub_silent
+  hash: f7a8cd4f4b95f0f4
+- python: core.py::HomeAssistant.async_run_hass_job
+  lean:
+  - HALean.Core.EventBus.runJob
+  - HALean.Core.Hass.runJob
+  - HALean.Core.Hass.recordDelivery
+  - HALean.Core.Hass.runListener
+  - HALean.Core.Hass.Hass.spawn
+  status: translated
+  notes: callback jobs run at once; coroutine-function listeners go through _async_add_hass_job (eager
+    task); executor jobs (threads) are not modelled; theorem runListener_deliveries (eager start)
+  hash: e6a860ed9b453a87
+- python: components/script/config.py::_async_validate_config_item
+  lean:
+  - HALean.Script.decodeScript
+  - HALean.Script.decodeFields
+  - HALean.Script.isSlug
+  status: translated
+  notes: 'SCRIPT_ENTITY_SCHEMA and the object id check; an invalid config is rejected (HA makes it an
+    unavailable entity). Also rejected: blueprints, script.reload actions, device/area/floor/label targets
+    of script.turn_on/off/toggle, waits mentioning script entities, the trigger condition, last_action,
+    last_triggered other than this.attributes.last_triggered, templates using names that are not fields,
+    variables or passed by other scripts. Selectors are not validated'
+  hash: 7efb00d1a6f51373
+- python: components/script/config.py::async_validate_config
+  lean:
+  - HALean.Script.decodeAll
+  - HALean.Script.passedNames
+  status: translated
+  hash: ef7bd5c5d9982295
+- python: components/script/__init__.py::async_setup.turn_on_service
+  lean:
+  - HALean.Script.planCall
+  - HALean.Automation.callLocal
+  status: translated
+  notes: a script that does not start (mode, max, a variables error) makes HA wait for its next state
+    write; HALean fails the call instead (logged)
+  hash: 2a331ea2dd98f904
+- python: components/script/__init__.py::async_setup.turn_off_service
+  lean:
+  - HALean.Script.planCall
+  - HALean.Automation.callLocal
+  status: translated
+  hash: 973b52f0ca0f14a4
+- python: components/script/__init__.py::async_setup.toggle_service
+  lean:
+  - HALean.Script.planCall
+  - HALean.Automation.callLocal
+  status: translated
+  hash: ab6703cdc5876d2d
+- python: components/script/__init__.py::async_setup.reload_service
+  lean:
+  - HALean.Script.Service.step
+  status: translated
+  notes: the shell sends the new scripts.yaml as a reload input
+  hash: 494a53751f8dfbf8
+- python: components/script/__init__.py::_async_process_config
+  lean:
+  - HALean.Script.reloadScripts
+  - HALean.Script.addScripts
+  - HALean.Script.Service.step
+  status: translated
+  hash: 45ee0d798b6066b6
+- python: components/script/__init__.py::ScriptEntity.__init__
+  lean:
+  - HALean.Script.decodeScript
+  status: translated
+  hash: e768330910cee9d1
+- python: components/script/__init__.py::ScriptEntity.extra_state_attributes
+  lean:
+  - HALean.Script.entityAttributes
+  - HALean.Script.scriptThis
+  status: translated
+  notes: last_action is not modelled (opaque in this, left out of the written state)
+  hash: 4dc35356e4ae6abe
+- python: components/script/__init__.py::ScriptEntity.is_on
+  lean:
+  - HALean.Script.entityState
+  status: translated
+  hash: 221c66056b59f8a1
+- python: components/script/__init__.py::ScriptEntity.async_change_listener
+  lean:
+  - HALean.Automation.writeEntity
+  status: translated
+  notes: written at run start, end and stop; HA also writes on every step (last_action only)
+  hash: 35261bd05d05b134
+- python: components/script/__init__.py::ScriptEntity.async_turn_on
+  lean:
+  - HALean.Automation.callLocal
+  status: translated
+  hash: 87986ca49bcfadb5
+- python: components/script/__init__.py::ScriptEntity._async_start_run
+  lean:
+  - HALean.Automation.startScript
+  - HALean.Automation.callLocal
+  - HALean.Automation.continueNow
+  status: translated
+  notes: 'script_stack: copied for wait=True, fresh for turn_on'
+  hash: f8b34c1450b62023
+- python: components/script/__init__.py::ScriptEntity._async_run
+  lean:
+  - HALean.Automation.startScript
+  - HALean.Script.scriptThis
+  status: translated
+  hash: 0ffae8c2d1bd3c80
+- python: components/script/__init__.py::ScriptEntity.async_turn_off
+  lean:
+  - HALean.Automation.callLocal
+  - HALean.Automation.stopRun
+  status: translated
+  hash: 2d37c3739edd4666
+- python: components/script/__init__.py::ScriptEntity._service_handler
+  lean:
+  - HALean.Script.planCall
+  - HALean.Script.callResponse
+  - HALean.Automation.answer
+  status: translated
+  hash: f9c3009765c8ace4
+- python: components/script/__init__.py::ScriptEntity.async_added_to_hass
+  lean:
+  - HALean.Script.addScripts
+  - HALean.Script.lastTriggeredOf
+  status: translated
+  notes: last_triggered is restored from the state HA had (init) or the removed entity (reload)
+  hash: d68285853143d032
+- python: components/script/__init__.py::ScriptEntity.async_will_remove_from_hass
+  lean:
+  - HALean.Script.reloadScripts
+  status: translated
+  hash: 086cdb4776f6f321
+- python: helpers/script.py::Script.async_stop
+  lean:
+  - HALean.Automation.callLocal
+  - HALean.Automation.stopRun
+  status: translated
+  hash: 63fc0f26c17bdf9e
+- python: helpers/script.py::_ScriptRun.async_stop
+  lean:
+  - HALean.Automation.stopRun
+  - HALean.Automation.stoppedQuietly
+  status: translated
+  notes: stopping a run stops the script runs it waits for; its caller gets None when it was stopped in
+    a delay, wait or parallel step (_async_futures_with_timeout includes the stop future), CancelledError
+    elsewhere
+  hash: 977e3352673aea31
+- python: helpers/script.py::_ScriptRun._finish
+  lean:
+  - HALean.Automation.finishRun
+  - HALean.Automation.writeEntity
+  - HALean.Automation.releaseQueue
+  status: translated
+  hash: 3d58b0406cfaa70e
+- python: helpers/script.py::_ScriptRun._async_run_long_action
+  lean:
+  - HALean.Automation.cancelRun
+  - HALean.Automation.stoppedQuietly
+  status: translated
+  notes: CancelledError from an awaited script run ends a parallel branch, or the whole run
+  hash: 68bc36a7369be134
+- python: helpers/script.py::Script.is_running
+  lean:
+  - HALean.Script.entityState
+  status: translated
+  hash: 1b7e96e61970c87c
+- python: helpers/script.py::Script.runs
+  lean:
+  - HALean.Automation.writeEntity
+  - HALean.Automation.runsOf
+  status: translated
+  hash: 4a8314df3e8b4834
+- python: helpers/script.py::Script.supports_max
+  lean:
+  - HALean.Script.supportsMax
+  status: translated
+  hash: 0cd1b746590deb79
+- python: helpers/service.py::async_extract_entities
+  lean:
+  - HALean.Script.extractTargets
+  - HALean.Script.compEntityIds
+  status: translated
+  notes: group entity ids are not expanded (an error)
+  hash: c771763722bd568a
+- python: helpers/entity.py::Entity.__async_remove_impl
+  lean:
+  - HALean.Script.reloadScripts
+  status: translated
+  hash: 05fde65c70ce2bf8
+- python: helpers/entity_registry.py::RegistryEntry.write_unavailable_state
+  lean:
+  - HALean.Script.unavailableAttributes
+  status: translated
+  hash: fcf81cfed5d984d5
+- python: helpers/restore_state.py::RestoreStateData.async_restore_entity_removed
+  lean:
+  - HALean.Script.reloadScripts
+  status: translated
+  hash: 7b50fac7c0bb194c
+- python: core.py::HomeAssistant.async_create_task
+  lean:
+  - HALean.Core.Hass.runAction
+  - HALean.Core.Hass.Hass.spawn
+  - HALean.Core.Hass.Frame
+  status: translated
+  notes: 'eager_start=True: a @callback listener''s service call runs in an eager task (Hass.spawn); if
+    the handler suspends, the call goes on in that task (frames ending in callAct, which records the outcome
+    and swallows the error)'
+  hash: 48bbbb4fd49b6cdc
+- python: core.py::HomeAssistant.async_create_task_internal
+  lean:
+  - HALean.Core.Hass.runAction
+  - HALean.Core.Hass.callService
+  - HALean.Core.Hass.Hass.spawn
+  - HALean.Core.Hass.Hass.park
+  - HALean.Core.Hass.TaskRec
+  status: translated
+  notes: 'eager start (create_eager_task): done at once, the task is not added to _tasks (dropped; an
+    exception is logged as it is freed); suspended, it is added to _tasks with the done callback _tasks.remove
+    (Handle.done); eager_start=False is never used by the modelled paths'
+  hash: d7fb8bc29e8f1fa4
+- python: core.py::HomeAssistant._async_add_hass_job
+  lean:
+  - HALean.Core.Hass.runListener
+  - HALean.Core.Hass.Hass.spawn
+  - HALean.Core.Hass.Hass.park
+  - HALean.Core.Hass.TaskRec
+  - HALean.Core.Hass.Handle
+  status: proven
+  notes: coroutine functions only (create_eager_task, then _tasks / _background_tasks with the done callback);
+    callback jobs never reach it in the model (async_run_hass_job runs them); executor jobs are not modelled;
+    theorems runListener_deliveries (eager start), keeps (only appends to the ready queue)
+  hash: 38c5d0642a60a8e9
+- python: core.py::HomeAssistant.async_block_till_done
+  lean:
+  - HALean.Core.Hass.step
+  - HALean.Core.Hass.Frame
+  - HALean.Core.Hass.resume
+  - HALean.Core.Hass.endRound
+  - HALean.Core.Hass.startRound
+  - HALean.Core.Hass.runLoop
+  - HALean.Core.Hass.drive
+  status: proven
+  notes: await asyncio.sleep(0), then rounds of asyncio.wait over _tasks (wait_background_tasks=False;
+    no background tasks exist in the model); the tasks list keeps failed tasks alive until the next check
+    (endRound), and two such exceptions would be logged in set order (rejected); a round that never ends
+    is rejected (loop fuel, or nothing left to run); the debug logging of blocked tasks is not modelled;
+    theorem blockTillDone_no_tasks
+  hash: d969365a73403d63
+- python: core.py::HomeAssistant._await_and_log_pending
+  lean:
+  - HALean.Core.Hass.startRound
+  - HALean.Core.Hass.runHandle
+  status: translated
+  notes: 'one asyncio.wait round (BLOCK_LOG_TIMEOUT never elapses on the frozen clock): _on_completion
+    per task (Handle.onc), the waiter wakes the main task when the counter reaches 0'
+  hash: 80a12bd30bba5473
+- python: core.py::HassJobType
+  lean:
+  - HALean.Core.Hass.Hass
+  - HALean.Core.Hass.Action
+  status: translated
+  notes: Coroutinefunction (async listeners, Hass.asyncJobs; all handlers) and Callback (other listeners);
+    Executor is rejected
+  hash: 184728ae5b61b29a
+- python: core.py::get_hassjob_callable_job_type
+  lean:
+  - HALean.Core.Hass.runListener
+  status: translated
+  notes: 'a scripted listener is an async def (async: true) or a @callback; partials and executor callables
+    are not modelled'
+  hash: bd4cb85c2ed15f5d
+- python: probatio:schema.py::Schema.__call__
+  lean:
+  - HALean.Core.SchemaSpec.validate
+  - HALean.Core.multipleInvalidStr
+  status: translated
+  notes: a lone Invalid is wrapped in MultipleInvalid; the top level is always a mapping (probatio 0.13.0)
+  hash: c2a9739bc64fa383
+- python: probatio:_compile.py::_make_candidate
+  lean:
+  - HALean.Core.ServicesJson.decodeField
+  - HALean.Core.Field
+  - HALean.Core.KeyMarker
+  status: translated
+  notes: literal string keys with Required/Optional/Exclusive/Inclusive and defaults; type and callable
+    keys, Remove, Forbidden, Alias, Secret, Extra and msg= are rejected (probatio 0.13.0)
+  hash: dc43eb30915bddd9
+- python: probatio:_compile.py::_TypeCheck.__call__
+  lean:
+  - HALean.Core.checkType
+  status: translated
+  notes: int, str, bool, object, list, dict, timedelta (probatio 0.13.0)
+  hash: 4ea693cfd0cc0389
+- python: probatio:_compile.py::_FloatCheck.__call__
+  lean:
+  - HALean.Core.checkType
+  status: translated
+  notes: an int (not a bool) becomes a float unless it is too large (probatio 0.13.0)
+  hash: c24e2d9fc10a6792
+- python: probatio:_compile.py::_compile_literal
+  lean:
+  - HALean.Core.checkLiteral
+  status: translated
+  notes: scalar literals only (probatio 0.13.0)
+  hash: 42a9ee19f4d8f6cb
+- python: probatio:_compile.py::_compile_callable
+  lean:
+  - HALean.Core.CvFn.run
+  status: translated
+  notes: Invalid passes through, other exceptions escape (VErr.raise); no translated cv function raises
+    ValueError (probatio 0.13.0)
+  hash: df39bd26b2792395
+- python: probatio:_engine.py::_MappingValidator.__call__
+  lean:
+  - HALean.Core.runMapping
+  status: translated
+  notes: nested mappings inherit the schema extra policy (compile ctx and combinator rebinding) (probatio
+    0.13.0)
+  hash: ff6a8d28aa6c70f0
+- python: probatio:_engine.py::_MappingValidator._collect
+  lean:
+  - HALean.Core.runMapping
+  - HALean.Core.prependAll
+  status: translated
+  notes: MultipleInvalid flattened into leaves (probatio 0.13.0)
+  hash: d6c4d99c464e696f
+- python: probatio:_engine.py::_MappingValidator._unmatched
+  lean:
+  - HALean.Core.runMapping
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 8713d19ffb439e41
+- python: probatio:_engine.py::_MappingValidator._extra_key_error
+  lean:
+  - HALean.Core.extraKeyError
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 7dc035fc25d562f3
+- python: probatio:_engine.py::_MappingValidator._finalize
+  lean:
+  - HALean.Core.runMapping
+  status: translated
+  notes: defaults validated through the value schema; Exclusive defaults are group-level (probatio 0.13.0)
+  hash: 219135c32ee393d1
+- python: probatio:_engine.py::_MappingValidator._check_groups
+  lean:
+  - HALean.Core.runMapping
+  - HALean.Core.groupsOf
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: a4a7bd54d91e91d9
+- python: probatio:_engine.py::_MappingValidator._empty_exclusive_group
+  lean:
+  - HALean.Core.runMapping
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: a842b5e88f05bf9b
+- python: probatio:_engine.py::_SequenceValidator.__call__
+  lean:
+  - HALean.Core.runSequence
+  status: translated
+  notes: list schemas only (probatio 0.13.0)
+  hash: cf25072fd77ad480
+- python: probatio:_engine.py::_SequenceValidator._validate_item
+  lean:
+  - HALean.Core.runSequence
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 568257520e77e258
+- python: probatio:validators/combinators.py::All.__call__
+  lean:
+  - HALean.Core.runAll
+  status: translated
+  notes: no msg= (probatio 0.13.0)
+  hash: dc244db6ca03785c
+- python: probatio:validators/combinators.py::Any.__call__
+  lean:
+  - HALean.Core.runAny
+  status: translated
+  notes: the typed and float-superset fast paths decide like _run_any; no msg= (probatio 0.13.0)
+  hash: 3bf55061949076fc
+- python: probatio:validators/combinators.py::_run_any
+  lean:
+  - HALean.Core.runAny
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: f00fe18b65a3c249
+- python: probatio:validators/combinators.py::_branch_label
+  lean:
+  - HALean.Core.Validator.label?
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: a918176f587a6c84
+- python: probatio:validators/combinators.py::_expected_label
+  lean:
+  - HALean.Core.expectedLabel
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 86f3885fe3bcc42d
+- python: probatio:validators/comparison.py::Range.__call__
+  lean:
+  - HALean.Core.checkRange
+  - HALean.Core.rangeOk
+  - HALean.Core.rangeError
+  status: translated
+  notes: numeric bounds; theorems checkRange_ok, checkRange_min, checkRange_max, checkRange_not_number
+    (probatio 0.13.0)
+  hash: 93c8cef7e03b6558
+- python: probatio:validators/comparison.py::Clamp.__call__
+  lean:
+  - HALean.Core.checkClamp
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 4de10c7deb445858
+- python: probatio:validators/comparison.py::Length.__call__
+  lean:
+  - HALean.Core.checkLength
+  status: translated
+  notes: int bounds (probatio 0.13.0)
+  hash: 14b0ebb687f7618e
+- python: probatio:validators/comparison.py::In.__call__
+  lean:
+  - HALean.Core.checkIn
+  status: translated
+  notes: a list of scalars, no fold_case/space/msg; theorem checkIn_ok_iff (probatio 0.13.0)
+  hash: 15cb2c874a9b827f
+- python: probatio:validators/comparison.py::NotIn.__call__
+  lean:
+  - HALean.Core.checkNotIn
+  status: translated
+  notes: theorem checkNotIn_ok_iff (probatio 0.13.0)
+  hash: 52b7ef43bbd51724
+- python: probatio:validators/comparison.py::_sorted_for_message
+  lean:
+  - HALean.Core.sortedForMessage
+  status: translated
+  notes: 'for scalar containers: strings or numbers sort, a mix (or None among two or more) keeps the
+    order (probatio 0.13.0)'
+  hash: 9fcb20d58c928b27
+- python: probatio:validators/coerce.py::Coerce.__call__
+  lean:
+  - HALean.Core.checkCoerce
+  - HALean.Core.pyInt?
+  - HALean.Core.pyFloat?
+  status: translated
+  notes: Coerce(int|float|str); theorem checkCoerce_int (probatio 0.13.0)
+  hash: 31694890838aa7c2
+- python: probatio:validators/strings.py::Lower
+  lean:
+  - HALean.Core.checkLower
+  status: translated
+  notes: ASCII text (str.lower is Unicode-aware) (probatio 0.13.0)
+  hash: 4327b1253561683d
+- python: probatio:validators/strings.py::Upper
+  lean:
+  - HALean.Core.checkUpper
+  status: translated
+  notes: ASCII text (probatio 0.13.0)
+  hash: da4fab8e7a249cb2
+- python: probatio:validators/structural.py::EnsureList.__call__
+  lean:
+  - HALean.Core.ensureList
+  status: translated
+  notes: theorems ensureList_is_list, ensureList_list (probatio 0.13.0)
+  hash: c49de88626b86ce6
+- python: probatio:validators/network.py::Port.__call__
+  lean:
+  - HALean.Core.checkPort
+  status: translated
+  notes: theorem checkPort_range (probatio 0.13.0)
+  hash: 66cf69ac126b7433
+- python: probatio:validators/conditional.py::AtLeastOne.__call__
+  lean:
+  - HALean.Core.checkAtLeastOne
+  status: translated
+  notes: no msg= (probatio 0.13.0)
+  hash: bdff50a2523885be
+- python: probatio:error.py::render_path
+  lean:
+  - HALean.Core.renderPath
+  status: translated
+  notes: str keys, list indices and group components (probatio 0.13.0)
+  hash: cf2f22446292c744
+- python: probatio:error.py::_format_candidates
+  lean:
+  - HALean.Core.formatCandidates
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: f668de10910e591d
+- python: probatio:error.py::_SuggestionInvalid.candidates
+  lean:
+  - HALean.Core.suggestionSuffix
+  - HALean.Core.getCloseMatches
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 40964530facf0fda
+- python: probatio:error.py::MultipleInvalid.__str__
+  lean:
+  - HALean.Core.multipleInvalidStr
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 6b9021cabb592c17
+- python: probatio:error.py::Invalid.__str__
+  lean:
+  - HALean.Core.SchemaError.str
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: 0ac8e2888bb66e3a
+- python: probatio:_messages.py::_display
+  lean:
+  - HALean.Core.displayList
+  status: translated
+  notes: (probatio 0.13.0)
+  hash: f378bd05a599ea20
+- python: helpers/config_validation.py::string
+  lean:
+  - HALean.Core.cvString
+  status: translated
+  hash: c173f10ea85725a2
+- python: helpers/config_validation.py::entity_id
+  lean:
+  - HALean.Core.cvEntityId
+  status: translated
+  notes: ASCII text
+  hash: dbc7dfa0be606d9f
+- python: helpers/config_validation.py::_entity_ids
+  lean:
+  - HALean.Core.cvEntityIds
+  - HALean.Core.pyIter
+  status: translated
+  notes: allow_uuid=False only (entity_ids); iterating a scalar raises TypeError
+  hash: 7965187b5a15af43
+- python: helpers/config_validation.py::entity_ids
+  lean:
+  - HALean.Core.cvEntityIds
+  status: translated
+  notes: also comp_entity_ids = Any(All(Lower, Any('all', 'none')), entity_ids), a probatio object (ServicesJson.decodeCv)
+  hash: 69ddec22ba139559
+- python: helpers/config_validation.py::entity_domain
+  lean:
+  - HALean.Core.cvEntityDomain
+  status: translated
+  hash: 2a8140f124446e54
+- python: helpers/config_validation.py::entities_domain
+  lean:
+  - HALean.Core.cvEntitiesDomain
+  status: translated
+  hash: 4207a513081d9f95
+- python: helpers/config_validation.py::color_hex
+  lean:
+  - HALean.Core.cvColorHex
+  status: translated
+  hash: 75953f21a90fc817
+- python: helpers/config_validation.py::slug
+  lean:
+  - HALean.Core.cvSlug
+  status: proven
+  notes: 'theorem slugify_fixed_iff: accepts exactly "" and non-empty [0-9a-z_] text with no edge or double
+    "_", given util.slugify''s pipeline as transcribed step by step (slugifyChars; each step a regex sub,
+    checked against real HA); the "(try ...)" message shows the pipeline''s result. ASCII, no HTML entities.'
+  hash: e852e9be1fdcd195
+- python: helpers/config_validation.py::positive_timedelta
+  lean:
+  - HALean.Core.cvPositiveTimedelta
+  status: translated
+  notes: also positive_time_period, time_period, time_period_dict, positive_int, positive_float, small_float,
+    byte, port, ensure_list (probatio objects, ServicesJson.decodeCv)
+  hash: 460f9ea8eaf01a24

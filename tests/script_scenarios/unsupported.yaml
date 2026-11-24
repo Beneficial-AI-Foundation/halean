@@ -1,0 +1,103 @@
+description: >
+  What HALean rejects at load (`unsupported`: the script stays in HA), and
+  the one thing it reports at run time: turning on a script that does not
+  start (here a `single` script that is running). HA's turn_on then waits
+  for the script's next state change, which HALean does not model, so the
+  call fails instead.
+differential: false
+differential_reason: checks HALean's rejections
+scripts:
+  fine:
+    fields:
+      level: {}
+    sequence:
+      - action: light.turn_on
+        data:
+          brightness: "{{ level }}"
+  extra_key:
+    trigger: []
+    sequence: []
+  turn_on:
+    sequence: []
+  Bad Slug:
+    sequence: []
+  blueprint:
+    use_blueprint:
+      path: x.yaml
+  undeclared:
+    sequence:
+      - action: light.turn_on
+        data:
+          brightness: "{{ brightness }}"
+  last_action:
+    sequence:
+      - event: x
+        event_data:
+          a: "{{ state_attr('script.fine', 'last_action') }}"
+  other_last_triggered:
+    sequence:
+      - event: x
+        event_data:
+          a: "{{ state_attr('script.fine', 'last_triggered') }}"
+  waits_on_script:
+    sequence:
+      - wait_template: "{{ is_state('script.fine', 'off') }}"
+  reloads:
+    sequence:
+      - action: script.reload
+  area_target:
+    sequence:
+      - action: script.turn_on
+        target:
+          area_id: kitchen
+  max_one:
+    mode: parallel
+    max: 1
+    sequence: []
+  bad_icon:
+    icon: lightbulb
+    sequence: []
+  trigger_condition:
+    sequence:
+      - condition: trigger
+        id: x
+  busy:
+    sequence:
+      - delay: 5
+expect_unsupported:
+  - extra_key
+  - Bad Slug
+  - turn_on
+  - blueprint
+  - undeclared
+  - last_action
+  - other_last_triggered
+  - waits_on_script
+  - reloads
+  - area_target
+  - max_one
+  - bad_icon
+  - trigger_condition
+steps:
+  - at: 1
+    call: fine
+    data: {level: 3}
+    expect:
+      call_service: [[light, turn_on, {brightness: 3}]]
+  - at: 2
+    call: busy
+  - at: 3
+    call: turn_on
+    data: {entity_id: script.busy}
+    expect:
+      call_done: [[2, false, other]]
+  - at: 4
+    call: turn_on
+    data: {entity_id: script.fine}
+    return_response: true
+    expect:
+      call_done: [[3, false, ha_error]]
+  - at: 5
+    call: nonexistent
+    expect:
+      call_done: [[4, false, invalid]]

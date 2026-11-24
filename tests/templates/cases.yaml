@@ -73,6 +73,21 @@
 - template: "{{ states('sensor.temp') }}"
   states: [{entity_id: sensor.temp, state: "21.5"}]
 - {template: "{{ states('sensor.missing') }}"}
+# the regexes' `$` allows one trailing newline: valid ids and domains, read like any other
+- {template: "{{ states('sensor.missing\\n') }} {{ states['sensor.gone\\n'] }} {{ states['light\\n'] | list }}", render_info: true}
+- {template: "{{ states('sensor.x\\n\\n') }}"}
+- {template: "{{ states['light\\n\\n'] }}"}
+# valid_entity_id / valid_domain edge cases (HALean.Core.validEntityId_iff, validDomain_iff)
+- {template: "{{ states('sensor.a__b') }}"}
+- {template: "{{ states('se__nsor.ab') }}"}
+- {template: "{{ states('_sensor.ab') }}"}
+- {template: "{{ states('sensor.ab_') }}"}
+- {template: "{{ states('sensor.a.b') }}"}
+- {template: "{{ states('Sensor.ab') }}"}
+- {template: "{{ states('sensor_1.a_2') }}", render_info: true}
+- {template: "{{ states['a__b'] }}"}
+- {template: "{{ states['light_'] }}"}
+- {template: "{{ states['l1ght'] | list }}"}
 - template: "{{ states('sensor.temp') | float + 1 }}"
   states: [{entity_id: sensor.temp, state: "21.5"}]
 - template: "{{ states('sensor.temp') | float(0) }}"
@@ -81,6 +96,13 @@
   states: [{entity_id: sensor.temp, state: "unavailable"}]
 - template: "{{ states('sensor.temp') | int }} {{ '42.9' | int }} {{ ' 7 ' | int }} {{ 'x' | int(-1) }}"
   states: [{entity_id: sensor.temp, state: "3"}]
+# int(str): Python's grammar (HALean.Template.parseIntChars_iff); \v and \f are whitespace, \x1c-\x1f are not (ASCII text)
+- {template: "{{ '7\x0b' | int(-1) }} {{ '\x0c 8' | int(-1) }} {{ '\x1f9\x1c' | int(-1) }}"}
+# non-ASCII spaces and digits: Python accepts them, HALean refuses instead of guessing
+- {template: "{{ '\x85 9' | int(-1) }}", expect_error_in_halean_only: true}
+- {template: "{{ '٣' | int(-1) }}", expect_error_in_halean_only: true}
+- {template: "{{ ' +1_000 ' | int }} {{ '-0' | int }} {{ '0_7' | int }} {{ '007' | int }}"}
+- {template: "{{ '1__0' | int(-1) }} {{ '_1' | int(-1) }} {{ '1_' | int(-1) }} {{ '+' | int(-1) }} {{ '- 1' | int(-1) }} {{ '' | int(-1) }}"}
 - template: "{{ states.sensor.temp.state }}"
   states: [{entity_id: sensor.temp, state: "21.5"}]
 - template: "{{ states.sensor.temp.attributes.unit_of_measurement }}"
@@ -169,6 +191,17 @@
   states: [{entity_id: light.x, state: "on"}]
   condition: true
 - {template: "{{ 'TRUE' }}", condition: true}
+# result_as_boolean is cv.boolean: str.isspace stripping (HALean.Template.cvBooleanText_iff)
+- {template: "{{ '\x0bOn\x1c' }}", condition: true}
+- {template: "{{ '\u00a0yes\u2003' }}", condition: true}
+- {template: "{{ 'on\u200b' }}", condition: true}
+- {template: "{{ '\u2028true\u0085' }}", condition: true}
+- {template: "{{ '\u3000Disable\u00a0' }}", condition: true}
+# every render is stripped with str.strip(): all of str.isspace, Unicode included
+- {template: "{{ '\x1c 42 \u2003' }}"}
+- {template: "{{ '\u00a0x\u0085' }}"}
+- {template: "{{ ('a\u3000b\x1fc'.split()) | join(',') }} {{ '\u2028y\x1d'.strip() }}"}
+- {template: "{{ '\u0130' }}", condition: true}
 - {template: "{{ 1 }}", condition: true}
 - {template: "{{ 'yes' }}", condition: true}
 - {template: "{{ 1 / 0 }}", condition: true}

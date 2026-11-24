@@ -8,11 +8,17 @@
                   (`process_state_match`, `async_track_same_state`)
     * admission – helpers/script.py `Script.async_run` (run modes, max)
     * automation– components/automation/__init__.py `async_trigger`
+    * scripts   – components/script/__init__.py (`ScriptEntity`, its
+                  services) with helpers/script.py `Script.async_run` /
+                  `async_stop` for script entities: `startScript`,
+                  `callLocal`, `stopRun` (the pure parts are in
+                  HALean/Script/Entity.lean)
 -/
 import HALean.Automation.Script
 import HALean.Automation.TimePeriod
 import HALean.Automation.Location
 import HALean.Automation.Sun
+import HALean.Script.Entity
 open Lean
 
 namespace HALean.Automation
@@ -201,6 +207,10 @@ structure Engine where
   /-- The entity listeners of time triggers: (owner, trigger idx, entity,
   offset µs) → schedule. -/
   timeEnt : List ((Owner × Nat × String × Int) × TimeSched) := []
+  /-- The script entities this engine runs (the script service): entry `i`
+  is the entity of `automations[i]`. Empty for automations. A call to one of
+  their `script.*` services is handled here instead of by HA. -/
+  scripts : List HALean.Script.ScriptEntity := []
   deriving Inhabited
 
 inductive Input where
@@ -419,15 +429,116 @@ def attachTriggers (o : Owner) (trigs : List Trigger) : EM Unit := do
   setE { (← getE) with armed, tmplTrigs := tts, sunNext := sun }
   emit logs
 
+/-- Admission decision of `Script.async_run`, as a pure function of the
+mode, `max` and how many runs (running or queued) exist. -/
+inductive Admit where
+  | reject (why : String)
+  | start
+  | enqueue
+  | restart
+  deriving Repr, BEq, DecidableEq
+
+def admit (mode : Mode) (maxRuns existing : Nat) : Admit :=
+  if existing = 0 then .start
+  else if mode = .single then .reject "Already running"
+  else if mode ≠ .restart ∧ existing = maxRuns then .reject "Maximum number of runs exceeded"
+  else match mode with
+    | .queued => .enqueue
+    | .restart => .restart
+    | _ => .start
+
+/-- `Entity.async_write_ha_state` of script entity `ai` (`Script._changed`
+→ `ScriptEntity.async_change_listener`): its state is `on` while it has
+runs, with the attributes of `entityAttributes`. The state machine is
+updated, and the shell told, only when something changed. A no-op for
+automations. -/
+def writeEntity (ai : Nat) : EM Unit := do
+  let e ← getE
+  let (some s, some a) := (e.scripts[ai]?, e.automations[ai]?) | return
+  if !s.alive then return
+  let cur := (runsOf e ai).length
+  let lt := (e.lastTriggered.find? (·.1 == ai)).map (·.2)
+  let st := HALean.Script.entityState cur
+  let attrs := HALean.Script.entityAttributes s a cur lt
+  let old := e.states.get? s.entityId
+  if let some o := old then
+    if o.state == st && o.attributes.compress == attrs.compress then return
+  let lastChanged := match old with
+    | some o => if o.state == st then o.lastChanged else e.now.utc
+    | none => e.now.utc
+  setE { e with states := e.states.set { entityId := s.entityId, state := st, attributes := attrs, lastChanged } }
+  emit [.setState s.entityId st attrs]
+
+/-- `service_data.update(target)` in `ServiceRegistry.async_call`. -/
+def mergeTarget (data target : Json) : Json :=
+  match target with
+  | .obj kvs => kvs.toList.foldl (fun d (k, v) => d.setObjVal! k v) (match data with | .obj _ => data | _ => Json.mkObj [])
+  | _ => data
+
+/-- A run blocked on service call `cid`: when the call is to one of the
+engine's own script services, what its handler does (`planCall`). -/
+def localCall? (e : Engine) (cid : Nat) (returnResponse : Bool) (cmds : List Cmd) :
+    Option (List HALean.Script.LocalOp) := do
+  if e.scripts.isEmpty then none
+  let .callService _ _ d s data tgt _ ← cmds.find? (fun c => match c with
+      | .callService c .. => c == cid
+      | _ => false) | none
+  if d != "script" then none
+  HALean.Script.planCall e.scripts (fun i => !(runsOf e i).isEmpty) s
+    (mergeTarget data (HALean.Script.normalizeTargetIds tgt)) returnResponse
+
+/-- Whether a run told to stop (`_ScriptRun.async_stop`) ends normally:
+`delay`, `wait_template`, `wait_for_trigger` (`asyncio.wait` on futures that
+include the run's `_stop`) and `parallel` (its branches' `CancelledError`s
+are returned by `gather`, not raised) return, and the run's loop then
+breaks. Everywhere else, a service call or a sub-script
+(`_async_run_long_action`) or the queue's lock, `asyncio.CancelledError` is
+raised. -/
+def stoppedQuietly (r : Run) : Bool :=
+  r.frames.length ≤ 1 && match r.wait with
+    | .delayUntil _ | .waitTmpl .. | .waitTrig .. | .joinPar .. => true
+    | _ => false
+
+/-- What a service call returned to the step that made it. -/
+inductive CallRes where
+  | ok (response : Template.Value)
+  | err (k : ErrKind) (msg : String)
+  /-- `asyncio.CancelledError`: the awaited script run was stopped. -/
+  | cancelled
+  deriving Inhabited
+
+def ErrKind.str : ErrKind → String
+  | .invalid => "invalid" | .haError => "ha_error" | .other => "other"
+
+/-- How `Script.async_run` answered a request to start a run. -/
+inductive StartRes where
+  | started (runId : Nat)
+  /-- Not started (mode, `max` or a disallowed recursion): returns `None`. -/
+  | rejected
+  /-- Raised (a `TemplateError` rendering the script's variables). -/
+  | failed (k : ErrKind) (msg : String)
+  deriving Inhabited
+
 mutual
 /-- Drive a run until it blocks or ends; on end, `_finish` it (which for a
-queued script releases the lock to the next waiter). -/
+queued script releases the lock to the next waiter). A call to one of the
+engine's own script services is handled right here, as HA runs the
+handler eagerly (`async_create_task_internal(..., eager_start=True)`). -/
 partial def drive (r : Run) : EM Unit := do
   let e ← getE
   let (res, cmds, ctx) := exec { env := e.condEnv, nextCallId := e.nextCallId } r
   let last := match res with | .blocked x | .spawn x .. | .done x _ => x
   setE (syncFamily { e with nextCallId := ctx.nextCallId } last)
-  emit cmds
+  let local? : Option (Nat × List HALean.Script.LocalOp) := match res with
+    | .blocked x => match x.wait with
+      | .service cid _ rv => (localCall? e cid rv.isSome cmds).map (cid, ·)
+      | _ => none
+    | _ => none
+  emit (match local? with
+    | some (cid, _) => cmds.filter fun c => match c with
+      | .callService c .. => c != cid
+      | _ => true
+    | none => cmds)
   match res with
   | .spawn r' branches coe =>
     -- `asyncio.gather` of one sub-script per branch, each with a scope of
@@ -444,6 +555,9 @@ partial def drive (r : Run) : EM Unit := do
                   woken := e.woken ++ ids }
   | .blocked r' =>
     setE (replaceRun (← getE) r')
+    if let some (cid, ops) := local? then
+      callLocal (.run r'.id cid) ops
+      return
     match r'.wait with
     | .waitTmpl t _ _ => setupWait r' t
     | .waitTrig trigs vars deadline _ =>
@@ -461,16 +575,33 @@ partial def finishRun (r : Run) (end_ : RunEnd) : EM Unit := do
     return
   let a := e.automations.getD r.autoIdx default
   match end_ with
-  | .error _ m => emit [.log "error" s!"Error while executing automation {a.alias}: {m}"]
+  | .error _ m =>
+    let kind := if (e.scripts[r.autoIdx]?).any (·.objectId != "") then "script" else "automation"
+    emit [.log "error" s!"Error while executing {kind} {a.alias}: {m}"]
   | .aborted m => emit [.log "debug" s!"{a.alias} aborted: {m}"]
   | .conditionFailed => emit [.log "debug" s!"{a.alias} aborted: condition failed"]
-  | .finished | .stopped _ => pure ()
+  | .finished | .stopped .. => pure ()
   setE (removeRun e r.id)
-  -- `_QueuedScriptRun._finish` releases the FIFO lock
+  -- `_ScriptRun._finish` → `_changed()`
+  writeEntity r.autoIdx
+  -- the `ScriptRunResult` goes back to whoever awaits the run: a top-level
+  -- run swallows `_AbortScript` and `_ConditionFail`, returns the response
+  -- of `_StopScript`, and re-raises everything else
+  if let some c := r.caller then
+    answer c (match end_ with
+      | .error k m => .err k m
+      | .stopped _ resp => .ok resp
+      | _ => .ok .none)
+  releaseQueue r.autoIdx
+
+/-- `_QueuedScriptRun._finish` releases the FIFO lock: the oldest waiting
+run starts once no run holds it. -/
+partial def releaseQueue (ai : Nat) : EM Unit := do
+  let e ← getE
+  let a := e.automations.getD ai default
   if a.mode == .queued then
-    let e ← getE
-    if (runsOf e r.autoIdx).all (·.wait == .queued) then
-      if let some nxt := (runsOf e r.autoIdx).head? then
+    if (runsOf e ai).all (·.wait == .queued) then
+      if let some nxt := (runsOf e ai).head? then
         setE (replaceRun e { nxt with wait := .ready })
         drive { nxt with wait := .ready }
 
@@ -504,6 +635,174 @@ partial def finishBranch (pid kid : Nat) (end_ : RunEnd) : EM Unit := do
       | .done x => finishRun p x
       | _ => pure ()
   | some x => finishRun p x
+
+/-- Hand a call's result to its caller. A run blocked in the call resumes
+after the current callbacks (`woken`), unless `continueNow` picks it up
+because the call completed without yielding; an exception unwinds it right
+away; a cancellation stops it. The shell gets `call_done`. -/
+partial def answer (c : Caller) (res : CallRes) : EM Unit := do
+  match c with
+  | .external id rr =>
+    match res with
+    | .ok v =>
+      match HALean.Script.callResponse rr v with
+      | .ok r => match r.toJson with
+        | .ok j => emit [.callDone id true j "" ""]
+        | .error m => emit [.callDone id false .null "other" s!"HALean cannot send the response: {m}"]
+      | .error m => emit [.callDone id false .null "ha_error" m]
+    | .err k m => emit [.callDone id false .null k.str m]
+    | .cancelled => emit [.callDone id false .null "cancelled" ""]
+  | .run rid cid =>
+    let e ← getE
+    let some r := e.runs.find? (·.id == rid) | return
+    let .service c _ rv := r.wait | return
+    if c != cid then return
+    let out := match res with
+      | .ok v => match HALean.Script.callResponse rv.isSome v with
+        | .ok resp => some (resumeService r true .other "" resp)
+        | .error m => some (resumeService r false .haError m)
+      | .err k m => some (resumeService r false k m)
+      | .cancelled => none
+    match out with
+    | none => cancelRun rid
+    | some (.next r') =>
+      setE { replaceRun e r' with woken := if e.woken.contains rid then e.woken else e.woken ++ [rid] }
+    | some (.done end_) => finishRun r end_
+    | some _ => pure ()
+
+/-- A run whose call was answered without yielding goes on at once. -/
+partial def continueNow (c : Caller) : EM Unit := do
+  let .run rid _ := c | return
+  let e ← getE
+  if !e.woken.contains rid then return
+  let some r := e.runs.find? (·.id == rid) | return
+  if r.wait != .ready then return
+  setE { e with woken := e.woken.filter (· != rid) }
+  drive r
+
+/-- Stop a run (`_ScriptRun.async_stop`) with its branches. The script runs
+it waits for are stopped too (`Script.async_run` stops its run when the
+awaiting task is cancelled). Whoever waits for it gets `None` when it was
+stopped in a wait that returns on the stop future, and is cancelled
+otherwise (`stoppedQuietly`). `release`: a queued script's next run may
+start. -/
+partial def stopRun (id : Nat) (release : Bool := true) : EM Unit := do
+  let e ← getE
+  let some r := e.runs.find? (·.id == id) | return
+  let fam := familyOf e id
+  let callees := e.runs.filter fun c => match c.caller with
+    | some (.run x _) => fam.contains x
+    | _ => false
+  setE (removeRun e id)
+  for c in callees do stopRun c.id
+  writeEntity r.autoIdx
+  if let some c := r.caller then answer c (if stoppedQuietly r then .ok .none else .cancelled)
+  if release then releaseQueue r.autoIdx
+
+/-- `asyncio.CancelledError` raised in run `rid` where it waits for a call
+(the script run it awaits was cancelled). Nothing catches it: a `parallel`
+branch ends (`gather(..., return_exceptions=True)` returns it, and only
+`Exception`s are re-raised, so the parent goes on); a top-level run ends,
+and its own caller is cancelled in turn. -/
+partial def cancelRun (rid : Nat) : EM Unit := do
+  let e ← getE
+  let some r := e.runs.find? (·.id == rid) | return
+  match r.parent with
+  | some p => finishBranch p rid .finished
+  | none =>
+    setE (removeRun e rid)
+    writeEntity r.autoIdx
+    if let some c := r.caller then answer c .cancelled
+    releaseQueue r.autoIdx
+
+/-- `ScriptEntity._async_start_run` + `Script.async_run` for script entity
+`ai`: fire `script_started`; build `this` from the entity's state; refuse
+by mode and `max`; render the script's `variables` on top of the run
+variables (the run variables win); refuse a disallowed recursion
+(`restart`/`queued` scripts already in the caller's `script_stack`); add
+the run (stopping the others in `restart` mode), set `last_triggered`,
+write the state, and start the run eagerly. -/
+partial def startScript (ai : Nat) (runVars : List (String × Template.Value))
+    (caller : Option Caller) (stack : List Nat) : EM StartRes := do
+  let e ← getE
+  let (some a, some s) := (e.automations[ai]?, e.scripts[ai]?) | return .rejected
+  emit [.fireEvent "script_started" (Json.mkObj [("name", Json.str a.alias), ("entity_id", Json.str s.entityId)])]
+  let existing := runsOf e ai
+  let lt := (e.lastTriggered.find? (·.1 == ai)).map (·.2)
+  -- `script_vars = {"this": this, **(variables or {})}`
+  let run0 := runVars.foldl (fun vs (k, v) => setVar vs k v)
+    [("this", HALean.Script.scriptThis s a existing.length lt)]
+  let decision := admit a.mode a.maxRuns existing.length
+  if let .reject why := decision then
+    emit [.log "warning" s!"{a.alias}: {why}"]
+    return .rejected
+  let vars ← match renderVariables { e.condEnv with vars := run0 } a.variables with
+    | .ok vs => pure vs
+    | .error msg =>
+      emit [.log "error" s!"{a.alias}: Error rendering variables: {msg}"]
+      return .failed .invalid msg
+  if (a.mode == .restart || a.mode == .queued) && stack.contains ai then
+    emit [.log "warning" s!"{a.alias}: Disallowed recursion detected"]
+    return .rejected
+  let wait : Wait := if decision == .enqueue then .queued else .ready
+  -- `variables["context"] = context`
+  let run : Run := { id := e.nextRunId, autoIdx := ai, triggerId := "",
+                     vars := setVar vars "context" (.opaque "context"),
+                     frames := [.seq a.actions false], wait, caller, stack := stack ++ [ai] }
+  setE { e with runs := e.runs ++ [run], nextRunId := e.nextRunId + 1 }
+  if decision == .restart then
+    -- "first add the new run and then stop any other runs"
+    for old in existing do stopRun old.id false
+  let e ← getE
+  setE { e with lastTriggered := (e.lastTriggered.filter (·.1 != ai)) ++ [(ai, (e.now.utc : Int) * 1000)] }
+  writeEntity ai
+  if wait == .ready then drive run
+  return .started run.id
+
+/-- Run the handler of a `script.*` service called by `c` (`planCall`).
+A direct call waits for its run; `turn_on` answers once the runs have
+started; `turn_off` (and `toggle` of a running script) awaits the stop,
+so a calling run resumes after the current callbacks. -/
+partial def callLocal (c : Caller) (ops : List HALean.Script.LocalOp) : EM Unit := do
+  let mut yielded := false
+  for op in ops do
+    match op with
+    | .fail k m =>
+      emit [.log "error" m]
+      answer c (.err k m)
+      continueNow c
+      return
+    | .start ai vars true =>
+      -- the callee sees the caller's `script_stack` (copied)
+      let e ← getE
+      let stack := match c with
+        | .run rid _ => ((e.runs.find? (·.id == rootOf e rid)).map (·.stack)).getD []
+        | .external .. => []
+      match ← startScript ai vars (some c) stack with
+      | .started _ => pure ()
+      | .rejected => answer c (.ok .none)
+      | .failed k m => answer c (.err k m)
+      continueNow c
+      return
+    | .start ai vars false =>
+      -- a fresh `script_stack`
+      match ← startScript ai vars none [] with
+      | .started _ => pure ()
+      | _ =>
+        -- HA's `await self._changed.wait()` then waits for the script's
+        -- next state write, whenever that comes; HALean does not model it
+        let m := "HALean: turning on a script that does not start waits for its next state change in HA, which HALean does not model"
+        emit [.log "error" m]
+        answer c (.err .other m)
+        continueNow c
+        return
+    | .stop ai =>
+      -- every run is told to stop before any lock is handed on
+      for r in runsOf (← getE) ai do stopRun r.id false
+      writeEntity ai
+      yielded := true
+  answer c (.ok .none)
+  if !yielded then continueNow c
 end
 
 /-- `this` as `AutomationEntity.async_trigger` builds it:
@@ -530,24 +829,6 @@ def thisValue (e : Engine) (ai : Nat) (a : Automation) (eid : String) : Template
     ("last_changed", .opaque "this.last_changed"), ("last_reported", .opaque "this.last_reported"),
     ("last_updated", .opaque "this.last_updated"), ("context", .opaque "this.context")].map
     fun (k, v) => (.str k, v))
-
-/-- Admission decision of `Script.async_run`, as a pure function of the
-mode, `max` and how many runs (running or queued) exist. -/
-inductive Admit where
-  | reject (why : String)
-  | start
-  | enqueue
-  | restart
-  deriving Repr, BEq, DecidableEq
-
-def admit (mode : Mode) (maxRuns existing : Nat) : Admit :=
-  if existing = 0 then .start
-  else if mode = .single then .reject "Already running"
-  else if mode ≠ .restart ∧ existing = maxRuns then .reject "Maximum number of runs exceeded"
-  else match mode with
-    | .queued => .enqueue
-    | .restart => .restart
-    | _ => .start
 
 /-- `Script.async_run` admission + `AutomationEntity.async_trigger`. -/
 def triggerAutomation (ai : Nat) (tv : TriggerVars) : EM Unit := do
@@ -1200,7 +1481,7 @@ def handle : Input → EM Unit
         | .service c .. => c == cid
         | _ => false) |
       return  -- run was stopped meanwhile (restart): ignore
-    match resumeService r ok kind msg resp with
+    match resumeService r ok kind msg (Template.Value.ofJson resp) with
     | .next r' => setE (replaceRun e r'); drive r'
     | .blocked r' | .spawn r' .. => setE (replaceRun e r')  -- not produced by resumeService
     | .done end_ => finishRun r end_

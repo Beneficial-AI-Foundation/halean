@@ -231,16 +231,33 @@ def resolveTimeBound (env : CondEnv) (which : String) (eid : String) (isAfter : 
       | some (.num n) => n.mantissa.toNat
       | _ => d
     return some ((g "hour" 23 * 3600 + g "minute" 59 * 60 + g "second" 59) * 1000000)
-  if e.domain == "time" then
-    if isAfter && (e.state == STATE_UNAVAILABLE || e.state == STATE_UNKNOWN) then return none
-    match timeOfDaySec e.state with
-    | some s => return some (s * 1000000)
-    | none =>
-      -- `after`: strptime raises ValueError (uncaught upstream); `before`: returns False
-      if isAfter then throw s!"invalid time state '{e.state}'" else return none
+  let unavail := e.state == STATE_UNAVAILABLE || e.state == STATE_UNKNOWN
+  -- `after`: an unavailable `time` entity falls through to the sensor check
+  if e.domain == "time" && !(isAfter && unavail) then
+    -- `datetime.strptime(state, "%H:%M:%S").time()`
+    match Template.strptime e.state "%H:%M:%S" with
+    | .ok (.datetime us _) =>
+      let c := Template.toCivil us
+      return some (((c.hour * 60 + c.minute) * 60 + c.second) * 1000000 + c.micro)
+    | .ok _ => throw "strptime returned no datetime"
+    | .error (.valueError m) =>
+      -- `after`: the ValueError is not caught upstream; `before`: returns False
+      if isAfter then throw s!"ValueError: {m}" else return none
+    | .error (.error m) => throw m
   match e.attr? "device_class" with
   | some (.str "timestamp") | some (.str "uptime") =>
-    throw "time condition on timestamp sensors is not supported by HALean yet"
+    if unavail then return none
+    -- `dt_util.as_local(dt_util.parse_datetime(state)).time()`; a naive
+    -- datetime is taken as local time
+    match (Template.parseDatetime e.state).run.run' {} with
+    | .error m => throw m
+    | .ok (some (.datetime us off)) =>
+      let c := Template.toCivil (match off with
+        | some _ => Template.wallOf us (some env.now.tzOffsetSec)
+        | none => us)
+      if c.year < 1 || c.year > 9999 then throw "OverflowError: date value out of range"
+      return some (((c.hour * 60 + c.minute) * 60 + c.second) * 1000000 + c.micro)
+    | .ok _ => return none
   | _ => return none
 
 /-- `conditions.time` -/

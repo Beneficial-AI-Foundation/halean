@@ -1,0 +1,66 @@
+description: >
+  script.reload with a new scripts.yaml: a script whose config did not
+  change keeps its entity and its runs; a changed one is removed (its run
+  is stopped; stopped in a delay, the call waiting for it returns) and
+  created again, restoring last_triggered; a removed one is left
+  `unavailable` (its entity registry entry stays); a new one is added.
+scripts:
+  keep:
+    sequence:
+      - delay: 5
+      - action: test.keep
+  change:
+    sequence:
+      - delay: 5
+      - action: test.change_old
+  gone:
+    alias: Gone soon
+    sequence:
+      - action: test.gone
+steps:
+  - at: 1
+    call: keep
+  - at: 1
+    call: change
+  - at: 2
+    call: gone
+  - at: 3
+    result: 0
+  - at: 4
+    reload:
+      keep:
+        sequence:
+          - delay: 5
+          - action: test.keep
+      change:
+        alias: Changed
+        sequence:
+          - action: test.change_new
+      fresh:
+        mode: parallel
+        sequence:
+          - action: test.fresh
+    expect:
+      call_done: [[1, true, null]]
+      states:
+        script.change: ["off", {friendly_name: Changed, last_triggered: "2023-11-14T22:13:21+00:00"}]
+        script.fresh: ["off", {mode: parallel, max: 10}]
+        script.gone: [unavailable, {restored: true, friendly_name: Gone soon}]
+        script.keep: ["on", {current: 1}]
+  - at: 6
+    expect:
+      call_service: [[test, keep, {}]]
+  - at: 7
+    result: 1
+    expect:
+      call_done: [[0, true, null]]
+  - at: 8
+    call: change
+    expect:
+      call_service: [[test, change_new, {}]]
+  - at: 9
+    call: gone
+    expect:
+      call_done: [[4, false, invalid]]
+  - at: 10
+    result: 2

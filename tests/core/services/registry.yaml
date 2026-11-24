@@ -1,0 +1,147 @@
+# Service registry cases for tests/differential/test_services.py. Each case is a
+# list of operations run on a fresh `hass.services` and on halean-core-services;
+# every operation must give the same result or exception, events and logs.
+# Operation i runs at t0 + i seconds. See Exe/CoreServices.lean for the
+# operation format. `unsupported: true` marks an operation HALean must reject.
+
+- name: register_lowercases_and_fires_event
+  ops:
+    - {op: register, domain: Test_Domain, service: Do_Thing, handler: {return: null}}
+    - {op: has, domain: test_domain, service: do_thing}
+    - {op: has, domain: TEST_DOMAIN, service: DO_THING}
+    - {op: has, domain: test_domain, service: other}
+    - {op: has, domain: other, service: do_thing}
+    - {op: list}
+    - {op: list_domain, domain: test_domain}
+    # async_services_for_domain does not lowercase
+    - {op: list_domain, domain: Test_Domain}
+    - {op: supports_response, domain: TEST_DOMAIN, service: do_THING}
+
+- name: reregister_replaces_in_place
+  ops:
+    - {op: register, domain: test_a, service: one, handler: {return: null}}
+    - {op: register, domain: test_a, service: two, handler: {return: null}, supports_response: optional}
+    - {op: register, domain: test_b, service: one, handler: {return: null}}
+    - {op: register, domain: test_a, service: ONE, handler: {return: {x: 1}}, supports_response: only,
+       schema: {fields: [{key: x, type: int}]}}
+    - {op: list}
+    - {op: call, domain: test_a, service: one, blocking: true, return_response: true}
+
+- name: remove
+  ops:
+    - {op: register, domain: test_a, service: one, handler: {return: null}}
+    - {op: register, domain: test_a, service: two, handler: {return: null}}
+    - {op: remove, domain: Test_A, service: ONE}
+    - {op: has, domain: test_a, service: one}
+    - {op: list}
+    - {op: remove, domain: test_a, service: one}
+    - {op: remove, domain: test_missing, service: Nope}
+    - {op: remove, domain: test_a, service: two}
+    - {op: list}
+    - {op: list_domain, domain: test_a}
+    - {op: call, domain: test_a, service: two, blocking: true}
+    - {op: supports_response, domain: test_a, service: two}
+    # re-adding moves it to the end
+    - {op: register, domain: test_c, service: x, handler: {return: null}}
+    - {op: register, domain: test_a, service: two, handler: {return: null}}
+    - {op: list}
+
+- name: supports_response_missing
+  ops:
+    - {op: register, domain: test_a, service: one, handler: {return: null}, supports_response: optional}
+    - {op: supports_response, domain: test_a, service: one}
+    - {op: supports_response, domain: test_a, service: Two}
+    - {op: supports_response, domain: Test_Z, service: one}
+
+- name: call_not_found
+  ops:
+    - {op: call, domain: Test_A, service: Missing, blocking: true}
+    - {op: call, domain: test_a, service: missing, blocking: false}
+    - {op: register, domain: test_a, service: one, handler: {return: null}}
+    - {op: call, domain: test_a, service: two, blocking: true, return_response: true}
+
+- name: call_basics
+  ops:
+    - {op: register, domain: test_a, service: echo, handler: {echo: true}, supports_response: optional}
+    - {op: call, domain: test_a, service: echo, blocking: true}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true}
+    - {op: call, domain: TEST_A, service: Echo, blocking: true, return_response: true,
+       data: {b: 1, a: [1, 2.5, "x"], c: {z: true, y: null}}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true,
+       data: {entity_id: light.a, brightness: 10}, target: {area_id: kitchen, entity_id: [light.b]}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true,
+       data: {}, target: {}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true,
+       context: {id: ctx-1, user_id: user-1, parent_id: parent-1}, data: {f: 1.0, g: 1.0e+16, h: -0.0}}
+    - {op: call, domain: test_a, service: echo, blocking: false}
+    - {op: call, domain: test_a, service: echo, blocking: false, context: {id: ctx-2},
+       data: {x: 1}}
+
+- name: return_response_rules
+  ops:
+    - {op: register, domain: test_r, service: none, handler: {return: {a: 1}}}
+    - {op: register, domain: test_r, service: optional, handler: {return: {a: 1}}, supports_response: optional}
+    - {op: register, domain: test_r, service: only, handler: {return: {a: 1}}, supports_response: only}
+    # NONE
+    - {op: call, domain: test_r, service: none, blocking: true}
+    - {op: call, domain: test_r, service: none, blocking: true, return_response: true}
+    - {op: call, domain: test_r, service: none, blocking: false, return_response: true}
+    # OPTIONAL
+    - {op: call, domain: test_r, service: optional, blocking: true}
+    - {op: call, domain: test_r, service: optional, blocking: true, return_response: true}
+    - {op: call, domain: test_r, service: optional, blocking: false}
+    - {op: call, domain: test_r, service: optional, blocking: false, return_response: true}
+    # ONLY
+    - {op: call, domain: test_r, service: only, blocking: true}
+    - {op: call, domain: test_r, service: only, blocking: false}
+    - {op: call, domain: test_r, service: only, blocking: true, return_response: true}
+    - {op: call, domain: test_r, service: only, blocking: false, return_response: true}
+
+- name: response_must_be_a_dict
+  ops:
+    - {op: register, domain: test_r, service: none_value, handler: {return: null}, supports_response: optional}
+    - {op: register, domain: test_r, service: list_value, handler: {return: [1, 2]}, supports_response: optional}
+    - {op: register, domain: test_r, service: str_value, handler: {return: "ok"}, supports_response: only}
+    - {op: register, domain: test_r, service: int_value, handler: {return: 3}, supports_response: only}
+    - {op: register, domain: test_r, service: float_value, handler: {return: 3.5}, supports_response: only}
+    - {op: register, domain: test_r, service: bool_value, handler: {return: true}, supports_response: only}
+    - {op: register, domain: test_r, service: empty_dict, handler: {return: {}}, supports_response: only}
+    - {op: call, domain: test_r, service: none_value, blocking: true, return_response: true}
+    - {op: call, domain: test_r, service: none_value, blocking: true}
+    - {op: call, domain: test_r, service: list_value, blocking: true, return_response: true}
+    - {op: call, domain: test_r, service: list_value, blocking: true}
+    - {op: call, domain: test_r, service: str_value, blocking: true, return_response: true}
+    - {op: call, domain: test_r, service: int_value, blocking: true, return_response: true}
+    - {op: call, domain: test_r, service: float_value, blocking: true, return_response: true}
+    - {op: call, domain: test_r, service: bool_value, blocking: true, return_response: true}
+    - {op: call, domain: test_r, service: empty_dict, blocking: true, return_response: true}
+
+- name: handler_errors
+  ops:
+    - {op: register, domain: test_e, service: ha, handler: {raise: HomeAssistantError, message: "it broke"}}
+    - {op: register, domain: test_e, service: sve, handler: {raise: ServiceValidationError, message: "bad input"},
+       supports_response: optional}
+    - {op: register, domain: test_e, service: inv, handler: {raise: Invalid, message: "not valid"}}
+    - {op: register, domain: test_e, service: val, handler: {raise: ValueError, message: "value"}}
+    - {op: register, domain: test_e, service: rt, handler: {raise: RuntimeError, message: "runtime"}}
+    - {op: call, domain: test_e, service: ha, blocking: true}
+    - {op: call, domain: test_e, service: sve, blocking: true, return_response: true}
+    - {op: call, domain: test_e, service: inv, blocking: true}
+    - {op: call, domain: test_e, service: val, blocking: true, data: {a: 1}}
+    - {op: call, domain: test_e, service: rt, blocking: true}
+    # not blocking: logged, never raised
+    - {op: call, domain: test_e, service: ha, blocking: false}
+    - {op: call, domain: test_e, service: rt, blocking: false, context: {id: ctx-9},
+       data: {a: 1, b: "two", c: [1, "x"], d: {e: {f: null}}, g: true, h: 2.5}}
+    - {op: call, domain: test_e, service: val, blocking: false, data: {entity_id: light.x},
+       target: {entity_id: [light.y]}}
+
+- name: unsupported_inputs
+  ops:
+    - {op: register, domain: "tëst", service: x, handler: {return: null}, unsupported: true}
+    - {op: register, domain: test_u, service: x, handler: {raise: KeyError, message: k}, unsupported: true}
+    - {op: register, domain: test_u, service: x, handler: {return: null},
+       schema: {fields: [{key: a, value: {cv: matches_regex}}]}, unsupported: true}
+    - {op: register, domain: test_u, service: x, handler: {return: null},
+       schema: {fields: [{key: a, value: {match: "^a"}}]}, unsupported: true}
+    - {op: list}

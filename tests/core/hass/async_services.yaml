@@ -1,0 +1,176 @@
+# Joined core: service handlers that suspend, tasks, futures and
+# block_till_done.
+# Run with: uv run tests/differential/run.py -k core
+
+- name: blocking_call_to_suspending_handler
+  # the main task awaits the handler; while it is suspended the loop runs the
+  # async listener the handler's first state change started, then the
+  # handler goes on and the call returns its response
+  manual: true
+  ops:
+    - op: register
+      domain: test
+      service: slow
+      handler:
+        do:
+          - set: {entity_id: switch.a, state: "on", context: inherit}
+          - sleep: 0
+          - set: {entity_id: switch.b, state: "on", context: inherit}
+        return: {done: true}
+      supports_response: optional
+    - op: listen
+      id: watcher
+      event_type: state_changed
+      filter: {eq: {entity_id: switch.a}}
+      async: true
+      react: [{sleep: 0}, {fire: {event_type: watcher_mid, context: inherit}}, {sleep: 0}, {fire: {event_type: watcher_done, context: inherit}}]
+    - {op: listen, id: m, event_type: "*"}
+    - op: call
+      domain: test
+      service: slow
+      blocking: true
+      return_response: true
+      context: {id: caller}
+      expect:
+        deliveries: ["m:call_service", "watcher:state_changed", "m:state_changed", "m:watcher_mid", "m:state_changed"]
+        result: {ok: "{'done': True}"}
+    # the watcher's second step was queued behind the main task
+    - {op: sleep, expect: {deliveries: ["m:watcher_done"]}}
+
+- name: handler_waits_for_a_future_a_listener_resolves
+  # the main task waits on a future inside the handler; a listener's task
+  # resolves it after a suspension, which wakes the main task
+  manual: true
+  ops:
+    - op: register
+      domain: test
+      service: waiter
+      handler:
+        do:
+          - fire: {event_type: waiting, context: inherit}
+          - wait: f
+          - fire: {event_type: woken, context: inherit}
+        echo: true
+      supports_response: only
+    - op: listen
+      id: resolver
+      event_type: waiting
+      async: true
+      react: [{sleep: 0}, {resolve: f}, {fire: {event_type: resolved}}, {sleep: 0}, {fire: {event_type: resolver_done}}]
+    - {op: listen, id: m, event_type: "*"}
+    - op: call
+      domain: test
+      service: waiter
+      blocking: true
+      return_response: true
+      expect: {deliveries: ["m:call_service", "resolver:waiting", "m:waiting", "m:resolved", "m:woken"]}
+    - {op: sleep, expect: {deliveries: ["m:resolver_done"]}}
+    # resolving it again raises asyncio.InvalidStateError: not modelled
+    - {op: resolve, id: f, unsupported: true}
+
+- name: non_blocking_call_to_suspending_handler
+  # async_call returns None once the handler's task has suspended; the task
+  # goes on when the loop runs; its error is logged by
+  # _run_service_call_catch_exceptions when it happens
+  manual: true
+  ops:
+    - op: register
+      domain: test
+      service: slow_fail
+      handler:
+        do: [{set: {entity_id: sensor.s, state: "1", context: inherit}}, {sleep: 0}, {set: {entity_id: sensor.s, state: "2", context: inherit}}]
+        raise: HomeAssistantError
+        message: failed late
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: slow_fail, data: {n: 1}, context: {id: bg}, expect: {deliveries: ["m:call_service", "m:state_changed"], result: {ok: "None"}}}
+    - {op: get, entity_id: sensor.s}
+    - {op: sleep, expect: {deliveries: ["m:state_changed"]}}
+    - {op: get, entity_id: sensor.s}
+
+- name: handler_awaits_nested_suspending_calls
+  # a blocking nested call suspends the outer handler too; a caught error
+  # after the inner suspension is recorded; a callback listener's call runs in
+  # its own task, so the listener goes on at once
+  ops:
+    - op: register
+      domain: test
+      service: inner
+      handler:
+        do: [{sleep: 0}, {fire: {event_type: inner_ran, context: inherit}}]
+        echo: true
+      supports_response: optional
+    - op: register
+      domain: test
+      service: inner_fail
+      handler:
+        do: [{sleep: 0}]
+        raise: ValueError
+        message: inner failed late
+    - op: register
+      domain: test
+      service: outer
+      handler:
+        do:
+          - call: {id: nested, domain: test, service: inner, data: {x: 1}, blocking: true, return_response: true, context: inherit}
+          - call: {id: nested_fail, domain: test, service: inner_fail, blocking: true, catch: true}
+          - fire: {event_type: outer_done, context: inherit}
+    - op: listen
+      id: cb
+      event_type: go
+      react:
+        - call: {id: from_cb, domain: test, service: outer, blocking: true}
+        - fire: {event_type: cb_after_call}
+    - {op: listen, id: m, event_type: "*"}
+    - op: fire
+      event_type: go
+      expect:
+        deliveries: ["cb:go", "m:go", "m:call_service", "m:call_service", "m:cb_after_call",
+                     "m:inner_ran", "m:call_service", "m:outer_done"]
+        calls: ["nested:ok", "nested_fail:error", "from_cb:ok"]
+    - {op: call, domain: test, service: outer, blocking: true, now: 1795710646000000}
+
+- name: block_till_done_ordering
+  # block_till_done runs the ready queue in FIFO order until no task is left,
+  # including tasks started while it waits
+  manual: true
+  ops:
+    - op: listen
+      id: a
+      event_type: go
+      async: true
+      react: [{wait: f}, {fire: {event_type: a_woken}}, {sleep: 0}, {fire: {event_type: a_done}}]
+    - op: listen
+      id: b
+      event_type: go
+      async: true
+      react: [{sleep: 0}, {fire: {event_type: b1}}, {sleep: 0}, {resolve: f}, {fire: {event_type: b2}}, {sleep: 0}, {fire: {event_type: again}}]
+    - op: listen
+      id: c
+      event_type: again
+      async: true
+      react: [{sleep: 0}, {fire: {event_type: c_done}}]
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go, expect: {deliveries: ["a:go", "b:go", "m:go"]}}
+    - op: block_till_done
+      expect: {deliveries: ["m:b1", "m:b2", "m:a_woken", "c:again", "m:again", "m:a_done", "m:c_done"]}
+    # nothing left: block_till_done does nothing
+    - {op: block_till_done, expect: {deliveries: []}}
+
+- name: block_till_done_with_task_error
+  # a task that fails while block_till_done waits on it is held by its
+  # `tasks` list until the next check
+  manual: true
+  ops:
+    - op: listen
+      id: bad
+      event_type: go
+      async: true
+      react: [{sleep: 0}, {sleep: 0}, {raise: ValueError, message: late}]
+    - op: listen
+      id: slow
+      event_type: go
+      async: true
+      react: [{sleep: 0}, {sleep: 0}, {sleep: 0}, {sleep: 0}, {fire: {event_type: slow_done}}]
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go}
+    - {op: block_till_done, expect: {deliveries: ["m:slow_done"]}}

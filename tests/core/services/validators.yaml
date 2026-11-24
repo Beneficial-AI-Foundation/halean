@@ -1,0 +1,425 @@
+# Validators beyond plain types (HALean/Core/Probatio.lean, Schema.lean,
+# ConfigValidation.lean): every service echoes the validated data, so a
+# successful call shows the coerced values (their Python types in repr()), and a
+# failed one the first error of the MultipleInvalid with its path.
+
+- name: val_types_literals_any
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: l, type: list}, {key: d, type: dict}, {key: o, type: object},
+         {key: lit, value: {literal: "x"}}, {key: one, value: {literal: 1}},
+         {key: nil, value: {literal: null}}, {key: t, value: {literal: true}},
+         {key: maybe_int, value: {any: [int, {literal: null}]}},
+         {key: num, value: {any: [float, str]}},
+         {key: choice, value: {any: [{literal: "a"}, {literal: 2.5}, {literal: false}, bool]}},
+         {key: mixed, value: {any: [{coerce: int}, {range: {min: 0}}]}},
+         {key: empty, value: {any: []}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {l: [1], d: {a: 1}, o: null, lit: "x", one: 1.0, nil: null, t: 1}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {l: {}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {d: []}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {lit: "y"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {one: true}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {nil: 0}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {t: 2}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {maybe_int: null, num: 3, choice: 0}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {maybe_int: 1.5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {num: [1]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {num: true}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {choice: "b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {mixed: "7"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {mixed: -1.5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {mixed: "x"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {empty: 1}}
+
+- name: val_nested_and_sequences
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: light, value: {dict: [{key: brightness, type: int, required: true},
+                                     {key: color, value: {dict: [{key: r, type: int}, {key: g, type: int}]}},
+                                     {key: mode, type: str, default: auto}]}},
+         {key: ints, value: {list: [int]}},
+         {key: floats, value: {list: [float]}},
+         {key: either, value: {list: [int, str]}},
+         {key: none_ok, value: {list: []}},
+         {key: rows, value: {list: [{dict: [{key: id, type: int, required: true}, {key: "a b", type: str}]}]}},
+         {key: "odd key", value: {dict: [{key: "x.y", type: int}]}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {light: {brightness: 5}, ints: [1, true], floats: [1, 2.5], either: ["a", 3], none_ok: []}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {light: {color: {r: 1, g: "x"}}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {light: {brightness: 1, colour: {}}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {light: 5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {ints: [1, "2", 3.0]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {ints: "1"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {either: [1.5]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {none_ok: [1]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {rows: [{id: 1}, {"a b": 2}, {id: 3, z: 1}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {"odd key": {"x.y": "q"}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {"odd key": {"x.z": 1}}}
+
+- name: val_nested_extra_policy
+  # nested mappings inherit the schema's extra-key policy, also inside
+  # combinators and sequences
+  ops:
+    - {op: register, domain: test_v, service: allow, handler: {echo: true}, supports_response: only,
+       schema: {extra: allow, fields: [
+         {key: n, value: {dict: [{key: a, type: int}]}},
+         {key: s, value: {list: [{dict: [{key: a, type: int}]}]}},
+         {key: c, value: {any: [{dict: [{key: a, type: int}]}, int]}}]}}
+    - {op: register, domain: test_v, service: remove, handler: {echo: true}, supports_response: only,
+       schema: {extra: remove, fields: [
+         {key: n, value: {dict: [{key: a, type: int}]}},
+         {key: c, value: {all: [{dict: [{key: a, type: int}]}]}}]}}
+    - {op: call, domain: test_v, service: allow, blocking: true, return_response: true,
+       data: {n: {a: 1, z: 2}, s: [{z: 1}], c: {z: 3}, top: 0}}
+    - {op: call, domain: test_v, service: remove, blocking: true, return_response: true,
+       data: {n: {a: 1, z: 2}, c: {z: 3, a: 4}, top: 0}}
+    - {op: call, domain: test_v, service: allow, blocking: true, return_response: true,
+       data: {n: {a: "x"}}}
+
+- name: val_all_any_errors
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: chain, value: {all: [{coerce: float}, {range: {min: 0, max: 10}}, {coerce: str}]}},
+         {key: deep, value: {any: [{dict: [{key: x, type: int, required: true}]}, int]}},
+         {key: deeper, value: {any: [str, {dict: [{key: a, value: {dict: [{key: b, type: int}]}}]}]}},
+         {key: nested_any, value: {any: [{all: [{lower: null}, {any: [{literal: "on"}, {literal: "off"}]}]}, bool]}},
+         {key: empty_all, value: {all: []}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {chain: "2.50", nested_any: "ON", empty_all: [1]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {chain: "11"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {chain: "x"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {deep: {x: "1"}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {deep: "1"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {deep: {}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {deeper: {a: {b: "x"}}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {deeper: 3}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {nested_any: "maybe"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {nested_any: true}}
+
+- name: val_in_not_in
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: mode, value: {in: [heat, cool, auto, "off"]}},
+         {key: num, value: {in: [3, 1.5, 2, true]}},
+         {key: mixed, value: {in: [b, 2, a]}},
+         {key: with_none, value: {in: [null, x]}},
+         {key: single, value: {in: [null]}},
+         {key: big, value: {in: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+                                21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+                                40, 41, 42]}},
+         {key: not, value: {not_in: [z, a, m]}},
+         {key: notnum, value: {not_in: [0, -1.5]}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {mode: heat, num: 1, mixed: 2, with_none: null, single: null, big: 42, not: b, notnum: 1}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {mode: hot}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {mode: col}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {mode: "Off"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {mode: 1}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {num: 2.0}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {num: 4}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {mixed: c}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {with_none: 1}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {single: 1}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {big: 43}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {not: m}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {notnum: false}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {mode: [heat]}}
+
+- name: val_range_clamp_length
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: r, value: {range: {min: 0, max: 10}}},
+         {key: rx, value: {range: {min: 0.5, max: 2, min_included: false, max_included: false}}},
+         {key: rmax, value: {range: {max: -1}}},
+         {key: rnone, value: {range: {}}},
+         {key: c, value: {clamp: {min: 1, max: 9.5}}},
+         {key: cmin, value: {clamp: {min: 0}}},
+         {key: len, value: {length: {min: 2, max: 3}}},
+         {key: lmin, value: {length: {min: 1}}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {r: 10, rx: 1, rmax: -1.0, rnone: "x", c: 0, cmin: -3, len: "ab", lmin: {a: 1}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {r: true, c: 100, cmin: 2.5, len: [1, 2, 3]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {c: 5, cmin: true}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {r: -1}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {r: 10.5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {r: "5"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {r: null}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {rx: 0.5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {rx: 2}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {rmax: 0}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {c: "x"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {c: [1]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {len: "a"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {len: [1, 2, 3, 4]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {len: 12}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {lmin: ""}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {lmin: null}}
+
+- name: val_coerce
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: i, value: {coerce: int}}, {key: f, value: {coerce: float}},
+                         {key: s, value: {coerce: str}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: " 12 ", f: "1e3", s: 5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: "1_000", f: " -2.5 ", s: 2.0}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: 2.9, f: 7, s: null}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: -2.9, f: true, s: true}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: true, f: "inf", s: [1, "a"]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: "007", f: "-Infinity", s: {a: [1.5]}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {f: "nan"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {f: ".5", i: "+3"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: "1.5"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: ""}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: "0x10"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: null}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: [1]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: "1__0"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: 1e300}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {f: "1,5"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {f: {}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {f: 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {f: "1e400"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {i: "١٢"}, unsupported: true}
+
+- name: val_lower_upper_ensure_list_port
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: lo, value: {lower: null}}, {key: up, value: {upper: null}},
+                         {key: el, value: {ensure_list: null}}, {key: p, value: {port: null}},
+                         {key: els, value: {all: [{ensure_list: null}, {list: [str]}]}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {lo: "MiXeD 1", up: "abc-é", el: null, p: 8123, els: "a"}, unsupported: true}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {lo: "MiXeD 1", up: "abc-x", el: null, p: 8123, els: "a"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {lo: 1.5, up: [a, {b: null}], el: 5, p: "443", els: [a, b]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {lo: null, up: true, el: [1], p: 80.0, els: []}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {el: {a: 1}, els: null}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {els: 3}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {p: 0}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {p: 65536}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {p: true}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {p: 80.5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {p: "http"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {p: null}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {p: " 22 "}}
+
+- name: val_cv_string_boolean
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: s, value: {cv: string}}, {key: b, value: {cv: boolean}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {s: "x", b: " YES "}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {s: 5, b: "Off"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {s: 1.0, b: "enable"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {s: false, b: "0"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {b: 2}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {b: 0.0}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {b: -0.5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {b: false}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {b: "  MAYBE "}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {b: null}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {b: [1, "a"]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {b: {x: 1}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {s: null}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {s: [1]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {s: {}}}
+
+# cv.boolean strips with str.isspace (HALean.Template.cvBooleanText_iff): \v \f \x1c-\x1f
+# (Unicode spaces are covered by template cases: repr() of non-printable non-ASCII text
+# in the call_service event is a known gap)
+- name: val_cv_boolean_whitespace
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: b, value: {cv: boolean}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {b: "\x0bON\x0c"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {b: "\x1cno\x1f"}}
+
+- name: val_cv_entity_ids
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: one, value: {cv: entity_id}}, {key: many, value: {cv: entity_ids}},
+                         {key: entity_id, value: {cv: comp_entity_ids}},
+                         {key: light, value: {cv: entity_domain, domain: light}},
+                         {key: sw, value: {cv: entity_domain, domain: [switch, light]}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {one: Light.Kitchen, many: "light.a, switch.B ,light.c", light: LIGHT.X, sw: [switch.y]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {many: [light.a], light: "light.b"}, target: {entity_id: ALL}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {many: {light.a: 1, light.b: 2}}, target: {entity_id: [light.k, Switch.Z]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, target: {entity_id: "None"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, target: {entity_id: "light.a,light.b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {one: light}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {one: "light._x"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {one: 5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {one: null}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {one: "light.x\n"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {many: null}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {many: "light.a,,light.b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {many: [light.a, 3]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {many: [[light.a]]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {many: 5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {many: true}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, target: {entity_id: 5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, target: {entity_id: [5]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, target: {entity_id: null}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {light: switch.x}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {light: "light.a, light.b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {light: []}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sw: "light.a, sensor.b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {one: "light.ä"}, unsupported: true}
+
+# cv.slug accepts exactly "" and [0-9a-z_] text without edge or double "_"
+# (HALean.Automation.slugify_fixed_iff); the message shows util.slugify's result
+- name: val_cv_slug
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: sl, value: {cv: slug}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: ""}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a_b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a__b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "_a"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a_"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "Kitchen"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a-b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "it's 1,000"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "1,2,3"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "---"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "unknown"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "x''y"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: 1.5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: true}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a.b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a,b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "9_9"}}
+
+- name: val_cv_numbers_hex_slug
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: pi, value: {cv: positive_int}}, {key: pf, value: {cv: positive_float}},
+                         {key: sf, value: {cv: small_float}}, {key: by, value: {cv: byte}},
+                         {key: po, value: {cv: port}}, {key: el, value: {cv: ensure_list}},
+                         {key: hex, value: {cv: color_hex}}, {key: sl, value: {cv: slug}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {pi: "5", pf: 2, sf: "0.25", by: 255.9, po: "8080", el: x, hex: "#a1B2c3", sl: kitchen_light}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {pi: 0, pf: "0", sf: 1, by: true, el: [x], hex: "#ABCDEF\n", sl: 12}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {pi: -1}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {pi: "x"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {pf: -0.1}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sf: 1.01}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {by: 256}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {by: "-1"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {po: 70000}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {hex: "#abcde"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {hex: "abcdef1"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {hex: 123456}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "Kitchen Light"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: ""}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: null}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a--b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: 1.5}}
+
+- name: val_cv_time_period
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: tp, value: {cv: time_period}}, {key: pos, value: {cv: positive_time_period}},
+                         {key: tps, value: {cv: time_period_str}}, {key: sec, value: {cv: time_period_seconds}},
+                         {key: tpd, value: {cv: time_period_dict}},
+                         {key: pd, value: {cv: positive_time_period_dict}},
+                         {key: alo, value: {at_least_one: [a, b]}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {tp: "01:30", pos: "0:0:2.5", tps: "-1:15", sec: "90", tpd: {minutes: 2, seconds: "1.5"}, alo: {b: 1, c: 2}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {tp: 5, pos: 0.0000015, tps: "+00:00:00.0000005", sec: true, tpd: {days: 1, milliseconds: 1}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {tp: {hours: -1}, pos: {seconds: 3}, sec: -2.25, pd: {days: 0.5}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tp: "1:2:3:4"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tp: "-ab:00"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tp: [1]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tp: null}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tp: {}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tp: {hours: x}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tp: {hour: 1}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {pos: "-0:01"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {pd: {seconds: -1}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tps: 5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tps: true}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tps: 1.5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tps: "10"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sec: "x"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sec: {}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tpd: "1:00"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tpd: {}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {alo: {c: 1}}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {alo: []}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {tp: 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tp: "inf"}, unsupported: true}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {tp: 1e400}, unsupported: true}
+
+- name: val_exclusive_inclusive
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: rgb, type: list, exclusive: color},
+                         {key: hs, type: list, exclusive: color},
+                         {key: kelvin, type: int, exclusive: color},
+                         {key: lat, type: float, inclusive: loc},
+                         {key: lon, type: float, inclusive: loc, default: 0}]}}
+    - {op: register, domain: test_v, service: req, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: a, type: int, exclusive: g, group_required: true},
+                         {key: b, type: int, exclusive: g}]}}
+    - {op: register, domain: test_v, service: dflt, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: a, type: int, exclusive: g},
+                         {key: b, type: int, exclusive: g, default: "x"},
+                         {key: c, type: int, exclusive: g, default: 3}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {rgb: [1, 2, 3]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true,
+       data: {rgb: [1], kelvin: "x", lat: 1}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {lat: 1, lon: 2}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {lon: 2}}
+    - {op: call, domain: test_v, service: req, blocking: true, return_response: true}
+    - {op: call, domain: test_v, service: req, blocking: true, return_response: true, data: {b: 1}}
+    - {op: call, domain: test_v, service: req, blocking: true, return_response: true, data: {a: 1, b: 2}}
+    - {op: call, domain: test_v, service: dflt, blocking: true, return_response: true}
+    - {op: call, domain: test_v, service: dflt, blocking: true, return_response: true, data: {c: 1}}
+
+- name: val_defaults_through_validators
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: n, value: {coerce: int}, default: "4"},
+                         {key: l, value: {cv: ensure_list}, default: x},
+                         {key: bad, value: {cv: positive_int}, default: -1},
+                         {key: d, value: {dict: [{key: z, type: int, default: 1}]}, default: {}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {bad: 2}}
+
+- name: val_unsupported_specs
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true},
+       schema: {fields: [{key: a, value: {in: [[1]]}}]}, unsupported: true}
+    - {op: register, domain: test_v, service: v, handler: {echo: true},
+       schema: {fields: [{key: a, value: {coerce: bool}}]}, unsupported: true}
+    - {op: register, domain: test_v, service: v, handler: {echo: true},
+       schema: {fields: [{key: a, value: {cv: time}}]}, unsupported: true}
+    - {op: register, domain: test_v, service: v, handler: {echo: true},
+       schema: {fields: [{key: a, value: {literal: [1]}}]}, unsupported: true}
+    - {op: register, domain: test_v, service: v, handler: {echo: true},
+       schema: {fields: [{key: a, value: {range: {min: "a"}}}]}, unsupported: true}
+    - {op: list}

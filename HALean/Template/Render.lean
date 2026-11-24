@@ -21,6 +21,9 @@
 -/
 import HALean.Template.Syntax
 import HALean.Template.DateParse
+import HALean.Core.State
+import HALean.Template.ParseTime
+import HALean.Template.CvBoolean
 open Lean
 
 namespace HALean.Template
@@ -151,19 +154,11 @@ def TESTS : List String :=
    "divisibleby", "even", "odd", "is_state", "is_state_attr", "has_value", "is_number",
    "datetime"]
 
-/-- `[\da-z_]+` without a leading/trailing `_` and without `__`. -/
-def validSlug (s : String) : Bool :=
-  !s.isEmpty && s.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'z') || c == '_')
-    && !s.startsWith "_" && !s.endsWith "_" && (s.splitOn "__").length == 1
+/-- `homeassistant.core.valid_domain` (proved: `HALean.Core.validDomain_iff`) -/
+def validDomain (s : String) : Bool := HALean.Core.validDomain s
 
-/-- `homeassistant.core.valid_domain` -/
-def validDomain (s : String) : Bool := validSlug s
-
-/-- `homeassistant.core.valid_entity_id` -/
-def validEntityId (s : String) : Bool :=
-  match s.splitOn "." with
-  | [d, o] => validSlug d && validSlug o
-  | _ => false
+/-- `homeassistant.core.valid_entity_id` (proved: `HALean.Core.validEntityId_iff`) -/
+def validEntityId (s : String) : Bool := HALean.Core.validEntityId s
 
 /-! ## Errors and conversions -/
 
@@ -196,11 +191,7 @@ def noDefault (fn : String) (v : Value) : R α := do
 def cvBoolean (v : Value) : Option Bool :=
   match v with
   | .bool b => some b
-  | .str s =>
-    let s := s.trim.toLower
-    if ["1", "true", "yes", "on", "enable"].contains s then some true
-    else if ["0", "false", "no", "off", "disable"].contains s then some false
-    else none
+  | .str s => cvBooleanText s  -- proved: `cvBooleanText_iff`
   | .int i => some (i != 0)
   | .float f => some (f != 0)
   | _ => none
@@ -220,6 +211,8 @@ def doInt (v : Value) : R (Option Int) := do
     if f.isInf then throw "OverflowError: cannot convert float infinity to integer"
     return floatToInt? f
   | .str s =>
+    if !numberTextModelled s then
+      throw "int() of non-ASCII text is not supported by HALean"
     match parseIntStr s with
     | some i => return some i
     | none => return (parseFloatStr s).bind floatToInt?
@@ -561,15 +554,9 @@ def parseDatetime (str : String) : R (Option Value) := do
   let wall := fromCivil c
   pure (some (.datetime (match off with | some o => wall - o * US_PER_SEC | none => wall) off))
 
-/-- `dt_util.parse_time` -/
-def parseTime (s : String) : Option (Nat × Nat × Nat) := do
-  let parts := s.splitOn ":"
-  if parts.length < 2 then none
-  let h ← parseIntStr (parts.getD 0 "")
-  let m ← parseIntStr (parts.getD 1 "")
-  let sec ← if parts.length > 2 then parseIntStr (parts.getD 2 "") else some 0
-  if h < 0 || h > 23 || m < 0 || m > 59 || sec < 0 || sec > 59 then none
-  pure (h.toNat, m.toNat, sec.toNat)
+/-- `dt_util.parse_time` as (hour, minute, second): `parseTimeSeconds`. -/
+def parseTime (s : String) : Option (Nat × Nat × Nat) :=
+  (parseTimeSeconds s).map fun t => (t / 3600, t / 60 % 60, t % 60)
 
 def timestampOf (v : Value) : R Float :=
   match v with
@@ -747,7 +734,9 @@ def pyCapitalize (s : String) : String :=
   | [] => ""
   | c :: cs => String.ofList (c.toUpper :: cs.map Char.toLower)
 
-def isPyWs (c : Char) : Bool := c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\x0b' || c == '\x0c'
+/-- `str.isspace()`: what `str.strip()` and `str.split()` treat as whitespace
+(all of Unicode, `pyIsSpace`). -/
+def isPyWs (c : Char) : Bool := pyIsSpace c
 
 def pyStrip (s : String) (chars : Option String) (left right : Bool) : String :=
   let p : Char → Bool := match chars with

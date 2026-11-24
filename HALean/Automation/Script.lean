@@ -67,12 +67,13 @@ inductive RunEnd where
   | finished
   /-- `_ConditionFail` reached the top of the run -/
   | conditionFailed
-  /-- `_StopScript` (`stop` without `error`) -/
-  | stopped (why : String)
+  /-- `_StopScript` (`stop` without `error`), with its `response` (the
+  `response_variable`'s value, `None` without one). -/
+  | stopped (why : String) (response : Template.Value := .none)
   /-- `_AbortScript` -/
   | aborted (why : String)
   | error (k : ErrKind) (why : String)
-  deriving Repr, Inhabited, BEq
+  deriving Repr, Inhabited
 
 /-- A sub-script's end that its parent re-raises. -/
 def RunEnd.raises : RunEnd → Bool
@@ -110,6 +111,14 @@ def Wait.beq : Wait → Wait → Bool
 
 instance : BEq Wait := ⟨Wait.beq⟩
 
+/-- Who waits for a run of a script entity to end (`ScriptEntity._service_handler`
+awaiting `Script.async_run`): a run blocked in its service call step `callId`,
+or a call from outside the engine (the shell's own call id). -/
+inductive Caller where
+  | run (runId callId : Nat)
+  | external (callId : Nat) (returnResponse : Bool)
+  deriving Repr, Inhabited, BEq
+
 structure Run where
   id : Nat
   autoIdx : Nat
@@ -121,6 +130,11 @@ structure Run where
   wait : Wait := .ready
   /-- For a `parallel` branch: the run that started it. -/
   parent : Option Nat := none
+  /-- For a run of a script entity called with `wait=True`: who waits for it. -/
+  caller : Option Caller := none
+  /-- `script_stack_cv` as the run sees it: the script entities (by index)
+  of the blocking call chain that led to this run, itself last. -/
+  stack : List Nat := []
   deriving Repr, Inhabited
 
 /-- The variables a step sees: the run's, plus the innermost `repeat`. -/
@@ -156,6 +170,12 @@ inductive Cmd where
   | fireEvent (eventType : String) (data : Json)
   | automationTriggered (automationId name source : String)
   | log (level msg : String)
+  /-- `Entity.async_write_ha_state` of an entity the engine owns (a script entity). -/
+  | setState (entityId state : String) (attributes : Json)
+  /-- The answer to a call the shell made (`call` input): the service's
+  response, or the exception it raised (`kind`: `invalid`, `ha_error`,
+  `other` or `cancelled`). -/
+  | callDone (callId : Nat) (ok : Bool) (response : Json) (kind msg : String)
   deriving Repr, Inhabited
 
 /-- `REPEAT_TERMINATE_ITERATIONS` -/
@@ -269,7 +289,8 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
                           else match Template.floatToInt? f with
                             | some i => .ok (some i)
                             | none => .error "cannot convert float infinity to integer"
-            | .str s => .ok (Template.parseIntStr s)
+            | .str s => if Template.numberTextModelled s then .ok (Template.parseIntStr s)
+                        else .error "int() of non-ASCII text is not supported by HALean"
             | v => .error s!"int() argument must be a string or a number, not '{Template.typeName v}'"
           match n? with
           | .ok (some n) => (.next (push (.repeatCount 0 n.toNat body coe) cur), [], ctx)
@@ -308,8 +329,9 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
         if err then (.done (.aborted reason), [], ctx)
         else match rv with
           | some v =>
-            if (env.vars.find? (·.1 == v)).isSome then (.done (.stopped reason), [], ctx)
-            else (.done (.aborted s!"Response variable '{v}' is not defined"), [], ctx)
+            match env.vars.find? (·.1 == v) with
+            | some (_, resp) => (.done (.stopped reason resp), [], ctx)
+            | none => (.done (.aborted s!"Response variable '{v}' is not defined"), [], ctx)
           | none => (.done (.stopped reason), [], ctx)
       | .event t data =>
         -- `_async_step_event`: a template error is logged and the event is
@@ -429,14 +451,14 @@ def exec (ctx : ExecCtx) (r : Run) : ExecRes × List Cmd × ExecCtx :=
 
 /-- Resume a run whose service call completed. -/
 def resumeService (r : Run) (ok : Bool) (k : ErrKind) (msg : String)
-    (response : Json := .null) : StepOut :=
+    (response : Template.Value := .none) : StepOut :=
   match r.wait with
   | .service _ coe rv =>
     let r := { r with wait := .ready }
     -- `if response_variable: self._variables[response_variable] = response_data`
     if ok then match rv with
       | some v => if v.isEmpty then .next r
-                  else .next { r with vars := setVar r.vars v (Template.Value.ofJson response) }
+                  else .next { r with vars := setVar r.vars v response }
       | none => .next r
     else if coe && k != .invalid then .next r  -- the step's own continue_on_error
     else unwindError r k msg

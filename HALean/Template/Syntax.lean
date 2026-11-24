@@ -601,9 +601,15 @@ structure Tmpl where
   nodes : List Node
   deriving Inhabited
 
-/-- `is_template_string` -/
-def isTemplateString (s : String) : Bool :=
-  s.contains '{' && ((s.splitOn "{%").length > 1 || (s.splitOn "{{").length > 1 || (s.splitOn "{#").length > 1)
+/-- A `{` directly followed by `%`, `{` or `#`. -/
+def hasJinjaOpen : List Char → Bool
+  | '{' :: c :: rest => c == '%' || c == '{' || c == '#' || hasJinjaOpen (c :: rest)
+  | _ :: rest => hasJinjaOpen rest
+  | [] => false
+
+/-- `is_template_string`: `"{" in s and ("{%" in s or "{{" in s or "{#" in s)`.
+Proved: `HALean.Template.isTemplateString_iff`. -/
+def isTemplateString (s : String) : Bool := hasJinjaOpen s.toList
 
 /-- Jinja drops a single trailing newline (`keep_trailing_newline=False`). -/
 def dropTrailingNewline (s : String) : String :=

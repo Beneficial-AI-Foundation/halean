@@ -1,0 +1,59 @@
+description: >
+  Errors raised by the script services themselves. From outside: a script
+  that does not exist (ServiceNotFound), turn_on asking for a response
+  (ServiceValidationError), turn_on with an unknown key or without a
+  target (vol.Invalid). From a script step: turn_on with a
+  response_variable is a vol.Invalid raised by the step, which
+  continue_on_error does not swallow; a called script's response that is
+  not a dict is a HomeAssistantError, which it does.
+scripts:
+  target:
+    sequence:
+      - action: test.target
+  listy:
+    sequence:
+      - variables:
+          out: [1, 2]
+      - stop: done
+        response_variable: out
+  asks_listy:
+    sequence:
+      - action: script.listy
+        response_variable: l
+        continue_on_error: true
+      - event: asks_listy_after
+      - action: script.turn_on
+        target:
+          entity_id: script.target
+        response_variable: r
+        continue_on_error: true
+      - event: never
+steps:
+  - at: 1
+    call: nope
+    expect:
+      call_done: [[0, false, invalid]]
+  - at: 2
+    call: turn_on
+    data: {entity_id: script.target}
+    return_response: true
+    expect:
+      call_done: [[1, false, ha_error]]
+  - at: 3
+    call: turn_on
+    data: {entity_id: script.target, brightness: 3}
+    expect:
+      call_done: [[2, false, invalid]]
+  - at: 4
+    call: turn_off
+    data: {variables: {}}
+    expect:
+      call_done: [[3, false, invalid]]
+  - at: 5
+    call: asks_listy
+    expect:
+      fire_event:
+        - [script_started, {name: asks_listy, entity_id: script.asks_listy}]
+        - [script_started, {name: listy, entity_id: script.listy}]
+        - [asks_listy_after, {}]
+      call_done: [[4, false, invalid]]

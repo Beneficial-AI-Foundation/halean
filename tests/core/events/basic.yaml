@@ -1,0 +1,142 @@
+# Event bus: listening, filters, MATCH_ALL, Event.as_dict.
+# Run with: uv run tests/differential/run.py -k events
+
+- name: specific_before_match_all
+  ops:
+    - {op: listen, id: m1, event_type: "*"}
+    - {op: listen, id: a, event_type: x}
+    - {op: listen, id: m2, event_type: "*"}
+    - {op: listen, id: b, event_type: x}
+    - {op: listen, id: other, event_type: y}
+    - op: fire
+      event_type: x
+      data: {n: 1}
+      expect: {deliveries: [a, b, m1, m2]}
+    - {op: fire, event_type: z, expect: {deliveries: [m1, m2]}}
+    - {op: listeners}
+
+- name: event_as_dict
+  ops:
+    - {op: listen, id: a, event_type: test_event}
+    - {op: fire, event_type: test_event, data: {k: v, n: [1, 2, {x: null}], b: true}}
+    - op: fire
+      event_type: test_event
+      origin: remote
+      context: {id: ctx-1, user_id: user-1, parent_id: parent-1}
+    - op: fire
+      now: 1795710645000000
+      event_type: test_event
+      context: {id: ctx-2}
+    # explicit time_fired (µs); 0 is falsy, so the clock is used
+    - {op: fire, event_type: test_event, time_fired: 1700000000654321}
+    - {op: fire, event_type: test_event, time_fired: 0}
+    # int(ts * 1000) of these floats is one millisecond less than the clock reading
+    - {op: fire, event_type: test_event, time_fired: 1091837579110000}
+    - {op: fire, event_type: test_event, time_fired: 68203955798000}
+    # whole milliseconds: the ULID's int(ts * 1000) and the µs rounding of the float
+    - {op: fire, now: 1795710645123000, event_type: test_event}
+    - {op: fire, now: 1795710645999999, event_type: test_event}
+    - {op: fire, now: 1795710645000001, event_type: test_event}
+    - {op: fire, now: 1795710645100000, event_type: test_event}
+
+- name: generated_context_shared_per_event
+  ops:
+    - {op: listen, id: a, event_type: x}
+    - {op: listen, id: b, event_type: x}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: x}
+    - {op: fire, event_type: x}
+
+- name: filters
+  ops:
+    - {op: listen, id: eq, event_type: x, filter: {eq: {k: 1}}}
+    - {op: listen, id: has, event_type: x, filter: {has: k}}
+    - {op: listen, id: always, event_type: x, filter: true}
+    - {op: listen, id: never, event_type: x, filter: false}
+    - {op: listen, id: plain, event_type: x}
+    - {op: fire, event_type: x, data: {k: 1}, expect: {deliveries: [eq, has, always, plain]}}
+    - {op: fire, event_type: x, data: {k: 2}, expect: {deliveries: [has, always, plain]}}
+    # Python equality: 1 == 1.0 == True
+    - {op: fire, event_type: x, data: {k: true}, expect: {deliveries: [eq, has, always, plain]}}
+    - {op: fire, event_type: x, data: {k: 1.0}, expect: {deliveries: [eq, has, always, plain]}}
+    - {op: fire, event_type: x, data: {k: "1"}, expect: {deliveries: [has, always, plain]}}
+    # empty data is still data: the filter runs
+    - {op: fire, event_type: x, data: {}, expect: {deliveries: [always, plain]}}
+    # no data (None): filtered listeners are skipped without calling the filter
+    - {op: fire, event_type: x, expect: {deliveries: [plain]}}
+
+- name: filter_on_match_all
+  ops:
+    - {op: listen, id: m, event_type: "*", filter: {eq: {keep: true}}}
+    - {op: listen, id: a, event_type: x}
+    - {op: fire, event_type: x, data: {keep: true}, expect: {deliveries: [a, m]}}
+    - {op: fire, event_type: x, data: {keep: false}, expect: {deliveries: [a]}}
+    - {op: fire, event_type: y, data: {keep: 1}, expect: {deliveries: [m]}}
+
+- name: filter_raises
+  ops:
+    - {op: listen, id: bad, event_type: x, filter: {raise: true}}
+    - {op: listen, id: a, event_type: x}
+    - op: fire
+      event_type: x
+      data: {k: 1}
+      expect: {deliveries: [a], logs: ["Error in event filter: ValueError"]}
+    # not called without data
+    - {op: fire, event_type: x, expect: {deliveries: [a], logs: []}}
+
+- name: filter_not_callback
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      filter: true
+      filter_callback: false
+      expect: {result: {error: HomeAssistantError}}
+    - {op: listeners}
+    - {op: fire, event_type: x, data: {}, expect: {deliveries: []}}
+
+- name: state_reported
+  ops:
+    # a filter is required for state_reported
+    - {op: listen, id: a, event_type: state_reported, expect: {result: {error: HomeAssistantError}}}
+    - {op: listen, id: b, event_type: state_reported, filter: true}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: listeners}
+    # excluded from MATCH_ALL
+    - {op: fire, event_type: state_reported, data: {entity_id: sensor.x}, expect: {deliveries: [b]}}
+    - {op: fire, event_type: other, data: {}, expect: {deliveries: [m]}}
+
+- name: run_immediately_is_an_error
+  ops:
+    - {op: listen, id: a, event_type: x, run_immediately: true, expect: {result: {error: RuntimeError}}}
+    - {op: listen, id: b, event_type: x, run_immediately: false, expect: {result: {error: RuntimeError}}}
+    - {op: listen_once, id: c, event_type: x, run_immediately: true, expect: {result: {error: RuntimeError}}}
+    - {op: listeners}
+    - {op: fire, event_type: x, expect: {deliveries: []}}
+
+- name: event_type_length
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", expect: {deliveries: [m]}}
+    - op: fire
+      event_type: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+      expect: {result: {error: MaxLengthExceeded}, deliveries: []}
+    # code points, not bytes
+    - {op: fire, event_type: "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", expect: {deliveries: [m]}}
+
+- name: fire_match_all_type
+  # an event of type "*" reaches MATCH_ALL listeners twice: as its own type and as MATCH_ALL
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: listen_once, id: once, event_type: "*"}
+    - {op: fire, event_type: "*", expect: {deliveries: [m, once, m]}}
+    - {op: listeners}
+    - {op: fire, event_type: "*", expect: {deliveries: [m, m]}}
+
+- name: no_listeners_no_event
+  ops:
+    - {op: fire, event_type: nobody}
+    - {op: listen, id: a, event_type: x, filter: false}
+    - {op: fire, event_type: x, data: {}}
+    - {op: listen, id: b, event_type: x}
+    - {op: fire, event_type: x}

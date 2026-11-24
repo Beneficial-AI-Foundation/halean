@@ -9,6 +9,7 @@
 import HALean.Core.Types
 import HALean.Template
 import HALean.Automation.TimePeriod
+import HALean.Automation.Slugify
 open Lean
 
 namespace HALean.Automation
@@ -251,13 +252,6 @@ def optDuration (j : Json) (k : String) : D (Option Nat) :=
   | none => pure none
   | some v => some <$> durationMs v
 
-/-- "HH:MM[:SS]" → seconds since midnight. -/
-def timeOfDaySec (s : String) : Option Nat :=
-  match (s.splitOn ":").map String.toNat? with
-  | [some h, some m] => if h < 24 && m < 60 then some (h * 3600 + m * 60) else none
-  | [some h, some m, some sec] =>
-      if h < 24 && m < 60 && sec < 60 then some (h * 3600 + m * 60 + sec) else none
-  | _ => none
 
 def bound? (j : Json) (k : String) : D (Option Bound) :=
   match field? j k with
@@ -273,7 +267,7 @@ def bound? (j : Json) (k : String) : D (Option Bound) :=
 def timeBound? (j : Json) (k : String) : D (Option TimeBound) :=
   match str? j k with
   | none => pure none
-  | some s => match timeOfDaySec s with
+  | some s => match Template.parseTimeSeconds s with
     | some sec => pure (some (.fixed (sec * 1000000)))
     | none => if s.contains '.' then pure (some (.entity s))
               else throw s!"invalid {k}: {s}"
@@ -458,7 +452,18 @@ def stateMatch (j : Json) (pos neg : String) : StateMatch :=
     | some v => { values := some (ensureList v), invert := true }
   | some v => { values := some (ensureList v) }
 
-def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := []) : D (Option Trigger) := do
+/-- Template names a `limited` template may not use (`limited_ok=False`), and
+date functions whose result depends on the time zone, which is not known at
+load time. -/
+def LIMITED_UNSUPPORTED : List String :=
+  ["states", "is_state", "state_attr", "is_state_attr", "has_value", "expand",
+   "now", "utcnow", "today_at", "relative_time", "time_since", "time_until", "timedelta_string",
+   "as_local", "as_datetime", "as_timestamp", "timestamp_local", "timestamp_custom", "strptime"]
+
+/-- `tvals`: the static trigger_variables, when the trigger attaches with
+them (an automation's triggers, not `wait_for_trigger`). -/
+def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
+    (tvals : Option (List (String × Json)) := none) : D (Option Trigger) := do
   if !(← isEnabled j) then return none
   let platform := (str? j "trigger").orElse (fun _ => str? j "platform") |>.getD ""
   let id := (str? j "id").getD (toString idx)
@@ -482,14 +487,33 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := []) : D (Option T
         match s.splitOn "." with
         | [d, o] => (d == "input_datetime" || d == "sensor") && !o.isEmpty
         | _ => false
+      -- `_TIME_AT_SCHEMA`: `cv.time`, else an entity
+      let timeAt (s : String) : D (Sum Nat (String × Int)) :=
+        match Template.parseTimeSeconds s with
+        | some sec => pure (Sum.inl sec)
+        | none =>
+          if timeEntity s then pure (Sum.inr (s, (0 : Int)))
+          else throw s!"invalid time trigger 'at: {s}'"
       let items ← (ensureList ((field? j "at").getD .null)).mapM fun v => match v with
         | .str s =>
-          if Template.isTemplateString s then throw s!"templated time trigger 'at: {s}' is not supported"
-          else match timeOfDaySec s with
-          | some sec => pure (Sum.inl sec)
-          | none =>
-            if timeEntity s then pure (Sum.inr (s, (0 : Int)))
-            else throw s!"invalid time trigger 'at: {s}'"
+          if Template.isTemplateString s then do
+            -- `render_complex(at_time, variables, limited=True)` when the
+            -- trigger attaches. The variables are the static trigger_variables
+            -- (`this` is rejected), so the result is known at load time.
+            let some tv := tvals
+              | throw s!"templated time trigger 'at: {s}' is not supported here"
+            let t ← compileTemplate s (tv.map (·.1))
+            let parts := t.nodes.map Template.nodeNames
+            for n in parts.flatMap (fun p => p.1.1 ++ p.1.2.1 ++ p.1.2.2) do
+              if LIMITED_UNSUPPORTED.contains n then
+                throw s!"'{n}' in a templated time trigger 'at' is not supported by HALean"
+            let ctx : Template.Ctx :=
+              { states := [], vars := tv.map fun (k, x) => (k, Template.Value.ofJson x) }
+            match Template.render t ctx true with
+            | .ok (.str r) => timeAt r
+            | .ok r => throw s!"templated time trigger 'at: {s}' rendered {(Template.pyRepr r).toOption.getD "?"}, not a string"
+            | .error e => throw s!"templated time trigger 'at: {s}' fails to render: {e}"
+          else timeAt s
         | .obj _ => do
           let some eid := str? v "entity_id" | throw "time trigger 'at' needs an entity_id"
           if !timeEntity eid then throw s!"time trigger entity must be input_datetime or sensor: {eid}"
@@ -680,28 +704,6 @@ partial def actionVariableNames (j : Json) : List String :=
     here ++ kvs.toList.flatMap fun (k, v) => if k == "variables" then [] else actionVariableNames v
   | _ => []
 
-/-- `util.slugify` (python-slugify's legacy pipeline with separator `_`,
-then `""` becomes `"unknown"`), for ASCII text. `none` where the result
-would depend on transliteration (non-ASCII) or on HTML entity decoding
-(`&...;`), which HALean does not model. -/
-def slugify? (text : String) : Option String := do
-  if text.isEmpty then return ""
-  if !text.toList.all (fun c : Char => c.toNat < 128) then none
-  if text.contains '&' && text.contains ';' then none
-  -- QUOTE_PATTERN → '-', then lower()
-  let arr := (text.toList.map fun c => if c == '\'' then '-' else c.toLower).toArray
-  -- NUMBERS_PATTERN `(?<=\d),(?=\d)` → ''
-  let cs := (List.range arr.size).filterMap fun i =>
-    let c := arr[i]!
-    if c == ',' && i > 0 && i + 1 < arr.size && arr[i-1]!.isDigit && arr[i+1]!.isDigit then none
-    else some c
-  -- DISALLOWED_CHARS_PATTERN `[^-a-zA-Z0-9]+` → '-', DUPLICATE_DASH_PATTERN, strip('-')
-  let cs := cs.map fun c => if c == '-' || c.isDigit || (c ≥ 'a' && c ≤ 'z') then c else '-'
-  let collapsed := cs.foldl (fun acc c => if c == '-' && acc.head? == some '-' then acc else c :: acc) []
-  let slug := String.ofList (collapsed.reverse.dropWhile (· == '-') |>.reverse.dropWhile (· == '-') |>.reverse)
-  let slug := slug.replace "-" "_"
-  return if slug.isEmpty then "unknown" else slug
-
 /-- `automation/__init__.py::_automation_name`: the alias, else
 `automation <position in the config list>`. -/
 def automationName (j : Json) (listNo : Nat) : String :=
@@ -775,7 +777,7 @@ def decodeAutomation (j : Json) (listNo : Nat := 0) (entityId : Option String :=
     ++ merged.map (·.1) ++ actionVariableNames (pick "actions" "action")
   let mvars ← merged.mapM fun (k, v) => do pure (k, ← decodeComplex v nm)
   let tnm := tvars.map (·.1)
-  let trigs ← ((ensureList (pick "triggers" "trigger")).zipIdx).mapM fun (t, i) => decodeTrigger i t tnm
+  let trigs ← ((ensureList (pick "triggers" "trigger")).zipIdx).mapM fun (t, i) => decodeTrigger i t tnm (some tvars)
   let conds ← (ensureList (pick "conditions" "condition")).mapM (decodeCondition · nm)
   let acts ← (ensureList (pick "actions" "action")).mapM (decodeAction · nm)
   let mode ← match str? j "mode" with

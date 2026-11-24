@@ -16,7 +16,7 @@ def US_PER_DAY : Int := 86400 * US_PER_SEC
 Howard Hinnant's `civil_from_days`. -/
 def civilFromDays (z : Int) : Int × Nat × Nat :=
   let z := z + 719468
-  let era := (if z ≥ 0 then z else z - 146096) / 146097
+  let era := z / 146097  -- Lean's `/` on `Int` already rounds down (C++'s truncates)
   let doe := z - era * 146097
   let yoe := (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
   let y := yoe + era * 400
@@ -29,7 +29,7 @@ def civilFromDays (z : Int) : Int × Nat × Nat :=
 /-- Day number of a civil date. Hinnant's `days_from_civil`. -/
 def daysFromCivil (y : Int) (m d : Nat) : Int :=
   let y := if m ≤ 2 then y - 1 else y
-  let era := (if y ≥ 0 then y else y - 399) / 400
+  let era := y / 400  -- rounds down, so no adjustment for negative years
   let yoe := y - era * 400
   let mi : Int := m
   let doy := (153 * (if mi > 2 then mi - 3 else mi + 9) + 2) / 5 + d - 1

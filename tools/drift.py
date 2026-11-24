@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.14"
-# dependencies = ["pyyaml"]
+# dependencies = ["pyyaml", "probatio==0.13.0"]
 # ///
 """Track which upstream Home Assistant functions the Lean engine translates.
 
@@ -15,6 +15,11 @@ pull upstream, ``check`` tells you exactly which translations may be stale.
   uv run tools/drift.py coverage   # functions in tracked files that are not mapped
   uv run tools/drift.py compare --against <site-packages>/homeassistant
 
+Entries written ``probatio:<path>::<Qual.name>`` map functions of probatio
+(the validation library HA's schemas use, pinned in ``upstream.probatio``):
+they are hashed against the probatio package this script runs with, which is
+pinned to the same version above.
+
 The hash ignores docstrings, comments, formatting and line numbers, so only
 real code changes mark an entry stale.
 """
@@ -24,6 +29,7 @@ from __future__ import annotations
 import argparse
 import ast
 import hashlib
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
@@ -69,8 +75,20 @@ def find_node(tree: ast.Module, qualname: str) -> ast.AST | None:
     return node
 
 
+PROBATIO_PREFIX = "probatio:"
+
+
+def probatio_dir() -> Path:
+    spec = importlib.util.find_spec("probatio")
+    assert spec is not None and spec.origin is not None, "probatio is not installed"
+    return Path(spec.origin).parent
+
+
 def hash_ref(ref: str, base: Path = UPSTREAM) -> str | None:
-    """Hash ``path::Qual.name`` relative to a homeassistant/ package dir."""
+    """Hash ``path::Qual.name`` relative to a homeassistant/ package dir
+    (``probatio:path::Qual.name``: relative to the probatio package)."""
+    if ref.startswith(PROBATIO_PREFIX):
+        ref, base = ref.removeprefix(PROBATIO_PREFIX), probatio_dir()
     path, _, qual = ref.partition("::")
     file = base / path
     if not file.exists():
@@ -150,7 +168,8 @@ def cmd_update(args: argparse.Namespace) -> int:
 def cmd_coverage(_: argparse.Namespace) -> int:
     data = load()
     mapped = {e["python"] for e in data["entries"]}
-    files = sorted({e["python"].partition("::")[0] for e in data["entries"]})
+    files = sorted({e["python"].partition("::")[0] for e in data["entries"]
+                    if not e["python"].startswith(PROBATIO_PREFIX)})
     for path in files:
         tree = ast.parse((UPSTREAM / path).read_text())
         names: list[str] = []
@@ -175,7 +194,9 @@ def cmd_compare(args: argparse.Namespace) -> int:
     differential tests run against)?"""
     other = Path(args.against).resolve()
     data = load()
-    differ = [e for e in data["entries"] if hash_ref(e["python"], other) != e.get("hash")]
+    entries = [e for e in data["entries"] if not e["python"].startswith(PROBATIO_PREFIX)]
+    data = {"entries": entries}
+    differ = [e for e in entries if hash_ref(e["python"], other) != e.get("hash")]
     print(f"{len(data['entries']) - len(differ)}/{len(data['entries'])} mapped functions identical in {other}")
     for e in differ:
         print(f"DIFFERS {e['python']}" + ("  (missing)" if hash_ref(e["python"], other) is None else ""))

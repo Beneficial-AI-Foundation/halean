@@ -1,0 +1,61 @@
+# The time condition's timestamp/uptime sensor bounds: the sensor's datetime in
+# local time, `.time()` (microseconds kept). A naive state is taken as local
+# time; an unavailable or unparseable sensor makes the condition false.
+# t0 = Tuesday 22:13:20 UTC (tz UTC), so step N runs at 22:13:20 + N s.
+automations:
+  - id: after_aware
+    triggers: [{trigger: event, event_type: a}]
+    conditions: [{condition: time, after: sensor.started}]
+    actions: [{event: after_aware}]
+  - id: before_naive
+    triggers: [{trigger: event, event_type: b}]
+    conditions: [{condition: time, before: sensor.naive}]
+    actions: [{event: before_naive}]
+  - id: window
+    triggers: [{trigger: event, event_type: w}]
+    conditions: [{condition: time, after: sensor.from, before: sensor.uptime}]
+    actions: [{event: window}]
+  - id: bad
+    triggers: [{trigger: event, event_type: x}]
+    conditions: [{condition: time, after: sensor.bad}]
+    actions: [{event: bad}]
+  - id: time_unavailable
+    triggers: [{trigger: event, event_type: t}]
+    conditions: [{condition: time, after: time.alarm}]
+    actions: [{event: time_unavailable}]
+states:
+  - {entity_id: sensor.started, state: "2023-11-14T23:13:00+01:00", attributes: {device_class: timestamp}}
+  - {entity_id: sensor.naive, state: "2023-11-14 22:13:40", attributes: {device_class: timestamp}}
+  - {entity_id: sensor.from, state: "2023-11-13T23:00:00Z", attributes: {device_class: timestamp}}
+  - {entity_id: sensor.uptime, state: "2023-11-10T01:00:00.000000+00:00", attributes: {device_class: uptime}}
+  - {entity_id: sensor.bad, state: "garbage", attributes: {device_class: timestamp}}
+  - {entity_id: time.alarm, state: unavailable}
+steps:
+  # 23:13:00+01:00 is 22:13:00 local, before now
+  - {at: 1, send: {type: event, event_type: a},
+     expect: [{type: automation_triggered, id: after_aware}, {type: fire_event, event_type: after_aware}]}
+  - {at: 2, set: [sensor.started, "2023-11-14T23:13:30+01:00"], attributes: {device_class: timestamp}}
+  - {at: 3, send: {type: event, event_type: a}}
+  # the date does not matter, only the time of day
+  - {at: 4, set: [sensor.started, "1999-01-01T22:13:00+00:00"], attributes: {device_class: timestamp}}
+  - {at: 5, send: {type: event, event_type: a},
+     expect: [{type: automation_triggered, id: after_aware}, {type: fire_event, event_type: after_aware}]}
+  - {at: 6, set: [sensor.started, unavailable], attributes: {device_class: timestamp}}
+  - {at: 7, send: {type: event, event_type: a}}
+  # an invalid date is no datetime: false
+  - {at: 8, set: [sensor.started, "2023-02-30T00:00:00Z"], attributes: {device_class: timestamp}}
+  - {at: 9, send: {type: event, event_type: a}}
+  # a sensor without the device class: false
+  - {at: 10, set: [sensor.started, "2023-11-14T00:00:00Z"]}
+  - {at: 11, send: {type: event, event_type: a}}
+  # 23:00 .. 01:00 crosses midnight; 22:13 is outside
+  - {at: 12, send: {type: event, event_type: w}}
+  - {at: 13, set: [sensor.from, "2023-11-13T22:00:00+00:00"], attributes: {device_class: timestamp}}
+  - {at: 14, send: {type: event, event_type: w},
+     expect: [{type: automation_triggered, id: window}, {type: fire_event, event_type: window}]}
+  - {at: 15, send: {type: event, event_type: x}}
+  - {at: 16, send: {type: event, event_type: t}}
+  # naive 22:13:40 local: 22:13:39 is before it, 22:13:40 is not
+  - {at: 19, send: {type: event, event_type: b},
+     expect: [{type: automation_triggered, id: before_naive}, {type: fire_event, event_type: before_naive}]}
+  - {at: 20, send: {type: event, event_type: b}}
