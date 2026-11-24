@@ -10,6 +10,8 @@
 name: Binaries
 
 on:
+  push:
+    branches: [ci/binaries]  # TEMPORARY test trigger
   workflow_call:
     inputs:
       version:
@@ -50,7 +52,7 @@ jobs:
           uv run tests/run_script_scenarios.py
       - name: Package
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ inputs.version || 'dev' }}
           TARGET: ${{ matrix.target }}
         run: |
           ext=""; [[ "$TARGET" == windows-* ]] && ext=".exe"
