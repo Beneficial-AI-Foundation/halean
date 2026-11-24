@@ -2,13 +2,14 @@
 #
 #   test -> image (amd64 + arm64, pushed by digest only) -> smoke test of the
 #   demo bundle -> tag the image -> GitHub release
+#   binaries (Windows, macOS, Linux; binaries.yml) ----^
 #
 # Version: <major.minor from lakefile.toml>.<run number>, e.g. 0.1.42.
 # Bump `version` in lakefile.toml to start a new minor/major line.
 #
 # Publishes ghcr.io/beneficial-ai-foundation/halean:{0.1.42,0.1,latest}
 # and a GitHub release v0.1.42 with the demo bundle (halean-demo.tar.gz),
-# the Linux engine binaries and SHA256SUMS. Nothing user-visible is
+# the engine executables for each OS and SHA256SUMS. Nothing user-visible is
 # published unless the smoke test passes.
 name: Release
 
@@ -82,23 +83,22 @@ jobs:
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,scope=${{ matrix.arch }},mode=max
-      - name: Export digest and engine binary
+      - name: Export digest
         run: |
-          mkdir -p digests bin
+          mkdir -p digests
           touch "digests/${DIGEST#sha256:}"
-          docker run --rm --entrypoint cat "$IMAGE@$DIGEST" /usr/local/bin/halean-automation \
-            > "bin/halean-automation-linux-${{ matrix.arch }}"
-          chmod +x bin/*
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
       - uses: actions/upload-artifact@v7
         with:
           name: digest-${{ matrix.arch }}
           path: digests/*
-      - uses: actions/upload-artifact@v7
-        with:
-          name: bin-${{ matrix.arch }}
-          path: bin/*
+
+  binaries:
+    needs: [version, test]
+    uses: ./.github/workflows/binaries.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
 
   smoke-test:
     needs: [version, image]
@@ -128,7 +128,7 @@ jobs:
           demo/smoke-test.sh dist/halean-demo.tar.gz
 
   publish:
-    needs: [version, smoke-test]
+    needs: [version, smoke-test, binaries]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -142,7 +142,7 @@ jobs:
           merge-multiple: true
       - uses: actions/download-artifact@v8
         with:
-          pattern: bin-*
+          pattern: pkg-*
           path: dist
           merge-multiple: true
       - uses: docker/setup-buildx-action@v4
@@ -182,7 +182,19 @@ jobs:
           Then open <http://localhost:8124/halean-demo>. The login is in \`halean-demo/.run/login.txt\`.
 
           Image: \`ghcr.io/beneficial-ai-foundation/halean:$VERSION\`
-          Engine binaries: \`halean-automation-linux-{x86_64,aarch64}\` (glibc ≥ 2.36)
+
+          ## Engine executables
+
+          | Platform | Download |
+          |---|---|
+          | Windows x64 | \`halean-$VERSION-windows-x86_64.zip\` |
+          | macOS Apple Silicon | \`halean-$VERSION-macos-arm64.tar.gz\` |
+          | Linux x86_64 (glibc ≥ 2.35) | \`halean-$VERSION-linux-x86_64.tar.gz\` |
+          | Linux arm64 (glibc ≥ 2.35) | \`halean-$VERSION-linux-aarch64.tar.gz\` |
+
+          Each holds \`bin/halean-automation\` and \`bin/halean-script\` plus the Python bridge that connects them
+          to your Home Assistant; see its README.txt. They are unsigned: on macOS run
+          \`xattr -dr com.apple.quarantine halean-*\` after extracting, and on Windows choose "Run anyway" if SmartScreen asks.
           EOF
           if gh release view "$tag" >/dev/null 2>&1; then
             # a re-run of the same workflow run: refresh the assets

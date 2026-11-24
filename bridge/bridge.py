@@ -54,9 +54,20 @@ from protocol import protocol_automations, protocol_scripts
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE = Path(os.environ.get("HALEAN_ENGINE", ROOT / ".lake" / "build" / "bin" / "halean-automation"))
+
+
+def _default_exe(name: str) -> Path:
+    """bin/ of a release download, else the lake build output of a checkout."""
+    for d in (ROOT / "bin", ROOT / ".lake" / "build" / "bin"):
+        for p in (d / name, d / f"{name}.exe"):
+            if p.exists():
+                return p
+    return ROOT / ".lake" / "build" / "bin" / name
+
+
+ENGINE = Path(os.environ.get("HALEAN_ENGINE") or _default_exe("halean-automation"))
 # automations and scripts in one engine (--scripts)
-SCRIPT_ENGINE = Path(os.environ.get("HALEAN_SCRIPT_ENGINE", ROOT / ".lake" / "build" / "bin" / "halean-script"))
+SCRIPT_ENGINE = Path(os.environ.get("HALEAN_SCRIPT_ENGINE") or _default_exe("halean-script"))
 _LOG = logging.getLogger("halean.bridge")
 
 # HA WebSocket error codes -> engine ErrKind (see HALean/Script.lean `ErrKind`)
