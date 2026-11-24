@@ -23,6 +23,7 @@ import HALean.Template.PyIntSpec
 import HALean.Template.ParseTimeSpec
 import HALean.Template.SyntaxSpec
 import HALean.Template.CvBooleanSpec
+import HALean.Automation.SlugifySpec
 import HALean.Core.ServiceRegistry
 import HALean.Core.ServiceRegistryProofs
 import HALean.Core.ProbatioProofs

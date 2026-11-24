@@ -774,8 +774,13 @@ entries:
 - python: util/__init__.py::slugify
   lean:
   - HALean.Automation.slugify?
+  - HALean.Automation.slugifyChars
+  - HALean.Automation.subRuns
+  - HALean.Automation.delDigitCommas
   status: translated
-  notes: python-slugify subset; non-ASCII names reject `this`
+  notes: 'python-slugify 9.1.2 legacy pipeline, one Lean step per line (ASCII, no HTML entities; non-ASCII
+    names reject `this`). Proved about it: slugifyChars_valid (any non-empty result is a valid slug),
+    slugifyChars_of_valid (valid slugs are fixed points), slugify_fixed_iff'
   hash: 25256fd158a3834a
 - python: helpers/entity_registry.py::EntityRegistry.async_get_available_entity_id
   lean:
@@ -1983,8 +1988,10 @@ entries:
 - python: helpers/config_validation.py::slug
   lean:
   - HALean.Core.cvSlug
-  status: translated
-  notes: via util.slugify (ASCII, no HTML entities)
+  status: proven
+  notes: 'theorem slugify_fixed_iff: accepts exactly "" and non-empty [0-9a-z_] text with no edge or double
+    "_", given util.slugify''s pipeline as transcribed step by step (slugifyChars; each step a regex sub,
+    checked against real HA); the "(try ...)" message shows the pipeline''s result. ASCII, no HTML entities.'
   hash: e852e9be1fdcd195
 - python: helpers/config_validation.py::positive_timedelta
   lean:

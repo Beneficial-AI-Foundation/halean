@@ -481,6 +481,8 @@ ASCII text is exactly its grammar; non-ASCII text is refused with an error).
 `cv.time` uses, built on that `int()`).
 `HALean/Template/SyntaxSpec.lean`: `isTemplateString_iff` (`is_template_string`).
 `HALean/Template/CvBooleanSpec.lean`: `cvBooleanText_iff` (`cv.boolean` on strings).
+`HALean/Automation/SlugifySpec.lean`: `slugify_fixed_iff` (what `cv.slug` accepts),
+`slugifyChars_valid` (every non-empty `util.slugify` result is a valid slug).
 
 `HALean/Template/Proofs.lean`: `render_static` (static templates are never
 evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.

@@ -67,6 +67,7 @@ Python, which is short enough to check by eye.
 | `util/dt.py::parse_time` (`cv.time`: time triggers, time conditions, templates) | `parseTimeSeconds_iff` (`HALean/Template/ParseTimeSpec.lean`) | `str.split(":")`, `int()` of the first two or three parts (later ones ignored), `datetime.time`'s ranges |
 | `helpers/template/__init__.py::is_template_string` (decides which config strings are templates) | `isTemplateString_iff` (`HALean/Template/SyntaxSpec.lean`) | `"{" in s and ("{%" in s or "{{" in s or "{#" in s)` |
 | `helpers/config_validation.py::boolean` on strings (service schemas, template trigger results) | `cvBooleanText_iff` (`HALean/Template/CvBooleanSpec.lean`) | `value.lower().strip()` is one of the true / false words; `str.isspace` is the exact Unicode set |
+| `helpers/config_validation.py::slug` (what it accepts) | `slugify_fixed_iff` (`HALean/Automation/SlugifySpec.lean`) | `""`, or non-empty `[0-9a-z_]` text without a leading, trailing or double `_`. Relative to `util.slugify` transcribed step by step from python-slugify's legacy pipeline (`slugifyChars`); also `slugifyChars_valid` (every non-empty slugify result is such a slug) |
 
 `\d` is read as the ASCII digits; Python's class also has other Unicode
 digits, which is why callers reject non-ASCII ids. The template engine uses
