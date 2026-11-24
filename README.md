@@ -480,6 +480,7 @@ ASCII text is exactly its grammar; non-ASCII text is refused with an error).
 `HALean/Template/ParseTimeSpec.lean`: `parseTimeSeconds_iff` (`parse_time`, which
 `cv.time` uses, built on that `int()`).
 `HALean/Template/SyntaxSpec.lean`: `isTemplateString_iff` (`is_template_string`).
+`HALean/Template/CvBooleanSpec.lean`: `cvBooleanText_iff` (`cv.boolean` on strings).
 
 `HALean/Template/Proofs.lean`: `render_static` (static templates are never
 evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
