@@ -284,6 +284,31 @@
     - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sw: "light.a, sensor.b"}}
     - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {one: "light.ä"}, unsupported: true}
 
+# cv.slug accepts exactly "" and [0-9a-z_] text without edge or double "_"
+# (HALean.Automation.slugify_fixed_iff); the message shows util.slugify's result
+- name: val_cv_slug
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: sl, value: {cv: slug}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: ""}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a_b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a__b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "_a"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a_"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "Kitchen"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a-b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "it's 1,000"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "1,2,3"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "---"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "unknown"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "x''y"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: 1.5}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: true}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a.b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "a,b"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {sl: "9_9"}}
+
 - name: val_cv_numbers_hex_slug
   ops:
     - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
