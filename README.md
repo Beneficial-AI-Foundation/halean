@@ -248,7 +248,7 @@ fraction or exponent sign (`1e16`) reads as an int.
 `halean-core-services` takes one operation per JSON line (`register`, `remove`,
 `has`, `supports_response`, `list`, `list_domain`, `call`, each with an explicit
 `now`) and answers with the result or the exception, the events fired and the
-`homeassistant.core` log records (format in `HALean/Core/ServicesMain.lean`).
+`homeassistant.core` log records (format in `Exe/CoreServices.lean`).
 Handlers are specs (return a value, echo the `ServiceCall`, raise an exception)
 and schemas are `probatio` mapping schemas built from a spec, so behaviour is
 observable.
@@ -346,7 +346,7 @@ with the clock `now` in µs) and answers
 with the result and one ordered trace: deliveries (`Event.as_dict()`, states
 as `as_dict()`), the outcome of every scripted service call, and the
 `homeassistant.core` and `homeassistant` log records (format in
-`HALean/Core/HassMain.lean`). `tests/differential/test_core.py` runs each
+`Exe/Core.lean`). `tests/differential/test_core.py` runs each
 case in `tests/core/hass/*.yaml` on a real in-process `hass` (frozen clock;
 `@callback` and `async def` listeners and `async def` handlers built from the
 same scripts; HA's own loop exception handler from `homeassistant.runner`)
@@ -405,7 +405,7 @@ receipts, so every ordering decision of the bus can be observed.
 `halean-core-events` takes one operation per JSON line (`listen`,
 `listen_once`, `unsub`, `fire`, `listeners`, each with the clock `now` in µs)
 and answers with the result, the deliveries in order and the errors logged
-(format in `HALean/Core/EventsMain.lean`). `tests/differential/test_events.py`
+(format in `Exe/CoreEvents.lean`). `tests/differential/test_events.py`
 runs each case in `tests/core/events/*.yaml` on HA's own `hass.bus` (frozen
 clock, `async_block_till_done()` after every operation) and on
 `halean-core-events`, starting the model from HA's current listener table.

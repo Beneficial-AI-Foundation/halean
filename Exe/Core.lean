@@ -56,7 +56,8 @@ import HALean.Core.ServicesJson
 open Lean HALean.Template HALean.Core HALean.Core.EventBus HALean.Core.Hass
   HALean.Core.ServicesJson
 
-namespace HALean.Core.HassMain
+namespace Exe.Core
+open HALean HALean.Core
 
 def toJ (v : Value) : Except String Json :=
   match v.toJson with
@@ -72,7 +73,7 @@ def optNat (v : Value) (k : String) : Except String (Option Nat) :=
 /-- Entity ids: `str.lower()` and the id regex are modelled for ASCII only. -/
 def getEntityId (v : Value) : Except String String := do
   let e ← getStr v "entity_id"
-  if !isAscii e then throw "non-ASCII entity_id"
+  if !HALean.Core.isAscii e then throw "non-ASCII entity_id"
   return e
 
 def decodeCtxArg (v : Value) (inScript : Bool) : Except String CtxArg :=
@@ -159,7 +160,7 @@ partial def decodeListen (v : Value) (once : Bool) : Except String Action := do
   if (v.get? "run_immediately").isSome then throw "run_immediately (raises; message not modelled)"
   let filter ← decodeFilter v
   if once && filter.isSome then throw "listen_once with a filter (TypeError; message not modelled)"
-  if et == EVENT_STATE_REPORTED && filter.isNone then
+  if et == HALean.Core.EVENT_STATE_REPORTED && filter.isNone then
     throw "state_reported without a filter (raises; message not modelled)"
   let react ← match v.get? "react" with
     | some (.list rs) => rs.mapM (decodeAction · (if isAsync then .coroutine else .callback))
@@ -277,7 +278,7 @@ partial def loop (stdin stdout : IO.FS.Stream) (h : Hass) : IO Unit := do
   stdout.flush
   loop stdin stdout h'
 
-end HALean.Core.HassMain
+end Exe.Core
 
 def main : IO Unit := do
-  HALean.Core.HassMain.loop (← IO.getStdin) (← IO.getStdout) Hass.new
+  Exe.Core.loop (← IO.getStdin) (← IO.getStdout) Hass.new

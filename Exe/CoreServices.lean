@@ -28,7 +28,8 @@
 import HALean.Core.ServicesJson
 open Lean HALean HALean.Core HALean.Template HALean.Core.ServicesJson
 
-namespace HALean.Core.ServicesMain
+namespace Exe.CoreServices
+open HALean HALean.Core
 
 def reply (result : Except PyError Json) (events : List FiredEvent := []) (logs : List LogRecord := []) : Json :=
   let base := match result with
@@ -104,7 +105,7 @@ partial def loop (stdin stdout : IO.FS.Stream) (r : Registry) : IO Unit := do
   stdout.flush
   loop stdin stdout r'
 
-end HALean.Core.ServicesMain
+end Exe.CoreServices
 
 def main : IO Unit := do
-  HALean.Core.ServicesMain.loop (← IO.getStdin) (← IO.getStdout) []
+  Exe.CoreServices.loop (← IO.getStdin) (← IO.getStdout) []

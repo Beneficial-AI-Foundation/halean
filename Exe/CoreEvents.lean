@@ -26,7 +26,8 @@
 import HALean.Core.EventBus
 open Lean HALean.Core.EventBus
 
-namespace HALean.Core.EventsMain
+namespace Exe.CoreEvents
+open HALean HALean.Core
 
 def errOfName : String → Except String Err
   | "HomeAssistantError" => .ok .homeAssistantError
@@ -165,7 +166,7 @@ partial def loop (stdin : IO.FS.Stream) (stdout : IO.FS.Stream) (b : Bus) : IO U
   stdout.flush
   loop stdin stdout b'
 
-end HALean.Core.EventsMain
+end Exe.CoreEvents
 
 def main : IO Unit := do
-  HALean.Core.EventsMain.loop (← IO.getStdin) (← IO.getStdout) Bus.new
+  Exe.CoreEvents.loop (← IO.getStdin) (← IO.getStdout) Bus.new
