@@ -43,6 +43,9 @@ jobs:
           build: true
           build-args: halean-automation halean-script
           use-mathlib-cache: false
+      - name: Strip debug symbols (~30% smaller; the tests below run the stripped files)
+        if: runner.os != 'Windows'
+        run: strip .lake/build/bin/halean-automation .lake/build/bin/halean-script
       - uses: astral-sh/setup-uv@v10.4.0
       - name: Test the built executables
         run: |
