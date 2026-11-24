@@ -1,0 +1,87 @@
+# Native engine executables for each OS, packaged with the Python bridge.
+# Called by release.yml; run it by hand ("Run workflow") on any branch to try
+# the builds without releasing. Each archive:
+#
+#   halean-<version>-<target>/
+#     bin/halean-automation[.exe]   automations (what the bridge runs)
+#     bin/halean-script[.exe]       automations + scripts (bridge --scripts)
+#     bridge/bridge.py, bridge/protocol.py
+#     README.txt
+name: Binaries
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        default: dev
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, target: linux-x86_64 }  # oldest glibc we build on: 2.35
+          - { os: ubuntu-22.04-arm, target: linux-aarch64 }
+          - { os: macos-latest, target: macos-arm64 }
+          - { os: windows-latest, target: windows-x86_64 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: leanprover/lean-action@v1
+        with:
+          auto-config: false
+          build: true
+          build-args: halean-automation halean-script
+          use-mathlib-cache: false
+      - uses: astral-sh/setup-uv@v10.4.0
+      - name: Test the built executables
+        run: |
+          uv run tests/run_scenarios.py
+          uv run tests/run_script_scenarios.py
+      - name: Package
+        env:
+          VERSION: ${{ inputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          ext=""; [[ "$TARGET" == windows-* ]] && ext=".exe"
+          name="halean-$VERSION-$TARGET"
+          mkdir -p "pkg/$name/bin" "pkg/$name/bridge" dist
+          cp ".lake/build/bin/halean-automation$ext" ".lake/build/bin/halean-script$ext" "pkg/$name/bin/"
+          cp bridge/bridge.py bridge/protocol.py "pkg/$name/bridge/"
+          cat > "pkg/$name/README.txt" <<EOF
+          HALean $VERSION ($TARGET)
+
+          bin/halean-automation$ext  the Lean automation engine (JSON lines on stdin/stdout)
+          bin/halean-script$ext      the same engine with scripts
+          bridge/bridge.py            connects the engine to a running Home Assistant
+
+          Run against your Home Assistant (needs Python 3.13+; uv installs the rest):
+
+            HA_URL=ws://homeassistant.local:8123/api/websocket \\
+            HA_TOKEN=<long-lived access token> \\
+            uv run bridge/bridge.py automations.yaml --dry-run
+
+          Without uv: pip install pyyaml "websockets>=13", then python bridge/bridge.py ...
+          The bridge finds the engine in bin/ next to it.
+          Docs: https://github.com/Beneficial-AI-Foundation/halean
+          EOF
+          if [[ "$TARGET" == windows-* ]]; then
+            (cd pkg && 7z a -tzip "../dist/$name.zip" "$name" >/dev/null)
+          else
+            tar -C pkg -czf "dist/$name.tar.gz" "$name"
+          fi
+          ls -l dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg-${{ matrix.target }}
+          path: dist/*
