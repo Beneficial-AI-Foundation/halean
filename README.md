@@ -16,9 +16,16 @@ test setup. Integrations (devices, cloud services) stay in Python.
 
 ## See it running
 
+With only Docker installed (no checkout, no Lean toolchain), from the
+[latest release](https://github.com/Beneficial-AI-Foundation/halean/releases/latest):
+
 ```bash
-cd demo && docker compose up --build
+curl -fsSL https://github.com/Beneficial-AI-Foundation/halean/releases/latest/download/halean-demo.tar.gz | tar xz
+cd halean-demo && docker compose up -d
 ```
+
+From a checkout, `cd demo && docker compose up` pulls the released image, and
+`docker compose up --build` builds the engine from your working tree instead.
 
 Then open <http://localhost:8124/halean-demo>. The login is in
 `demo/.run/login.txt`, created on the first start. This starts a separate Home
@@ -158,6 +165,33 @@ uv run bridge/bridge.py /path/to/automations.yaml --dry-run   # log calls, chang
 Automations outside the supported subset are reported as `unsupported` and stay
 in HA. For each automation the engine runs, turn off HA's own copy so it
 doesn't run twice.
+
+## Releasing
+
+Every push to `master` is released by CI (`.github/workflows/release.yml`)
+once it passes; there is nothing to do by hand. Pushes that only touch
+Markdown are skipped.
+
+1. **test**: the Lean build (engine + all proofs).
+2. **image**: the demo image for linux/amd64 and linux/arm64, each on a native
+   runner, pushed by digest only (no tag, so nobody pulls it yet).
+3. **smoke-test**: `demo/make-bundle.sh` builds the release bundle and
+   `demo/smoke-test.sh` runs it like a user would, against the new image and the
+   pinned HA release, until the engine triggers an automation.
+4. **publish**: tags the image `ghcr.io/beneficial-ai-foundation/halean:<version>`,
+   `:<major>.<minor>` and `:latest`, and creates the GitHub release
+   `v<version>` with `halean-demo.tar.gz`, the
+   `halean-automation-linux-{x86_64,aarch64}` engine binaries and `SHA256SUMS`.
+
+The version is `<major>.<minor>` from `lakefile.toml` plus the workflow run
+number (`0.1.42`). Bump `version` in `lakefile.toml` to start a new line.
+
+To check a bundle locally against an image you built:
+
+```bash
+docker build -f demo/Dockerfile -t ghcr.io/beneficial-ai-foundation/halean:0.1.0-local .
+demo/make-bundle.sh 0.1.0-local dist && demo/smoke-test.sh dist/halean-demo.tar.gz
+```
 
 ## What is translated (upstream commit in `manifest.yaml`)
 

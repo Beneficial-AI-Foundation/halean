@@ -1,0 +1,193 @@
+# Every push to master is released, once it passes:
+#
+#   test -> image (amd64 + arm64, pushed by digest only) -> smoke test of the
+#   demo bundle -> tag the image -> GitHub release
+#
+# Version: <major.minor from lakefile.toml>.<run number>, e.g. 0.1.42.
+# Bump `version` in lakefile.toml to start a new minor/major line.
+#
+# Publishes ghcr.io/beneficial-ai-foundation/halean:{0.1.42,0.1,latest}
+# and a GitHub release v0.1.42 with the demo bundle (halean-demo.tar.gz),
+# the Linux engine binaries and SHA256SUMS. Nothing user-visible is
+# published unless the smoke test passes.
+name: Release
+
+on:
+  push:
+    branches: [master]
+    paths-ignore: ["**.md", ".claude/**"]
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/beneficial-ai-foundation/halean
+
+# Releases go out one at a time, in push order.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      minor: ${{ steps.v.outputs.minor }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: v
+        run: |
+          lake=$(sed -n 's/^version = "\(.*\)"/\1/p' lakefile.toml)
+          minor="${lake%.*}"
+          echo "minor=$minor" >> "$GITHUB_OUTPUT"
+          echo "version=$minor.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: leanprover/lean-action@v1
+
+  image:
+    needs: [version, test]
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - { platform: linux/amd64, runner: ubuntu-24.04, arch: x86_64 }
+          - { platform: linux/arm64, runner: ubuntu-24.04-arm, arch: aarch64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          labels: org.opencontainers.image.version=${{ needs.version.outputs.version }}
+      - id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: demo/Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.arch }},mode=max
+      - name: Export digest and engine binary
+        run: |
+          mkdir -p digests bin
+          touch "digests/${DIGEST#sha256:}"
+          docker run --rm --entrypoint cat "$IMAGE@$DIGEST" /usr/local/bin/halean-automation \
+            > "bin/halean-automation-linux-${{ matrix.arch }}"
+          chmod +x bin/*
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.arch }}
+          path: digests/*
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bin-${{ matrix.arch }}
+          path: bin/*
+
+  smoke-test:
+    needs: [version, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: digest-x86_64
+          path: digests
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run the demo bundle against the new image
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          digest=$(ls digests)
+          docker pull "$IMAGE@sha256:$digest"
+          docker tag "$IMAGE@sha256:$digest" "$IMAGE:$VERSION"
+          demo/make-bundle.sh "$VERSION" dist
+          demo/smoke-test.sh dist/halean-demo.tar.gz
+
+  publish:
+    needs: [version, smoke-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: digest-*
+          path: digests
+          merge-multiple: true
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: bin-*
+          path: dist
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag the multi-arch image
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          MINOR: ${{ needs.version.outputs.minor }}
+        run: |
+          sources=()
+          for d in digests/*; do sources+=("$IMAGE@sha256:${d#digests/}"); done
+          docker buildx imagetools create \
+            -t "$IMAGE:$VERSION" -t "$IMAGE:$MINOR" -t "$IMAGE:latest" "${sources[@]}"
+          docker buildx imagetools inspect "$IMAGE:$VERSION"
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          demo/make-bundle.sh "$VERSION" dist
+          (cd dist && sha256sum -- * > SHA256SUMS)
+          tag="v$VERSION"
+          cat > notes.md <<EOF
+          ## Run the demo
+
+          Needs only Docker (linux/amd64 or linux/arm64, including Apple Silicon):
+
+          \`\`\`bash
+          curl -fsSL https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/halean-demo.tar.gz | tar xz
+          cd halean-demo && docker compose up -d
+          \`\`\`
+
+          Then open <http://localhost:8124/halean-demo>. The login is in \`halean-demo/.run/login.txt\`.
+
+          Image: \`ghcr.io/beneficial-ai-foundation/halean:$VERSION\`
+          Engine binaries: \`halean-automation-linux-{x86_64,aarch64}\` (glibc ≥ 2.36)
+          EOF
+          if gh release view "$tag" >/dev/null 2>&1; then
+            # a re-run of the same workflow run: refresh the assets
+            gh release upload "$tag" dist/* --clobber
+          else
+            gh release create "$tag" dist/* --target "$GITHUB_SHA" \
+              --title "HALean $VERSION" --notes-file notes.md --generate-notes
+          fi
