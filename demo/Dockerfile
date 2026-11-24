@@ -6,7 +6,7 @@ FROM debian:bookworm-slim AS build
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl ca-certificates git build-essential \
  && apt-get clean
-RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+RUN curl -sSfL --retry 5 --retry-all-errors https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
     | sh -s -- -y --default-toolchain none
 ENV PATH=/root/.elan/bin:$PATH
 WORKDIR /src
@@ -14,6 +14,7 @@ COPY lean-toolchain lakefile.toml lake-manifest.json ./
 RUN elan toolchain install "$(cat lean-toolchain)"
 COPY HALean.lean ./
 COPY HALean ./HALean
+COPY Exe ./Exe
 RUN lake build halean-automation
 
 # --- 2. runtime: engine binary + Python bridge -------------------------------
