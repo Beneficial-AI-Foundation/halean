@@ -10,8 +10,7 @@
 # Publishes ghcr.io/beneficial-ai-foundation/halean:{0.1.42,0.1,latest}
 # and a GitHub release v0.1.42 with the demo bundle (halean-demo.tar.gz),
 # the engine executables for each OS and SHA256SUMS. Nothing user-visible is
-# published unless the smoke test passes. Commits that change
-# .github/workflows/ are tested but not published (see the version job).
+# published unless the smoke test passes.
 name: Release
 
 on:
@@ -35,26 +34,14 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       minor: ${{ steps.v.outputs.minor }}
-      publish: ${{ steps.v.outputs.publish }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 2
       - id: v
         run: |
           lake=$(sed -n 's/^version = "\(.*\)"/\1/p' lakefile.toml)
           minor="${lake%.*}"
           echo "minor=$minor" >> "$GITHUB_OUTPUT"
           echo "version=$minor.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
-          # GitHub refuses to let GITHUB_TOKEN tag a commit that changes
-          # .github/workflows/ (HTTP 403), so such commits are built and
-          # tested but not published; the next commit releases as usual.
-          if git diff --quiet HEAD^ HEAD -- .github/workflows; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::This commit changes .github/workflows/, so it is tested but not released."
-          fi
 
   test:
     runs-on: ubuntu-latest
@@ -142,7 +129,6 @@ jobs:
 
   publish:
     needs: [version, smoke-test, binaries]
-    if: needs.version.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
