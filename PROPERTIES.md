@@ -65,6 +65,7 @@ Python, which is short enough to check by eye.
 | `core.py::split_entity_id` | `splitEntityId_some` | `str.partition(".")`, `ValueError` (here `none`) when either side is empty |
 | Python's `int(str)` (base 10), used by the `int` filter, `Coerce(int)`, `cv.time_period`, `repeat` counts | `parseIntChars_iff` (`HALean/Template/PyIntSpec.lean`) | whitespace (`Py_ISSPACE`), an optional sign, `digit (["_"] digit)*`, whitespace; ASCII text (non-ASCII is refused with an error) |
 | `util/dt.py::parse_time` (`cv.time`: time triggers, time conditions, templates) | `parseTimeSeconds_iff` (`HALean/Template/ParseTimeSpec.lean`) | `str.split(":")`, `int()` of the first two or three parts (later ones ignored), `datetime.time`'s ranges |
+| `helpers/template/__init__.py::is_template_string` (decides which config strings are templates) | `isTemplateString_iff` (`HALean/Template/SyntaxSpec.lean`) | `"{" in s and ("{%" in s or "{{" in s or "{#" in s)` |
 
 `\d` is read as the ASCII digits; Python's class also has other Unicode
 digits, which is why callers reject non-ASCII ids. The template engine uses
