@@ -251,13 +251,6 @@ def optDuration (j : Json) (k : String) : D (Option Nat) :=
   | none => pure none
   | some v => some <$> durationMs v
 
-/-- "HH:MM[:SS]" → seconds since midnight. -/
-def timeOfDaySec (s : String) : Option Nat :=
-  match (s.splitOn ":").map String.toNat? with
-  | [some h, some m] => if h < 24 && m < 60 then some (h * 3600 + m * 60) else none
-  | [some h, some m, some sec] =>
-      if h < 24 && m < 60 && sec < 60 then some (h * 3600 + m * 60 + sec) else none
-  | _ => none
 
 def bound? (j : Json) (k : String) : D (Option Bound) :=
   match field? j k with
@@ -273,7 +266,7 @@ def bound? (j : Json) (k : String) : D (Option Bound) :=
 def timeBound? (j : Json) (k : String) : D (Option TimeBound) :=
   match str? j k with
   | none => pure none
-  | some s => match timeOfDaySec s with
+  | some s => match Template.parseTimeSeconds s with
     | some sec => pure (some (.fixed (sec * 1000000)))
     | none => if s.contains '.' then pure (some (.entity s))
               else throw s!"invalid {k}: {s}"
@@ -495,7 +488,7 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
         | _ => false
       -- `_TIME_AT_SCHEMA`: `cv.time`, else an entity
       let timeAt (s : String) : D (Sum Nat (String × Int)) :=
-        match timeOfDaySec s with
+        match Template.parseTimeSeconds s with
         | some sec => pure (Sum.inl sec)
         | none =>
           if timeEntity s then pure (Sum.inr (s, (0 : Int)))

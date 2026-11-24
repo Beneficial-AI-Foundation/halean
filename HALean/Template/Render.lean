@@ -22,6 +22,7 @@
 import HALean.Template.Syntax
 import HALean.Template.DateParse
 import HALean.Core.State
+import HALean.Template.ParseTime
 open Lean
 
 namespace HALean.Template
@@ -556,15 +557,9 @@ def parseDatetime (str : String) : R (Option Value) := do
   let wall := fromCivil c
   pure (some (.datetime (match off with | some o => wall - o * US_PER_SEC | none => wall) off))
 
-/-- `dt_util.parse_time` -/
-def parseTime (s : String) : Option (Nat × Nat × Nat) := do
-  let parts := s.splitOn ":"
-  if parts.length < 2 then none
-  let h ← parseIntStr (parts.getD 0 "")
-  let m ← parseIntStr (parts.getD 1 "")
-  let sec ← if parts.length > 2 then parseIntStr (parts.getD 2 "") else some 0
-  if h < 0 || h > 23 || m < 0 || m > 59 || sec < 0 || sec > 59 then none
-  pure (h.toNat, m.toNat, sec.toNat)
+/-- `dt_util.parse_time` as (hour, minute, second): `parseTimeSeconds`. -/
+def parseTime (s : String) : Option (Nat × Nat × Nat) :=
+  (parseTimeSeconds s).map fun t => (t / 3600, t / 60 % 60, t % 60)
 
 def timestampOf (v : Value) : R Float :=
   match v with
