@@ -205,6 +205,9 @@ Markdown are skipped.
 
 These builds run only after a merge to master; pull requests run just the Lean
 build (`lean_action_ci.yml`).
+A commit that changes `.github/workflows/` is built and tested but not
+released, because GitHub does not let the workflow token tag such a commit; the
+next commit releases as usual.
 
 The version is `<major>.<minor>` from `lakefile.toml` plus the workflow run
 number (`0.1.42`). Bump `version` in `lakefile.toml` to start a new line.
