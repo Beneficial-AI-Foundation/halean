@@ -63,6 +63,7 @@ Python, which is short enough to check by eye.
 | `core.py::valid_entity_id` | `validEntityId_iff` | `EntityIdRe`: `^(?!.+__)(?!_)[\da-z_]+(?<!_)\.(?!_)[\da-z_]+(?<!_)$`, `$` also before one final newline |
 | `core.py::valid_domain` | `validDomain_iff` | `DomainRe`: `^(?!.+__)(?!_)[\da-z_]+(?<!_)$` |
 | `core.py::split_entity_id` | `splitEntityId_some` | `str.partition(".")`, `ValueError` (here `none`) when either side is empty |
+| Python's `int(str)` (base 10), used by the `int` filter, `Coerce(int)`, `cv.time_period`, `repeat` counts | `parseIntChars_iff` (`HALean/Template/PyIntSpec.lean`) | whitespace (`Py_ISSPACE`), an optional sign, `digit (["_"] digit)*`, whitespace; ASCII text (non-ASCII is refused with an error) |
 
 `\d` is read as the ASCII digits; Python's class also has other Unicode
 digits, which is why callers reject non-ASCII ids. The template engine uses

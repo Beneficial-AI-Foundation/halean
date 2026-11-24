@@ -213,6 +213,8 @@ def doInt (v : Value) : R (Option Int) := do
     if f.isInf then throw "OverflowError: cannot convert float infinity to integer"
     return floatToInt? f
   | .str s =>
+    if !numberTextModelled s then
+      throw "int() of non-ASCII text is not supported by HALean"
     match parseIntStr s with
     | some i => return some i
     | none => return (parseFloatStr s).bind floatToInt?

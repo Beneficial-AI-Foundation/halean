@@ -19,6 +19,7 @@ import HALean.Template
 import HALean.Core.StateMachine
 import HALean.Core.Proofs
 import HALean.Core.StateSpec
+import HALean.Template.PyIntSpec
 import HALean.Core.ServiceRegistry
 import HALean.Core.ServiceRegistryProofs
 import HALean.Core.ProbatioProofs

@@ -475,6 +475,8 @@ Known gaps:
 computes, see PROPERTIES.md): `validEntityId_iff`, `validDomain_iff`
 (each accepts exactly the strings its regex matches), `splitEntityId_some`
 (`str.partition(".")` with both sides non-empty).
+`HALean/Template/PyIntSpec.lean`: `parseIntChars_iff` (Python's `int(str)` on
+ASCII text is exactly its grammar; non-ASCII text is refused with an error).
 
 `HALean/Template/Proofs.lean`: `render_static` (static templates are never
 evaluated), `resultAsBoolean_none`, `cvBoolean_bool`, `iif_none`, `iif_truthy`.
