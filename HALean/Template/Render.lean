@@ -23,6 +23,7 @@ import HALean.Template.Syntax
 import HALean.Template.DateParse
 import HALean.Core.State
 import HALean.Template.ParseTime
+import HALean.Template.CvBoolean
 open Lean
 
 namespace HALean.Template
@@ -190,11 +191,7 @@ def noDefault (fn : String) (v : Value) : R α := do
 def cvBoolean (v : Value) : Option Bool :=
   match v with
   | .bool b => some b
-  | .str s =>
-    let s := s.trim.toLower
-    if ["1", "true", "yes", "on", "enable"].contains s then some true
-    else if ["0", "false", "no", "off", "disable"].contains s then some false
-    else none
+  | .str s => cvBooleanText s  -- proved: `cvBooleanText_iff`
   | .int i => some (i != 0)
   | .float f => some (f != 0)
   | _ => none
@@ -737,7 +734,9 @@ def pyCapitalize (s : String) : String :=
   | [] => ""
   | c :: cs => String.ofList (c.toUpper :: cs.map Char.toLower)
 
-def isPyWs (c : Char) : Bool := c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\x0b' || c == '\x0c'
+/-- `str.isspace()`: what `str.strip()` and `str.split()` treat as whitespace
+(all of Unicode, `pyIsSpace`). -/
+def isPyWs (c : Char) : Bool := pyIsSpace c
 
 def pyStrip (s : String) (chars : Option String) (left right : Bool) : String :=
   let p : Char → Bool := match chars with

@@ -35,11 +35,13 @@ def cvBoolean (v : Value) : VResult := do
   match v with
   | .bool _ => return v
   | .str s =>
-    requireSafe v
-    let t := (s.map Char.toLower).trim
-    if ["1", "true", "yes", "on", "enable"].contains t then return .bool true
-    if ["0", "false", "no", "off", "disable"].contains t then return .bool false
-    throw (inv s!"invalid boolean value {t}")
+    -- proved: `HALean.Template.cvBooleanText_iff`
+    match Template.cvBooleanText s with
+    | some b => return .bool b
+    | none =>
+      -- the message prints `value.lower().strip()`
+      requireSafe v
+      throw (inv s!"invalid boolean value {Template.cvBooleanCore s}")
   | .int i => return .bool (i != 0)
   | .float f => return .bool (f != 0)
   | v => throw (inv s!"invalid boolean value {← strOf v}")

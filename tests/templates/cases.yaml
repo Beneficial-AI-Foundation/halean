@@ -191,6 +191,17 @@
   states: [{entity_id: light.x, state: "on"}]
   condition: true
 - {template: "{{ 'TRUE' }}", condition: true}
+# result_as_boolean is cv.boolean: str.isspace stripping (HALean.Template.cvBooleanText_iff)
+- {template: "{{ '\x0bOn\x1c' }}", condition: true}
+- {template: "{{ '\u00a0yes\u2003' }}", condition: true}
+- {template: "{{ 'on\u200b' }}", condition: true}
+- {template: "{{ '\u2028true\u0085' }}", condition: true}
+- {template: "{{ '\u3000Disable\u00a0' }}", condition: true}
+# every render is stripped with str.strip(): all of str.isspace, Unicode included
+- {template: "{{ '\x1c 42 \u2003' }}"}
+- {template: "{{ '\u00a0x\u0085' }}"}
+- {template: "{{ ('a\u3000b\x1fc'.split()) | join(',') }} {{ '\u2028y\x1d'.strip() }}"}
+- {template: "{{ '\u0130' }}", condition: true}
 - {template: "{{ 1 }}", condition: true}
 - {template: "{{ 'yes' }}", condition: true}
 - {template: "{{ 1 / 0 }}", condition: true}

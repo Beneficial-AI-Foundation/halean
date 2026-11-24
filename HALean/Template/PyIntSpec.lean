@@ -105,37 +105,43 @@ theorem dropWhile_prefix {p : Char → Bool} :
     simp only [List.cons_append, List.dropWhile_cons, hw a List.mem_cons_self, ite_true]
     exact dropWhile_prefix (fun c hc => hw c (List.mem_cons_of_mem _ hc)) hx
 
-/-- Stripping `w1 ++ core ++ w2`, with whitespace around a core that starts
-and ends with non-whitespace, gives the core. -/
-theorem stripPy_eq {w1 core w2 : List Char} (h1 : ∀ c ∈ w1, pySpace c) (h2 : ∀ c ∈ w2, pySpace c)
-    (hh : core.head?.all fun c => !pySpace c) (hl : core.getLast?.all fun c => !pySpace c)
-    (hne : core ≠ []) : stripPy (w1 ++ core ++ w2) = core := by
-  unfold stripPy
-  have hh' : (core ++ w2).head?.all (fun c => !pySpace c) := by
+/-- Stripping `w1 ++ core ++ w2`, with `p`-characters around a core that
+starts and ends with other characters, gives the core. -/
+theorem stripBy_eq {p : Char → Bool} {w1 core w2 : List Char} (h1 : ∀ c ∈ w1, p c) (h2 : ∀ c ∈ w2, p c)
+    (hh : core.head?.all fun c => !p c) (hl : core.getLast?.all fun c => !p c)
+    (hne : core ≠ []) : stripBy p (w1 ++ core ++ w2) = core := by
+  unfold stripBy
+  have hh' : (core ++ w2).head?.all (fun c => !p c) := by
     cases core with
     | nil => exact absurd rfl hne
     | cons a r => simpa using hh
   rw [List.append_assoc, dropWhile_prefix h1 hh', List.reverse_append]
-  have hr : core.reverse.head?.all (fun c => !pySpace c) := by
+  have hr : core.reverse.head?.all (fun c => !p c) := by
     rw [List.head?_reverse]; exact hl
   rw [dropWhile_prefix (fun c hc => h2 c (List.mem_reverse.mp hc)) hr, List.reverse_reverse]
 
-/-- Every list is its stripped core with whitespace around it. -/
-theorem stripPy_split (cs : List Char) :
-    ∃ w1 w2, cs = w1 ++ stripPy cs ++ w2 ∧ (∀ c ∈ w1, pySpace c) ∧ (∀ c ∈ w2, pySpace c) := by
-  let m := cs.dropWhile pySpace
-  refine ⟨cs.takeWhile pySpace, (m.reverse.takeWhile pySpace).reverse, ?_,
+/-- Every list is its stripped core with `p`-characters around it. -/
+theorem stripBy_split (p : Char → Bool) (cs : List Char) :
+    ∃ w1 w2, cs = w1 ++ stripBy p cs ++ w2 ∧ (∀ c ∈ w1, p c) ∧ (∀ c ∈ w2, p c) := by
+  let m := cs.dropWhile p
+  refine ⟨cs.takeWhile p, (m.reverse.takeWhile p).reverse, ?_,
     fun c hc => takeWhile_all hc, fun c hc => takeWhile_all (List.mem_reverse.mp hc)⟩
-  have e1 := (List.takeWhile_append_dropWhile (p := pySpace) (l := cs)).symm
-  have e2 := (List.takeWhile_append_dropWhile (p := pySpace) (l := m.reverse))
-  have e3 : m = (m.reverse.dropWhile pySpace).reverse ++ (m.reverse.takeWhile pySpace).reverse := by
+  have e1 := (List.takeWhile_append_dropWhile (p := p) (l := cs)).symm
+  have e2 := (List.takeWhile_append_dropWhile (p := p) (l := m.reverse))
+  have e3 : m = (m.reverse.dropWhile p).reverse ++ (m.reverse.takeWhile p).reverse := by
     rw [← List.reverse_append, e2, List.reverse_reverse]
-  unfold stripPy
+  unfold stripBy
   conv => lhs; rw [e1]
   rw [List.append_assoc]
   exact congrArg _ e3
 
-/-! ### `int(str)` -/
+theorem stripPy_eq {w1 core w2 : List Char} (h1 : ∀ c ∈ w1, pySpace c) (h2 : ∀ c ∈ w2, pySpace c)
+    (hh : core.head?.all fun c => !pySpace c) (hl : core.getLast?.all fun c => !pySpace c)
+    (hne : core ≠ []) : stripPy (w1 ++ core ++ w2) = core := stripBy_eq h1 h2 hh hl hne
+
+theorem stripPy_split (cs : List Char) :
+    ∃ w1 w2, cs = w1 ++ stripPy cs ++ w2 ∧ (∀ c ∈ w1, pySpace c) ∧ (∀ c ∈ w2, pySpace c) :=
+  stripBy_split pySpace cs
 
 theorem digit_not_space (c : Char) (h : c.isDigit = true) : pySpace c = false := by
   have a0 : ('0' : Char).val.toNat = 48 := rfl

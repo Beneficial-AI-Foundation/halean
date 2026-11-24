@@ -239,6 +239,16 @@
     - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {s: [1]}}
     - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {s: {}}}
 
+# cv.boolean strips with str.isspace (HALean.Template.cvBooleanText_iff): \v \f \x1c-\x1f
+# (Unicode spaces are covered by template cases: repr() of non-printable non-ASCII text
+# in the call_service event is a known gap)
+- name: val_cv_boolean_whitespace
+  ops:
+    - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: b, value: {cv: boolean}}]}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {b: "\x0bON\x0c"}}
+    - {op: call, domain: test_v, service: v, blocking: true, return_response: true, data: {b: "\x1cno\x1f"}}
+
 - name: val_cv_entity_ids
   ops:
     - {op: register, domain: test_v, service: v, handler: {echo: true}, supports_response: only,

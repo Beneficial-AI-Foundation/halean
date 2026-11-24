@@ -22,8 +22,12 @@ def digitsUs : List Char → Bool
   | d :: rest => d.isDigit && digitsUs rest
   | [] => false
 
-def stripPy (cs : List Char) : List Char :=
-  ((cs.dropWhile pySpace).reverse.dropWhile pySpace).reverse
+/-- Strip the characters `p` holds for from both ends (`str.strip()` with
+`p = str.isspace`). -/
+def stripBy (p : Char → Bool) (cs : List Char) : List Char :=
+  ((cs.dropWhile p).reverse.dropWhile p).reverse
+
+def stripPy (cs : List Char) : List Char := stripBy pySpace cs
 
 /-- An optional sign: (negative?, the rest). -/
 def signSplit : List Char → Bool × List Char
