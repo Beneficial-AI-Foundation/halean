@@ -64,7 +64,9 @@ Home Assistant ──WebSocket──▶ bridge/bridge.py ──JSON lines──�
 ```bash
 export ELAN_HOME=/Volumes/MacStorage/AppData/elan
 export PATH=$ELAN_HOME/bin:$PATH
-lake build                       # engine + all proofs
+lake build                       # the HALean library: engine + all proofs
+lake build halean-automation halean-script halean-template halean-sun-grid \
+  halean-core halean-core-states halean-core-services halean-core-events  # the executables the tests drive
 uv run tests/run_scenarios.py    # behaviour scenarios (engine only)
 uv run tests/run_script_scenarios.py  # script scenarios (halean-script only)
 uv run tests/differential/run.py # scenarios + template cases through a real Home Assistant vs Lean

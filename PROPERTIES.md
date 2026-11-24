@@ -250,6 +250,7 @@ log `Error doing job`).
 
 ```bash
 lake build                          # builds the engine and checks all proofs
+lake build halean-automation        # the executable the scenarios drive
 uv run tests/run_scenarios.py       # engine scenarios
 uv run tests/differential/run.py    # the same scenarios against real Home Assistant
 ```

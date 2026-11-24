@@ -215,7 +215,7 @@ def main() -> int:
     args = p.parse_args()
 
     if not (ROOT / ".lake" / "build" / "bin" / "halean-automation").exists():
-        raise SystemExit("build the engine first: lake build")
+        raise SystemExit("build the engine first: lake build halean-automation")
     start_container(args.image or pinned_image())
     try:
         token = onboard()

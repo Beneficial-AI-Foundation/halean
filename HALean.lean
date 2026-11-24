@@ -26,6 +26,7 @@ import HALean.Template.CvBooleanSpec
 import HALean.Automation.SlugifySpec
 import HALean.Core.ServiceRegistry
 import HALean.Core.ServiceRegistryProofs
+import HALean.Core.ServicesJson
 import HALean.Core.ProbatioProofs
 import HALean.Core.Hass
 import HALean.Core.HassProofs
