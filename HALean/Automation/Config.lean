@@ -9,6 +9,7 @@
 import HALean.Core.Types
 import HALean.Template
 import HALean.Automation.TimePeriod
+import HALean.Automation.Slugify
 open Lean
 
 namespace HALean.Automation
@@ -702,28 +703,6 @@ partial def actionVariableNames (j : Json) : List String :=
       | _ => [])
     here ++ kvs.toList.flatMap fun (k, v) => if k == "variables" then [] else actionVariableNames v
   | _ => []
-
-/-- `util.slugify` (python-slugify's legacy pipeline with separator `_`,
-then `""` becomes `"unknown"`), for ASCII text. `none` where the result
-would depend on transliteration (non-ASCII) or on HTML entity decoding
-(`&...;`), which HALean does not model. -/
-def slugify? (text : String) : Option String := do
-  if text.isEmpty then return ""
-  if !text.toList.all (fun c : Char => c.toNat < 128) then none
-  if text.contains '&' && text.contains ';' then none
-  -- QUOTE_PATTERN → '-', then lower()
-  let arr := (text.toList.map fun c => if c == '\'' then '-' else c.toLower).toArray
-  -- NUMBERS_PATTERN `(?<=\d),(?=\d)` → ''
-  let cs := (List.range arr.size).filterMap fun i =>
-    let c := arr[i]!
-    if c == ',' && i > 0 && i + 1 < arr.size && arr[i-1]!.isDigit && arr[i+1]!.isDigit then none
-    else some c
-  -- DISALLOWED_CHARS_PATTERN `[^-a-zA-Z0-9]+` → '-', DUPLICATE_DASH_PATTERN, strip('-')
-  let cs := cs.map fun c => if c == '-' || c.isDigit || (c ≥ 'a' && c ≤ 'z') then c else '-'
-  let collapsed := cs.foldl (fun acc c => if c == '-' && acc.head? == some '-' then acc else c :: acc) []
-  let slug := String.ofList (collapsed.reverse.dropWhile (· == '-') |>.reverse.dropWhile (· == '-') |>.reverse)
-  let slug := slug.replace "-" "_"
-  return if slug.isEmpty then "unknown" else slug
 
 /-- `automation/__init__.py::_automation_name`: the alias, else
 `automation <position in the config list>`. -/
