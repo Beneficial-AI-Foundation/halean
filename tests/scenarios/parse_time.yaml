@@ -1,0 +1,45 @@
+# `cv.time` is `dt_util.parse_time`: str.split(":"), int() of the parts
+# (whitespace, a sign, underscores), parts after the seconds ignored. A
+# `time` entity in the time condition is read with
+# strptime(state, "%H:%M:%S") instead (one or two digits, all three fields).
+# t0 = Tuesday 22:13:20 UTC.
+automations:
+  - id: extra_part
+    triggers: [{trigger: time, at: "22:13:22:99"}]
+    actions: [{event: extra_part}]
+  - id: int_forms
+    triggers: [{trigger: time, at: [" 22:13:24", "+22:1_3:26", "22:13:028"]}]
+    actions:
+      - event: int_forms
+        event_data: {t: "{{ trigger.now.second }}"}
+  - id: cond_after
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: time, after: time.start}]
+    actions: [{event: after_ok}]
+  - id: cond_before
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: time, before: time.stop}]
+    actions: [{event: before_ok}]
+states:
+  - {entity_id: time.start, state: "22:0:0"}
+  - {entity_id: time.stop, state: "23:00"}
+steps:
+  - {at: 2, send: {type: tick},
+     expect: [{type: automation_triggered, id: extra_part}, {type: fire_event, event_type: extra_part}]}
+  - {at: 4, send: {type: tick},
+     expect: [{type: automation_triggered, id: int_forms}, {type: fire_event, event_type: int_forms, data: {t: 24}}]}
+  - {at: 6, send: {type: tick},
+     expect: [{type: automation_triggered, id: int_forms}, {type: fire_event, event_type: int_forms, data: {t: 26}}]}
+  - {at: 8, send: {type: tick},
+     expect: [{type: automation_triggered, id: int_forms}, {type: fire_event, event_type: int_forms, data: {t: 28}}]}
+  # after 22:0:0 holds; before "23:00" does not parse with %H:%M:%S: False
+  - {at: 10, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: cond_after}, {type: fire_event, event_type: after_ok}]}
+  - {at: 11, set: [time.stop, "23:5:9"]}
+  - {at: 12, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: cond_after}, {type: fire_event, event_type: after_ok},
+              {type: automation_triggered, id: cond_before}, {type: fire_event, event_type: before_ok}]}
+  # an invalid `after` state raises (the condition errors: no run)
+  - {at: 13, set: [time.start, "25:00:00"]}
+  - {at: 14, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: cond_before}, {type: fire_event, event_type: before_ok}]}

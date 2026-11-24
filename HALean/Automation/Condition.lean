@@ -234,11 +234,16 @@ def resolveTimeBound (env : CondEnv) (which : String) (eid : String) (isAfter : 
   let unavail := e.state == STATE_UNAVAILABLE || e.state == STATE_UNKNOWN
   -- `after`: an unavailable `time` entity falls through to the sensor check
   if e.domain == "time" && !(isAfter && unavail) then
-    match timeOfDaySec e.state with
-    | some s => return some (s * 1000000)
-    | none =>
-      -- `after`: strptime raises ValueError (uncaught upstream); `before`: returns False
-      if isAfter then throw s!"invalid time state '{e.state}'" else return none
+    -- `datetime.strptime(state, "%H:%M:%S").time()`
+    match Template.strptime e.state "%H:%M:%S" with
+    | .ok (.datetime us _) =>
+      let c := Template.toCivil us
+      return some (((c.hour * 60 + c.minute) * 60 + c.second) * 1000000 + c.micro)
+    | .ok _ => throw "strptime returned no datetime"
+    | .error (.valueError m) =>
+      -- `after`: the ValueError is not caught upstream; `before`: returns False
+      if isAfter then throw s!"ValueError: {m}" else return none
+    | .error (.error m) => throw m
   match e.attr? "device_class" with
   | some (.str "timestamp") | some (.str "uptime") =>
     if unavail then return none

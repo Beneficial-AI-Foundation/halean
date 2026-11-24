@@ -51,7 +51,8 @@ entries:
   - HALean.Automation.resolveTimeBound
   status: translated
   notes: timestamp/uptime sensor bounds are converted with the shell's tz offset, like the local time;
-    dates only ciso8601 would parse raise 'unsupported'
+    dates only ciso8601 would parse raise 'unsupported'; a time entity is read with the template engine's
+    strptime(state, "%H:%M:%S")
   hash: 75942a34ea3c0149
 - python: helpers/condition.py::state_from_config
   lean:
@@ -559,8 +560,13 @@ entries:
   hash: dbd0af9665451de8
 - python: util/dt.py::parse_time
   lean:
+  - HALean.Template.parseTimeSeconds
+  - HALean.Template.parseTimeSecond
   - HALean.Template.parseTime
-  status: translated
+  status: proven
+  notes: 'theorem parseTimeSeconds_iff: some t exactly when str.split(":") has at least two parts, int()
+    of the first two (and the third if present, later parts ignored) are in time()''s ranges (PyIntSpec,
+    ASCII text). Also cv.time for time triggers and conditions (was a separate, stricter copy).'
   hash: bcb6031376e0cac5
 - python: util/dt.py::as_local
   lean:
