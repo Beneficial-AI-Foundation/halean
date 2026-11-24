@@ -193,10 +193,18 @@ Markdown are skipped.
 3. **smoke-test**: `demo/make-bundle.sh` builds the release bundle and
    `demo/smoke-test.sh` runs it like a user would, against the new image and the
    pinned HA release, until the engine triggers an automation.
-4. **publish**: tags the image `ghcr.io/beneficial-ai-foundation/halean:<version>`,
+4. **binaries** (`.github/workflows/binaries.yml`, in parallel with 2–3):
+   `halean-automation` and `halean-script` built natively for Windows x64
+   (`.exe`), macOS Apple Silicon and Linux x86_64/arm64, each tested with the
+   scenario suites, then packaged with the bridge as
+   `halean-<version>-<platform>.{zip,tar.gz}`.
+5. **publish**: tags the image `ghcr.io/beneficial-ai-foundation/halean:<version>`,
    `:<major>.<minor>` and `:latest`, and creates the GitHub release
-   `v<version>` with `halean-demo.tar.gz`, the
-   `halean-automation-linux-{x86_64,aarch64}` engine binaries and `SHA256SUMS`.
+   `v<version>` with `halean-demo.tar.gz`, the executable archives and
+   `SHA256SUMS`.
+
+These builds run only after a merge to master; pull requests run just the Lean
+build (`lean_action_ci.yml`).
 
 The version is `<major>.<minor>` from `lakefile.toml` plus the workflow run
 number (`0.1.42`). Bump `version` in `lakefile.toml` to start a new line.
