@@ -2,9 +2,9 @@
 then hand over to the bridge.
 
 On the very first start the HA instance is fresh, so this onboards it: it
-creates the `demo` user with a random password (written to demo/.run/login.txt
+creates the `demo` user with a random password (written to .run/login.txt next to docker-compose.yml
 on the host, never printed), finishes the remaining onboarding steps and
-creates a long-lived access token (demo/.run/token) for the bridge and the
+creates a long-lived access token (.run/token) for the bridge and the
 simulator. Later starts just reuse the token.
 
   python demo/setup.py [--then-bridge]
@@ -104,7 +104,7 @@ def onboard_user() -> str:
         f"HALean demo\n  URL:      http://localhost:{PORT}/halean-demo\n"
         f"  username: demo\n  password: {password}\n")
     TOKEN_FILE.write_text(token)
-    print("onboarded the demo instance; login details are in demo/.run/login.txt", flush=True)
+    print("onboarded the demo instance; login details are in .run/login.txt next to docker-compose.yml", flush=True)
     return token
 
 
@@ -133,13 +133,13 @@ def main() -> None:
     elif TOKEN_FILE.exists():
         token = TOKEN_FILE.read_text().strip()
     else:
-        raise SystemExit("HA is already onboarded but demo/.run/token is missing.\n"
-                         "Start over with:  docker compose down -v && docker compose up --build")
+        raise SystemExit("HA is already onboarded but .run/token is missing.\n"
+                         "Start over with:  docker compose down -v && docker compose up -d")
     try:
         http("GET", "/api/", token=token)
     except urllib.error.HTTPError as e:
         raise SystemExit(f"the saved token is not accepted ({e.code}). Start over with:\n"
-                         "  docker compose down -v && docker compose up --build")
+                         "  docker compose down -v && docker compose up -d")
     finish_onboarding(onboarding_steps(), token)
     if "--then-bridge" in sys.argv:
         os.environ["HA_TOKEN"] = token

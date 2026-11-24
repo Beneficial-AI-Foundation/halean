@@ -30,11 +30,12 @@ curl -fsSL https://github.com/Beneficial-AI-Foundation/halean/releases/latest/do
 cd halean-demo && docker compose up -d
 ```
 
-From a checkout, `cd demo && docker compose up` pulls the released image, and
-`docker compose up --build` builds the engine from your working tree instead.
+From a checkout, `cd demo && docker compose up -d` runs the same released image.
+To try unreleased engine changes, add `--build` to build it from your working
+tree.
 
-Then open <http://localhost:8124/halean-demo>. The login is in
-`demo/.run/login.txt`, created on the first start. This starts a separate Home
+Then open <http://localhost:8124/halean-demo>. The login is in `.run/login.txt`
+next to `docker-compose.yml`, created on the first start. This starts a separate Home
 Assistant (2026.10.4) with dummy devices: a motion sensor, two lights, a heater
 and a temperature sensor. HA has **no automations of its own**. All seven in
 [`demo/automations.yaml`](demo/automations.yaml) run in the Lean engine. A

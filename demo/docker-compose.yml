@@ -1,8 +1,8 @@
 # HALean demo: a stock Home Assistant whose automations all run in Lean.
 #
-#   cd demo && docker compose up            # pulls the released image
-#   cd demo && docker compose up --build    # builds the engine from this checkout
-#   open http://localhost:8124/halean-demo  (login details: demo/.run/login.txt)
+#   cd demo && docker compose up -d           # runs the released image
+#   cd demo && docker compose up -d --build   # builds the engine from this checkout
+#   open http://localhost:8124/halean-demo    (login details: .run/login.txt)
 #
 # HALEAN_VERSION picks the image tag (default: latest release).
 #
@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
 
   # The Lean engine + bridge. On first start it also onboards HA and creates
-  # the demo login (demo/.run/login.txt) and an access token.
+  # the demo login (.run/login.txt) and an access token.
   halean:
     build: { context: .., dockerfile: demo/Dockerfile }
     image: ghcr.io/beneficial-ai-foundation/halean:${HALEAN_VERSION:-latest}

@@ -20,8 +20,7 @@ cp "$here/automations.yaml" "$b/"
 # Same compose file as the repo, minus the local build, pinned to $version.
 grep -v '^    build: ' "$here/docker-compose.yml" \
   | sed -e "s/HALEAN_VERSION:-latest/HALEAN_VERSION:-$version/g" \
-        -e '/docker compose up --build/d' \
-        -e 's#cd demo && ##' -e 's#demo/\.run#.run#g' \
+        -e '/--build/d' -e 's#cd demo && ##' \
   > "$b/docker-compose.yml"
 grep -q "halean:\${HALEAN_VERSION:-$version}" "$b/docker-compose.yml"
 if grep -q 'build:' "$b/docker-compose.yml"; then echo "bundle still builds locally" >&2; exit 1; fi
