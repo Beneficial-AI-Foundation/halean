@@ -289,7 +289,8 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
                           else match Template.floatToInt? f with
                             | some i => .ok (some i)
                             | none => .error "cannot convert float infinity to integer"
-            | .str s => .ok (Template.parseIntStr s)
+            | .str s => if Template.numberTextModelled s then .ok (Template.parseIntStr s)
+                        else .error "int() of non-ASCII text is not supported by HALean"
             | v => .error s!"int() argument must be a string or a number, not '{Template.typeName v}'"
           match n? with
           | .ok (some n) => (.next (push (.repeatCount 0 n.toNat body coe) cur), [], ctx)

@@ -9,6 +9,7 @@
 -/
 import HALean.Core.Types
 import HALean.Template.Time
+import HALean.Template.PyInt
 open Lean
 
 namespace HALean.Template
@@ -190,17 +191,14 @@ def parseFloatStr (s : String) : Option Float := do
   if exp < -400 && m < 10 ^ 400 then return (if neg then -0.0 else 0.0)
   return ratToFloat neg m (10 ^ (-exp).toNat)
 
-/-- Python `int(s)` (base 10): whitespace, sign, underscores between digits. -/
-def parseIntStr (s : String) : Option Int := do
-  let s := s.trim
-  let (neg, body) :=
-    if s.startsWith "-" then (true, s.dropS 1)
-    else if s.startsWith "+" then (false, s.dropS 1) else (false, s)
-  if body.isEmpty || body.startsWith "_" || body.endsWith "_" || (body.splitOn "__").length > 1 then none
-  let d := body.replace "_" ""
-  if !d.all Char.isDigit then none
-  let n := d.toNat!
-  return (if neg then -(n : Int) else n)
+/-- Python `int(s)` (base 10): whitespace, sign, underscores between digits.
+Proved against Python's grammar for ASCII text (`parseIntChars_iff`);
+non-ASCII digits and spaces, which Python also accepts, give `none`. -/
+def parseIntStr (s : String) : Option Int := parseIntChars s.toList
+
+/-- Text `int()` / `float()` read the same way in HALean as in Python: ASCII
+only (Python also takes other Unicode digits and spaces). -/
+def numberTextModelled (s : String) : Bool := s.toList.all fun c => decide (c.toNat < 128)
 
 /-- Truncate toward zero (`int(float)`); `none` for inf/nan (OverflowError/ValueError). -/
 def floatToInt? (f : Float) : Option Int :=
