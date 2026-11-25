@@ -1,0 +1,162 @@
+# Hand-written cases, review area 05-service-schemas. Shipped format
+# (tests/core/services/*.yaml). Every service echoes the validated data.
+# `&c` is the first call of a case; `{<<: *c0, data: ...}` repeats it with other data.
+
+- name: hw_coerce_float_text
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: f, value: {coerce: float}}]}}
+    - &c1 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: "1_0.5e1_0"}}
+    - {<<: *c1, data: {f: "+.5e-3"}}
+    - {<<: *c1, data: {f: "5."}}
+    - {<<: *c1, data: {f: "."}}
+    - {<<: *c1, data: {f: "1._5"}}
+    - {<<: *c1, data: {f: "1_.5"}}
+    - {<<: *c1, data: {f: "1e_5"}}
+    - {<<: *c1, data: {f: "1e5_"}}
+    - {<<: *c1, data: {f: "1E+05"}}
+    - {<<: *c1, data: {f: "\t 2.5\r\n"}}
+    - {<<: *c1, data: {f: "- 1"}}
+    - {<<: *c1, data: {f: "+-1"}}
+    - {<<: *c1, data: {f: "-nan"}}
+    - {<<: *c1, data: {f: "+NaN "}}
+    - {<<: *c1, data: {f: "iNfInItY"}}
+    - {<<: *c1, data: {f: "-INF"}}
+    - {<<: *c1, data: {f: "infinit"}}
+    - {<<: *c1, data: {f: "in_f"}}
+    - {<<: *c1, data: {f: "0x1p3"}}
+    - {<<: *c1, data: {f: "1e"}}
+    - {<<: *c1, data: {f: "e5"}}
+    - {<<: *c1, data: {f: "1 e5"}}
+    - {<<: *c1, data: {f: "2.4703282292062327e-324"}}
+    - {<<: *c1, data: {f: "2.4703282292062328e-324"}}
+    - {<<: *c1, data: {f: "1.7976931348623158e308"}}
+    - {<<: *c1, data: {f: "1.7976931348623159e308"}}
+    - {<<: *c1, data: {f: "9007199254740993"}}
+    - {<<: *c1, data: {f: "0.1e1"}}
+    - {<<: *c1, data: {f: "-0"}}
+    - {<<: *c1, data: {f: "1e-400"}}
+    - {<<: *c1, data: {f: "00012.50"}}
+    - {<<: *c1, data: {f: "1\x00"}}
+    - {<<: *c1, data: {f: false}}
+    - {<<: *c1, data: {f: [1.5]}}
+
+- name: hw_coerce_int_text
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: i, value: {coerce: int}}]}}
+    - &c2 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {i: "-0"}}
+    - {<<: *c2, data: {i: "+ 1"}}
+    - {<<: *c2, data: {i: "\n-12\t"}}
+    - {<<: *c2, data: {i: "_1"}}
+    - {<<: *c2, data: {i: "1_"}}
+    - {<<: *c2, data: {i: "1_2_3"}}
+    - {<<: *c2, data: {i: "1e3"}}
+    - {<<: *c2, data: {i: "0b11"}}
+    - {<<: *c2, data: {i: "12a"}}
+    - {<<: *c2, data: {i: "1\x00"}}
+    - {<<: *c2, data: {i: " "}}
+    - {<<: *c2, data: {i: "--1"}}
+    - {<<: *c2, data: {i: 1.0e+22}}
+    - {<<: *c2, data: {i: -0.0}}
+    - {<<: *c2, data: {i: 5.0e-324}}
+    - {<<: *c2, data: {i: -0.9999999999999999}}
+    - {<<: *c2, data: {i: 1.7976931348623157e+308}}
+    - {<<: *c2, data: {i: false}}
+    - {<<: *c2, data: {i: {a: 1}}}
+    - {<<: *c2, data: {i: 123456789012345678901234567890}}
+
+- name: hw_float_type_and_repr
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: f, type: float}, {key: s, value: {coerce: str}}, {key: l, value: {list: [float]}}]}}
+    - &c3 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 1.0e+16, s: 1.0e+16}}
+    - {<<: *c3, data: {f: 9999999999999998.0, s: 9999999999999998.0}}
+    - {<<: *c3, data: {f: 0.0001, s: 0.0001}}
+    - {<<: *c3, data: {f: 0.00001, s: 0.00001}}
+    - {<<: *c3, data: {f: 0.000012345, s: 0.000012345}}
+    - {<<: *c3, data: {f: 5.0e-324, s: 5.0e-324}}
+    - {<<: *c3, data: {f: 1.7976931348623157e+308, s: 1.7976931348623157e+308}}
+    - {<<: *c3, data: {f: -0.0, s: -0.0}}
+    - {<<: *c3, data: {f: 0.30000000000000004, s: 0.1}}
+    - {<<: *c3, data: {f: 123456789012345680.0, s: 1.0e+22}}
+    - {<<: *c3, data: {f: 9007199254740993}}
+    - {<<: *c3, data: {f: 18446744073709551615, s: 18446744073709551615}}
+    - {<<: *c3, data: {f: -1}}
+    - {<<: *c3, data: {f: false}}
+    - {<<: *c3, data: {f: "1.5"}}
+    - {<<: *c3, data: {l: [0, 1.5, -3, 100000000000000000000000]}}
+    - {<<: *c3, data: {l: [1, true]}}
+    - {<<: *c3, data: {s: [1.0e+16, -0.0, null, true, "a'b", {k: 1.0e-7}]}}
+
+- name: hw_range_clamp_numbers
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: big, value: {range: {min: 9007199254740992.0, max: 1.0e+16}}},
+         {key: ex, value: {range: {min: 0.1, max: 0.3, min_included: false, max_included: false}}},
+         {key: inv, value: {range: {min: 5, max: 1}}},
+         {key: onlymax, value: {range: {max: 2.5, max_included: false}}},
+         {key: cl, value: {clamp: {min: 0.5, max: 3}}},
+         {key: clinv, value: {clamp: {min: 5, max: 1}}},
+         {key: clmax, value: {clamp: {max: 1.0e+16}}}]}}
+    - &c4 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {big: 9007199254740992}}
+    - {<<: *c4, data: {big: 9007199254740991}}
+    - {<<: *c4, data: {big: 9007199254740993}}
+    - {<<: *c4, data: {big: 10000000000000001}}
+    - {<<: *c4, data: {big: 10000000000000000}}
+    - {<<: *c4, data: {ex: 0.1}}
+    - {<<: *c4, data: {ex: 0.10000000000000002}}
+    - {<<: *c4, data: {ex: 0.3}}
+    - {<<: *c4, data: {ex: 0.30000000000000004}}
+    - {<<: *c4, data: {ex: true}}
+    - {<<: *c4, data: {inv: 3}}
+    - {<<: *c4, data: {inv: 7}}
+    - {<<: *c4, data: {inv: 0}}
+    - {<<: *c4, data: {onlymax: 2.5}}
+    - {<<: *c4, data: {onlymax: false}}
+    - {<<: *c4, data: {onlymax: {a: 1}}}
+    - {<<: *c4, data: {onlymax: [0]}}
+    - {<<: *c4, data: {onlymax: ""}}
+    - {<<: *c4, data: {cl: false}}
+    - {<<: *c4, data: {cl: true}}
+    - {<<: *c4, data: {cl: 3.0000000000000004}}
+    - {<<: *c4, data: {cl: 0.5}}
+    - {<<: *c4, data: {cl: null}}
+    - {<<: *c4, data: {clinv: 3}}
+    - {<<: *c4, data: {clinv: 7}}
+    - {<<: *c4, data: {clmax: 10000000000000001}}
+    - {<<: *c4, data: {clmax: 10000000000000000}}
+
+- name: hw_port_and_cv_numbers
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: p, value: {port: null}}, {key: by, value: {cv: byte}}, {key: pi, value: {cv: positive_int}},
+                         {key: sf, value: {cv: small_float}}, {key: pf, value: {cv: positive_float}}]}}
+    - &c5 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {p: "8_0"}}
+    - {<<: *c5, data: {p: "+80"}}
+    - {<<: *c5, data: {p: "0080"}}
+    - {<<: *c5, data: {p: "80.0"}}
+    - {<<: *c5, data: {p: 65535.0}}
+    - {<<: *c5, data: {p: 65535.5}}
+    - {<<: *c5, data: {p: 1.0e+300}}
+    - {<<: *c5, data: {p: -0.0}}
+    - {<<: *c5, data: {p: [80]}}
+    - {<<: *c5, data: {p: 18446744073709551616}}
+    - {<<: *c5, data: {by: -0.9}}
+    - {<<: *c5, data: {by: 255.99}}
+    - {<<: *c5, data: {by: "255"}}
+    - {<<: *c5, data: {by: "25_5"}}
+    - {<<: *c5, data: {by: false}}
+    - {<<: *c5, data: {pi: -0.5}}
+    - {<<: *c5, data: {pi: "-0"}}
+    - {<<: *c5, data: {pi: 1.0e+30}}
+    - {<<: *c5, data: {sf: "1e0"}}
+    - {<<: *c5, data: {sf: 1.0000000000000002}}
+    - {<<: *c5, data: {sf: -0.0}}
+    - {<<: *c5, data: {sf: "nan"}}
+    - {<<: *c5, data: {sf: true}}
+    - {<<: *c5, data: {pf: "inf"}}
+    - {<<: *c5, data: {pf: "-inf"}}
+    - {<<: *c5, data: {pf: "-0.0"}}
+    - {<<: *c5, data: {pf: -5.0e-324}}

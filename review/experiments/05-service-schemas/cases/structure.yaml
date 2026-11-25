@@ -1,0 +1,236 @@
+# Hand-written cases: In/NotIn messages, Any selection, sequences, key markers,
+# extra policies, error paths.
+
+- name: hw_in_messages
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: nums, value: {in: [3, 2.5, true, 0, -1, 1.0, false]}},
+         {key: strs, value: {in: [b, B, a, "", " a", "10", "9"]}},
+         {key: nones, value: {in: [null, null]}},
+         {key: mix, value: {in: [1, a, null]}},
+         {key: tie, value: {in: [abcd, abce, abcf, abcg]}},
+         {key: quote, value: {in: ["it's", 'say "hi"', "back\\slash"]}},
+         {key: forty, value: {in: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+                                  25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]}},
+         {key: fortyone, value: {not_in: [z40, z39, z38, z37, z36, z35, z34, z33, z32, z31, z30, z29, z28, z27, z26, z25,
+                                         z24, z23, z22, z21, z20, z19, z18, z17, z16, z15, z14, z13, z12, z11, z10, z09,
+                                         z08, z07, z06, z05, z04, z03, z02, z01, z00]}},
+         {key: notmix, value: {not_in: [1.0, x, false]}}]}}
+    - &c1 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {nums: 7}}
+    - {<<: *c1, data: {nums: "3"}}
+    - {<<: *c1, data: {nums: 2.5000000000000004}}
+    - {<<: *c1, data: {nums: -1.0}}
+    - {<<: *c1, data: {nums: 0.0}}
+    - {<<: *c1, data: {strs: A}}
+    - {<<: *c1, data: {strs: "a "}}
+    - {<<: *c1, data: {strs: 10}}
+    - {<<: *c1, data: {strs: "1"}}
+    - {<<: *c1, data: {nones: 0}}
+    - {<<: *c1, data: {nones: null}}
+    - {<<: *c1, data: {mix: A}}
+    - {<<: *c1, data: {mix: 1.0}}
+    - {<<: *c1, data: {mix: [1]}}
+    - {<<: *c1, data: {tie: abc}}
+    - {<<: *c1, data: {tie: abch}}
+    - {<<: *c1, data: {tie: ab}}
+    - {<<: *c1, data: {tie: ABCD}}
+    - {<<: *c1, data: {tie: 5}}
+    - {<<: *c1, data: {quote: "its"}}
+    - {<<: *c1, data: {quote: "say hi"}}
+    - {<<: *c1, data: {quote: "backslash"}}
+    - {<<: *c1, data: {forty: 40}}
+    - {<<: *c1, data: {forty: "39"}}
+    - {<<: *c1, data: {fortyone: z00}}
+    - {<<: *c1, data: {fortyone: z41}}
+    - {<<: *c1, data: {notmix: 1}}
+    - {<<: *c1, data: {notmix: 0}}
+    - {<<: *c1, data: {notmix: true}}
+    - {<<: *c1, data: {notmix: X}}
+    - {<<: *c1, data: {notmix: "x"}}
+
+- name: hw_in_non_ascii_value
+  # the value is only compared and matched by difflib, never lower-cased:
+  # non-ASCII text is modelled here (printable characters only, see SCH-2)
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: m, value: {in: [cafe, cafes, coffee]}}, {key: l, value: {length: {min: 2, max: 2}}}]}}
+    - &c2 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {m: "café"}}
+    - {<<: *c2, data: {m: "çafe"}}
+    - {<<: *c2, data: {m: "ｃａｆｅ"}}
+    - {<<: *c2, data: {l: "é😀"}}
+    - {<<: *c2, data: {l: "😀"}}
+    - {<<: *c2, data: {l: {"é": 1, "e": 2}}}
+
+- name: hw_any_selection
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: labels, value: {any: [int, {literal: null}, {literal: "x"}, {literal: 1.5}, {literal: true}, timedelta, object]}},
+         {key: labels2, value: {any: [str, {literal: "it's"}, {literal: -0.0}, list, dict, bool]}},
+         {key: tower, value: {any: [bool, float, str]}},
+         {key: tower2, value: {any: [float, int]}},
+         {key: tie, value: {any: [{coerce: int}, {range: {min: 0}}, {length: {min: 9}}]}},
+         {key: deep2, value: {any: [{dict: [{key: a, type: int}]}, {dict: [{key: a, value: {dict: [{key: b, type: int}]}}]}, {coerce: int}]}},
+         {key: deeplist, value: {any: [{list: [int]}, {dict: [{key: a, type: int}]}, {cv: boolean}]}},
+         {key: nested, value: {any: [{any: [int, str]}, {coerce: float}]}},
+         {key: one, value: {any: [{cv: positive_int}]}},
+         {key: allany, value: {all: [{any: [int, str]}, {any: [{coerce: int}, {literal: "x"}]}]}}]}}
+    - &c3 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {labels: [1]}}
+    - {<<: *c3, data: {labels2: 1.5}}
+    - {<<: *c3, data: {labels2: 0}}
+    - {<<: *c3, data: {tower: 1}}
+    - {<<: *c3, data: {tower: true}}
+    - {<<: *c3, data: {tower: null}}
+    - {<<: *c3, data: {tower: [1]}}
+    - {<<: *c3, data: {tower2: 7}}
+    - {<<: *c3, data: {tower2: true}}
+    - {<<: *c3, data: {tower2: "7"}}
+    - {<<: *c3, data: {tie: "abc"}}
+    - {<<: *c3, data: {tie: null}}
+    - {<<: *c3, data: {tie: -1.5}}
+    - {<<: *c3, data: {tie: "-12"}}
+    - {<<: *c3, data: {deep2: {a: {b: "x"}}}}
+    - {<<: *c3, data: {deep2: {a: "x"}}}
+    - {<<: *c3, data: {deep2: {z: 1}}}
+    - {<<: *c3, data: {deep2: []}}
+    - {<<: *c3, data: {deeplist: [1, "x", 2, "y"]}}
+    - {<<: *c3, data: {deeplist: {a: "x"}}}
+    - {<<: *c3, data: {deeplist: "maybe"}}
+    - {<<: *c3, data: {deeplist: []}}
+    - {<<: *c3, data: {nested: [1]}}
+    - {<<: *c3, data: {nested: 2.5}}
+    - {<<: *c3, data: {one: -1}}
+    - {<<: *c3, data: {one: "x"}}
+    - {<<: *c3, data: {allany: "12"}}
+    - {<<: *c3, data: {allany: "y"}}
+    - {<<: *c3, data: {allany: 1.5}}
+
+- name: hw_sequences
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: multi, value: {list: [{dict: [{key: a, type: int, required: true}]}, {coerce: int}, {literal: "x"}]}},
+         {key: lastdict, value: {list: [int, {dict: [{key: a, type: int, required: true}, {key: b, type: str, required: true}]}]}},
+         {key: nested, value: {list: [{list: [{list: [bool]}]}]}},
+         {key: tp, value: {list: [{cv: time_period}]}},
+         {key: ens, value: {all: [{ensure_list: null}, {list: [{cv: entity_id}]}, {length: {min: 1, max: 2}}]}}]}}
+    - &c4 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {multi: [{a: 1}, "7", x, 2.9]}}
+    - {<<: *c4, data: {multi: [y, {a: "z"}, null]}}
+    - {<<: *c4, data: {multi: {a: 1}}}
+    - {<<: *c4, data: {lastdict: [1.5]}}
+    - {<<: *c4, data: {lastdict: [{c: 1}, 2, {a: 1}]}}
+    - {<<: *c4, data: {nested: [[[true], []], [], [[false, 1]], [[], [null, true, "x"]]]}}
+    - {<<: *c4, data: {nested: [[true]]}}
+    - {<<: *c4, data: {tp: ["0:01", 90, {minutes: 1.5}, "x", {hours: "y"}, null]}}
+    - {<<: *c4, data: {ens: "Light.A"}}
+    - {<<: *c4, data: {ens: null}}
+    - {<<: *c4, data: {ens: [light.a, light.b, light.c]}}
+    - {<<: *c4, data: {ens: [light.a, "bad id", light.c, 5]}}
+
+- name: hw_markers_groups_defaults
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: z_req, type: int, required: true},
+         {key: a_def, value: {coerce: int}, default: "42"},
+         {key: bad_def, value: {coerce: int}, required: true, default: "x"},
+         {key: none_def, type: object, default: null},
+         {key: list_def, value: {list: [{coerce: float}]}, default: [1, "2"]},
+         {key: e1, type: int, exclusive: color},
+         {key: e2, type: int, exclusive: color, default: 7},
+         {key: e3, value: {coerce: int}, exclusive: color, default: "9"},
+         {key: r1, type: str, exclusive: "odd group", group_required: false},
+         {key: r2, type: str, exclusive: "odd group", group_required: true},
+         {key: i1, type: int, inclusive: both},
+         {key: i2, type: int, inclusive: both, default: 5},
+         {key: j1, type: int, inclusive: "x.y"},
+         {key: j2, type: int, inclusive: "x.y"}]}}
+    - &c5 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {}}
+    - {<<: *c5, data: {r1: a, z_req: 1, bad_def: 2}}
+    - {<<: *c5, data: {r2: a, r1: b, z_req: 1, bad_def: 2}}
+    - {<<: *c5, data: {e3: 1, r2: a, z_req: 1, bad_def: 2, a_def: 3.9}}
+    - {<<: *c5, data: {e1: 1, e2: 2, e3: "3", r2: a, z_req: 1, bad_def: 2}}
+    - {<<: *c5, data: {e1: "bad", r2: a, z_req: 1, bad_def: 2}}
+    - {<<: *c5, data: {i1: 1, r2: a, z_req: 1, bad_def: 2}}
+    - {<<: *c5, data: {i2: 1, r2: a, z_req: 1, bad_def: 2}}
+    - {<<: *c5, data: {i2: 1, i1: 2, j2: 3, r2: a, z_req: 1, bad_def: 2}}
+    - {<<: *c5, data: {j1: "bad", j2: 3, r2: a, z_req: 1, bad_def: 2, none_def: 0, list_def: []}}
+    - {<<: *c5, data: {bad_def: 0, extra_key: 1, z_reg: 2, i1: x, j1: 1, e1: 1, e2: 2}}
+    - {<<: *c5, data: {list_def: ["x"], bad_def: "1", z_req: true, r1: "", a_def: null}}
+
+- name: hw_group_default_invalid
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: a, type: int, exclusive: g, default: "not an int", group_required: true},
+         {key: b, type: int, exclusive: g, default: 2},
+         {key: c, type: int, exclusive: h},
+         {key: d, type: int, exclusive: h, group_required: true}]}}
+    - &c6 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {}}
+    - {<<: *c6, data: {b: 1}}
+    - {<<: *c6, data: {b: 1, c: 1}}
+    - {<<: *c6, data: {a: 1, b: 1, c: 1, d: 1}}
+    - {<<: *c6, data: {a: x, d: y}}
+
+- name: hw_extra_policies
+  ops:
+    - {op: register, domain: hw, service: allow, handler: {echo: true}, supports_response: only,
+       schema: {extra: allow, fields: [
+         {key: tpd, value: {cv: time_period_dict}},
+         {key: deep, value: {list: [{any: [{all: [{dict: [{key: a, type: int}]}]}, str]}]}},
+         {key: d, value: {dict: [{key: req, type: int, required: true}, {key: dd, type: int, default: 1}]}}]}}
+    - {op: register, domain: hw, service: remove, handler: {echo: true}, supports_response: only,
+       schema: {extra: remove, fields: [
+         {key: tpd, value: {cv: time_period_dict}},
+         {key: deep, value: {list: [{any: [{all: [{dict: [{key: a, type: int}]}]}, str]}]}},
+         {key: d, value: {dict: [{key: req, type: int, required: true}, {key: dd, type: int, default: 1}]}}]}}
+    - {op: register, domain: hw, service: prevent, handler: {echo: true}, supports_response: only,
+       schema: {extra: prevent, fields: [
+         {key: deep, value: {list: [{any: [{all: [{dict: [{key: a, type: int}]}]}, str]}]}}]}}
+    - {op: call, domain: hw, service: allow, blocking: true, return_response: true,
+       data: {zz: 1, deep: [{a: 1, b: 2}, "s", {q: null}], d: {x: 1, req: 2}, aa: [1], tpd: {hours: 1}}}
+    - {op: call, domain: hw, service: remove, blocking: true, return_response: true,
+       data: {zz: 1, deep: [{a: 1, b: 2}, "s", {q: null}], d: {x: 1, req: 2}, aa: [1], tpd: {hours: 1}}}
+    - {op: call, domain: hw, service: prevent, blocking: true, return_response: true,
+       data: {deep: [{a: 1, b: 2}, "s", {q: null}]}}
+    - {op: call, domain: hw, service: allow, blocking: true, return_response: true, data: {tpd: {hours: 1, weeks: 2}}}
+    - {op: call, domain: hw, service: remove, blocking: true, return_response: true, data: {tpd: {hours: 1, weeks: 2}}}
+    - {op: call, domain: hw, service: allow, blocking: true, return_response: true, data: {d: {x: 1}, deep: [{a: "x", b: 2}]}}
+    - {op: call, domain: hw, service: remove, blocking: true, return_response: true, data: {d: {x: 1}, deep: [{a: "x", b: 2}]}}
+    - {op: call, domain: hw, service: remove, blocking: true, return_response: true, data: {only_extra: 1}}
+    - {op: call, domain: hw, service: allow, blocking: true, return_response: true, data: {"": 1, " ": 2, "a b": 3}}
+
+- name: hw_error_paths
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: n, value: {dict: [{key: "with-dash", type: int}, {key: "_u", type: int}, {key: "9x", type: int},
+                                 {key: "<tag>", type: int}, {key: "a'b", type: int}, {key: "", type: int},
+                                 {key: "tab\tkey", type: int}, {key: "dq\"k", type: int},
+                                 {key: rows, value: {list: [{list: [{dict: [{key: "k k", type: int}]}]}]}}]}},
+         {key: g1, type: int, exclusive: "<grp>"},
+         {key: g2, type: int, exclusive: "<grp>"},
+         {key: h1, type: int, inclusive: "9grp"},
+         {key: h2, type: int, inclusive: "9grp"}]}}
+    - &c8 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {n: {"with-dash": x}}}
+    - {<<: *c8, data: {n: {"_u": x}}}
+    - {<<: *c8, data: {n: {"9x": x}}}
+    - {<<: *c8, data: {n: {"<tag>": x}}}
+    - {<<: *c8, data: {n: {"a'b": x}}}
+    - {<<: *c8, data: {n: {"": x}}}
+    - {<<: *c8, data: {n: {"tab\tkey": x}}}
+    - {<<: *c8, data: {n: {"dq\"k": x}}}
+    - {<<: *c8, data: {n: {rows: [[], [{}, {"k k": 1}], [{"k k": 1}, {"k k": "x"}]]}}}
+    - {<<: *c8, data: {n: {rows: [[{"k'k\"": 1}]]}}}
+    - {<<: *c8, data: {n: {"-lead": 1}}}
+    - {<<: *c8, data: {n: {"trail-": 1}}}
+    - {<<: *c8, data: {n: {"<>": 1}}}
+    - {<<: *c8, data: {n: {"<a.b>": 1}}}
+    - {<<: *c8, data: {n: {"<<tag>>": 1}}}
+    - {<<: *c8, data: {n: {"new\nline": 1}}}
+    - {<<: *c8, data: {n: {"a\\b": 1}}}
+    - {<<: *c8, data: {g1: 1, g2: 2}}
+    - {<<: *c8, data: {h1: 1}}
+    - {<<: *c8, data: {"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": 1}}
+    - {<<: *c8, data: {"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy": 1}}

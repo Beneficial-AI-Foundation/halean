@@ -1,0 +1,35 @@
+# README "Known gaps and deviations" (lines 670-681): engine-only observations.
+automations:
+  - id: float_data            # line 670: 20.0 arrives as 20
+    triggers: [{trigger: event, event_type: e_float}]
+    actions: [{action: climate.set_temperature, data: {temperature: 20.0, other: 20.5}}]
+  - id: short_delay           # line 675: a 0.7 s delay lasts about 1 s
+    triggers: [{trigger: event, event_type: e_delay}]
+    actions: [{delay: {milliseconds: 700}}, {event: delay_done}]
+  - id: remaining             # line 678: wait.remaining after a woken wait with timeout is a render error
+    triggers: [{trigger: event, event_type: e_wait}]
+    actions:
+      - {wait_template: "{{ is_state('input_boolean.x', 'on') }}", timeout: 10}
+      - {event: woken, event_data: {completed: "{{ wait.completed }}"}}
+      - {event: remaining, event_data: {r: "{{ wait.remaining }}"}}
+  - id: remaining_timeout     # line 681: after a timeout it is 0.0
+    triggers: [{trigger: event, event_type: e_wait2}]
+    actions:
+      - {wait_template: "{{ is_state('input_boolean.y', 'on') }}", timeout: 2}
+      - {event: timed_out, event_data: {r: "{{ wait.remaining }}"}}
+  - id: pattern               # line 676: catch-up is limited to one day
+    triggers: [{trigger: time_pattern, hours: "/1"}]
+    actions: [{event: hourly}]
+states: [{entity_id: input_boolean.x, state: "off"}, {entity_id: input_boolean.y, state: "off"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e_float}}
+  - {at: 2, send: {type: event, event_type: e_delay}}
+  - {at: 2.5, send: {type: tick}}
+  - {at: 2.8, send: {type: tick}}
+  - {at: 3, send: {type: tick}}
+  - {at: 4, send: {type: event, event_type: e_wait}}
+  - {at: 5, set: [input_boolean.x, "on"]}
+  - {at: 6, send: {type: event, event_type: e_wait2}}
+  - {at: 9, send: {type: tick}}
+  - {at: 10, send: {type: tick}}
+  - {at: 259210, send: {type: tick}}     # three days later in one tick

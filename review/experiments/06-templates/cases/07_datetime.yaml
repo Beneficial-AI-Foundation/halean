@@ -1,0 +1,257 @@
+# Dates and times. Default clock: 2026-11-20 16:30:45.123 UTC, zone US/Pacific (PST, -08:00).
+- {name: dt_timestamp_custom_default_format, template: "{{ 1700000000 | timestamp_custom }}"}
+- {name: dt_timestamp_utc_as_global, template: "{{ timestamp_utc(0) }}"}
+- {name: dt_timestamp_local_as_global, template: "{{ timestamp_local(0) }}"}
+- {name: dt_timestamp_custom_as_global, template: "{{ timestamp_custom(0, '%Y') }}"}
+- {name: dt_timestamp_utc_str_input, template: "{{ '1700000000' | timestamp_utc('d') }}"}
+- {name: dt_timestamp_utc_bool, template: "{{ true | timestamp_utc }}"}
+- {name: dt_timestamp_utc_nan_default, template: "{{ ('nan' | float) | timestamp_utc('d') }}"}
+- {name: dt_timestamp_utc_inf_default, template: "{{ ('inf' | float) | timestamp_utc('d') }}"}
+- {name: dt_timestamp_utc_1e20_default, template: "{{ 1e20 | timestamp_utc('d') }}"}
+- {name: dt_timestamp_utc_1e12_default, template: "{{ 1e12 | timestamp_utc('d') }}"}
+- {name: dt_timestamp_utc_negative, template: "{{ -1.5 | timestamp_utc }}"}
+- {name: dt_timestamp_utc_half_even_micro, template: "{{ 0.0000005 | timestamp_utc }} {{ 0.0000015 | timestamp_utc }}"}
+- {name: dt_timestamp_utc_none, template: "{{ none | timestamp_utc }}"}
+- {name: dt_timestamp_custom_not_local_str, template: "{{ 1700000000 | timestamp_custom('%H', 'false') }}"}
+- {name: dt_timestamp_custom_kw, template: "{{ 1700000000 | timestamp_custom(local=false, date_format='%H:%M') }}"}
+- {name: dt_timestamp_local_summer, template: "{{ 1782907200 | timestamp_local }}"}
+- {name: dt_timestamp_custom_summer, template: "{{ 1782907200 | timestamp_custom('%H:%M %z') }}"}
+- {name: dt_as_local_summer, template: "{{ as_datetime('2026-07-01T12:00:00+00:00') | as_local }}"}
+- {name: dt_as_local_naive_summer, template: "{{ as_datetime('2026-07-01 12:00:00') | as_local }}"}
+- {name: dt_as_local_naive_winter, template: "{{ as_datetime('2026-12-01 12:00:00') | as_local }}"}
+- {name: dt_add_days_across_dst, template: "{{ now() + timedelta(days=200) }}"}
+- {name: dt_sub_days_across_dst, template: "{{ now() - timedelta(days=60) }}"}
+- {name: dt_replace_month_summer, template: "{{ now().replace(month=7) }}"}
+- {name: dt_same_zone_wall_subtraction, template: "{{ (now() - as_local(as_datetime('2026-07-01T12:00:00+00:00'))).total_seconds() }}"}
+- {name: dt_now_summer_offset, template: "{{ now().isoformat() }}", now: "2026-07-01T12:00:00+00:00"}
+- {name: dt_today_at_dst_start_day_before_gap, template: "{{ today_at('03:00') }}", now: "2026-03-08T09:30:00+00:00"}
+- {name: dt_today_at_dst_start_day_after_gap, template: "{{ today_at('01:00') }}", now: "2026-03-08T18:00:00+00:00"}
+- {name: dt_today_at_dst_end_day, template: "{{ today_at('12:00') }}", now: "2026-11-01T07:30:00+00:00"}
+- {name: dt_today_at_midnight_dst_start_day, template: "{{ today_at() }}", now: "2026-03-08T18:00:00+00:00"}
+- {name: dt_now_just_before_dst_start, template: "{{ now() }}", now: "2026-03-08T09:59:59.999000+00:00"}
+- {name: dt_now_just_after_dst_start, template: "{{ now() }}", now: "2026-03-08T10:00:00+00:00"}
+- {name: dt_now_dst_end_fold, template: "{{ now() }}", now: "2026-11-01T09:30:00+00:00"}
+- {name: dt_now_ms_999, template: "{{ now() }}", now: "2026-01-01T07:59:59.999000+00:00"}
+- {name: dt_now_ms_001, template: "{{ utcnow().microsecond }}", now: "2026-01-01T08:00:00.001000+00:00"}
+- {name: dt_now_whole_second, template: "{{ now() }}", now: "2026-01-01T08:00:00+00:00"}
+- {name: dt_now_year_boundary_local, template: "{{ now().year }} {{ utcnow().year }}", now: "2027-01-01T03:00:00+00:00"}
+- {name: dt_now_leap_day, template: "{{ now().strftime('%j %a') }}", now: "2028-02-29T20:00:00+00:00"}
+- {name: dt_as_datetime_date_only, template: "{{ as_datetime('2026-11-20') }}"}
+- {name: dt_as_datetime_compact, template: "{{ as_datetime('20261120T100000') }}"}
+- {name: dt_as_datetime_hour_24, template: "{{ as_datetime('2026-11-20T24:00:00') }}"}
+- {name: dt_as_datetime_lower_z, template: "{{ as_datetime('2026-11-20T10:00:00z') }}"}
+- {name: dt_as_datetime_7_frac_digits, template: "{{ as_datetime('2026-11-20T10:00:00.1234567') }}"}
+- {name: dt_as_datetime_comma_frac, template: "{{ as_datetime('2026-11-20T10:00:00,5') }}"}
+- {name: dt_as_datetime_single_digits, template: "{{ as_datetime('2026-1-2 3:04') }}"}
+- {name: dt_as_datetime_offset_no_colon, template: "{{ as_datetime('2026-11-20T10:00:00+0530') }}"}
+- {name: dt_as_datetime_offset_hours_only, template: "{{ as_datetime('2026-11-20T10:00:00-08') }}"}
+- {name: dt_as_datetime_second_60, template: "{{ as_datetime('2026-11-20T10:00:60') }}"}
+- {name: dt_as_datetime_leading_space, template: "{{ as_datetime(' 2026-11-20 10:00:00') }}"}
+- {name: dt_as_datetime_trailing_text, template: "{{ as_datetime('2026-11-20 10:00:00 UTC') }}"}
+- {name: dt_as_datetime_nan_string, template: "{{ as_datetime('nan') }}"}
+- {name: dt_as_datetime_inf_string, template: "{{ as_datetime('inf') }}"}
+- {name: dt_as_datetime_year_string, template: "{{ as_datetime('2026') }}"}
+- {name: dt_as_datetime_bool, template: "{{ as_datetime(true) }}"}
+- {name: dt_as_datetime_none, template: "{{ as_datetime(none) }}"}
+- {name: dt_as_datetime_none_default, template: "{{ as_datetime(none, 'd') }}"}
+- {name: dt_as_datetime_list, template: "{{ as_datetime([1]) }}"}
+- {name: dt_as_datetime_1e20_default, template: "{{ as_datetime(1e20, 'd') }}"}
+- {name: dt_as_datetime_negative, template: "{{ as_datetime(-86400.5) }}"}
+- {name: dt_as_datetime_passthrough, template: "{{ as_datetime(now()) == now() }}"}
+- {name: dt_as_datetime_words, template: "{{ as_datetime('Today at 5') }}"}
+- {name: dt_as_timestamp_int_default, template: "{{ as_timestamp(1700000000, 'd') }}"}
+- {name: dt_as_timestamp_date_only_default, template: "{{ as_timestamp('2026-11-20', 'd') is number }}"}
+- {name: dt_as_timestamp_naive, template: "{{ as_timestamp('2026-11-20 10:00:00') is number }}"}
+- {name: dt_as_timestamp_none_default, template: "{{ as_timestamp(none, 'd') }}"}
+- {name: dt_as_timestamp_micro, template: "{{ as_timestamp('2026-11-20T10:00:00.123456+00:00') }}"}
+- {name: dt_as_timestamp_state_obj_attr, template: "{{ as_timestamp(states.sensor.t.last_changed) }}", states: [{entity_id: sensor.t, state: "1"}]}
+- {name: dt_as_local_str, template: "{{ as_local('2026-11-20') }}"}
+- {name: dt_today_at_nonstr, template: "{{ today_at(5) }}"}
+- {name: dt_today_at_seconds, template: "{{ today_at('07:30:15') }}"}
+- {name: dt_today_at_extra_parts, template: "{{ today_at('07:30:15:99') }}"}
+- {name: dt_today_at_spaces, template: "{{ today_at(' 7 : 5 ') }}"}
+- {name: dt_today_at_one_part, template: "{{ today_at('7') }}"}
+- {name: dt_today_at_none, template: "{{ today_at(none) }}"}
+- {name: dt_strftime_c, template: "{{ now().strftime('%c') }}"}
+- {name: dt_strftime_x, template: "{{ now().strftime('%x %X') }}"}
+- {name: dt_strftime_G_V, template: "{{ now().strftime('%G-W%V') }}"}
+- {name: dt_strftime_U_W, template: "{{ now().strftime('%U %W') }}"}
+- {name: dt_strftime_s, template: "{{ utcnow().strftime('%C %g') }}"}
+- {name: dt_strftime_k_l_P, template: "{{ now().strftime('%k|%l|%P') }}"}
+- {name: dt_strftime_r, template: "{{ now().strftime('%r') }}"}
+- {name: dt_strftime_underscore_flag, template: "{{ now().strftime('%_d') }}"}
+- {name: dt_strftime_caret_flag, template: "{{ now().strftime('%^a') }}"}
+- {name: dt_strftime_width, template: "{{ now().strftime('%5d') }}"}
+- {name: dt_strftime_colon_z, template: "{{ now().strftime('%:z') }}"}
+- {name: dt_strftime_trailing_percent, template: "{{ now().strftime('100%') }}"}
+- {name: dt_strftime_minus_variants, template: "{{ now().strftime('%-m/%-d/%-y %-I:%-M:%-S %-j') }}", now: "2026-01-02T11:04:05+00:00"}
+- {name: dt_strftime_small_year, template: "{{ as_datetime('0999-01-02 03:04:05').strftime('%Y|%y|%F|%D') }}"}
+- {name: dt_strftime_naive_z, template: "{{ as_datetime('2026-01-02 03:04:05').strftime('[%z][%Z]') }}"}
+- {name: dt_strftime_noon_midnight, template: "{{ today_at('00:00').strftime('%I %p') }} {{ today_at('12:00').strftime('%I %p') }}"}
+- {name: dt_strftime_nonascii_literal, template: "{{ now().strftime('%H時%M分') }}"}
+- {name: dt_strftime_no_args, template: "{{ now().strftime() }}"}
+- {name: dt_strftime_e_padding, template: "{{ as_datetime('2026-01-02 03:04:05').strftime('[%e][%-e]') }}"}
+- {name: dt_attr_date, template: "{{ now().date() }}"}
+- {name: dt_attr_time, template: "{{ now().time() }}"}
+- {name: dt_attr_isocalendar, template: "{{ now().isocalendar()[1] }}"}
+- {name: dt_attr_astimezone, template: "{{ utcnow().astimezone() is datetime }}"}
+- {name: dt_attr_utcoffset, template: "{{ now().utcoffset() }}"}
+- {name: dt_attr_fold, template: "{{ now().fold }}"}
+- {name: dt_attr_unknown, template: "{{ now().nope is defined }}"}
+- {name: dt_isoformat_timespec, template: "{{ now().isoformat(timespec='seconds') }}"}
+- {name: dt_isoformat_sep_kw, template: "{{ now().isoformat(sep='_') }}"}
+- {name: dt_isoformat_long_sep, template: "{{ now().isoformat('ab') }}"}
+- {name: dt_replace_tzinfo_none, template: "{{ now().replace(tzinfo=none) }}"}
+- {name: dt_replace_invalid_day, template: "{{ now().replace(month=2, day=30) }}"}
+- {name: dt_replace_float, template: "{{ now().replace(hour=1.0) }}"}
+- {name: dt_replace_bool, template: "{{ now().replace(hour=true) }}"}
+- {name: dt_replace_positional, template: "{{ now().replace(2020) }}"}
+- {name: dt_replace_year_zero, template: "{{ now().replace(year=0) }}"}
+- {name: dt_in_list_repr, template: "{{ [utcnow()] | string | length }}"}
+- {name: dt_naive_print, template: "{{ strptime('2026-01-02', '%Y-%m-%d') }}"}
+- {name: dt_naive_eq_aware, template: "{{ strptime('2026-01-02', '%Y-%m-%d') == now() }}"}
+- {name: dt_naive_lt_aware, template: "{{ strptime('2026-01-02', '%Y-%m-%d') < now() }}"}
+- {name: dt_naive_minus_aware, template: "{{ strptime('2026-01-02', '%Y-%m-%d') - now() }}"}
+- {name: dt_naive_timestamp, template: "{{ strptime('2026-01-02', '%Y-%m-%d').timestamp() is number }}"}
+- {name: dt_eq_str, template: "{{ now() == '2026' }}"}
+- {name: dt_add_datetime, template: "{{ now() + now() }}"}
+- {name: dt_sub_int, template: "{{ now() - 1 }}"}
+- {name: dt_overflow_add, template: "{{ now() + timedelta(days=3000000) }}"}
+- {name: dt_min_max_filter, template: "{{ [now(), utcnow() - timedelta(hours=1)] | min == utcnow() - timedelta(hours=1) }}"}
+- {name: dt_sort_datetimes, template: "{{ [today_at('10:00'), today_at('09:00')] | sort | map(attribute='hour') | list }}"}
+- {name: dt_unique_datetimes, template: "{{ [now(), utcnow()] | unique | list | length }}"}
+- {name: dt_utc_eq_local, template: "{{ now() == utcnow() }}"}
+- {name: td_str_negative, template: "{{ timedelta(seconds=-1) }}"}
+- {name: td_str_neg_days_micro, template: "{{ timedelta(days=-2, microseconds=1) }}"}
+- {name: td_str_one_day, template: "{{ timedelta(days=1) }}"}
+- {name: td_str_big, template: "{{ timedelta(days=999999999, hours=23) }}"}
+- {name: td_overflow, template: "{{ timedelta(days=1000000000) }}"}
+- {name: td_overflow_mul, template: "{{ timedelta(days=999999999) * 2 }}"}
+- {name: td_positional, template: "{{ timedelta(1, 2, 3, 4, 5, 6, 7) }}"}
+- {name: td_too_many_positional, template: "{{ timedelta(1, 2, 3, 4, 5, 6, 7, 8) }}"}
+- {name: td_str_arg, template: "{{ timedelta('1') }}"}
+- {name: td_none_arg, template: "{{ timedelta(days=none) }}"}
+- {name: td_nan_arg, template: "{{ timedelta(seconds='nan' | float) }}"}
+- {name: td_inf_arg, template: "{{ timedelta(seconds='inf' | float) }}"}
+- {name: td_float_days, template: "{{ timedelta(days=0.1) }}"}
+- {name: td_float_micro_half_even, template: "{{ timedelta(microseconds=0.5) }}|{{ timedelta(microseconds=1.5) }}|{{ timedelta(microseconds=2.5) }}"}
+- {name: td_float_mixed_leftover, template: "{{ timedelta(seconds=0.0000004, milliseconds=0.0004) }}"}
+- {name: td_bool_arg, template: "{{ timedelta(hours=true) }}"}
+- {name: td_unknown_kw, template: "{{ timedelta(years=1) }}"}
+- {name: td_attrs, template: "{{ timedelta(days=-1, seconds=5).days }} {{ timedelta(days=-1, seconds=5).seconds }} {{ timedelta(milliseconds=-1).microseconds }}"}
+- {name: td_total_seconds_neg, template: "{{ timedelta(microseconds=-1).total_seconds() }}"}
+- {name: td_attr_unknown, template: "{{ timedelta(1).nope is defined }}"}
+- {name: td_mul_float_round, template: "{{ timedelta(microseconds=1) * 0.5 }}|{{ timedelta(microseconds=3) * 0.5 }}"}
+- {name: td_div_int_round, template: "{{ timedelta(microseconds=5) / 2 }}|{{ timedelta(microseconds=7) / 2 }}"}
+- {name: td_floordiv_neg, template: "{{ timedelta(seconds=-7) // 2 }}"}
+- {name: td_floordiv_bool, template: "{{ timedelta(seconds=7) // true }}"}
+- {name: td_floordiv_float, template: "{{ timedelta(seconds=7) // 2.0 }}"}
+- {name: td_mod_neg, template: "{{ timedelta(seconds=-7) % timedelta(seconds=3) }}"}
+- {name: td_mul_td, template: "{{ timedelta(1) * timedelta(1) }}"}
+- {name: td_div_zero, template: "{{ timedelta(1) / 0 }}"}
+- {name: td_div_float_zero, template: "{{ timedelta(1) / 0.0 }}"}
+- {name: td_mul_nan, template: "{{ timedelta(1) * ('nan' | float) }}"}
+- {name: td_cmp_int, template: "{{ timedelta(1) < 5 }}"}
+- {name: td_eq_int, template: "{{ timedelta(0) == 0 }}"}
+- {name: td_repr_in_list, template: "{{ [timedelta(days=-1, microseconds=5)] }}"}
+- {name: td_int_mul, template: "{{ 3 * timedelta(minutes=1) }}"}
+- {name: td_sub_datetime, template: "{{ timedelta(1) - now() }}"}
+- {name: td_string_filter, template: "{{ timedelta(hours=1, minutes=30) | string }}"}
+- {name: td_divmod_td_float_result, template: "{{ timedelta(seconds=1) / timedelta(seconds=3) }}"}
+- {name: astd_hms, template: "{{ as_timedelta('1:02:03') }}"}
+- {name: astd_days, template: "{{ as_timedelta('3 days, 4:05:06') }}"}
+- {name: astd_neg_days, template: "{{ as_timedelta('-1 day, 0:00:01') }}"}
+- {name: astd_seconds_only, template: "{{ as_timedelta('90') }}"}
+- {name: astd_fraction, template: "{{ as_timedelta('1.5') }}"}
+- {name: astd_comma_fraction, template: "{{ as_timedelta('0:00:01,250') }}"}
+- {name: astd_negative_time, template: "{{ as_timedelta('-0:30') }}"}
+- {name: astd_iso, template: "{{ as_timedelta('P1DT2H3M4.5S') }}"}
+- {name: astd_iso_negative, template: "{{ as_timedelta('-PT90M') }}"}
+- {name: astd_iso_fraction_days, template: "{{ as_timedelta('P1.5D') }}"}
+- {name: astd_postgres, template: "{{ as_timedelta('3 days 04:05:06') }}"}
+- {name: astd_postgres_neg, template: "{{ as_timedelta('1 day -01:00:00') }}"}
+- {name: astd_garbage, template: "{{ as_timedelta('nope') is none }}"}
+- {name: astd_empty, template: "{{ as_timedelta('') }}"}
+- {name: astd_trailing_newline, template: "{{ as_timedelta('90\\n') }}"}
+- {name: astd_int_arg, template: "{{ as_timedelta(90) }}"}
+- {name: astd_many_frac_digits, template: "{{ as_timedelta('1.1234567890123') }}"}
+- {name: astd_big_hours, template: "{{ as_timedelta('100:00:00') }}"}
+- {name: astd_iso_lowercase, template: "{{ as_timedelta('pt1h') is none }}"}
+- {name: astd_filter, template: "{{ '0:05' | as_timedelta }}"}
+- {name: sp_basic, template: "{{ strptime('2026-11-20 10:11:12', '%Y-%m-%d %H:%M:%S') }}"}
+- {name: sp_tz, template: "{{ strptime('2026-11-20 10:11:12 +0530', '%Y-%m-%d %H:%M:%S %z') }}"}
+- {name: sp_tz_z, template: "{{ strptime('2026-11-20T10:11:12Z', '%Y-%m-%dT%H:%M:%S%z') }}"}
+- {name: sp_tz_colon_seconds, template: "{{ strptime('+01:02:03', '%z').isoformat() }}"}
+- {name: sp_no_year, template: "{{ strptime('02-29', '%m-%d') }}"}
+- {name: sp_y2, template: "{{ strptime('68 69', '%y %y') }}"}
+- {name: sp_y2_69, template: "{{ strptime('69', '%y').year }} {{ strptime('68', '%y').year }}"}
+- {name: sp_ampm, template: "{{ strptime('12 AM', '%I %p').hour }} {{ strptime('12 pm', '%I %p').hour }} {{ strptime('1 PM', '%I %p').hour }}"}
+- {name: sp_names, template: "{{ strptime('Friday 20 November 2026', '%A %d %B %Y') }}"}
+- {name: sp_names_case, template: "{{ strptime('FRI nov 20 2026', '%a %b %d %Y') }}"}
+- {name: sp_julian, template: "{{ strptime('2026 324', '%Y %j') }}"}
+- {name: sp_week_U, template: "{{ strptime('2026 46 5', '%Y %U %w') }}"}
+- {name: sp_week_W, template: "{{ strptime('2026 0 1', '%Y %W %w') }}"}
+- {name: sp_iso_week, template: "{{ strptime('2026 47 5', '%G %V %u') }}"}
+- {name: sp_iso_week_53, template: "{{ strptime('2026 53 7', '%G %V %u') }}"}
+- {name: sp_iso_without_weekday, template: "{{ strptime('2026 47', '%G %V', 'd') }}"}
+- {name: sp_fraction, template: "{{ strptime('1.5', '%S.%f').microsecond }}"}
+- {name: sp_second_61, template: "{{ strptime('61', '%S', 'd') }}"}
+- {name: sp_unconverted, template: "{{ strptime('2026x', '%Y', 'd') }}"}
+- {name: sp_mismatch_no_default, template: "{{ strptime('x', '%Y') }}"}
+- {name: sp_bad_directive, template: "{{ strptime('x', '%Q', 'd') }}"}
+- {name: sp_stray_percent, template: "{{ strptime('x', '%', 'd') }}"}
+- {name: sp_whitespace_flex, template: "{{ strptime('2026   11', '%Y %m').month }}"}
+- {name: sp_literal_case_insensitive, template: "{{ strptime('2026t11', '%YT%m').month }}"}
+- {name: sp_percent_literal, template: "{{ strptime('5%', '%d%%').day }}"}
+- {name: sp_T_directive, template: "{{ strptime('10:11:12', '%T', 'd') }}"}
+- {name: sp_F_directive, template: "{{ strptime('2026-11-20', '%F', 'd') }}"}
+- {name: sp_D_directive, template: "{{ strptime('11/20/26', '%D', 'd') }}"}
+- {name: sp_e_directive, template: "{{ strptime(' 5', '%e', 'd') }}"}
+- {name: sp_n_t_directives, template: "{{ strptime('5 6', '%d%n%m', 'd') }}"}
+- {name: sp_c_directive, template: "{{ strptime('Fri Nov 20 10:11:12 2026', '%c') }}", expect_error_in_halean_only: true}
+- {name: sp_Z_directive, template: "{{ strptime('UTC', '%Z') }}", expect_error_in_halean_only: true}
+- {name: sp_dup_directive, template: "{{ strptime('1 2', '%d %d', 'd') }}"}
+- {name: sp_nonstr_data, template: "{{ strptime(5, '%Y', 'd') }}"}
+- {name: sp_nonstr_fmt, template: "{{ strptime('5', none, 'd') }}"}
+- {name: sp_day_out_of_range, template: "{{ strptime('2026-02-30', '%Y-%m-%d', 'd') }}"}
+- {name: sp_leap_feb29_no_year, template: "{{ strptime('Feb 29', '%b %d').year }}"}
+- {name: sp_as_filter, template: "{{ '2026' | strptime('%Y') }}", unsupported: true}
+- {name: sp_hour_single_digit, template: "{{ strptime('7:5', '%H:%M').isoformat() }}"}
+- {name: sp_flags_in_directive, template: "{{ strptime('7', '%-d', 'd') }}"}
+- {name: rel_seconds, template: "{{ relative_time(now() - timedelta(seconds=5)) }}"}
+- {name: rel_zero, template: "{{ relative_time(now()) }}"}
+- {name: rel_future, template: "{{ relative_time(now() + timedelta(hours=1)) is datetime }}"}
+- {name: rel_59_5_seconds, template: "{{ relative_time(now() - timedelta(seconds=59, milliseconds=500)) }}"}
+- {name: rel_90_seconds, template: "{{ relative_time(now() - timedelta(seconds=90)) }}"}
+- {name: rel_150_seconds, template: "{{ relative_time(now() - timedelta(seconds=150)) }}"}
+- {name: rel_59_min_30, template: "{{ relative_time(now() - timedelta(minutes=59, seconds=30)) }}"}
+- {name: rel_23_5_hours, template: "{{ relative_time(now() - timedelta(hours=23, minutes=30)) }}"}
+- {name: rel_29_days, template: "{{ relative_time(utcnow() - timedelta(days=29, hours=13)) }}"}
+- {name: rel_45_days, template: "{{ relative_time(utcnow() - timedelta(days=45)) }}"}
+- {name: rel_364_days, template: "{{ relative_time(utcnow() - timedelta(days=364)) }}"}
+- {name: rel_548_days, template: "{{ relative_time(utcnow() - timedelta(days=548)) }}"}
+- {name: rel_non_datetime, template: "{{ relative_time('x') }}"}
+- {name: rel_naive, template: "{{ relative_time(strptime('2026-11-20 08:00:00', '%Y-%m-%d %H:%M:%S')) }}"}
+- {name: rel_half_second_rounding, template: "{{ relative_time(utcnow() - timedelta(milliseconds=500)) }}|{{ relative_time(utcnow() - timedelta(milliseconds=1500)) }}"}
+- {name: since_precision_2, template: "{{ time_since(utcnow() - timedelta(days=1, hours=2, minutes=40), 2) }}"}
+- {name: since_precision_0, template: "{{ time_since(utcnow() - timedelta(days=400, hours=2, minutes=40, seconds=7), 0) }}"}
+- {name: since_precision_6, template: "{{ time_since(utcnow() - timedelta(days=400, hours=2, minutes=40, seconds=7), 6) }}"}
+- {name: since_precision_big, template: "{{ time_since(utcnow() - timedelta(hours=2, seconds=7), 9) }}"}
+- {name: since_precision_float, template: "{{ time_since(utcnow() - timedelta(hours=2, minutes=40), 1.0) }}"}
+- {name: since_precision_str, template: "{{ time_since(utcnow() - timedelta(hours=2, minutes=40), '1') }}"}
+- {name: since_precision_negative, template: "{{ time_since(utcnow() - timedelta(hours=2, minutes=40), -1) }}"}
+- {name: since_future, template: "{{ time_since(utcnow() + timedelta(hours=2)) is datetime }}"}
+- {name: until_basic, template: "{{ time_until(utcnow() + timedelta(hours=2, minutes=31)) }}"}
+- {name: until_precision_3, template: "{{ time_until(utcnow() + timedelta(days=40, hours=2, minutes=31), 3) }}"}
+- {name: until_past, template: "{{ time_until(utcnow() - timedelta(hours=2)) is datetime }}"}
+- {name: until_kw, template: "{{ time_until(utcnow() + timedelta(minutes=2), precision=2) }}"}
+- {name: until_filter, template: "{{ (utcnow() + timedelta(seconds=3599)) | time_until }}"}
+- {name: until_none, template: "{{ time_until(none) is none }}"}
+- {name: tds_basic, template: "{{ timedelta_string(timedelta(hours=1, minutes=29)) }}"}
+- {name: tds_negative, template: "{{ timedelta(seconds=-90) | timedelta_string(2) }}"}
+- {name: tds_zero, template: "{{ timedelta(0) | timedelta_string }}"}
+- {name: tds_sub_second, template: "{{ timedelta(milliseconds=499) | timedelta_string }}|{{ timedelta(milliseconds=500) | timedelta_string }}|{{ timedelta(milliseconds=501) | timedelta_string }}"}
+- {name: tds_non_td, template: "{{ timedelta_string(5) }}"}
+- {name: tds_month_year, template: "{{ timedelta(days=395) | timedelta_string(0) }}"}
+- {name: tds_round_up_unit, template: "{{ timedelta(minutes=59, seconds=59) | timedelta_string }}"}
+- {name: tds_precision_2_round, template: "{{ timedelta(hours=1, minutes=59, seconds=31) | timedelta_string(2) }}"}

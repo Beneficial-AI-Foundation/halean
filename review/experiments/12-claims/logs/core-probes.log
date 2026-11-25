@@ -1,0 +1,288 @@
+
+### S1 README:288 equal attributes keep the old object ({a: 1} stays when {a: 1.0} is set)   [halean-core-states]
+  > {"op": "set", "entity_id": "light.a", "state": "on", "attributes": {"a": 1}, "now": 1763656245123456}
+  < {"events": [{"context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.a", "new_state": {"attributes": {"a": 1}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.a", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}, "old_state": null}, "event_type": "state_changed", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123456+00:00"}], "result": null}
+  > {"op": "set", "entity_id": "light.a", "state": "on", "attributes": {"a": 1.0}, "now": 1763656246123456}
+  < {"events": [{"context": {"id": "ulid:1", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.a", "last_reported": "2025-11-20T16:30:46.123456+00:00", "new_state": {"attributes": {"a": 1}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.a", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:46.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}, "old_last_reported": "2025-11-20T16:30:45.123456+00:00"}, "event_type": "state_reported", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:46.123456+00:00"}], "result": null}
+  > {"op": "get", "entity_id": "light.a"}
+  < {"events": [], "result": {"attributes": {"a": 1}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.a", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:46.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}}
+
+### S2 README:288 set_internal: over-long state -> unknown; async_set: error   [halean-core-states]
+  > {"op": "set_internal", "entity_id": "light.b", "state": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx ...(340 chars)
+  < {"events": [{"context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.b", "new_state": {"attributes": {}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.b", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "unknown"}, "old_state": null}, "event_type": "state_changed", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123456+00:00"}], "result": null}
+  > {"op": "get", "entity_id": "light.b"}
+  < {"events": [], "result": {"attributes": {}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.b", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "unknown"}}
+  > {"op": "set", "entity_id": "light.c", "state": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx ...(331 chars)
+  < {"error": {"message": "Invalid state with length 256. State max length is 255 characters.", "type": "InvalidStateError"}, "events": []}
+
+### S3 README:288 (right) non-ASCII entity ids and domain filters rejected   [halean-core-states]
+  > {"op": "set", "entity_id": "light.\u00e9", "state": "on", "now": 1763656245123456}
+  < {"unsupported": "non-ASCII entity_id (Python's str.lower() is Unicode-aware): light.é"}
+  > {"op": "entity_ids", "domain_filter": "\u00c9"}
+  < {"unsupported": "non-ASCII domain (Python's str.lower() is Unicode-aware): É"}
+
+### S4 README:294 attribute dicts print with sorted keys   [halean-core-states]
+  > {"op": "set", "entity_id": "light.d", "state": "on", "attributes": {"b": 1, "a": 2}, "now": 1763656245123456}
+  < {"events": [{"context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.d", "new_state": {"attributes": {"a": 2, "b": 1}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.d", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}, "old_state": null}, "event_type": "state_changed", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123456+00:00"}], "result": null}
+  > {"op": "get", "entity_id": "light.d"}
+  < {"events": [], "result": {"attributes": {"a": 2, "b": 1}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.d", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}}
+
+### S5 README:295 a JSON float without fraction or exponent sign (1e16) reads as an int   [halean-core-states]
+  > {"op": "set", "entity_id": "light.e", "state": "on", "attributes": {"x": 1e16, "y": 1.0e16, "z": 1e+16}, "now": 1763656245123456}
+  < {"events": [{"context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.e", "new_state": {"attributes": {"x": 10000000000000000, "y": 10000000000000000, "z": 10000000000000000}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.e", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}, "old_state": null}, "event_type": "state_changed", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123456+00:00"}], "result": null}
+  > {"op": "get", "entity_id": "light.e"}
+  < {"events": [], "result": {"attributes": {"x": 10000000000000000, "y": 10000000000000000, "z": 10000000000000000}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.e", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}}
+  > {"op": "set", "entity_id": "light.e", "state": "on", "attributes": {"x": 10000000000000000, "y": 1.0e16, "z": 1e+16}, "now": 1763656245123457}
+  < {"events": [{"context": {"id": "ulid:1", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.e", "last_reported": "2025-11-20T16:30:45.123457+00:00", "new_state": {"attributes": {"x": 10000000000000000, "y": 10000000000000000, "z": 10000000000000000}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.e", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123457+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}, "old_last_reported": "2025-11-20T16:30:45.123456+00:00"}, "event_type": "state_reported", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123457+00:00"}], "result": n ...
+
+### S6 README:288 lower-cased id, get with lower-case retry, str filter lower-cased, iterable not   [halean-core-states]
+  > {"op": "set", "entity_id": "Light.F", "state": "on", "now": 1763656245123456}
+  < {"events": [{"context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.f", "new_state": {"attributes": {}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.f", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}, "old_state": null}, "event_type": "state_changed", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123456+00:00"}], "result": null}
+  > {"op": "get", "entity_id": "LIGHT.F"}
+  < {"events": [], "result": {"attributes": {}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.f", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}}
+  > {"op": "entity_ids", "domain_filter": "LIGHT"}
+  < {"events": [], "result": ["light.f"]}
+  > {"op": "entity_ids", "domain_filter": ["LIGHT"]}
+  < {"events": [], "result": []}
+
+### V1 README:335 Coerce(int): the 4300-digit limit   [halean-core-services]
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fields": [{"key": "a", "value": {"coerce": "int"}}]}, "now": 0}
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 't', 'service': 'v'}","event_type":"service_registered","time_fired":0}],"logs":[],"ok":true,"result":null}
+  > {"op": "call", "domain": "t", "service": "v", "blocking": true, "return_response": true, "data": {"a": "1111111111111111 ...(4417 chars)
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 't', 'service': 'v', 'service_data': {'a': '111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111 ...
+  > {"op": "call", "domain": "t", "service": "v", "blocking": true, "return_response": true, "data": {"a": "1111111111111111 ...(4418 chars)
+  < {"error":{"error_kind":"invalid","exception":"MultipleInvalid","message":"expected int at 'a'"},"events":[],"logs":[],"ok":false}
+
+### V2 README:335 In: the 40-member cap and 'did you mean'   [halean-core-services]
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fi ...(342 chars)
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 't', 'service': 'v'}","event_type":"service_registered","time_fired":0}],"logs":[],"ok":true,"result":null}
+  > {"op": "call", "domain": "t", "service": "v", "blocking": true, "return_response": true, "data": {"a": 99}, "now": 0}
+  < {"error":{"error_kind":"invalid","exception":"MultipleInvalid","message":"value must be one of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, ...] (5 more not shown) at 'a'"},"events":[],"logs":[],"ok":false}
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fields": [{"key": "a", "value": {"in": ["apple", "banana"]}}]}, "now": 0}
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 't', 'service': 'v'}","event_type":"service_registered","time_fired":0}],"logs":[],"ok":true,"result":null}
+  > {"op": "call", "domain": "t", "service": "v", "blocking": true, "return_response": true, "data": {"a": "appel"}, "now": 0}
+  < {"error":{"error_kind":"invalid","exception":"MultipleInvalid","message":"value must be one of ['apple', 'banana'], did you mean 'apple'? at 'a'"},"events":[],"logs":[],"ok":false}
+
+### V3 README:335 (right) rejected specs: msg=, Match, cv.percentage, cv.time, cv.url, cv.icon, Coerce(bool)   [halean-core-services]
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fields": [{"key": "a", "value": {"range": {"min": 0}, "msg": "m"}}]}, "now": 0}
+  < {"unsupported":"validator range: extra options are not modelled"}
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fields": [{"key": "a", "value": {"match": "^a"}}]}, "now": 0}
+  < {"unsupported":"validator match is not modelled"}
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fields": [{"key": "a", "value": {"cv": "matches_regex", "regex": "^a"}}]}, "now": 0}
+  < {"unsupported":"cv: extra options are not modelled"}
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fields": [{"key": "a", "value": {"cv": "percentage"}}]}, "now": 0}
+  < {"unsupported":"cv.percentage is not modelled"}
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fields": [{"key": "a", "value": {"cv": "time"}}]}, "now": 0}
+  < {"unsupported":"cv.time is not modelled"}
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fields": [{"key": "a", "value": {"cv": "url"}}]}, "now": 0}
+  < {"unsupported":"cv.url is not modelled"}
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fields": [{"key": "a", "value": {"cv": "template"}}]}, "now": 0}
+  < {"unsupported":"cv.template is not modelled"}
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fields": [{"key": "a", "value": {"cv": "date"}}]}, "now": 0}
+  < {"unsupported":"cv.date is not modelled"}
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fields": [{"key": "a", "value": {"coerce": "bool"}}]}, "now": 0}
+  < {"unsupported":"only Coerce(int), Coerce(float) and Coerce(str) are modelled"}
+  > {"op": "register", "domain": "t", "service": "v", "handler": {"echo": true}, "supports_response": "only", "schema": {"fields": [{"key": "a", "value": {"cv": "icon"}}]}, "now": 0}
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 't', 'service': 'v'}","event_type":"service_registered","time_fired":0}],"logs":[],"ok":true,"result":null}
+  > {"op": "call", "domain": "t", "service": "v", "blocking": true, "return_response": true, "data": {"a": "mdi:lamp"}, "now": 0}
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 't', 'service': 'v', 'service_data': {'a': 'mdi:lamp'}}","event_type":"call_service","time_fired":0}],"logs":[],"ok":true,"result":"{'domain': 't', 'service': 'v', 'data': {'a': 'mdi:lamp'}, 'return_response': True, 'context_id': 'new'}"}
+  > {"op": "call", "domain": "t", "service": "v", "blocking": true, "return_response": true, "data": {"a": "lamp"}, "now": 0}
+  < {"error":{"error_kind":"invalid","exception":"MultipleInvalid","message":"Icons should be specified in the form \"prefix:name\" at 'a'"},"events":[],"logs":[],"ok":false}
+
+### V4 README:339 names lowercased; async_services_for_domain does not lowercase; supports_response KeyError   [halean-core-services]
+  > {"op": "register", "domain": "Test", "service": "Hello", "handler": {"return": null}, "now": 0}
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 'test', 'service': 'hello'}","event_type":"service_registered","time_fired":0}],"logs":[],"ok":true,"result":null}
+  > {"op": "list", "now": 0}
+  < {"events":[],"logs":[],"ok":true,"result":[["test",[["hello","none",false]]]]}
+  > {"op": "list_domain", "domain": "Test", "now": 0}
+  < {"events":[],"logs":[],"ok":true,"result":[]}
+  > {"op": "list_domain", "domain": "test", "now": 0}
+  < {"events":[],"logs":[],"ok":true,"result":[["hello","none",false]]}
+  > {"op": "has", "domain": "TEST", "service": "HELLO", "now": 0}
+  < {"events":[],"logs":[],"ok":true,"result":true}
+  > {"op": "supports_response", "domain": "nope", "service": "x", "now": 0}
+  < {"error":{"error_kind":"other","exception":"KeyError","message":"'nope'"},"events":[],"logs":[],"ok":false}
+
+### V5 README:339 (right) non-ASCII names, other handler exceptions, non-dict data   [halean-core-services]
+  > {"op": "register", "domain": "t\u00e9st", "service": "x", "handler": {"return": null}, "now": 0}
+  < {"unsupported":"non-ASCII 'domain' (str.lower() is modelled for ASCII only)"}
+  > {"op": "register", "domain": "t", "service": "k", "handler": {"raise": "KeyError", "message": "m"}, "now": 0}
+  < {"unsupported":"handler exception KeyError is not modelled"}
+  > {"op": "register", "domain": "t", "service": "ok", "handler": {"return": null}, "now": 0}
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 't', 'service': 'ok'}","event_type":"service_registered","time_fired":0}],"logs":[],"ok":true,"result":null}
+  > {"op": "call", "domain": "t", "service": "ok", "data": [1], "blocking": true, "now": 0}
+  < {"unsupported":"'data' must be a dict"}
+
+### V6 README:350 NaN / Infinity in the input JSON   [halean-core-services]
+  > {"op": "call", "domain": "t", "service": "ok", "data": {"x": NaN}, "blocking": true, "now": 0}
+  < {"message":"invalid JSON: unexpected character N","type":"error"}
+  > {"op": "call", "domain": "t", "service": "ok", "data": {"x": Infinity}, "blocking": true, "now": 0}
+  < {"message":"invalid JSON: unexpected character I","type":"error"}
+
+### V7 README:339 return_response rules   [halean-core-services]
+  > {"op": "register", "domain": "t", "service": "none", "handler": {"return": null}, "now": 0}
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 't', 'service': 'none'}","event_type":"service_registered","time_fired":0}],"logs":[],"ok":true,"result":null}
+  > {"op": "register", "domain": "t", "service": "only", "handler": {"return": {"a": 1}}, "supports_response": "only", "now": 0}
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 't', 'service': 'only'}","event_type":"service_registered","time_fired":0}],"logs":[],"ok":true,"result":null}
+  > {"op": "call", "domain": "t", "service": "none", "blocking": true, "return_response": true, "now": 0}
+  < {"error":{"error_kind":"ha_error","exception":"ServiceValidationError","message":"An action which does not return responses can't be called with return_response=True","translation_domain":"homeassistant","translation_key":"service_does_not_support_response","translation_placeholders":{"return_response":"return_response=True"}},"events":[],"logs":[],"ok":false}
+  > {"op": "call", "domain": "t", "service": "only", "blocking": true, "now": 0}
+  < {"error":{"error_kind":"ha_error","exception":"ServiceValidationError","message":"The action requires responses and must be called with return_response=True","translation_domain":"homeassistant","translation_key":"service_lacks_response_request","translation_placeholders":{"return_response":"return_response=True"}},"events":[],"logs":[],"ok":false}
+  > {"op": "call", "domain": "t", "service": "only", "blocking": false, "return_response": true, "now": 0}
+  < {"error":{"error_kind":"ha_error","exception":"ServiceValidationError","message":"A non-blocking action call with argument blocking=False can't be used together with argument return_response=True","translation_domain":"homeassistant","translation_key":"service_should_be_blocking","translation_placeholders":{"non_blocking_argument":"blocking=False","return_response":"return_response=True"}},"events":[],"logs":[],"ok":false}
+  > {"op": "call", "domain": "t", "service": "gone", "blocking": true, "now": 0}
+  < {"error":{"error_kind":"ha_error","exception":"ServiceNotFound","message":"Action t.gone not found","translation_domain":"homeassistant","translation_key":"service_not_found","translation_placeholders":{"domain":"t","service":"gone"}},"events":[],"logs":[],"ok":false}
+
+### E1 README:470 event type length in code points (64 ok, 65 raises), also non-ASCII   [halean-core-events]
+  > {"op": "listen", "now": 0, "id": "a", "event_type": "*"}
+  < {"deliveries":[],"logs":[],"result":{"ok":true}}
+  > {"op": "fire", "now": 1, "event_type": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+  < {"deliveries":[{"event":{"context":{"id":"ulid@0#0","parent_id":null,"user_id":null},"data":{},"event_type":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","origin":"LOCAL","time_fired":"1970-01-01T00:00:00.000001+00:00"},"listener":"a"}],"logs":[],"result":{"ok":true}}
+  > {"op": "fire", "now": 2, "event_type": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+  < {"deliveries":[],"logs":[],"result":{"error":"MaxLengthExceeded"}}
+  > {"op": "fire", "now": 3, "event_type": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u ...(426 chars)
+  < {"deliveries":[{"event":{"context":{"id":"ulid@0#1","parent_id":null,"user_id":null},"data":{},"event_type":"éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé","origin":"LOCAL","time_fired":"1970-01-01T00:00:00.000003+00:00"},"listener":"a"}],"logs":[],"result":{"ok":true}}
+
+### E2 README:470 MATCH_ALL twice for an event of type '*'; never for state_reported   [halean-core-events]
+  > {"op": "listen", "now": 0, "id": "a", "event_type": "*"}
+  < {"deliveries":[],"logs":[],"result":{"ok":true}}
+  > {"op": "fire", "now": 1, "event_type": "*"}
+  < {"deliveries":[{"event":{"context":{"id":"ulid@0#0","parent_id":null,"user_id":null},"data":{},"event_type":"*","origin":"LOCAL","time_fired":"1970-01-01T00:00:00.000001+00:00"},"listener":"a"},{"event":{"context":{"id":"ulid@0#0","parent_id":null,"user_id":null},"data":{},"event_type":"*","origin":"LOCAL","time_fired":"1970-01-01T00:00:00.000001+00:00"},"listener":"a"}],"logs":[],"result":{"ok":true}}
+  > {"op": "fire", "now": 2, "event_type": "state_reported", "data": {"a": 1}}
+  < {"deliveries":[],"logs":[],"result":{"ok":true}}
+  > {"op": "fire", "now": 3, "event_type": "homeassistant_close"}
+  < {"deliveries":[],"logs":[],"result":{"ok":true}}
+
+### E3 README:470 (right) non-object event data; listen_once with a filter; run_immediately   [halean-core-events]
+  > {"op": "fire", "now": 1, "event_type": "x", "data": [1]}
+  < {"unsupported":"event data must be an object or null"}
+  > {"op": "listen_once", "now": 1, "id": "o", "event_type": "x", "filter": true}
+  < {"deliveries":[],"logs":[],"result":{"error":"TypeError"}}
+  > {"op": "listen", "now": 1, "id": "r", "event_type": "x", "run_immediately": true}
+  < {"deliveries":[],"logs":[],"result":{"error":"RuntimeError"}}
+
+### E4 README:470 double removal is logged and leaves an empty list behind   [halean-core-events]
+  > {"op": "listen", "now": 0, "id": "a", "event_type": "x"}
+  < {"deliveries":[],"logs":[],"result":{"ok":true}}
+  > {"op": "unsub", "now": 1, "id": "a"}
+  < {"deliveries":[],"logs":[],"result":{"ok":true}}
+  > {"op": "unsub", "now": 2, "id": "a"}
+  < {"deliveries":[],"logs":["Unable to remove unknown job listener"],"result":{"ok":true}}
+  > {"op": "listeners", "now": 3}
+  < {"deliveries":[],"logs":[],"result":{"listeners":[["*",0],["logging_changed",1],["x",0]]}}
+
+### C1 README:429 (right) service calls nested deeper than 32 are rejected   [halean-core]
+  > {"op": "register", "domain": "t", "service": "rec", "handler": {"do": [{"call": {"id": "n", "domain": "t", "service": "rec", "blocking": true}}], "return": null}, "now": 0}
+  < {"result":{"ok":null},"trace":[]}
+  > {"op": "call", "domain": "t", "service": "rec", "blocking": true, "now": 1}
+  < {"unsupported":"call depth"}
+
+### C2 README:429 (right) futures resolved twice; sleep with a delay; time_fired on a scripted fire; event type > 64   [halean-core]
+  > {"op": "resolve", "id": "f", "now": 0}
+  < {"result":{"ok":null},"trace":[]}
+  > {"op": "resolve", "id": "f", "now": 1}
+  < {"unsupported":"a future resolved twice (asyncio.InvalidStateError)"}
+  > {"op": "listen", "id": "l", "event_type": "x", "async": true, "react": [{"sleep": 1}], "now": 2}
+  < {"unsupported":"only asyncio.sleep(0) is modelled"}
+  > {"op": "listen", "id": "m", "event_type": "y", "react": [{"fire": {"event_type": "z", "time_fired": 5}}], "now": 3}
+  < {"unsupported":"time_fired is not modelled in the core"}
+  > {"op": "fire", "event_type": "y", "now": 4}
+  < {"result":{"ok":null},"trace":[]}
+  > {"op": "fire", "event_type": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "now": 5}
+  < {"unsupported":"event type longer than 64 (MaxLengthExceeded message not modelled)"}
+  > {"op": "listen", "id": "cb", "event_type": "w", "react": [{"sleep": 0}], "now": 6}
+  < {"unsupported":"a @callback cannot await"}
+  > {"op": "fire", "event_type": "w", "now": 7}
+  < {"result":{"ok":null},"trace":[]}
+
+### C3 README:429 the 10,000-events limit raises HomeAssistantError in the firing script   [halean-core]
+  > {"op": "listen", "id": "l", "event_type": "x", "react": [{"fire": {"event_type": "x"}}], "now": 0}
+  < {"result":{"ok":null},"trace":[]}
+  > {"op": "fire", "event_type": "x", "now": 1}
+  < {"result":{"ok":null},"trace":[{"delivery":"l","event":{"context":{"id":"ulid@0#0","parent_id":null,"user_id":null},"data":{},"event_type":"x","origin":"LOCAL","time_fired":"1970-01-01T00:00:00.000001+00:00"}},{"delivery":"l","event":{"context":{"id":"ulid@0#1","parent_id":null,"user_id":null},"data":{},"event_type":"x","origin":"LOCAL","time_fired":"1970-01-01T00:00:00.000001+00:00"}},{"delivery":"l","event":{"context":{"id":"ulid@0#2","parent_id":null,"user_id":null},"data":{},"event_type":"x","origin":"LOCAL","time_fired":"1970-01-01T00:00:00.000001+00:00"}},{"delivery":"l","event":{"context":{"id":"ulid@0#3","parent_id":null,"user_id":null},"data":{},"event_type":"x","origin":"LOCAL","ti ...
+
+### C4 README:429 (right) more than 100,000 handles per operation (endless rescheduling)   [halean-core]
+  > {"op": "listen", "id": "a", "event_type": "x", "async": true, "react": [{"sleep": 0}, {"fire": {"event_type": "x"}}], "now": 0}
+  < {"result":{"ok":null},"trace":[]}
+  > {"op": "fire", "event_type": "x", "now": 1}
+  < {"result":{"ok":null},"trace":[{"delivery":"a","event":{"context":{"id":"ulid@0#0","parent_id":null,"user_id":null},"data":{},"event_type":"x","origin":"LOCAL","time_fired":"1970-01-01T00:00:00.000001+00:00"}}]}
+  > {"op": "block_till_done", "now": 2}
+  < {"unsupported":"loop fuel"}
+
+### H1 README:552 counter: step 0 allowed, set_value -> ZeroDivisionError; off-step ValueError   [halean-helpers]
+  > {"op": "reset"}
+  < {"logs":[],"outs":[],"states":[]}
+  > {"op": "setup", "domain": "counter", "config": {"z": {"step": 0}, "s": {"step": 2, "maximum": 10}}, "restore": [], "now": 1763656245123456}
+  < {"logs":[],"ok":true,"outs":[["state_changed","counter.z","0","{'editable': False, 'initial': 0, 'step': 0}"],["state_changed","counter.s","0","{'editable': False, 'initial': 0, 'step': 2, 'maximum': 10}"]],"states":[["counter.z","0","{'editable': False, 'initial': 0, 'step': 0}"],["counter.s","0","{'editable': False, 'initial': 0, 'step': 2, 'maximum': 10}"]]}
+  > {"op": "call", "domain": "counter", "service": "set_value", "data": {"entity_id": "counter.z", "value": 3}, "now": 1763656245123456}
+  < {"error":{"message":"division by zero","type":"ZeroDivisionError"},"logs":[],"outs":[],"states":[["counter.z","0","{'editable': False, 'initial': 0, 'step': 0}"],["counter.s","0","{'editable': False, 'initial': 0, 'step': 2, 'maximum': 10}"]]}
+  > {"op": "call", "domain": "counter", "service": "set_value", "data": {"entity_id": "counter.s", "value": 3}, "now": 1763656245123456}
+  < {"error":{"message":"Value 3 for counter.s is not a multiple of the step size 2","type":"ValueError"},"logs":[],"outs":[],"states":[["counter.z","0","{'editable': False, 'initial': 0, 'step': 0}"],["counter.s","0","{'editable': False, 'initial': 0, 'step': 2, 'maximum': 10}"]]}
+  > {"op": "call", "domain": "counter", "service": "set_value", "data": {"entity_id": "counter.s", "value": 12}, "now": 1763656245123456}
+  < {"error":{"message":"Value 12 for counter.s exceeding the maximum value of 10","type":"ValueError"},"logs":[],"outs":[],"states":[["counter.z","0","{'editable': False, 'initial': 0, 'step': 0}"],["counter.s","0","{'editable': False, 'initial': 0, 'step': 2, 'maximum': 10}"]]}
+
+### H2 README:553 timer duration '-0:00:05'   [halean-helpers]
+  > {"op": "reset"}
+  < {"logs":[],"outs":[],"states":[]}
+  > {"op": "setup", "domain": "timer", "config": {"t": {"duration": "-0:00:05"}}, "restore": [], "now": 1763656245123456}
+  < {"logs":[],"ok":true,"outs":[["state_changed","timer.t","idle","{'duration': '-2:00:05', 'editable': False, 'last_transition': None}"]],"states":[["timer.t","idle","{'duration': '-2:00:05', 'editable': False, 'last_transition': None}"]]}
+
+### H3 README:551 input_text: lazy quantifier pattern refused; non-matching value stored then ValueError   [halean-helpers]
+  > {"op": "reset"}
+  < {"logs":[],"outs":[],"states":[]}
+  > {"op": "setup", "domain": "input_text", "config": {"lazy": {"pattern": "a+?"}}, "restore": [], "now": 1763656245123456}
+  < {"unsupported":"the pattern 'a+?' is outside the modelled regex subset (lazy and possessive quantifiers are not supported)"}
+  > {"op": "reset"}
+  < {"logs":[],"outs":[],"states":[]}
+  > {"op": "setup", "domain": "input_text", "config": {"p": {"pattern": "[0-9]+", "initial": "1"}}, "restore": [], "now": 1763656245123456}
+  < {"logs":[],"ok":true,"outs":[["state_changed","input_text.p","1","{'mode': 'text', 'min': 0, 'max': 100, 'pattern': '[0-9]+', 'editable': False}"]],"states":[["input_text.p","1","{'mode': 'text', 'min': 0, 'max': 100, 'pattern': '[0-9]+', 'editable': False}"]]}
+  > {"op": "call", "domain": "input_text", "service": "set_value", "data": {"entity_id": "input_text.p", "value": "abc"}, "now": 1763656245123456}
+  < {"error":{"message":"Entity input_text.p provides state abc which does not match expected pattern [0-9]+","type":"ValueError"},"logs":[],"outs":[],"states":[["input_text.p","1","{'mode': 'text', 'min': 0, 'max': 100, 'pattern': '[0-9]+', 'editable': False}"]]}
+  > {"op": "call", "domain": "input_text", "service": "set_value", "data": {"entity_id": "input_text.p", "value": "xxxxxxxxx ...(439 chars)
+  < {"error":null,"logs":[["warning","Invalid value: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (length range 0 - 100)"]],"outs":[],"states":[["input_text.p","1","{'mode': 'text', 'min': 0, 'max': 100, 'pattern': '[0-9]+', 'editable': False}"]]}
+
+### H4 README:550 input_select: duplicate options removed with a warning; set_options duplicates refused   [halean-helpers]
+  > {"op": "reset"}
+  < {"logs":[],"outs":[],"states":[]}
+  > {"op": "setup", "domain": "input_select", "config": {"s": {"options": ["a", "b", "a"]}}, "restore": [], "now": 1763656245123456}
+  < {"logs":[["warning","Input select '<unnamed>' with options ['a', 'b', 'a'] had duplicated options, the duplicates have been removed"]],"ok":true,"outs":[["state_changed","input_select.s","a","{'options': ['a', 'b'], 'editable': False}"]],"states":[["input_select.s","a","{'options': ['a', 'b'], 'editable': False}"]]}
+  > {"op": "call", "domain": "input_select", "service": "set_options", "data": {"entity_id": "input_select.s", "options": ["x", "x"]}, "now": 1763656245123456}
+  < {"error":{"message":"Duplicated options: ['x', 'x']","type":"HomeAssistantError"},"logs":[],"outs":[],"states":[["input_select.s","a","{'options': ['a', 'b'], 'editable': False}"]]}
+  > {"op": "call", "domain": "input_select", "service": "select_option", "data": {"entity_id": "input_select.s", "option": "zzz"}, "now": 1763656245123456}
+  < {"error":{"message":"Invalid option: zzz (possible options: a, b)","type":"HomeAssistantError"},"logs":[],"outs":[],"states":[["input_select.s","a","{'options': ['a', 'b'], 'editable': False}"]]}
+
+### H5 README:549 input_number: set_value outside the range   [halean-helpers]
+  > {"op": "reset"}
+  < {"logs":[],"outs":[],"states":[]}
+  > {"op": "setup", "domain": "input_number", "config": {"n": {"min": 0, "max": 10}}, "restore": [], "now": 1763656245123456}
+  < {"logs":[],"ok":true,"outs":[["state_changed","input_number.n","0.0","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"]],"states":[["input_number.n","0.0","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"]]}
+  > {"op": "call", "domain": "input_number", "service": "set_value", "data": {"entity_id": "input_number.n", "value": 11}, "now": 1763656245123456}
+  < {"error":{"message":"Invalid value for input_number.n: 11.0 (range 0.0 - 10.0)","type":"Invalid"},"logs":[],"outs":[],"states":[["input_number.n","0.0","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"]]}
+
+### H6 README:548/574/575 reload, device targets, input_datetime   [halean-helpers]
+  > {"op": "reset"}
+  < {"logs":[],"outs":[],"states":[]}
+  > {"op": "setup", "domain": "input_boolean", "config": {"b": null}, "restore": [], "now": 1763656245123456}
+  < {"logs":[],"ok":true,"outs":[["state_changed","input_boolean.b","off","{'editable': False}"]],"states":[["input_boolean.b","off","{'editable': False}"]]}
+  > {"op": "call", "domain": "input_boolean", "service": "reload", "data": {}, "now": 1763656245123456}
+  < {"unsupported":"input_boolean.reload re-reads configuration.yaml, which HALean does not model"}
+  > {"op": "call", "domain": "input_boolean", "service": "turn_on", "data": {"device_id": "abc"}, "now": 1763656245123456}
+  < {"unsupported":"'device_id' targets are not supported (HALean has no device/area/floor/label registry)"}
+  > {"op": "call", "domain": "input_boolean", "service": "turn_on", "data": {"area_id": "abc"}, "now": 1763656245123456}
+  < {"unsupported":"'area_id' targets are not supported (HALean has no device/area/floor/label registry)"}
+  > {"op": "setup", "domain": "input_datetime", "config": {"d": {"has_date": true}}, "restore": [], "now": 1763656245123456}
+  < {"unsupported":"input_datetime is not a modelled helper"}
+
+### H7 README:548 input_boolean restore: on when no initial; README:571 several entities in the order given   [halean-helpers]
+  > {"op": "reset"}
+  < {"logs":[],"outs":[],"states":[]}
+  > {"op": "setup", "domain": "input_boolean", "config": {"r": null, "i": {"initial": false}, "a": null}, "restore": [["input_boolean.r", "on", {}], ["input_boolean.i", "on", {}]], "now": 1763656245123456}
+  < {"logs":[],"ok":true,"outs":[["state_changed","input_boolean.r","on","{'editable': False}"],["state_changed","input_boolean.i","off","{'editable': False}"],["state_changed","input_boolean.a","off","{'editable': False}"]],"states":[["input_boolean.r","on","{'editable': False}"],["input_boolean.i","off","{'editable': False}"],["input_boolean.a","off","{'editable': False}"]]}
+  > {"op": "call", "domain": "input_boolean", "service": "toggle", "data": {"entity_id": ["input_boolean.r", "input_boolean.a", "input_boolean.i"]}, "now": 1763656245123456}
+  < {"error":null,"logs":[],"outs":[["state_changed","input_boolean.r","off","{'editable': False}"],["state_changed","input_boolean.a","on","{'editable': False}"],["state_changed","input_boolean.i","on","{'editable': False}"]],"states":[["input_boolean.r","off","{'editable': False}"],["input_boolean.i","on","{'editable': False}"],["input_boolean.a","on","{'editable': False}"]]}
+
+### H8 README:553 restoring a paused or active timer is refused   [halean-helpers]
+  > {"op": "reset"}
+  < {"logs":[],"outs":[],"states":[]}
+  > {"op": "setup", "domain": "timer", "config": {"t": {"duration": 10, "restore": true}}, "restore": [["timer.t", "paused", {"duration": "0:00:10", "remaining": "0:00:05"}]], "now": 1763656245123456}
+  < {"unsupported":"timer.t: restoring a paused or active timer is not supported"}
