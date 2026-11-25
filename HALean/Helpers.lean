@@ -13,3 +13,4 @@ import HALean.Helpers.InputText
 import HALean.Helpers.Counter
 import HALean.Helpers.Timer
 import HALean.Helpers.Component
+import HALean.Helpers.Proofs
