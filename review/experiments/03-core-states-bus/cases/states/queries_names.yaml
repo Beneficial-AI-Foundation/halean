@@ -1,0 +1,137 @@
+# async_entity_ids / _count / async_all filters, dict order, State.name.
+
+- name: filter_str_is_lowered_list_is_not
+  ops:
+    - {op: set, entity_id: light.a, state: "on"}
+    - {op: set, entity_id: sensor.a, state: "1"}
+    - {op: set, entity_id: light.b, state: "off"}
+    - {op: entity_ids, domain_filter: LIGHT, expect: [light.a, light.b]}
+    - {op: entity_ids, domain_filter: [LIGHT], expect: []}
+    - {op: entity_ids_count, domain_filter: Light, expect: 2}
+    - {op: entity_ids_count, domain_filter: [Light, sensor], expect: 1}
+    - {op: all, domain_filter: SENSOR}
+    - {op: all, domain_filter: [SENSOR], expect: []}
+
+- name: filter_list_duplicates_and_order
+  ops:
+    - {op: set, entity_id: light.a, state: "on"}
+    - {op: set, entity_id: sensor.a, state: "1"}
+    - {op: set, entity_id: light.b, state: "off"}
+    - {op: entity_ids, domain_filter: [sensor, light], expect: [sensor.a, light.a, light.b]}
+    - {op: entity_ids, domain_filter: [light, light], expect: [light.a, light.b, light.a, light.b]}
+    - {op: entity_ids_count, domain_filter: [light, light, sensor, nope], expect: 5}
+    - {op: all, domain_filter: [light, sensor, light]}
+    - {op: entity_ids, domain_filter: [], expect: []}
+    - {op: entity_ids_count, domain_filter: [], expect: 0}
+    - {op: all, domain_filter: [], expect: []}
+
+- name: filter_odd_strings
+  ops:
+    - {op: set, entity_id: light.a, state: "on"}
+    - {op: entity_ids, domain_filter: "", expect: []}
+    - {op: entity_ids, domain_filter: "light.a", expect: []}
+    - {op: entity_ids, domain_filter: "light ", expect: []}
+    - {op: entity_ids, domain_filter: ["", "light.a", "light"], expect: [light.a]}
+    - {op: entity_ids_count, domain_filter: "", expect: 0}
+    - {op: all, domain_filter: "", expect: []}
+    - {op: entity_ids, domain_filter: "LIGHT\n", expect: []}
+
+- name: filter_after_domain_emptied
+  ops:
+    - {op: set, entity_id: light.a, state: "on"}
+    - {op: set, entity_id: sensor.a, state: "1"}
+    - {op: remove, entity_id: light.a}
+    - {op: entity_ids, domain_filter: light, expect: []}
+    - {op: entity_ids_count, domain_filter: [light], expect: 0}
+    - {op: all, domain_filter: light, expect: []}
+    - {op: set, entity_id: light.z, state: "on"}
+    - {op: set, entity_id: light.a, state: "on"}
+    - {op: entity_ids, domain_filter: light, expect: [light.z, light.a]}
+    - {op: entity_ids, expect: [sensor.a, light.z, light.a]}
+
+- name: order_overwrite_keeps_position_readd_moves
+  ops:
+    - {op: set, entity_id: a.x, state: "1"}
+    - {op: set, entity_id: b.x, state: "1"}
+    - {op: set, entity_id: a.y, state: "1"}
+    - {op: set, entity_id: b.y, state: "1"}
+    - {op: set, entity_id: a.x, state: "2"}
+    - {op: entity_ids, expect: [a.x, b.x, a.y, b.y]}
+    - {op: remove, entity_id: a.x}
+    - {op: set, entity_id: a.x, state: "3"}
+    - {op: entity_ids, expect: [b.x, a.y, b.y, a.x]}
+    - {op: entity_ids, domain_filter: a, expect: [a.y, a.x]}
+    - {op: entity_ids, domain_filter: [b, a], expect: [b.x, b.y, a.y, a.x]}
+    - {op: set, entity_id: b.x, state: "1", attributes: {k: 1}}
+    - {op: set, entity_id: b.x, state: "1", attributes: {k: 1}}
+    - {op: set, entity_id: b.x, state: "1", attributes: {k: 1}, force_update: true}
+    - {op: entity_ids, domain_filter: b, expect: [b.x, b.y]}
+    - {op: all}
+
+- name: name_falsy_friendly_names
+  ops:
+    - {op: set, entity_id: light.a_b_c, state: x, attributes: {friendly_name: ""}}
+    - {op: inspect, entity_id: light.a_b_c}
+    - {op: set, entity_id: light.a_b_c, state: x, attributes: {friendly_name: 0}}
+    - {op: inspect, entity_id: light.a_b_c}
+    - {op: set, entity_id: light.a_b_c, state: x, attributes: {friendly_name: 0.0}}
+    - {op: inspect, entity_id: light.a_b_c}
+    - {op: set, entity_id: light.a_b_c, state: x, attributes: {friendly_name: false}}
+    - {op: inspect, entity_id: light.a_b_c}
+    - {op: set, entity_id: light.a_b_c, state: x, attributes: {friendly_name: null}}
+    - {op: inspect, entity_id: light.a_b_c}
+    - {op: set, entity_id: light.a_b_c, state: x, attributes: {friendly_name: []}}
+    - {op: inspect, entity_id: light.a_b_c}
+    - {op: set, entity_id: light.a_b_c, state: x, attributes: {friendly_name: {}}}
+    - {op: inspect, entity_id: light.a_b_c}
+    - {op: set, entity_id: light.a_b_c, state: x, attributes: {Friendly_Name: "no"}}
+    - {op: inspect, entity_id: light.a_b_c}
+
+- name: name_falsy_negative_zero
+  ops:
+    - {op: set, entity_id: light.a_b, state: x, attributes: {friendly_name: -0.0}}
+    - {op: inspect, entity_id: light.a_b}
+
+- name: name_truthy_friendly_names
+  ops:
+    - {op: set, entity_id: light.a_b, state: x, attributes: {friendly_name: " "}}
+    - {op: inspect, entity_id: light.a_b}
+    - {op: set, entity_id: light.a_b, state: x, attributes: {friendly_name: 5}}
+    - {op: inspect, entity_id: light.a_b}
+    - {op: set, entity_id: light.a_b, state: x, attributes: {friendly_name: true}}
+    - {op: inspect, entity_id: light.a_b}
+    - {op: set, entity_id: light.a_b, state: x, attributes: {friendly_name: [0]}}
+    - {op: inspect, entity_id: light.a_b}
+    - {op: set, entity_id: light.a_b, state: x, attributes: {friendly_name: {a: null}}}
+    - {op: inspect, entity_id: light.a_b}
+    - {op: set, entity_id: light.a_b, state: x, attributes: {friendly_name: 1.5}}
+    - {op: inspect, entity_id: light.a_b}
+    - {op: set, entity_id: light.a_b, state: x, attributes: {friendly_name: -1}}
+    - {op: inspect, entity_id: light.a_b}
+    - {op: set, entity_id: light.a_b, state: x, attributes: {friendly_name: "0"}}
+    - {op: inspect, entity_id: light.a_b}
+    - {op: set, entity_id: light.a_b, state: x, attributes: {friendly_name: "False"}}
+    - {op: inspect, entity_id: light.a_b}
+
+- name: name_object_id_shapes
+  ops:
+    - {op: set, entity_id: light.a, state: x}
+    - {op: set, entity_id: light.a_1_b_2, state: x}
+    - {op: set, entity_id: l_1.x_y, state: x}
+    - {op: set, entity_id: "light.nl_x\n", state: x}
+    - {op: inspect, entity_id: light.a}
+    - {op: inspect, entity_id: light.a_1_b_2}
+    - {op: inspect, entity_id: l_1.x_y}
+    - {op: inspect, entity_id: "light.nl_x\n"}
+
+- name: get_and_is_state_after_remove
+  ops:
+    - {op: set, entity_id: light.a, state: "on"}
+    - {op: remove, entity_id: light.a}
+    - {op: get, entity_id: light.a, expect: null}
+    - {op: inspect, entity_id: light.a, expect: null}
+    - {op: is_state, entity_id: light.a, state: "on", expect: false}
+    - {op: remove, entity_id: light.a, expect: false}
+    - {op: set, entity_id: light.a, state: "on", now: "2026-11-20T16:31:00+00:00"}
+    - {op: get, entity_id: light.a}
+

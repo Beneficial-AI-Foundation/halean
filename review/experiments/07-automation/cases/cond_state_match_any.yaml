@@ -1,0 +1,19 @@
+# `match: any` over several entities, one of them unknown
+automations:
+  - alias: matchany
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - if: [{condition: state, entity_id: [light.a, light.b], state: "on", match: any}]
+        then: [{event: m_any}]
+        else: [{event: m_none}]
+      - if: [{condition: state, entity_id: [light.a, light.gone], state: "on", match: any}]
+        then: [{event: m_any2}]
+        else: [{event: m_none2}]
+      - if: [{condition: state, entity_id: [light.a, light.b], state: "on"}]
+        then: [{event: m_all}]
+        else: [{event: m_notall}]
+states: [{entity_id: light.a, state: "off"}, {entity_id: light.b, state: "on"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, set: [light.a, "on"]}
+  - {at: 3, send: {type: event, event_type: e}}

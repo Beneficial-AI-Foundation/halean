@@ -1,0 +1,327 @@
+# Ordering, snapshots, the queue, unsubscribing, once listeners.
+
+- name: listen_during_dispatch_gets_queued_event
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react:
+        - {fire: {event_type: y}}
+        - {listen: {id: late_y, event_type: y}}
+        - {listen_once: {id: once_y, event_type: y}}
+    - {op: listen, id: y0, event_type: y}
+    - {op: fire, event_type: x, expect: {deliveries: [a, y0, late_y, once_y]}}
+    - {op: listeners}
+
+- name: unsub_during_dispatch_skips_queued_event
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react:
+        - {fire: {event_type: y}}
+        - {unsub: y0}
+        - {unsub: b}
+    - {op: listen, id: b, event_type: x}
+    - {op: listen, id: y0, event_type: y}
+    - {op: listen, id: y1, event_type: y}
+    - {op: fire, event_type: x, expect: {deliveries: [a, b, y1]}}
+    - {op: fire, event_type: x, expect: {deliveries: [a, y1], logs: ["Error running job: KeyError"]}}
+
+- name: queue_breadth_first
+  ops:
+    - op: listen
+      id: x1
+      event_type: x
+      react: [{fire: {event_type: y, data: {by: x1}}}, {fire: {event_type: z, data: {by: x1}}}]
+    - op: listen
+      id: x2
+      event_type: x
+      react: [{fire: {event_type: z, data: {by: x2}}}, {fire: {event_type: y, data: {by: x2}}}]
+    - op: listen
+      id: y1
+      event_type: y
+      react: [{fire: {event_type: w, data: {by: y1}}}]
+    - op: listen
+      id: z1
+      event_type: z
+      react: [{fire: {event_type: w, data: {by: z1}}}]
+    - {op: listen, id: w1, event_type: w}
+    - {op: listen, id: m, event_type: "*"}
+    - op: fire
+      event_type: x
+      expect: {deliveries: [x1, x2, m, y1, m, z1, m, z1, m, y1, m, w1, m, w1, m, w1, m, w1, m]}
+
+- name: match_all_fires_too
+  ops:
+    - op: listen
+      id: m
+      event_type: "*"
+      react_times: 2
+      react: [{fire: {event_type: echo, context: inherit}}]
+    - {op: listen, id: a, event_type: x}
+    - {op: listen, id: e, event_type: echo}
+    - {op: fire, event_type: x, expect: {deliveries: [a, m, e, m, e, m]}}
+    - {op: fire, event_type: x, expect: {deliveries: [a, m]}}
+
+- name: nested_time_and_now
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react:
+        - {fire: {event_type: t0, time_fired: 0}}
+        - {fire: {event_type: t1, time_fired: 1}}
+        - {fire: {event_type: t2, time_fired: 1795710645999999}}
+        - {fire: {event_type: t3}}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: x, time_fired: 1700000000500000, now: 1795710645000001}
+    - {op: fire, event_type: x, now: 1795710646000000}
+
+- name: time_fired_rounding
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: a, time_fired: 1}
+    - {op: fire, event_type: a, time_fired: 999}
+    - {op: fire, event_type: a, time_fired: 1000}
+    - {op: fire, event_type: a, time_fired: 1001}
+    - {op: fire, event_type: a, time_fired: 999999}
+    - {op: fire, event_type: a, time_fired: 1000000}
+    - {op: fire, event_type: a, time_fired: 1795710645001000}
+    - {op: fire, event_type: a, time_fired: 1795710645000999}
+    - {op: fire, event_type: a, time_fired: 1795710645999999}
+    - {op: fire, event_type: a, time_fired: 1795710645500000}
+    - {op: fire, event_type: a, time_fired: 1795710645123000}
+    - {op: fire, event_type: a, time_fired: 1795710645008000}
+    - {op: fire, event_type: a, time_fired: 1795710645009000}
+    - {op: fire, event_type: a, time_fired: 1795710645017000}
+    - {op: fire, event_type: a, time_fired: 4102444800000001}
+    - {op: fire, event_type: a, time_fired: 8589934591999999}
+    - {op: fire, event_type: a, time_fired: 8589934592000001}
+    - {op: fire, event_type: a, time_fired: 10413792000000001}
+    - {op: fire, event_type: a, time_fired: 10413792000000003}
+    - {op: fire, event_type: a, time_fired: 32503680000999999}
+
+- name: now_rounding
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: a, now: 1795710645001000}
+    - {op: fire, event_type: a, now: 1795710645000999}
+    - {op: fire, event_type: a, now: 1795710645999999}
+    - {op: fire, event_type: a, now: 1795710645008000}
+    - {op: fire, event_type: a, now: 1795710645017000}
+    - {op: fire, event_type: a, now: 1795710645000000}
+    - {op: fire, event_type: a, now: 946684800000001}
+    - {op: fire, event_type: a, now: 4102444800000001}
+    - {op: fire, event_type: a, now: 8589934592000001}
+    - {op: fire, event_type: a, now: 10413792000000001}
+
+- name: context_given_and_inherited
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react:
+        - {fire: {event_type: y, context: inherit}}
+        - {fire: {event_type: y, context: {id: nested, user_id: u, parent_id: p}}}
+        - {fire: {event_type: y}}
+    - op: listen
+      id: b
+      event_type: y
+      react_times: 1
+      react: [{fire: {event_type: z, context: inherit, origin: remote}}]
+    - {op: listen, id: c, event_type: z}
+    - {op: fire, event_type: x, context: {id: top, user_id: "", parent_id: null}}
+    - {op: fire, event_type: x}
+    - {op: fire, event_type: x, context: {id: top}, origin: remote}
+
+- name: generated_context_numbering
+  ops:
+    - {op: listen, id: a, event_type: x}
+    - {op: listen, id: b, event_type: x}
+    - {op: fire, event_type: x}
+    - {op: fire, event_type: nobody}
+    - {op: fire, event_type: x, context: {id: mine}}
+    - {op: fire, event_type: x, now: 1795710700000000}
+    - {op: fire, event_type: x, time_fired: 1700000000000000}
+
+- name: raise_kinds
+  ops:
+    - {op: listen, id: a, event_type: x, react: [{raise: HomeAssistantError}]}
+    - {op: listen, id: b, event_type: x, react: [{raise: ValueError}]}
+    - {op: listen, id: c, event_type: x, react: [{raise: RuntimeError}]}
+    - {op: listen, id: d, event_type: x, react: [{raise: TypeError}]}
+    - {op: listen, id: e, event_type: x, react: [{raise: KeyError}]}
+    - {op: listen_once, id: f, event_type: x, react: [{raise: ValueError}]}
+    - {op: listen, id: g, event_type: x}
+    - op: fire
+      event_type: x
+      expect:
+        deliveries: [a, b, c, d, e, f, g]
+        logs: ["Error running job: HomeAssistantError", "Error running job: ValueError", "Error running job: RuntimeError", "Error running job: TypeError", "Error running job: KeyError", "Error running job: ValueError"]
+    - {op: fire, event_type: x, expect: {deliveries: [a, b, c, d, e, g]}}
+    - {op: listeners}
+
+- name: raise_stops_later_reactions
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react:
+        - {fire: {event_type: before}}
+        - {listen: {id: added, event_type: before}}
+        - {raise: ValueError}
+        - {fire: {event_type: after}}
+        - {listen: {id: never, event_type: before}}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: x, expect: {deliveries: [a, m, added, m], logs: ["Error running job: ValueError"]}}
+    - {op: listeners}
+
+- name: unsub_unknown_ids
+  ops:
+    - {op: unsub, id: nope, expect: {result: {error: KeyError}}}
+    - {op: listen, id: a, event_type: x, react: [{unsub: nope}, {fire: {event_type: y}}]}
+    - {op: listen, id: y, event_type: y}
+    - {op: fire, event_type: x, expect: {deliveries: [a], logs: ["Error running job: KeyError"]}}
+
+- name: double_unsub_leaves_empty_list_then_reuse
+  ops:
+    - {op: listen, id: a, event_type: x}
+    - {op: listen, id: z, event_type: z}
+    - {op: unsub, id: a}
+    - {op: listeners}
+    - {op: unsub, id: a, expect: {logs: ["Unable to remove unknown job listener"]}}
+    - {op: listeners}
+    - {op: fire, event_type: x, expect: {deliveries: []}}
+    - {op: listen, id: b, event_type: x}
+    - {op: listeners}
+    - {op: unsub, id: a, expect: {logs: ["Unable to remove unknown job listener"]}}
+    - {op: unsub, id: b}
+    - {op: listeners}
+    - {op: unsub, id: b, expect: {logs: ["Unable to remove unknown job listener"]}}
+    - {op: unsub, id: z}
+    - {op: listen, id: z, event_type: z}
+    - {op: listeners}
+
+- name: unsub_match_all_twice
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: unsub, id: m}
+    - {op: unsub, id: m, expect: {logs: ["Unable to remove unknown job listener"]}}
+    - {op: listeners}
+
+- name: same_id_many_listeners
+  ops:
+    - {op: listen, id: a, event_type: x}
+    - {op: listen, id: a, event_type: y}
+    - {op: listen_once, id: a, event_type: x}
+    - {op: fire, event_type: x, expect: {deliveries: [a, a]}}
+    - {op: unsub, id: a, expect: {logs: ["Unable to remove unknown job listener"]}}
+    - {op: unsub, id: a, expect: {logs: ["Unable to remove unknown job listener"]}}
+    - {op: fire, event_type: x, expect: {deliveries: [a]}}
+    - {op: fire, event_type: y, expect: {deliveries: [a]}}
+    - {op: listeners}
+
+- name: listener_relistens_same_id_in_dispatch
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react_times: 1
+      react:
+        - {unsub: a}
+        - {listen: {id: a, event_type: x, react: [{unsub: a}]}}
+    - {op: fire, event_type: x, expect: {deliveries: [a]}}
+    - {op: listeners}
+    - {op: fire, event_type: x, expect: {deliveries: [a]}}
+    - {op: listeners}
+    - {op: fire, event_type: x, expect: {deliveries: []}}
+
+- name: react_times_zero_and_once
+  ops:
+    - {op: listen, id: z, event_type: x, react_times: 0, react: [{fire: {event_type: y}}]}
+    - {op: listen_once, id: o, event_type: x, react_times: 1, react: [{fire: {event_type: y}}]}
+    - {op: listen, id: y, event_type: y}
+    - {op: fire, event_type: x, expect: {deliveries: [z, o, y]}}
+    - {op: fire, event_type: x, expect: {deliveries: [z]}}
+
+- name: once_unsubscribed_by_earlier_listener_leaves_empty_key
+  ops:
+    - {op: listen, id: killer, event_type: x, react_times: 1, react: [{unsub: victim}, {unsub: killer}]}
+    - {op: listen_once, id: victim, event_type: x}
+    - {op: fire, event_type: x, expect: {deliveries: [killer, victim], logs: ["Unable to remove unknown job listener"]}}
+    - {op: listeners}
+    - {op: fire, event_type: x, expect: {deliveries: []}}
+
+- name: once_rearms_itself
+  ops:
+    - op: listen_once
+      id: o
+      event_type: x
+      react: [{listen_once: {id: o, event_type: x, react: [{fire: {event_type: done}}]}}]
+    - {op: listen, id: d, event_type: done}
+    - {op: fire, event_type: x, expect: {deliveries: [o]}}
+    - {op: fire, event_type: x, expect: {deliveries: [o, d]}}
+    - {op: fire, event_type: x, expect: {deliveries: []}}
+    - {op: listeners}
+
+- name: once_on_star_fired_star_with_reactions
+  ops:
+    - op: listen_once
+      id: o
+      event_type: "*"
+      react: [{fire: {event_type: "*", data: {again: true}}}, {raise: RuntimeError}]
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: "*", expect: {deliveries: [o, m, m, m, m], logs: ["Error running job: RuntimeError"]}}
+    - {op: listeners}
+
+- name: two_once_same_type_one_unsubs_other
+  ops:
+    - {op: listen_once, id: o1, event_type: x, react: [{unsub: o2}]}
+    - {op: listen_once, id: o2, event_type: x, react: [{unsub: o1}]}
+    - op: fire
+      event_type: x
+      expect: {deliveries: [o1, o2], logs: ["Unable to remove unknown job listener", "Unable to remove unknown job listener"]}
+    - {op: listeners}
+
+- name: once_queued_twice_runs_once
+  # two events queued before the once listener ran
+  ops:
+    - {op: listen, id: a, event_type: x, react: [{fire: {event_type: y, data: {n: 1}}}, {fire: {event_type: y, data: {n: 2}}}]}
+    - {op: listen_once, id: o, event_type: y}
+    - {op: listen, id: p, event_type: y}
+    - {op: fire, event_type: x, expect: {deliveries: [a, o, p, p]}}
+
+- name: listeners_key_order
+  ops:
+    - {op: listen, id: a, event_type: zz}
+    - {op: listen, id: b, event_type: aa}
+    - {op: listen, id: c, event_type: zz}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: listeners}
+    - {op: unsub, id: a}
+    - {op: unsub, id: c}
+    - {op: listen, id: d, event_type: zz}
+    - {op: listeners}
+    - {op: unsub, id: m}
+    - {op: unsub, id: b}
+    - {op: unsub, id: d}
+    - {op: listeners}
+
+- name: queue_limit_exact
+  # two fires per receipt: the 10,000 limit is hit while events are still queued
+  ops:
+    - op: listen
+      id: loop
+      event_type: loop
+      react: [{fire: {event_type: loop}}, {fire: {event_type: loop}}, {fire: {event_type: other}}]
+    - {op: listen, id: o, event_type: other}
+    - {op: fire, event_type: loop}
+    - {op: fire, event_type: other, expect: {deliveries: [o], logs: []}}
+
+- name: origin_values
+  ops:
+    - {op: listen, id: a, event_type: x, react_times: 1, react: [{fire: {event_type: x, origin: local}}]}
+    - {op: fire, event_type: x, origin: remote}
+    - {op: fire, event_type: x, origin: local}
+    - {op: fire, event_type: x, origin: null}

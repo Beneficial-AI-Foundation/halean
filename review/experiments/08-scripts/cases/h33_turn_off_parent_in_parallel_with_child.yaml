@@ -1,0 +1,21 @@
+description: A script in a parallel step (one branch waits for a child script, one in a delay) is turned off; the child stops too.
+scripts:
+  child:
+    sequence:
+      - action: test.child
+      - event: child_never
+  par:
+    sequence:
+      - parallel:
+          - sequence:
+              - action: script.child
+              - event: branch_one_never
+          - sequence:
+              - delay: 5
+              - event: branch_two_never
+      - event: par_never
+steps:
+  - {at: 1, call: par}
+  - {at: 2, call: turn_off, data: {entity_id: script.par}}
+  - {at: 3, result: 0}
+  - {at: 8}

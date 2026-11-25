@@ -1,0 +1,139 @@
+# input_boolean: config forms, restore, services, entity service schema.
+- name: hw_ib_initial_truthy_strings
+  steps:
+    - setup: {input_boolean: {a: {initial: "yes"}, b: {initial: "On"}, c: {initial: 1}, d: {initial: "enable"}, e: {initial: "0"}, f: {initial: "FALSE"}, g: {initial: "disable"}, h: {initial: 0}}}
+- name: hw_ib_initial_bad_string
+  steps:
+    - setup: {input_boolean: {a: {initial: maybe}}}
+- name: hw_ib_initial_two
+  steps:
+    - setup: {input_boolean: {a: {initial: 2}}}
+- name: hw_ib_initial_float
+  steps:
+    - setup: {input_boolean: {a: {initial: 1.0}}}
+- name: hw_ib_initial_null
+  steps:
+    - setup: {input_boolean: {a: {initial: null}}}
+      restore: [[input_boolean.a, "on", {}]]
+- name: hw_ib_config_not_dict
+  steps:
+    - setup: {input_boolean: [a, b]}
+- name: hw_ib_config_none
+  steps:
+    - setup: {input_boolean: null}
+- name: hw_ib_config_empty
+  steps:
+    - setup: {input_boolean: {}}
+    - call: input_boolean.turn_on
+      data: {entity_id: input_boolean.a}
+    - call: input_boolean.turn_on
+      data: {entity_id: all}
+- name: hw_ib_value_string
+  steps:
+    - setup: {input_boolean: {a: "on"}}
+- name: hw_ib_value_false
+  steps:
+    - setup: {input_boolean: {a: false}}
+- name: hw_ib_slug_keys
+  steps:
+    - setup: {input_boolean: {a_1: null, "2b": null, a__b: null}}
+- name: hw_ib_slug_upper
+  steps:
+    - setup: {input_boolean: {ok: null, Upper: null}}
+- name: hw_ib_slug_trailing_underscore
+  steps:
+    - setup: {input_boolean: {a_: null}}
+- name: hw_ib_slug_dash
+  steps:
+    - setup: {input_boolean: {a-b: null}}
+- name: hw_ib_slug_unicode
+  steps:
+    - setup: {input_boolean: {"é": null}}
+- name: hw_ib_slug_empty
+  steps:
+    - setup: {input_boolean: {"": null}}
+- name: hw_ib_restore_states
+  steps:
+    - setup: {input_boolean: {a: null, b: null, c: null, d: {initial: false}, e: {}}}
+      restore:
+        - [input_boolean.a, "on", {}]
+        - [input_boolean.b, "ON", {}]
+        - [input_boolean.c, "unavailable", {}]
+        - [input_boolean.d, "on", {}]
+- name: hw_ib_service_schema
+  steps:
+    - setup: {input_boolean: {a: null, b: {initial: true}}}
+    - call: input_boolean.turn_on
+      data: {}
+    - call: input_boolean.turn_on
+      data: {entity_id: input_boolean.a, extra: 1}
+    - call: input_boolean.turn_on
+      data: {entity_id: null}
+    - call: input_boolean.turn_on
+      data: {entity_id: []}
+    - call: input_boolean.turn_on
+      data: {entity_id: none}
+    - call: input_boolean.turn_on
+      data: {entity_id: NONE}
+    - call: input_boolean.turn_on
+      data: {entity_id: "not an id"}
+    - call: input_boolean.turn_on
+      data: {entity_id: 5}
+    - call: input_boolean.turn_on
+      data: {entity_id: input_boolean.missing}
+    - call: input_boolean.turn_on
+      data: {entity_id: Input_Boolean.A}
+    - call: input_boolean.toggle
+      data: {entity_id: "ALL"}
+    - call: input_boolean.Toggle
+      data: {entity_id: input_boolean.a}
+    - call: INPUT_BOOLEAN.turn_off
+      data: {entity_id: input_boolean.a}
+    - call: input_boolean.nope
+      data: {entity_id: input_boolean.a}
+    - call: input_boolean.turn_on
+      data: {entity_id: [input_boolean.a, input_boolean.a]}
+    - call: input_boolean.turn_off
+      data: {entity_id: counter.x}
+    - call: input_boolean.turn_off
+      data: {area_id: none}
+    - call: input_boolean.turn_off
+      data: {device_id: []}
+    - call: input_boolean.turn_off
+      data: {entity_id: input_boolean.a, metadata: {x: 1}}
+    - call: input_boolean.turn_off
+      data: {entity_id: input_boolean.a, metadata: 5}
+- name: hw_ib_service_entity_id_comma_one
+  steps:
+    - setup: {input_boolean: {a: null}}
+    - call: input_boolean.turn_on
+      data: {entity_id: " input_boolean.a "}
+    - call: input_boolean.turn_off
+      data: {entity_id: "input_boolean.a,"}
+- name: hw_ib_service_two_errors
+  steps:
+    - setup: {input_boolean: {a: null}}
+    - call: input_boolean.turn_on
+      data: {entity_id: input_boolean.a, zzz: 1, aaa: 2}
+- name: hw_ib_no_change_no_event
+  steps:
+    - setup: {input_boolean: {a: {initial: true, name: A, icon: "mdi:x"}}}
+    - call: input_boolean.turn_on
+      data: {entity_id: input_boolean.a}
+    - call: input_boolean.toggle
+      data: {entity_id: input_boolean.a}
+    - call: input_boolean.toggle
+      data: {entity_id: input_boolean.a}
+- name: hw_ib_not_set_up
+  steps:
+    - call: input_boolean.turn_on
+      data: {entity_id: input_boolean.a}
+    - setup: {input_boolean: {a: {initial: maybe}}}
+    - call: input_boolean.turn_on
+      data: {entity_id: input_boolean.a}
+- name: hw_ib_area_target_refused
+  steps:
+    - setup: {input_boolean: {a: null}}
+    - call: input_boolean.turn_on
+      data: {area_id: kitchen}
+      unsupported: true

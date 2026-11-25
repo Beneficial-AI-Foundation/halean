@@ -1,0 +1,12 @@
+# `event_data: {}` matches everything; a null wanted value needs the key present with null
+automations:
+  - alias: evempty
+    triggers: [{trigger: event, event_type: e, event_data: {}}]
+    actions: [{event: m_evempty}]
+  - alias: evnull
+    triggers: [{trigger: event, event_type: e, event_data: {x: null}}]
+    actions: [{event: m_evnull}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: event, event_type: e, data: {x: null}}}
+  - {at: 3, send: {type: event, event_type: e, data: {x: 0}}}

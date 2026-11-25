@@ -1,0 +1,19 @@
+description: A script turns on two scripts with one call; the order of their first steps and the caller's next step.
+scripts:
+  one:
+    sequence:
+      - event: one_ran
+      - delay: 1
+      - event: one_done
+  two:
+    sequence:
+      - event: two_ran
+  outer:
+    sequence:
+      - action: script.turn_on
+        target: {entity_id: [script.two, script.one]}
+      - event: outer_after
+        event_data: {one: "{{ states('script.one') }}", two: "{{ states('script.two') }}"}
+steps:
+  - {at: 1, call: outer}
+  - {at: 2}

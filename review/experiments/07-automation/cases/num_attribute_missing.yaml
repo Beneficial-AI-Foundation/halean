@@ -1,0 +1,13 @@
+# numeric_state on an attribute: a missing attribute is false (arms), null is false
+automations:
+  - alias: numattr
+    triggers: [{trigger: numeric_state, entity_id: sensor.t, attribute: level, below: 5}]
+    actions: [{event: m_numattr}]
+states: [{entity_id: sensor.t, state: "x", attributes: {level: 1}}]
+steps:
+  - {at: 1, set: [sensor.t, "x"], attributes: {level: 2}}
+  - {at: 2, set: [sensor.t, "x"], attributes: {}}
+  - {at: 3, set: [sensor.t, "x"], attributes: {level: 3}}
+  - {at: 4, set: [sensor.t, "x"], attributes: {level: null}}
+  - {at: 5, set: [sensor.t, "x"], attributes: {level: "4"}}
+  - {at: 6, set: [sensor.t, "x"], attributes: {level: true}}

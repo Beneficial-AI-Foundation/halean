@@ -1,0 +1,21 @@
+description: stop without response_variable; a script that returns nothing called with return_response gives {}.
+scripts:
+  plain:
+    sequence:
+      - stop: done
+      - event: never
+  nothing:
+    sequence:
+      - event: ran
+  outer:
+    sequence:
+      - action: script.plain
+        response_variable: a
+      - action: script.nothing
+        response_variable: b
+      - event: outer_after
+        event_data: {a: "{{ a }}", b: "{{ b }}"}
+steps:
+  - {at: 1, call: plain, return_response: true}
+  - {at: 2, call: nothing, return_response: true}
+  - {at: 3, call: outer, return_response: true}

@@ -1,0 +1,10 @@
+description: A caller passes `context` as call data; the script's own context replaces it (it is not the caller's string).
+scripts:
+  v:
+    sequence:
+      - event: v
+        event_data:
+          ctx_is_string: "{{ context is string }}"
+steps:
+  - {at: 1, call: v}
+  - {at: 2, call: v, data: {context: mine}}

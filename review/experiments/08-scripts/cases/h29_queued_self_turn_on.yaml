@@ -1,0 +1,21 @@
+description: A queued script turns itself on; the new run queues behind the current one.
+scripts:
+  q:
+    mode: queued
+    fields:
+      n: {}
+    sequence:
+      - event: q_enter
+        event_data: {n: "{{ n }}", cur: "{{ state_attr('script.q', 'current') }}"}
+      - condition: template
+        value_template: "{{ n < 2 }}"
+      - action: script.turn_on
+        target: {entity_id: script.q}
+        data:
+          variables:
+            n: "{{ n + 1 }}"
+      - event: q_after_turn_on
+        event_data: {n: "{{ n }}", cur: "{{ state_attr('script.q', 'current') }}"}
+steps:
+  - {at: 1, call: q, data: {n: 0}}
+  - {at: 2}

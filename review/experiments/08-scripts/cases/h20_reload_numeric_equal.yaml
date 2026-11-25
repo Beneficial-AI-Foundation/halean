@@ -1,0 +1,16 @@
+description: Reload with `delay 5` written as `5.0` (equal as Python dicts, so HA keeps the entity and its run).
+scripts:
+  a:
+    sequence:
+      - delay: 5
+      - event: a_done
+steps:
+  - {at: 1, call: a}
+  - at: 2
+    reload:
+      a:
+        sequence:
+          - delay: 5.0
+          - event: a_done
+  - {at: 6}
+  - {at: 7}

@@ -1,0 +1,8 @@
+# `to: true` (YAML `on`) is not a str: HA's TRIGGER_STATE_SCHEMA rejects the automation
+automations:
+  - alias: boolto
+    triggers: [{trigger: state, entity_id: sensor.a, to: true}, {trigger: event, event_type: go}]
+    actions: [{event: m_boolto}]
+states: [{entity_id: sensor.a, state: "1"}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}}

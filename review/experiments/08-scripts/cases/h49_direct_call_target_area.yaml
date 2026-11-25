@@ -1,0 +1,20 @@
+description: A direct script call with a target (entity_id csv in mixed case, area_id) merged into the run variables.
+scripts:
+  show:
+    sequence:
+      - event: show
+        event_data:
+          e: "{{ entity_id }}"
+          a: "{{ area_id }}"
+  outer:
+    sequence:
+      - action: script.show
+        target:
+          entity_id: "Light.A, light.b"
+          area_id: kitchen
+      - action: script.show
+        target:
+          entity_id: light.one
+          area_id: [hall, attic]
+steps:
+  - {at: 1, call: outer}

@@ -1,0 +1,16 @@
+description: Any call data of a direct call are run variables, also entity_id, variables and metadata.
+scripts:
+  show:
+    fields:
+      entity_id: {}
+      variables: {}
+      metadata: {}
+    sequence:
+      - event: show
+        event_data:
+          e: "{{ entity_id | default('none') }}"
+          v: "{{ variables | default('none') }}"
+          m: "{{ metadata | default('none') }}"
+steps:
+  - {at: 1, call: show, data: {entity_id: light.x, variables: {a: 1}, metadata: 3}}
+  - {at: 2, call: show}

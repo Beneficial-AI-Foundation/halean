@@ -1,0 +1,23 @@
+description: A restart script turns on a second script, which calls the first directly (not a recursion; the stack is fresh).
+scripts:
+  a:
+    mode: restart
+    fields:
+      n: {}
+    sequence:
+      - event: a_enter
+        event_data: {n: "{{ n | default(0) }}"}
+      - condition: template
+        value_template: "{{ n is not defined }}"
+      - action: script.turn_on
+        target: {entity_id: script.b}
+      - delay: 5
+      - event: a_never
+  b:
+    sequence:
+      - action: script.a
+        data: {n: 1}
+      - event: b_after
+steps:
+  - {at: 1, call: a}
+  - {at: 7}

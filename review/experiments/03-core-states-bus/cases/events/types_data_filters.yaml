@@ -1,0 +1,199 @@
+# Event types, data, filters.
+
+- name: system_listener_event_then_generated_context
+  # logging_changed has one listener HA installed itself (EventBus.__init__)
+  ops:
+    - {op: fire, event_type: logging_changed}
+    - {op: listen, id: a, event_type: x}
+    - {op: fire, event_type: x}
+
+- name: system_listener_event_with_own_listener
+  ops:
+    - {op: listen, id: a, event_type: logging_changed}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: logging_changed, expect: {deliveries: [a, m]}}
+    - {op: fire, event_type: logging_changed, data: {k: 1}, context: {id: c1}}
+    - {op: unsub, id: a}
+    - {op: listeners}
+
+- name: event_type_astral_64_and_65
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀", expect: {deliveries: [m]}}
+    - {op: fire, event_type: "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀", expect: {result: {error: MaxLengthExceeded}}}
+
+- name: event_type_combining_33_pairs
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: "éééééééééééééééééééééééééééééééé", expect: {deliveries: [m]}}
+    - {op: fire, event_type: "ééééééééééééééééééééééééééééééééa", expect: {result: {error: MaxLengthExceeded}}}
+
+- name: event_type_too_long_in_listener
+  ops:
+    - op: listen
+      id: a
+      event_type: x
+      react:
+        - {fire: {event_type: "0123456789012345678901234567890123456789012345678901234567890123"}}
+        - {fire: {event_type: "01234567890123456789012345678901234567890123456789012345678901234"}}
+        - {fire: {event_type: after}}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: x, expect: {deliveries: [a, m, m], logs: ["Error running job: MaxLengthExceeded"]}}
+
+- name: listen_on_too_long_type_is_allowed
+  ops:
+    - {op: listen, id: a, event_type: "01234567890123456789012345678901234567890123456789012345678901234"}
+    - {op: listen_once, id: b, event_type: "01234567890123456789012345678901234567890123456789012345678901234"}
+    - {op: listeners}
+    - {op: fire, event_type: "01234567890123456789012345678901234567890123456789012345678901234", expect: {result: {error: MaxLengthExceeded}, deliveries: []}}
+    - {op: unsub, id: a}
+    - {op: unsub, id: b}
+    - {op: listeners}
+
+- name: event_type_empty_and_odd
+  ops:
+    - {op: listen, id: e, event_type: ""}
+    - {op: listen, id: sp, event_type: " "}
+    - {op: listen, id: up, event_type: X}
+    - {op: listen, id: lo, event_type: x}
+    - {op: listen, id: nl, event_type: "x\n"}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: "", expect: {deliveries: [e, m]}}
+    - {op: fire, event_type: " ", expect: {deliveries: [sp, m]}}
+    - {op: fire, event_type: X, expect: {deliveries: [up, m]}}
+    - {op: fire, event_type: "x\n", expect: {deliveries: [nl, m]}}
+    - {op: fire, event_type: "**", expect: {deliveries: [m]}}
+    - {op: listeners}
+
+- name: data_empty_vs_none
+  ops:
+    - {op: listen, id: t, event_type: x, filter: true}
+    - {op: listen, id: f, event_type: x, filter: false}
+    - {op: listen, id: h, event_type: x, filter: {has: k}}
+    - {op: listen, id: e, event_type: x, filter: {eq: {}}}
+    - {op: listen, id: r, event_type: x, filter: {raise: true}}
+    - {op: listen, id: p, event_type: x}
+    - {op: fire, event_type: x, expect: {deliveries: [p], logs: []}}
+    - {op: fire, event_type: x, data: null, expect: {deliveries: [p], logs: []}}
+    - {op: fire, event_type: x, data: {}, expect: {deliveries: [t, e, p], logs: ["Error in event filter: ValueError"]}}
+    - {op: fire, event_type: x, data: {k: null}, expect: {deliveries: [t, h, e, p]}}
+
+- name: filter_eq_python_equality
+  ops:
+    - {op: listen, id: one, event_type: x, filter: {eq: {k: 1}}}
+    - {op: listen, id: zero, event_type: x, filter: {eq: {k: 0}}}
+    - {op: listen, id: none, event_type: x, filter: {eq: {k: null}}}
+    - {op: listen, id: str, event_type: x, filter: {eq: {k: "1"}}}
+    - {op: listen, id: lst, event_type: x, filter: {eq: {k: [1, {a: true}]}}}
+    - {op: listen, id: dct, event_type: x, filter: {eq: {k: {a: 1, b: [0]}}}}
+    - {op: fire, event_type: x, data: {k: true}, expect: {deliveries: [one]}}
+    - {op: fire, event_type: x, data: {k: 1.0}, expect: {deliveries: [one]}}
+    - {op: fire, event_type: x, data: {k: false}, expect: {deliveries: [zero]}}
+    - {op: fire, event_type: x, data: {k: 0.0}, expect: {deliveries: [zero]}}
+    - {op: fire, event_type: x, data: {k: -0.0}, expect: {deliveries: [zero]}}
+    - {op: fire, event_type: x, data: {k: null}, expect: {deliveries: [none]}}
+    - {op: fire, event_type: x, data: {k: "1"}, expect: {deliveries: [str]}}
+    - {op: fire, event_type: x, data: {k: [1.0, {a: 1}]}, expect: {deliveries: [lst]}}
+    - {op: fire, event_type: x, data: {k: [true, {a: 1.0}]}, expect: {deliveries: [lst]}}
+    - {op: fire, event_type: x, data: {k: [1, {a: true}, 2]}, expect: {deliveries: []}}
+    - {op: fire, event_type: x, data: {k: {b: [false], a: true}}, expect: {deliveries: [dct]}}
+    - {op: fire, event_type: x, data: {k: {b: [0], a: 1, c: 2}}, expect: {deliveries: []}}
+    - {op: fire, event_type: x, data: {k: []}, expect: {deliveries: []}}
+    - {op: fire, event_type: x, data: {k: ""}, expect: {deliveries: []}}
+    - {op: fire, event_type: x, data: {j: 1}, expect: {deliveries: []}}
+
+- name: filter_eq_numbers
+  ops:
+    - {op: listen, id: big, event_type: x, filter: {eq: {k: 9007199254740993}}}
+    - {op: listen, id: f16, event_type: x, filter: {eq: {k: 1.0e+16}}}
+    - {op: listen, id: f23, event_type: x, filter: {eq: {k: 1.0e+23}}}
+    - {op: listen, id: tenth, event_type: x, filter: {eq: {k: 0.1}}}
+    - {op: fire, event_type: x, data: {k: 9007199254740992.0}, expect: {deliveries: []}}
+    - {op: fire, event_type: x, data: {k: 9007199254740993}, expect: {deliveries: [big]}}
+    - {op: fire, event_type: x, data: {k: 10000000000000000}, expect: {deliveries: [f16]}}
+    - {op: fire, event_type: x, data: {k: 0.1}, expect: {deliveries: [tenth]}}
+    - {op: fire, event_type: x, data: {k: 0.30000000000000004}, expect: {deliveries: []}}
+
+- name: filter_eq_float_1e23_vs_int
+  ops:
+    - {op: listen, id: f23, event_type: x, filter: {eq: {k: 1.0e+23}}}
+    - {op: fire, event_type: x, data: {k: 100000000000000000000000}, expect: {deliveries: []}}
+
+- name: filter_eq_several_keys
+  ops:
+    - {op: listen, id: a, event_type: x, filter: {eq: {p: 1, q: "s"}}}
+    - {op: fire, event_type: x, data: {p: 1}, expect: {deliveries: []}}
+    - {op: fire, event_type: x, data: {q: "s", p: true, r: 9}, expect: {deliveries: [a]}}
+    - {op: fire, event_type: x, data: {q: "S", p: 1}, expect: {deliveries: []}}
+
+- name: filter_deferred_event_creation
+  # the Event (and its generated context) is made at the first listener that passes
+  ops:
+    - {op: listen, id: f, event_type: x, filter: false}
+    - {op: listen, id: r, event_type: x, filter: {raise: true}}
+    - {op: listen, id: t, event_type: x, filter: true}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: x, data: {a: 1}, expect: {deliveries: [t, m]}}
+    - {op: fire, event_type: x, data: {a: 1}}
+    - {op: fire, event_type: x}
+    - {op: fire, event_type: y}
+
+- name: filter_all_fail_no_event_no_context
+  ops:
+    - {op: listen, id: f, event_type: x, filter: false}
+    - {op: listen, id: p, event_type: y}
+    - {op: fire, event_type: x, data: {a: 1}, expect: {deliveries: []}}
+    - {op: fire, event_type: x, expect: {deliveries: []}}
+    - {op: fire, event_type: y, expect: {deliveries: [p]}}
+
+- name: filter_on_match_all_fired_star
+  # an event of type "*" visits the match-all list twice: filters run twice
+  ops:
+    - {op: listen, id: r, event_type: "*", filter: {raise: true}}
+    - {op: listen, id: h, event_type: "*", filter: {has: k}}
+    - {op: listen, id: p, event_type: "*"}
+    - op: fire
+      event_type: "*"
+      data: {k: 1}
+      expect: {deliveries: [h, p, h, p], logs: ["Error in event filter: ValueError", "Error in event filter: ValueError"]}
+    - {op: fire, event_type: "*", expect: {deliveries: [p, p], logs: []}}
+
+- name: state_reported_rules
+  ops:
+    - {op: listen, id: nofilter, event_type: state_reported, expect: {result: {error: HomeAssistantError}}}
+    - {op: listen, id: f, event_type: state_reported, filter: false}
+    - {op: listen, id: t, event_type: state_reported, filter: true}
+    - {op: listen, id: nc, event_type: state_reported, filter: true, filter_callback: false, expect: {result: {error: HomeAssistantError}}}
+    - {op: listen_once, id: once, event_type: state_reported}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: listeners}
+    - {op: fire, event_type: state_reported, data: {entity_id: light.a}, expect: {deliveries: [t, once]}}
+    - {op: fire, event_type: state_reported, expect: {deliveries: []}}
+    - {op: listeners}
+
+- name: homeassistant_close_not_match_all
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: listen, id: c, event_type: homeassistant_close}
+    - {op: fire, event_type: homeassistant_close, expect: {deliveries: [c]}}
+
+- name: listen_argument_errors
+  ops:
+    - {op: listen, id: a, event_type: x, run_immediately: false, expect: {result: {error: RuntimeError}}}
+    - {op: listen, id: b, event_type: x, run_immediately: true, filter: true, filter_callback: false, expect: {result: {error: RuntimeError}}}
+    - {op: listen_once, id: c, event_type: x, run_immediately: true, expect: {result: {error: RuntimeError}}}
+    - {op: listen_once, id: d, event_type: x, run_immediately: false, filter: true, expect: {result: {error: TypeError}}}
+    - {op: listen_once, id: e, event_type: x, filter: false, filter_callback: false, expect: {result: {error: TypeError}}}
+    - {op: listen, id: f, event_type: x, run_immediately: null}
+    - {op: listen, id: g, event_type: state_reported, run_immediately: true, expect: {result: {error: RuntimeError}}}
+    - {op: listen, id: h, event_type: x, filter: null, filter_callback: false}
+    - {op: listeners}
+    - {op: unsub, id: a, expect: {result: {error: KeyError}}}
+    - {op: fire, event_type: x, expect: {deliveries: [f, h]}}
+
+- name: data_shapes
+  ops:
+    - {op: listen, id: a, event_type: x}
+    - {op: fire, event_type: x, data: {s: "é😀\n\0", n: null, i: -5, f: 2.5, b: false, l: [1, [2, {z: null}]], d: {y: {x: []}}, "": "", " k ": 1}}
+    - {op: fire, event_type: x, data: {event_type: other, origin: REMOTE, time_fired: 0, data: {data: 1}}}
+    - {op: fire, event_type: x, data: {big: 123456789012345678901234567890, small: 1.0e-7, neg: -0.5}}

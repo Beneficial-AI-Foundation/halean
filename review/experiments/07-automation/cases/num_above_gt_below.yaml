@@ -1,0 +1,8 @@
+# numeric_state with above > below: validate_above_below rejects the automation
+automations:
+  - alias: abovebelow
+    triggers: [{trigger: numeric_state, entity_id: sensor.t, above: 10, below: 5}, {trigger: event, event_type: go}]
+    actions: [{event: m_abovebelow}]
+states: [{entity_id: sensor.t, state: "1"}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}}

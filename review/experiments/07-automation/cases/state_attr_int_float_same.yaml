@@ -1,0 +1,10 @@
+# attribute trigger: 1 -> 1.0 is no change for Python (`old_value == new_value`)
+automations:
+  - alias: attrsame
+    triggers: [{trigger: state, entity_id: sensor.a, attribute: level}]
+    actions: [{event: m_attrsame}]
+states: [{entity_id: sensor.a, state: "x", attributes: {level: 1}}]
+steps:
+  - {at: 1, set: [sensor.a, "x"], attributes: {level: 1.0}}
+  - {at: 2, set: [sensor.a, "x"], attributes: {level: true}}
+  - {at: 3, set: [sensor.a, "x"], attributes: {level: 2}}

@@ -1,0 +1,21 @@
+description: >
+  A script turns off nothing; a queued script's running run is cancelled through its caller being turned off,
+  and the waiting run takes the lock.
+scripts:
+  q:
+    mode: queued
+    fields:
+      n: {}
+    sequence:
+      - action: test.q
+        data: {n: "{{ n }}"}
+  caller:
+    sequence:
+      - action: script.q
+        data: {n: from caller}
+      - event: caller_never
+steps:
+  - {at: 1, call: caller}
+  - {at: 2, call: q, data: {n: direct}}
+  - {at: 3, call: turn_off, data: {entity_id: script.caller}}
+  - {at: 4, result: 1}

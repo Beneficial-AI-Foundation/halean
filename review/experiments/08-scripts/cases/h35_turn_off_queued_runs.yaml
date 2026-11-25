@@ -1,0 +1,13 @@
+description: turn_off of a queued script with one run in a delay and two waiting for the lock; each caller's outcome.
+scripts:
+  q:
+    mode: queued
+    sequence:
+      - delay: 5
+      - event: q_done
+steps:
+  - {at: 1, call: q}
+  - {at: 1, call: q}
+  - {at: 1, call: q}
+  - {at: 2, call: turn_off, data: {entity_id: script.q}}
+  - {at: 8}

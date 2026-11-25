@@ -1,0 +1,10 @@
+# several event types; the same type twice is two listeners
+automations:
+  - alias: evlist
+    mode: parallel
+    triggers: [{trigger: event, event_type: [e1, e2, e1]}]
+    actions: [{event: m_evlist, event_data: {t: "{{ trigger.event.event_type }}", d: "{{ trigger.event.data.get('k') }}"}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e1, data: {k: 1}}}
+  - {at: 2, send: {type: event, event_type: e2, data: {k: 2}}}
+  - {at: 3, send: {type: event, event_type: e3}}

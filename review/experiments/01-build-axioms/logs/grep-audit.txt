@@ -1,0 +1,135 @@
+== word: sorry ==
+count(all lines incl. comments)=0
+== word: admit ==
+HALean/Automation/EngineSpec2.lean:140:admission (`admit`). -/
+HALean/Automation/EngineSpec3.lean:128:    (hr : admit a.mode a.maxRuns (runsOf e ai).length = .reject why) :
+HALean/Automation/EngineSpec3.lean:146:    (hr : admit a.mode a.maxRuns (runsOf e ai).length = .enqueue) :
+HALean/Automation/EngineSpec3.lean:168:    (hr : admit a.mode a.maxRuns (runsOf e ai).length = .start) :
+HALean/Automation/EngineSpec3.lean:191:    (hr : admit a.mode a.maxRuns (runsOf e ai).length = .restart) :
+HALean/Automation/EngineSpec3.lean:212:  have hr : admit a.mode a.maxRuns (runsOf e ai).length = .reject "Already running" := by
+HALean/Automation/EngineSpec3.lean:214:    simp [admit, hm, this]
+HALean/Automation/EngineSpec3.lean:232:  have hr : admit a.mode a.maxRuns (runsOf e ai).length
+HALean/Automation/EngineSpec3.lean:234:    rcases hm with hm | hm <;> simp [admit, hm, hfull, hpos]
+HALean/Automation/EngineBound.lean:14:  script entities), and its admission (`admit`) keeps the bound.
+HALean/Automation/EngineBound.lean:339:/-- `admit` lets a run start (or queue) only below the bound. -/
+HALean/Automation/EngineBound.lean:341:    (hd : ∀ why, admit a.mode a.maxRuns n = .reject why → False)
+HALean/Automation/EngineBound.lean:342:    (hnr : ¬(admit a.mode a.maxRuns n == .restart) = true) : n + 1 ≤ cap a := by
+HALean/Automation/EngineBound.lean:345:  unfold admit at hd hnr'
+HALean/Automation/EngineBound.lean:357:theorem admit_restart {a : Automation} {n : Nat} (h : (admit a.mode a.maxRuns n == .restart) = true) :
+HALean/Automation/EngineBound.lean:360:  unfold admit at h'
+HALean/Automation/EngineBound.lean:374:    (hd : ∀ why, admit a.mode a.maxRuns (runsOf e ai).length = .reject why → False)
+HALean/Automation/EngineBound.lean:375:    (hnr : ¬(admit a.mode a.maxRuns (runsOf e ai).length == .restart) = true)
+HALean/Automation/EngineBound.lean:430:    (hrs : (admit a.mode a.maxRuns (runsOf e ai).length == .restart) = true)
+HALean/Automation/Proofs.lean:60:    (admit .single m n = .start) ↔ n = 0 := by
+HALean/Automation/Proofs.lean:61:  unfold admit; by_cases h : n = 0 <;> simp [h]
+HALean/Automation/Proofs.lean:65:    admit .restart m n ≠ .reject why := by
+HALean/Automation/Proofs.lean:66:  unfold admit; by_cases h : n = 0 <;> simp [h]
+HALean/Automation/Proofs.lean:71:    (hmode : mode ≠ .restart) (hadm : admit mode m n = .start ∨ admit mode m n = .enqueue) :
+HALean/Automation/Proofs.lean:73:  unfold admit at hadm
+HALean/Automation/Proofs.lean:84:    admit .queued m n = .enqueue := by
+HALean/Automation/Proofs.lean:85:  unfold admit; simp [h0, hm]
+HALean/Automation/Engine.lean:494:def admit (mode : Mode) (maxRuns existing : Nat) : Admit :=
+HALean/Automation/Engine.lean:827:  let decision := admit a.mode a.maxRuns existing.length
+HALean/Automation/Engine.lean:992:  let decision := admit a.mode a.maxRuns existing.length
+HALean/Automation/EngineSpec.lean:238:/-! ### Run modes: exact outcome of `admit` -/
+HALean/Automation/EngineSpec.lean:241:    admit mode m n = .start ↔ n = 0 ∨ (mode = .parallel ∧ n ≠ m) := by
+HALean/Automation/EngineSpec.lean:242:  unfold admit
+HALean/Automation/EngineSpec.lean:246:    admit mode m n = .enqueue ↔ mode = .queued ∧ n ≠ 0 ∧ n ≠ m := by
+HALean/Automation/EngineSpec.lean:247:  unfold admit
+HALean/Automation/EngineSpec.lean:251:    admit mode m n = .restart ↔ mode = .restart ∧ n ≠ 0 := by
+HALean/Automation/EngineSpec.lean:252:  unfold admit
+HALean/Automation/EngineSpec.lean:256:    admit mode m n = .reject why ↔ n ≠ 0 ∧
+HALean/Automation/EngineSpec.lean:259:  unfold admit
+HALean/Automation/EngineSpec.lean:264:theorem admit_zero (mode : Mode) (m : Nat) : admit mode m 0 = .start := by
+count(all lines incl. comments)=42
+== word: native_decide ==
+count(all lines incl. comments)=0
+== word: implemented_by ==
+count(all lines incl. comments)=0
+== word: extern ==
+count(all lines incl. comments)=0
+== word: unsafe ==
+HALean/Template/Render.lean:300:  if a.startsWith "_" then throw s!"access to attribute '{a}' is unsafe"
+count(all lines incl. comments)=1
+== word: decide +native ==
+count(all lines incl. comments)=0
+== word: bv_decide ==
+count(all lines incl. comments)=0
+== word: opaque ==
+HALean/Automation/EngineSpec3.lean:294:    let rem : Template.Value := if w.hasTimeout then .opaque "wait.remaining" else .none
+HALean/Automation/LocationSpec.lean:6:  Lean's `Float` keeps opaque; what is proved here is the control flow
+HALean/Automation/LocationSpec.lean:221:Lean's `==` on `Json` is opaque, so "a number is not `null`" is assumed.) -/
+HALean/Automation/Engine.lean:842:                     vars := setVar vars "context" (.opaque "context"),
+HALean/Automation/Engine.lean:925:/-- How deep handler calls may nest. `opaque` so that the kernel never
+HALean/Automation/Engine.lean:927:opaque ENGINE_FUEL : Nat := 10000
+HALean/Automation/Engine.lean:958:    ("last_changed", .opaque "this.last_changed"), ("last_reported", .opaque "this.last_reported"),
+HALean/Automation/Engine.lean:959:    ("last_updated", .opaque "this.last_updated"), ("context", .opaque "this.context")].map
+HALean/Automation/Engine.lean:1021:    let rem : Template.Value := if w.hasTimeout then .opaque "wait.remaining" else .none
+HALean/Automation/Engine.lean:1029:opaque LOOP_FUEL : Nat := 100000
+HALean/Automation/Engine.lean:1306:    let rem : Template.Value := if deadline.isSome then .opaque "wait.remaining" else .none
+HALean/Automation/Engine.lean:1421:    ("origin", .opaque "event.origin"), ("time_fired", .opaque "datetime"),
+HALean/Automation/Engine.lean:1422:    ("context", .opaque "context")]
+HALean/Automation/TimePeriodSpec.lean:385:which Lean's opaque `Float` cannot evaluate in a proof.) -/
+HALean/Automation/SunSpec.lean:6:  transcendentals, which Lean's `Float` keeps opaque: nothing numeric can be
+HALean/Script/Entity.lean:71:does not model, so it is opaque then. Timestamps and the context are opaque,
+HALean/Script/Entity.lean:81:    (if current > 0 then [("last_action", .opaque "this.attributes.last_action")] else []) ++
+HALean/Script/Entity.lean:86:    ("last_changed", .opaque "this.last_changed"), ("last_reported", .opaque "this.last_reported"),
+HALean/Script/Entity.lean:87:    ("last_updated", .opaque "this.last_updated"), ("context", .opaque "this.context")].map
+HALean/Core/EventBus.lean:513:/-- The listener table `init` installs: opaque jobs with fresh keys. -/
+HALean/Core/SchemaSpec.lean:9:  with the evaluator as an opaque function.
+HALean/Core/HassProofs.lean:342:filter passes, except the opaque ones HA already had (`system`) and
+HALean/Core/HassProofs.lean:436:is opaque or a `listen_once` that already ran) and nothing else. -/
+HALean/Core/State.lean:30:/-- `homeassistant.core.Context`. Ids are opaque strings: upstream makes them
+HALean/Core/ProbatioSpec.lean:9:  opaque predicates.
+HALean/Template/RenderSpec.lean:404:    isOpaqueOrUndef v = true ↔ (∃ n, v = .undef n) ∨ (∃ w, v = .opaque w) := by
+HALean/Template/RenderSpec.lean:415:    isComplexOrStr v = true ↔ (∃ s, v = .str s) ∨ v = .opaque "complex" := by
+HALean/Template/RenderSpec3.lean:208:theorem forgivingBool_default (v d : Value) (s : RS) (h : ∀ w, v ≠ .opaque w) :
+HALean/Template/RenderSpec3.lean:220:theorem forgivingBool_no_default (v : Value) (s : RS) (h : ∀ w, v ≠ .opaque w)
+HALean/Template/RenderSpec3.lean:641:theorem cmpOp_notin (ctx : Ctx) (a : Value) (xs : List Value) (s : RS) (h : ∀ w, a ≠ .opaque w) :
+HALean/Template/RenderSpec3.lean:648:    ∃ e, runR (cmpOp ctx op (.opaque w) b) s = (.error e, s) := ⟨_, rfl⟩
+HALean/Template/Render.lean:183:  | .opaque w => throw s!"{w} values are not supported by HALean"
+HALean/Template/Render.lean:220:  | .opaque w => throw s!"{w} values are not supported by HALean"
+HALean/Template/Render.lean:269:      | none => .opaque "state.last_updated")
+HALean/Template/Render.lean:277:  | a => if STATE_OPAQUE.contains a then pure (.opaque s!"state.{a}")
+HALean/Template/Render.lean:347:  | .opaque w => throw s!"{w} values are not supported by HALean"
+HALean/Template/Render.lean:394:  | .opaque w => throw s!"{w} values are not supported by HALean"
+HALean/Template/Render.lean:436:  | .opaque w => throw s!"{w} values are not supported by HALean"
+HALean/Template/Render.lean:449:  | .opaque w => throw s!"{w} values are not supported by HALean"
+HALean/Template/Render.lean:604:  match v with | .undef _ | .opaque _ => true | _ => false
+count(all lines incl. comments)=62
+== axiom declarations ==
+count=0
+== partial definitions ==
+     20 HALean/Template/Syntax.lean
+     18 HALean/Template/Render.lean
+      8 HALean/Template/Value.lean
+      7 HALean/Core/PyJson.lean
+      7 HALean/Automation/Config.lean
+      6 HALean/Helpers/Pattern.lean
+      5 HALean/Core/Schema.lean
+      4 Exe/Core.lean
+      3 HALean/Core/ServicesJson.lean
+      3 HALean/Automation/Condition.lean
+      3 Exe/CoreEvents.lean
+      2 Exe/CoreStates.lean
+      1 HALean/Template/Time.lean
+      1 HALean/Template/Regex.lean
+      1 HALean/Template/DateParse.lean
+      1 HALean/Script/Config.lean
+      1 HALean/Core/ServiceRegistry.lean
+      1 HALean/Core/Probatio.lean
+      1 HALean/Core/EventBus.lean
+      1 HALean/Automation/Engine.lean
+      1 Exe/Template.lean
+      1 Exe/Script.lean
+      1 Exe/Helpers.lean
+      1 Exe/CoreServices.lean
+      1 Exe/Automation.lean
+count=99
+== any other 'partial' token ==
+HALean/Automation/EngineSpec3.lean:6:  the functions around it are `partial`, so a theorem can follow a handler
+== decreasing_by / termination_by counts ==
+3
+== set_option maxHeartbeats / maxRecDepth ==
+0
+== generated files (header says generated) ==

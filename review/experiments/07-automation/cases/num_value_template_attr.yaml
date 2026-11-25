@@ -1,0 +1,12 @@
+# value_template reading an attribute; a template result of None is false
+automations:
+  - alias: numvt
+    triggers: [{trigger: numeric_state, entity_id: sensor.t, above: 3, value_template: "{{ state.attributes.get('v') }}"}]
+    actions: [{event: m_numvt}]
+states: [{entity_id: sensor.t, state: "x", attributes: {v: 1}}]
+steps:
+  - {at: 1, set: [sensor.t, "x"], attributes: {v: 5}}
+  - {at: 2, set: [sensor.t, "x"], attributes: {}}
+  - {at: 3, set: [sensor.t, "x"], attributes: {v: "7"}}
+  - {at: 4, set: [sensor.t, "x"], attributes: {v: "abc"}}
+  - {at: 5, set: [sensor.t, "x"], attributes: {v: 8}}

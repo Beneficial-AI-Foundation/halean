@@ -1,0 +1,19 @@
+description: Two runs of a parallel script whose delays end in the same tick, and two different scripts; the order they go on in.
+scripts:
+  p:
+    mode: parallel
+    fields:
+      n: {}
+    sequence:
+      - delay: 2
+      - event: p_done
+        event_data: {n: "{{ n }}"}
+  other:
+    sequence:
+      - delay: 1
+      - event: other_done
+steps:
+  - {at: 1, call: p, data: {n: 1}}
+  - {at: 1, call: p, data: {n: 2}}
+  - {at: 2, call: other}
+  - {at: 3}

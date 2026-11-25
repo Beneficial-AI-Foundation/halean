@@ -1,0 +1,13 @@
+description: script_started carries the alias; after a reload changed it, the new one.
+scripts:
+  a:
+    alias: Before
+    sequence: []
+steps:
+  - {at: 1, call: a}
+  - at: 2
+    reload:
+      a:
+        alias: After
+        sequence: []
+  - {at: 3, call: turn_on, data: {entity_id: script.a}}

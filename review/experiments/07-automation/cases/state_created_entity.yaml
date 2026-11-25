@@ -1,0 +1,9 @@
+# an entity that appears: from_state is None; `from: null` is match-all; not_from excludes None?
+automations:
+  - alias: created
+    triggers: [{trigger: state, entity_id: sensor.new, id: any}, {trigger: state, entity_id: sensor.new, not_from: "x", id: notx}, {trigger: state, entity_id: sensor.new, to: "1", id: to1}]
+    mode: parallel
+    actions: [{event: m_created, event_data: {id: "{{ trigger.id }}", from_none: "{{ trigger.from_state is none }}"}}]
+steps:
+  - {at: 1, set: [sensor.new, "1"]}
+  - {at: 2, set: [sensor.new, "2"]}

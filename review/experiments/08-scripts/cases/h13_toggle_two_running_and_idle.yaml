@@ -1,0 +1,18 @@
+description: >
+  toggle of two scripts, the first running (stopped) and the second idle (started). The first
+  one's caller goes on when it is stopped; the order of its event and the second script's start.
+scripts:
+  first:
+    sequence:
+      - delay: 10
+  second:
+    sequence:
+      - event: second_ran
+  caller:
+    sequence:
+      - action: script.first
+      - event: caller_after_first
+steps:
+  - {at: 1, call: caller}
+  - {at: 2, call: toggle, data: {entity_id: [script.first, script.second]}}
+  - {at: 3}

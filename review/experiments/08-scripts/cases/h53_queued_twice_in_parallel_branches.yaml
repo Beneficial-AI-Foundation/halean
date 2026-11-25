@@ -1,0 +1,21 @@
+description: Two parallel branches call the same queued script; both run, one after the other.
+scripts:
+  q:
+    mode: queued
+    fields:
+      n: {}
+    sequence:
+      - action: test.q
+        data: {n: "{{ n }}"}
+  fan:
+    sequence:
+      - parallel:
+          - action: script.q
+            data: {n: 1}
+          - action: script.q
+            data: {n: 2}
+      - event: fan_done
+steps:
+  - {at: 1, call: fan}
+  - {at: 2, result: 0}
+  - {at: 3, result: 1}

@@ -1,0 +1,7 @@
+# a trigger `id` that is not a string: HA rejects the automation ("expected str")
+automations:
+  - alias: intid
+    triggers: [{trigger: event, event_type: e2, id: 7}]
+    actions: [{event: m_intid, event_data: {id: "{{ trigger.id }}"}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e2}}

@@ -1,0 +1,21 @@
+description: A restart script turns itself on (allowed, a fresh script stack) with a counter; the old run is stopped inside its turn_on step.
+scripts:
+  r:
+    mode: restart
+    fields:
+      n: {}
+    sequence:
+      - event: r_enter
+        event_data: {n: "{{ n }}"}
+      - condition: template
+        value_template: "{{ n < 3 }}"
+      - action: script.turn_on
+        target: {entity_id: script.r}
+        data:
+          variables:
+            n: "{{ n + 1 }}"
+      - event: r_after_turn_on
+        event_data: {n: "{{ n }}"}
+steps:
+  - {at: 1, call: r, data: {n: 0}}
+  - {at: 2}

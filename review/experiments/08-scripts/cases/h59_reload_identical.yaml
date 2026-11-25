@@ -1,0 +1,19 @@
+description: A reload with the same scripts.yaml, keys of a script in another order; runs go on.
+scripts:
+  a:
+    alias: A
+    mode: parallel
+    sequence:
+      - delay: 3
+      - event: a_done
+steps:
+  - {at: 1, call: a}
+  - at: 2
+    reload:
+      a:
+        sequence:
+          - delay: 3
+          - event: a_done
+        mode: parallel
+        alias: A
+  - {at: 4}

@@ -1,0 +1,22 @@
+description: A script calls a parallel script that is at max, asking for a response; it gets {}.
+scripts:
+  p:
+    mode: parallel
+    max: 2
+    sequence:
+      - action: test.p
+      - variables: {out: {ok: true}}
+      - stop: done
+        response_variable: out
+  outer:
+    sequence:
+      - action: script.p
+        response_variable: r
+      - event: outer_after
+        event_data: {r: "{{ r }}"}
+steps:
+  - {at: 1, call: p}
+  - {at: 1, call: p}
+  - {at: 2, call: outer}
+  - {at: 3, result: 0}
+  - {at: 3, result: 1}

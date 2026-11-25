@@ -1,0 +1,241 @@
+# input_text patterns: the regex subset of Pattern.lean against Python's re.
+- name: hw_pat_dollar_star
+  steps:
+    - setup: {input_text: {a: {pattern: "a$*", initial: "a"}, b: {initial: ok}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "a"}
+- name: hw_pat_class_escape_range
+  steps:
+    - setup: {input_text: {a: {pattern: "[\\d-z]+", initial: "1"}}}
+- name: hw_pat_brace_at_start
+  steps:
+    - setup: {input_text: {a: {pattern: "{2}", initial: "{2}"}}}
+- name: hw_pat_brace_after_bar
+  steps:
+    - setup: {input_text: {a: {pattern: "a|{2}", initial: "a"}}}
+- name: hw_pat_bracket_first_range
+  steps:
+    - setup: {input_text: {a: {pattern: "[]-a]+$"}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "^_"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "-"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "]a"}
+- name: hw_pat_space_class_fs
+  steps:
+    - setup: {input_text: {a: {pattern: "a\\sb"}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "a\x1cb"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "a\x1fb"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "a\x0bb"}
+- name: hw_pat_nonascii_initial
+  steps:
+    - setup: {input_text: {a: {pattern: "\\w+$", initial: "été"}}}
+- name: hw_pat_nonascii_restore
+  steps:
+    - setup: {input_text: {a: {pattern: "\\w+$"}}}
+      restore: [[input_text.a, "été", {}]]
+- name: hw_pat_nonascii_digit_initial
+  steps:
+    - setup: {input_text: {a: {pattern: "\\d+$", initial: "١٢"}}}
+- name: hw_pat_nonascii_set_value_no_class
+  steps:
+    - setup: {input_text: {a: {pattern: "[a-zé]+.$"}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "étéx"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "ÉTÉ"}
+- name: hw_pat_brace_literal_after_repeat
+  steps:
+    - setup: {input_text: {a: {pattern: "a{2}{x", initial: "aa{x"}}}
+- name: hw_pat_dollar_newline
+  steps:
+    - setup: {input_text: {a: {pattern: "ab$"}, b: {pattern: "a.c"}, c: {pattern: "a$\\n"}, d: {pattern: "a[^b]c"}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "ab\n"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "ab\n\n"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "ab\nc"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.b, value: "a\nc"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.b, value: "a\rc"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "a\n"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "a"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.d, value: "a\nc"}
+- name: hw_pat_prefix_match
+  steps:
+    - setup: {input_text: {a: {pattern: "ab"}, b: {pattern: "^ab$"}, c: {pattern: ""}, d: {pattern: "|x"}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "abzzz"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "zab"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.b, value: "abz"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "anything"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.d, value: "q"}
+- name: hw_pat_backtracking
+  steps:
+    - setup:
+        input_text:
+          a: {pattern: "(a|ab)(c|bcd)(d*)$"}
+          b: {pattern: "(a*)*b$"}
+          c: {pattern: "(a|)+b$"}
+          d: {pattern: "a{2,3}a$"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "abcd"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.b, value: "aaab"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.b, value: "aaac"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "aab"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "b"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.d, value: "aaa"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.d, value: "aa"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.d, value: "aaaaa"}
+- name: hw_pat_quantifier_forms
+  steps:
+    - setup:
+        input_text:
+          a: {pattern: "x{0}y$"}
+          b: {pattern: "x{,}y$"}
+          c: {pattern: "x{2,}$"}
+          d: {pattern: "x{,2}$"}
+          e: {pattern: "x{}$"}
+          f: {pattern: "x{1,2,3}$"}
+          g: {pattern: "x{ 1}$"}
+          h: {pattern: "(?:ab){2}$"}
+          i: {pattern: "x{02}$"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "y"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "xy"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.b, value: "xxxxy"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "x"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "xxxx"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.d, value: "xxx"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.d, value: ""}
+    - call: input_text.set_value
+      data: {entity_id: input_text.e, value: "x{}"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.f, value: "x{1,2,3}"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.g, value: "x{ 1}"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.h, value: "abab"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.h, value: "ab"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.i, value: "xx"}
+- name: hw_pat_classes
+  steps:
+    - setup:
+        input_text:
+          a: {pattern: "[a-c-e]+$"}
+          b: {pattern: "[^]]+$"}
+          c: {pattern: "[a\\-z]+$"}
+          d: {pattern: "[\\w.-]+$"}
+          e: {pattern: "[-a]+$"}
+          f: {pattern: "[a-]+$"}
+          g: {pattern: "[\\]\\\\]+$"}
+          h: {pattern: "[^\\d\\s]+$"}
+          i: {pattern: "[+--]+$"}
+          j: {pattern: "[$^.*|()]+$"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "abc-e"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "d"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.b, value: "a[b"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.b, value: "a]"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "a-z"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "m"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.d, value: "a_b.c-d"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.d, value: "a b"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.e, value: "-a-"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.f, value: "a-"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.g, value: "]\\"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.h, value: "ab_"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.h, value: "a1"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.i, value: "+,-"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.i, value: "."}
+    - call: input_text.set_value
+      data: {entity_id: input_text.j, value: "$^.*|()"}
+- name: hw_pat_escapes
+  steps:
+    - setup:
+        input_text:
+          a: {pattern: "\\.\\*\\+\\?\\(\\)\\[\\]\\{\\}\\|\\^\\$\\\\\\/\\-$"}
+          b: {pattern: "a\\tb\\nc$"}
+          c: {pattern: "\\D\\W\\S$"}
+          d: {pattern: "\\_\\ \\#\\@$"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: ".*+?()[]{}|^$\\/-"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.b, value: "a\tb\nc"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "a!x"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "1!x"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.d, value: "_ #@"}
+- name: hw_pat_refused_lazy
+  steps:
+    - setup: {input_text: {a: {pattern: "a+?"}}}
+      unsupported: true
+- name: hw_pat_refused_backref
+  steps:
+    - setup: {input_text: {a: {pattern: "(a)\\1"}}}
+      unsupported: true
+- name: hw_pat_refused_word_boundary
+  steps:
+    - setup: {input_text: {a: {pattern: "\\bfoo"}}}
+      unsupported: true
+- name: hw_pat_refused_caret_inside
+  steps:
+    - setup: {input_text: {a: {pattern: "a|^b"}}}
+      unsupported: true
+- name: hw_pat_invalid_regex_ha_side
+  # HA: re.error when the state is written, the entity is not added, the others are
+  steps:
+    - setup: {input_text: {a: {pattern: "a(", initial: "a"}, b: {initial: "x"}}}
+- name: hw_pat_empty_group_star
+  steps:
+    - setup: {input_text: {a: {pattern: "()*a$"}, b: {pattern: "(?:)*b$"}, c: {pattern: "(a?)*c$"}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "a"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.b, value: "b"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "aac"}

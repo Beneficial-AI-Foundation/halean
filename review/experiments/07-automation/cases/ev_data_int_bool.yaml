@@ -1,0 +1,11 @@
+# event_data is compared with Python `==`: 1 == True == 1.0, "1" != 1
+automations:
+  - alias: evint
+    triggers: [{trigger: event, event_type: e, event_data: {x: 1}}]
+    actions: [{event: m_evint}]
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {x: true}}}
+  - {at: 2, send: {type: event, event_type: e, data: {x: 1.0}}}
+  - {at: 3, send: {type: event, event_type: e, data: {x: "1"}}}
+  - {at: 4, send: {type: event, event_type: e, data: {x: 1, y: 2}}}
+  - {at: 5, send: {type: event, event_type: e, data: {y: 2}}}

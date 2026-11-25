@@ -1,0 +1,17 @@
+# nested event_data with null and with values that are types/keywords for a schema
+automations:
+  - alias: evnone
+    triggers: [{trigger: event, event_type: e, event_data: {a: {b: null}}}]
+    actions: [{event: m_evnone}]
+  - alias: evbool
+    triggers: [{trigger: event, event_type: e, event_data: {a: {b: true}}}]
+    actions: [{event: m_evbool}]
+  - alias: evstr
+    triggers: [{trigger: event, event_type: e, event_data: {a: {b: "1"}}}]
+    actions: [{event: m_evstr}]
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {a: {b: null}}}}
+  - {at: 2, send: {type: event, event_type: e, data: {a: {}}}}
+  - {at: 3, send: {type: event, event_type: e, data: {a: {b: 1}}}}
+  - {at: 4, send: {type: event, event_type: e, data: {a: {b: true}}}}
+  - {at: 5, send: {type: event, event_type: e, data: {a: {b: "1"}}}}

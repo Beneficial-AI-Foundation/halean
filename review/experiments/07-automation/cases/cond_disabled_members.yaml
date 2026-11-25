@@ -1,0 +1,27 @@
+# disabled conditions: skipped by and/or, false for not, None alone in `if`, `choose` and `condition` step
+automations:
+  - alias: dis
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - if: [{condition: or, conditions: [{condition: template, value_template: "{{ true }}", enabled: false}]}]
+        then: [{event: m_or_then}]
+        else: [{event: m_or_else}]
+      - if: [{condition: and, conditions: [{condition: template, value_template: "{{ false }}", enabled: false}]}]
+        then: [{event: m_and_then}]
+        else: [{event: m_and_else}]
+      - if: [{condition: not, conditions: [{condition: template, value_template: "{{ true }}", enabled: false}]}]
+        then: [{event: m_not_then}]
+        else: [{event: m_not_else}]
+      - if: [{condition: template, value_template: "{{ false }}", enabled: false}]
+        then: [{event: m_if_then}]
+        else: [{event: m_if_else}]
+      - repeat:
+          until: [{condition: template, value_template: "{{ false }}", enabled: false}]
+          sequence: [{event: m_until_body}]
+      - repeat:
+          while: [{condition: template, value_template: "{{ false }}", enabled: false}, "{{ repeat.index < 3 }}"]
+          sequence: [{event: m_while_body}]
+      - {condition: template, value_template: "{{ true }}", enabled: false}
+      - {event: m_after_disabled_condition_step}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

@@ -1,0 +1,14 @@
+# numeric_state `for`: leaving the range cancels, an in-range change does not restart
+automations:
+  - alias: numfor
+    triggers: [{trigger: numeric_state, entity_id: sensor.t, above: 10, for: 5}]
+    actions: [{event: m_numfor, event_data: {s: "{{ trigger.to_state.state }}"}}]
+states: [{entity_id: sensor.t, state: "0"}]
+steps:
+  - {at: 1, set: [sensor.t, "11"]}
+  - {at: 3, set: [sensor.t, "12"]}
+  - {at: 6, send: {type: event, event_type: tick}}
+  - {at: 7, set: [sensor.t, "0"]}
+  - {at: 8, set: [sensor.t, "13"]}
+  - {at: 10, set: [sensor.t, "5"]}
+  - {at: 14, send: {type: event, event_type: tick}}

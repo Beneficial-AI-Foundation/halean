@@ -1,0 +1,24 @@
+# numeric_state condition over several entities, a non-numeric one, an unknown one
+automations:
+  - alias: nummulti
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - if: [{condition: numeric_state, entity_id: [sensor.a, sensor.b], above: 5}]
+        then: [{event: m_both}]
+        else: [{event: m_notboth}]
+      - if: [{condition: or, conditions: [{condition: numeric_state, entity_id: sensor.txt, above: 5}, {condition: numeric_state, entity_id: sensor.a, above: 5}]}]
+        then: [{event: m_or}]
+        else: [{event: m_nor}]
+      - if: [{condition: and, conditions: [{condition: numeric_state, entity_id: sensor.txt, above: 5}, {condition: numeric_state, entity_id: sensor.a, above: 50}]}]
+        then: [{event: m_and}]
+        else: [{event: m_nand}]
+      - if: [{condition: numeric_state, entity_id: sensor.a, above: sensor.b, below: 100}]
+        then: [{event: m_gt_b}]
+        else: [{event: m_ngt_b}]
+states: [{entity_id: sensor.a, state: "6"}, {entity_id: sensor.b, state: "5"}, {entity_id: sensor.txt, state: "abc"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, set: [sensor.b, "7"]}
+  - {at: 3, send: {type: event, event_type: e}}
+  - {at: 4, set: [sensor.b, "unavailable"]}
+  - {at: 5, send: {type: event, event_type: e}}

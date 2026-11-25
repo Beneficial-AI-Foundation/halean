@@ -1,0 +1,18 @@
+description: A queued script calls a single script that calls the queued one again (disallowed recursion through another script).
+scripts:
+  q:
+    mode: queued
+    sequence:
+      - event: q_enter
+      - action: script.mid
+      - event: q_leave
+  mid:
+    sequence:
+      - event: mid_enter
+      - action: script.q
+        response_variable: r
+      - event: mid_leave
+        event_data: {r: "{{ r }}"}
+steps:
+  - {at: 1, call: q}
+  - {at: 2, call: mid}

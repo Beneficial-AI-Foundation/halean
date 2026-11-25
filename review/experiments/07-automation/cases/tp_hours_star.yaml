@@ -1,0 +1,8 @@
+# hours "*": minutes and seconds default to 0
+automations:
+  - alias: hstar
+    triggers: [{trigger: time_pattern, hours: "*"}]
+    actions: [{event: m_hstar, event_data: {t: "{{ trigger.now.strftime('%H:%M:%S') }}"}}]
+steps:
+  - {at: 40, send: {type: event, event_type: tick}}
+  - {at: 2800, send: {type: event, event_type: tick}}

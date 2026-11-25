@@ -1,0 +1,15 @@
+description: >
+  A called script fails with an unexpected error (not a HomeAssistantError). In the caller,
+  continue_on_error wraps it in HomeAssistantError and goes on.
+scripts:
+  worker:
+    sequence:
+      - action: test.work
+  boss:
+    sequence:
+      - action: script.worker
+        continue_on_error: true
+      - event: boss_after
+steps:
+  - {at: 1, call: boss}
+  - {at: 2, result: 0, ok: false, error_kind: other}

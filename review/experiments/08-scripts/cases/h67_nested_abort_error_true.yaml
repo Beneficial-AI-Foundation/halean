@@ -1,0 +1,15 @@
+description: stop with error true in a called script; a caller asking for a response gets {} and goes on.
+scripts:
+  aborts:
+    sequence:
+      - stop: bad
+        error: true
+  outer:
+    sequence:
+      - action: script.aborts
+        response_variable: r
+      - event: outer_after
+        event_data: {r: "{{ r }}"}
+steps:
+  - {at: 1, call: outer}
+  - {at: 2, call: aborts, return_response: true}

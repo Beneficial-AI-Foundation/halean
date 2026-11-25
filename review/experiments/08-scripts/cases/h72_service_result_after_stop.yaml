@@ -1,0 +1,11 @@
+description: The result of a service call arrives after its script was turned off; nothing happens.
+scripts:
+  f:
+    sequence:
+      - action: test.f
+        response_variable: r
+      - event: never
+steps:
+  - {at: 1, call: f}
+  - {at: 2, call: turn_off, data: {entity_id: script.f}}
+  - {at: 3, result: 0, response: {a: 1}}

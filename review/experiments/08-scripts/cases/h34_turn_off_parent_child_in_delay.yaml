@@ -1,0 +1,19 @@
+description: A script awaiting a child (in a delay) is turned off; the child is stopped too; the grandparent's outcome.
+scripts:
+  child:
+    sequence:
+      - delay: 10
+      - event: child_never
+  parent:
+    sequence:
+      - action: script.child
+      - event: parent_never
+  grand:
+    sequence:
+      - action: script.parent
+      - event: grand_after
+steps:
+  - {at: 1, call: grand}
+  - {at: 2, call: turn_off, data: {entity_id: script.parent}}
+  - {at: 3}
+  - {at: 12}

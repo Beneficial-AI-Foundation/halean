@@ -1,0 +1,23 @@
+# and/or/not with a raising member: a deciding member wins, otherwise the error
+automations:
+  - alias: errs
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - if: [{condition: and, conditions: [{condition: state, entity_id: x.gone, state: a}, {condition: template, value_template: "{{ false }}"}]}]
+        then: [{event: m_and_then}]
+        else: [{event: m_and_else}]
+      - if: [{condition: not, conditions: [{condition: and, conditions: [{condition: state, entity_id: x.gone, state: a}, {condition: template, value_template: "{{ false }}"}]}]}]
+        then: [{event: m_notand_then}]
+        else: [{event: m_notand_else}]
+      - if: [{condition: or, conditions: [{condition: state, entity_id: x.gone, state: a}, {condition: template, value_template: "{{ false }}"}]}]
+        then: [{event: m_or_then}]
+        else: [{event: m_or_else}]
+      - if: [{condition: not, conditions: [{condition: state, entity_id: x.gone, state: a}, {condition: template, value_template: "{{ true }}"}]}]
+        then: [{event: m_not_then}]
+        else: [{event: m_not_else}]
+      - repeat:
+          while: [{condition: state, entity_id: x.gone, state: a}]
+          sequence: [{event: m_while_body}]
+      - {event: m_end}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

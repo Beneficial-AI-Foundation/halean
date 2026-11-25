@@ -1,0 +1,9 @@
+# `from: ["*"]` is a one-element set holding the text "*", not match-all
+automations:
+  - alias: fromlist
+    triggers: [{trigger: state, entity_id: sensor.a, from: ["*"]}]
+    actions: [{event: m_fromlist}]
+states: [{entity_id: sensor.a, state: "1"}]
+steps:
+  - {at: 1, set: [sensor.a, "*"]}
+  - {at: 2, set: [sensor.a, "3"]}

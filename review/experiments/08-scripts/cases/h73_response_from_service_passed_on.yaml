@@ -1,0 +1,17 @@
+description: A service response is passed on as the script's response through two scripts.
+scripts:
+  inner:
+    sequence:
+      - action: test.get
+        response_variable: got
+      - stop: done
+        response_variable: got
+  outer:
+    sequence:
+      - action: script.inner
+        response_variable: r
+      - stop: done
+        response_variable: r
+steps:
+  - {at: 1, call: outer, return_response: true}
+  - {at: 2, result: 0, response: {temp: 21.5, tags: [a, b]}}

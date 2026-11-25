@@ -1,0 +1,15 @@
+description: turn_on with `variables` that is not a mapping, and with other extra keys.
+scripts:
+  a:
+    fields:
+      x: {}
+    sequence:
+      - event: a_ran
+        event_data: {x: "{{ x | default('none') }}"}
+steps:
+  - {at: 1, call: turn_on, data: {entity_id: script.a, variables: 5}}
+  - {at: 2, call: turn_on, data: {entity_id: script.a, variables: [1, 2]}}
+  - {at: 3, call: turn_on, data: {entity_id: script.a, variables: {x: 1}}}
+  - {at: 4, call: turn_on, data: {entity_id: script.a, variables: null}}
+  - {at: 5, call: toggle, data: {entity_id: script.a, variables: {x: 2}}}
+  - {at: 6, call: turn_off, data: {entity_id: script.a, variables: {x: 3}}}

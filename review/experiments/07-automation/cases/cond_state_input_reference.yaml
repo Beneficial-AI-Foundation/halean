@@ -1,0 +1,16 @@
+# a wanted state that names an input entity is read from that entity
+automations:
+  - alias: inputref
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - if: [{condition: state, entity_id: sensor.mode, state: input_select.wanted}]
+        then: [{event: m_same}]
+        else: [{event: m_diff}]
+      - if: [{condition: state, entity_id: sensor.mode, state: [input_text.gone, "x"]}]
+        then: [{event: m_same2}]
+        else: [{event: m_diff2}]
+states: [{entity_id: sensor.mode, state: "eco"}, {entity_id: input_select.wanted, state: "eco"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, set: [input_select.wanted, "comfort"]}
+  - {at: 3, send: {type: event, event_type: e}}

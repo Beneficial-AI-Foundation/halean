@@ -1,0 +1,15 @@
+description: A child script turns off the script that waits for it; both end.
+scripts:
+  child:
+    sequence:
+      - event: child_before
+      - action: script.turn_off
+        target: {entity_id: script.parent}
+      - event: child_after
+  parent:
+    sequence:
+      - action: script.child
+      - event: parent_never
+steps:
+  - {at: 1, call: parent}
+  - {at: 2}

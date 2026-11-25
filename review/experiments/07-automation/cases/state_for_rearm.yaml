@@ -1,0 +1,13 @@
+# `to: on, for: 5`: leaving and re-entering restarts the timer
+automations:
+  - alias: rearm
+    triggers: [{trigger: state, entity_id: binary_sensor.m, to: "on", for: {seconds: 5}}]
+    actions: [{event: m_rearm}]
+states: [{entity_id: binary_sensor.m, state: "off"}]
+steps:
+  - {at: 1, set: [binary_sensor.m, "on"]}
+  - {at: 4, set: [binary_sensor.m, "off"]}
+  - {at: 5, set: [binary_sensor.m, "on"]}
+  - {at: 7, send: {type: event, event_type: tick}}
+  - {at: 10, send: {type: event, event_type: tick}}
+  - {at: 11, send: {type: event, event_type: tick}}

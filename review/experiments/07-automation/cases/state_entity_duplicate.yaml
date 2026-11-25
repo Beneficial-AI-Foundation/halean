@@ -1,0 +1,9 @@
+# the same entity twice in a state trigger
+automations:
+  - alias: dupent
+    mode: parallel
+    triggers: [{trigger: state, entity_id: [sensor.a, sensor.a]}]
+    actions: [{event: m_dupent}]
+states: [{entity_id: sensor.a, state: "1"}]
+steps:
+  - {at: 1, set: [sensor.a, "2"]}

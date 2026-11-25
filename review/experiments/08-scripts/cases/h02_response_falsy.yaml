@@ -1,0 +1,22 @@
+description: stop with a falsy response (empty list, 0, empty string); a caller asking for a response gets {}.
+scripts:
+  empty_list:
+    sequence:
+      - variables: {out: []}
+      - stop: done
+        response_variable: out
+  zero:
+    sequence:
+      - variables: {out: 0}
+      - stop: done
+        response_variable: out
+  empty_str:
+    sequence:
+      - variables: {out: ""}
+      - stop: done
+        response_variable: out
+steps:
+  - {at: 1, call: empty_list, return_response: true}
+  - {at: 2, call: zero, return_response: true}
+  - {at: 3, call: empty_str, return_response: true}
+  - {at: 4, call: zero}

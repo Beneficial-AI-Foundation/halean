@@ -1,0 +1,15 @@
+description: turn_on of a script whose first step is `delay 0`, then an event; what ran when turn_on returns.
+scripts:
+  z:
+    sequence:
+      - delay: 0
+      - event: z_after_delay
+  outer:
+    sequence:
+      - action: script.turn_on
+        target: {entity_id: script.z}
+      - event: outer_after_turn_on
+        event_data: {z: "{{ states('script.z') }}"}
+steps:
+  - {at: 1, call: outer}
+  - {at: 2}

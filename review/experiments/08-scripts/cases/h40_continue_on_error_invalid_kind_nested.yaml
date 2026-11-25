@@ -1,0 +1,13 @@
+description: A called script fails with vol.Invalid; continue_on_error in the caller does not swallow it.
+scripts:
+  worker:
+    sequence:
+      - action: test.work
+  boss:
+    sequence:
+      - action: script.worker
+        continue_on_error: true
+      - event: boss_never
+steps:
+  - {at: 1, call: boss}
+  - {at: 2, result: 0, ok: false, error_kind: invalid}

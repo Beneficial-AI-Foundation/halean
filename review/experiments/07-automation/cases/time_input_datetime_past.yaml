@@ -1,0 +1,13 @@
+# an input_datetime with a date in the past sets no listener; changed to the future it fires
+automations:
+  - alias: idtpast
+    triggers: [{trigger: time, at: input_datetime.d}]
+    actions: [{event: m_idtpast, event_data: {e: "{{ trigger.entity_id }}", d: "{{ trigger.description }}"}}]
+states:
+  - {entity_id: input_datetime.d, state: "2023-11-14 22:13:10", attributes: {has_date: true, has_time: true, year: 2023, month: 11, day: 14, hour: 22, minute: 13, second: 10}}
+steps:
+  - {at: 2, send: {type: event, event_type: tick}}
+  - {at: 3, set: [input_datetime.d, "2023-11-14 22:13:26"], attributes: {has_date: true, has_time: true, year: 2023, month: 11, day: 14, hour: 22, minute: 13, second: 26}}
+  - {at: 5, send: {type: event, event_type: tick}}
+  - {at: 6, send: {type: event, event_type: tick}}
+  - {at: 7, send: {type: event, event_type: tick}}

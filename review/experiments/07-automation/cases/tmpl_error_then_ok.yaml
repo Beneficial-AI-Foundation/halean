@@ -1,0 +1,11 @@
+# a template that raises at load (unknown entity | int), then renders
+automations:
+  - alias: tmplerr
+    triggers: [{trigger: template, value_template: "{{ states('sensor.missing') | int > 5 }}"}]
+    actions: [{event: m_tmplerr}]
+steps:
+  - {at: 1, set: [sensor.missing, "9"]}
+  - {at: 2, set: [sensor.missing, "bad"]}
+  - {at: 3, set: [sensor.missing, "10"]}
+  - {at: 4, set: [sensor.missing, "1"]}
+  - {at: 5, set: [sensor.missing, "11"]}

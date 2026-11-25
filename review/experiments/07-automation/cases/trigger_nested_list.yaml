@@ -1,0 +1,14 @@
+# a `triggers:` list nested inside the trigger list (flattened by HA)
+automations:
+  - alias: nestedtr
+    mode: parallel
+    triggers:
+      - triggers:
+          - {trigger: event, event_type: e0}
+          - {trigger: event, event_type: e1}
+      - {trigger: event, event_type: e2}
+    actions: [{event: m_nestedtr, event_data: {idx: "{{ trigger.idx }}"}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e0}}
+  - {at: 2, send: {type: event, event_type: e1}}
+  - {at: 3, send: {type: event, event_type: e2}}

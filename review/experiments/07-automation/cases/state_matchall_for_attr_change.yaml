@@ -1,0 +1,14 @@
+# no from/to, `for`: an attribute-only change starts a second timer; the first still fires
+automations:
+  - alias: mafor
+    triggers: [{trigger: state, entity_id: sensor.a, for: 5}]
+    actions:
+      - event: m_mafor
+        event_data: {f: "{{ trigger.from_state.attributes.get('n') }}", t: "{{ trigger.to_state.attributes.get('n') }}"}
+states: [{entity_id: sensor.a, state: "1", attributes: {n: 0}}]
+steps:
+  - {at: 1, set: [sensor.a, "2"], attributes: {n: 1}}
+  - {at: 3, set: [sensor.a, "2"], attributes: {n: 2}}
+  - {at: 6, send: {type: event, event_type: tick}}
+  - {at: 8, send: {type: event, event_type: tick}}
+  - {at: 12, send: {type: event, event_type: tick}}

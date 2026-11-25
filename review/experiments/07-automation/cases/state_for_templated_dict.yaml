@@ -1,0 +1,12 @@
+# `for: {seconds: "{{ ... }}"}` rendered at the state change
+automations:
+  - alias: fordict
+    triggers: [{trigger: state, entity_id: sensor.a, to: "go", for: {seconds: "{{ states('sensor.n') | int }}"}}]
+    actions: [{event: m_fordict, event_data: {for: "{{ trigger.for.total_seconds() }}"}}]
+states: [{entity_id: sensor.a, state: "x"}, {entity_id: sensor.n, state: "3"}]
+steps:
+  - {at: 1, set: [sensor.a, "go"]}
+  - {at: 2, set: [sensor.n, "10"]}
+  - {at: 3, send: {type: event, event_type: tick}}
+  - {at: 4, send: {type: event, event_type: tick}}
+  - {at: 5, send: {type: event, event_type: tick}}

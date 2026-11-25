@@ -1,0 +1,22 @@
+# template condition: only the text "true" (any case) passes
+automations:
+  - alias: tcond
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - if: ["{{ 1 }}"]
+        then: [{event: m_one}]
+      - if: ["{{ 'True' }}"]
+        then: [{event: m_True}]
+      - if: ["{{ true }}"]
+        then: [{event: m_true}]
+      - if: ["{{ 'yes' }}"]
+        then: [{event: m_yes}]
+      - if: ["  {{ true }}  "]
+        then: [{event: m_spaces}]
+      - if: [{condition: template, value_template: "{{ [1] | length == 1 }}"}]
+        then: [{event: m_expr}]
+      - if: ["{{ 1 / 0 }}"]
+        then: [{event: m_err_then}]
+        else: [{event: m_err_else}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

@@ -1,0 +1,198 @@
+# Review cases: handlers and listeners that change the registry or the listeners while a call or dispatch runs.
+- name: h_handler_registers_service_then_calls_it
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: register, domain: test, service: maker, handler: {do: [{register: {domain: Test, service: MADE, handler: {do: [{fire: {event_type: made_ran, context: inherit}}], return: {made: 1}}, supports_response: only}}, {call: {id: c_made, domain: test, service: made, blocking: true, return_response: true, context: inherit}}], return: {maker: 1}}, supports_response: optional}
+    - {op: call, domain: test, service: maker, blocking: true, return_response: true, context: {id: top}}
+    - {op: has, domain: test, service: made}
+    - {op: call, domain: test, service: made, blocking: true, return_response: true}
+
+- name: h_handler_removes_itself_then_calls_itself
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: register, domain: test, service: once, handler: {do: [{remove_service: {domain: test, service: once}}, {call: {id: again, domain: test, service: once, blocking: true, catch: true}}, {call: {id: again_nb, domain: test, service: once, catch: true}}, {remove_service: {domain: TEST, service: Once}}], return: {v: 1}}, supports_response: optional}
+    - {op: call, domain: test, service: once, blocking: true, return_response: true}
+    - {op: has, domain: test, service: once}
+    - {op: call, domain: test, service: once, blocking: true, return_response: true}
+
+- name: h_handler_reregisters_itself_midcall
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: register, domain: test, service: s, handler: {do: [{register: {domain: test, service: s, handler: {do: [{fire: {event_type: new_body}}], return: {gen: 2}}, supports_response: only}}, {call: {id: inner, domain: test, service: s, blocking: true, return_response: true}}, {fire: {event_type: old_body_end}}], return: {gen: 1}}, supports_response: optional}
+    - {op: call, domain: test, service: s, blocking: true, return_response: true}
+    - {op: call, domain: test, service: s, blocking: true, return_response: true}
+    - {op: call, domain: test, service: s, blocking: true}
+
+- name: h_call_service_listener_removes_service_before_handler
+  ops:
+    - {op: register, domain: test, service: s, handler: {do: [{fire: {event_type: handler_ran}}], return: {v: 1}}, supports_response: optional}
+    - {op: listen, id: killer, event_type: call_service, react: [{remove_service: {domain: test, service: s}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: s, blocking: true, return_response: true}
+    - {op: has, domain: test, service: s}
+    - {op: call, domain: test, service: s, blocking: true, return_response: true}
+
+- name: h_call_service_listener_reregisters_before_handler
+  ops:
+    - {op: register, domain: test, service: s, handler: {do: [{fire: {event_type: old_ran}}], return: {v: 1}}, supports_response: optional}
+    - {op: listen, id: swap, event_type: call_service, react_times: 1, react: [{register: {domain: test, service: s, handler: {do: [{fire: {event_type: new_ran}}], return: [1]}, supports_response: only}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: s, blocking: true, return_response: true}
+    - {op: call, domain: test, service: s, blocking: true, return_response: true}
+    - {op: call, domain: test, service: s, blocking: true}
+
+- name: h_remove_service_while_call_suspended
+  manual: true
+  ops:
+    - {op: register, domain: test, service: slow, handler: {do: [{fire: {event_type: slow_1}}, {wait: gate}, {fire: {event_type: slow_2}}, {call: {id: self_after_removal, domain: test, service: slow, blocking: true, catch: true}}], raise: ValueError, message: "after removal"}}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: slow, data: {k: 1}, context: {id: bg}}
+    - {op: remove_service, domain: test, service: slow}
+    - {op: has, domain: test, service: slow}
+    - {op: call, domain: test, service: slow, blocking: true}
+    - {op: resolve, id: gate}
+    - {op: sleep}
+    - {op: sleep}
+
+- name: h_reregister_while_call_suspended
+  manual: true
+  ops:
+    - {op: register, domain: test, service: slow, handler: {do: [{wait: gate}, {fire: {event_type: old_resumed}}], return: {gen: 1}}, supports_response: optional}
+    - {op: listen, id: m, event_type: "*"}
+    - op: listen
+      id: caller
+      event_type: go
+      async: true
+      react:
+        - call: {id: old_call, domain: test, service: slow, blocking: true, return_response: true}
+        - fire: {event_type: caller_done}
+    - {op: fire, event_type: go}
+    - {op: register, domain: test, service: slow, handler: {do: [{fire: {event_type: new_ran}}], return: {gen: 2}}, supports_response: only}
+    - {op: call, domain: test, service: slow, blocking: true, return_response: true}
+    - {op: resolve, id: gate}
+    - {op: block_till_done}
+
+- name: h_blocking_main_call_service_removed_meanwhile
+  manual: true
+  ops:
+    - {op: register, domain: test, service: slow, handler: {do: [{fire: {event_type: slow_1}}, {sleep: 0}, {sleep: 0}, {fire: {event_type: slow_2}}], echo: true}, supports_response: optional}
+    - op: listen
+      id: remover
+      event_type: slow_1
+      async: true
+      react: [{sleep: 0}, {remove_service: {domain: test, service: slow}}, {call: {id: gone, domain: test, service: slow, blocking: true, catch: true}}]
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: slow, blocking: true, return_response: true, data: {a: 1}, context: {id: c1}}
+    - {op: has, domain: test, service: slow}
+
+- name: h_listener_on_service_registered_registers_another
+  ops:
+    - {op: listen, id: chain, event_type: service_registered, filter: {eq: {service: first}}, react: [{register: {domain: test, service: second, handler: {return: null}}}, {call: {id: c2, domain: test, service: second, blocking: true}}, {call: {id: c1, domain: test, service: first, blocking: true, return_response: true}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: register, domain: test, service: first, handler: {return: {f: 1}}, supports_response: optional}
+    - {op: has, domain: test, service: second}
+
+- name: h_listener_on_service_removed_reregisters
+  ops:
+    - {op: register, domain: test, service: phoenix, handler: {return: {gen: 1}}, supports_response: optional}
+    - {op: listen, id: back, event_type: service_removed, react_times: 2, react: [{register: {domain: test, service: phoenix, handler: {return: {gen: 2}}, supports_response: optional}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: remove_service, domain: test, service: phoenix}
+    - {op: call, domain: test, service: phoenix, blocking: true, return_response: true}
+    - {op: remove_service, domain: TEST, service: PHOENIX}
+    - {op: remove_service, domain: test, service: phoenix}
+    - {op: has, domain: test, service: phoenix}
+    - {op: remove_service, domain: test, service: phoenix}
+
+- name: h_remove_unknown_service_in_scripts
+  ops:
+    - {op: register, domain: test, service: s, handler: {do: [{remove_service: {domain: Nope, service: NOPE}}, {remove_service: {domain: test, service: other}}]}}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: listen, id: cb, event_type: go, react: [{remove_service: {domain: "", service: ""}}, {fire: {event_type: after}}]}
+    - {op: call, domain: test, service: s, blocking: true}
+    - {op: call, domain: test, service: s}
+    - {op: fire, event_type: go}
+
+- name: h_listener_unsub_self_and_others_mid_dispatch
+  ops:
+    - {op: listen, id: a, event_type: go, react: [{unsub: a}, {unsub: c}, {fire: {event_type: a_done}}]}
+    - {op: listen, id: b, event_type: go}
+    - {op: listen, id: c, event_type: go, react: [{fire: {event_type: c_ran}}]}
+    - {op: listen, id: d, event_type: "*"}
+    - {op: fire, event_type: go}
+    - {op: listeners}
+    - {op: fire, event_type: go}
+
+- name: h_unsub_twice_logs
+  ops:
+    - {op: listen, id: a, event_type: go, react: [{unsub: a}, {unsub: a}, {fire: {event_type: after_double_unsub}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go}
+    - {op: unsub, id: a}
+    - {op: unsub, id: nope}
+    - {op: fire, event_type: go}
+
+- name: h_listen_same_id_twice
+  ops:
+    - {op: listen, id: a, event_type: go, react: [{fire: {event_type: first_a}}]}
+    - {op: listen, id: a, event_type: go, react: [{fire: {event_type: second_a}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go}
+    - {op: unsub, id: a}
+    - {op: fire, event_type: go}
+    - {op: unsub, id: a}
+    - {op: listeners}
+
+- name: h_once_listener_unsub_after_it_ran
+  ops:
+    - {op: listen_once, id: o, event_type: go, react: [{fire: {event_type: go}}, {unsub: o}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go}
+    - {op: unsub, id: o}
+    - {op: fire, event_type: go}
+
+- name: h_once_async_listener_suspends
+  manual: true
+  ops:
+    - {op: listen_once, id: o, event_type: go, async: true, react: [{fire: {event_type: go}}, {sleep: 0}, {fire: {event_type: go}}, {fire: {event_type: o_done}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go}
+    - {op: listeners}
+    - {op: sleep}
+    - {op: unsub, id: o}
+
+- name: h_listener_adds_listener_mid_dispatch
+  ops:
+    - {op: listen, id: adder, event_type: go, react_times: 2, react: [{listen: {id: late, event_type: go, react: [{fire: {event_type: late_ran}}]}}, {listen_once: {id: late_all, event_type: "*"}}, {fire: {event_type: go}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go}
+    - {op: listeners}
+
+- name: h_handler_listens_and_unsubs
+  ops:
+    - {op: register, domain: test, service: sub, handler: {do: [{listen: {id: hl, event_type: tick, async: true, react: [{sleep: 0}, {fire: {event_type: tock, context: inherit}}]}}, {fire: {event_type: tick, context: inherit}}, {unsub: hl}, {fire: {event_type: tick}}]}}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: sub, blocking: true, context: {id: c}}
+    - {op: call, domain: test, service: sub}
+    - {op: listeners}
+
+- name: h_events_from_several_depths
+  ops:
+    - {op: register, domain: test, service: deep, handler: {do: [{fire: {event_type: h1, context: inherit}}, {set: {entity_id: sensor.deep, state: "1", context: inherit}}, {call: {id: deeper, domain: test, service: deeper, blocking: true, context: inherit}}, {fire: {event_type: h2, context: inherit}}]}}
+    - {op: register, domain: test, service: deeper, handler: {do: [{fire: {event_type: hh1}}, {set: {entity_id: sensor.deeper, state: "1"}}]}}
+    - {op: listen, id: l_go, event_type: go, react: [{fire: {event_type: x1, context: inherit}}, {call: {id: from_go, domain: test, service: deep, blocking: true, context: inherit}}, {fire: {event_type: x2}}]}
+    - {op: listen, id: l_x1, event_type: x1, react: [{fire: {event_type: y1}}, {set: {entity_id: sensor.x1, state: "a"}}]}
+    - {op: listen, id: l_state, event_type: state_changed, react: [{fire: {event_type: z, context: inherit}}]}
+    - {op: listen, id: l_h1, event_type: h1, async: true, react: [{fire: {event_type: ah1}}, {sleep: 0}, {fire: {event_type: ah1_late}}, {set: {entity_id: sensor.late, state: "l"}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go, context: {id: root}}
+    - {op: call, domain: test, service: deep, blocking: true, now: 1795710650000000}
+    - {op: call, domain: test, service: deep, now: 1795710655000001}
+
+- name: h_handler_and_listener_ping_pong_bounded
+  ops:
+    - {op: register, domain: test, service: ping, handler: {do: [{fire: {event_type: pong, context: inherit}}]}}
+    - {op: listen, id: p, event_type: pong, react_times: 3, react: [{call: {id: again, domain: test, service: ping, context: inherit}}]}
+    - {op: listen, id: ap, event_type: pong, async: true, react_times: 2, react: [{call: {id: a_again, domain: test, service: ping, blocking: true}}, {sleep: 0}, {call: {id: a_again2, domain: test, service: ping}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: ping, blocking: true, context: {id: c0}}

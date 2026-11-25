@@ -1,0 +1,17 @@
+description: A parallel script (max 3) calls itself; the fourth level is refused (max reached), the callers return in turn.
+scripts:
+  rec:
+    mode: parallel
+    max: 3
+    fields:
+      d: {}
+    sequence:
+      - event: rec_enter
+        event_data: {d: "{{ d }}", cur: "{{ state_attr('script.rec', 'current') }}"}
+      - action: script.rec
+        data:
+          d: "{{ d + 1 }}"
+      - event: rec_leave
+        event_data: {d: "{{ d }}"}
+steps:
+  - {at: 1, call: rec, data: {d: 0}}

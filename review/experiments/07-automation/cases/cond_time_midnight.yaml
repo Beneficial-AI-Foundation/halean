@@ -1,0 +1,23 @@
+# time condition with after > before (crosses midnight) and with equal bounds; T0 = 22:13:20 Tue
+automations:
+  - alias: timecond
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - if: [{condition: time, after: "22:00", before: "06:00"}]
+        then: [{event: m_night}]
+      - if: [{condition: time, after: "23:00", before: "06:00"}]
+        then: [{event: m_late}]
+      - if: [{condition: time, after: "22:13:21"}]
+        then: [{event: m_after21}]
+      - if: [{condition: time, before: "22:13:21"}]
+        then: [{event: m_before21}]
+      - if: [{condition: time, after: "10:00", before: "10:00"}]
+        then: [{event: m_equal}]
+      - if: [{condition: time, weekday: [tue]}]
+        then: [{event: m_tue}]
+      - if: [{condition: time, weekday: wed, after: "22:00"}]
+        then: [{event: m_wed}]
+steps:
+  - {at: 0, send: {type: event, event_type: e}}
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: event, event_type: e}}

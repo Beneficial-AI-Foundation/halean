@@ -1,0 +1,10 @@
+# a disabled trigger keeps its position: the next trigger's idx
+automations:
+  - alias: disidx
+    triggers:
+      - {trigger: event, event_type: e0, enabled: false}
+      - {trigger: event, event_type: e1}
+    actions: [{event: m_disidx, event_data: {id: "{{ trigger.id }}", idx: "{{ trigger.idx }}"}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e0}}
+  - {at: 2, send: {type: event, event_type: e1}}

@@ -1,0 +1,18 @@
+description: A restart script in a delay inside `if` is restarted; the first call is cancelled (stopped in a sub-sequence).
+scripts:
+  r:
+    mode: restart
+    fields:
+      n: {}
+    sequence:
+      - if:
+          - condition: template
+            value_template: "{{ true }}"
+        then:
+          - delay: 5
+      - event: r_done
+        event_data: {n: "{{ n }}"}
+steps:
+  - {at: 1, call: r, data: {n: 1}}
+  - {at: 2, call: r, data: {n: 2}}
+  - {at: 7}

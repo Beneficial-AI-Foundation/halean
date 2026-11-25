@@ -1,0 +1,15 @@
+# a state condition on an unknown entity raises: the automation does not run; inside `if` -> else
+automations:
+  - alias: missing_auto
+    triggers: [{trigger: event, event_type: e1}]
+    conditions: [{condition: state, entity_id: sensor.nope, state: "on"}]
+    actions: [{event: m_never}]
+  - alias: missing_if
+    triggers: [{trigger: event, event_type: e2}]
+    actions:
+      - if: [{condition: not, conditions: [{condition: state, entity_id: sensor.nope, state: "on"}]}]
+        then: [{event: m_then}]
+        else: [{event: m_else}]
+steps:
+  - {at: 1, send: {type: event, event_type: e1}}
+  - {at: 2, send: {type: event, event_type: e2}}

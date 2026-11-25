@@ -1,0 +1,13 @@
+description: A queued script with max 2; the third call returns at once with nothing.
+scripts:
+  q:
+    mode: queued
+    max: 2
+    sequence:
+      - action: test.q
+steps:
+  - {at: 1, call: q, return_response: true}
+  - {at: 1, call: q, return_response: true}
+  - {at: 1, call: q, return_response: true}
+  - {at: 2, result: 0}
+  - {at: 3, result: 1}

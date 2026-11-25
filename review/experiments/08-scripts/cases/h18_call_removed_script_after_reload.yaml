@@ -1,0 +1,20 @@
+description: A running script calls script.gone after a reload removed it (ServiceNotFound in the step).
+scripts:
+  gone:
+    sequence:
+      - event: gone_ran
+  runner:
+    sequence:
+      - delay: 3
+      - action: script.gone
+      - event: never
+steps:
+  - {at: 1, call: runner}
+  - at: 2
+    reload:
+      runner:
+        sequence:
+          - delay: 3
+          - action: script.gone
+          - event: never
+  - {at: 5}

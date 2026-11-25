@@ -1,0 +1,21 @@
+description: turn_off of a parallel script with one run in a service call and one in a delay; each caller's outcome.
+scripts:
+  p:
+    mode: parallel
+    fields:
+      w: {}
+    sequence:
+      - choose:
+          - conditions: "{{ w == 'svc' }}"
+            sequence:
+              - action: test.p
+        default:
+          - delay: 5
+      - delay: 5
+      - event: p_never
+steps:
+  - {at: 1, call: p, data: {w: svc}}
+  - {at: 1, call: p, data: {w: delay}}
+  - {at: 2, result: 0}
+  - {at: 3, call: turn_off, data: {entity_id: script.p}}
+  - {at: 9}

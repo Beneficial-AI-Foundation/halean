@@ -1,0 +1,15 @@
+description: this of a second parallel run (state on, current 1, last_triggered of the first run).
+scripts:
+  p:
+    mode: parallel
+    sequence:
+      - event: p
+        event_data:
+          state: "{{ this.state }}"
+          cur: "{{ this.attributes.current }}"
+          lt: "{{ this.attributes.last_triggered is none }}"
+          keys: "{{ this.attributes | list | join(',') }}"
+      - delay: 3
+steps:
+  - {at: 1, call: p}
+  - {at: 2, call: p}

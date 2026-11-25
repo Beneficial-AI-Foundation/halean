@@ -1,0 +1,14 @@
+# trigger.id defaults to the index; trigger.idx is a string; alias
+automations:
+  - alias: ids
+    mode: parallel
+    triggers:
+      - {trigger: event, event_type: e0}
+      - {trigger: event, event_type: e1, id: named, alias: second}
+      - {trigger: event, event_type: e2, id: "7"}
+    conditions: [{condition: trigger, id: ["0", named, "7", "2"]}]
+    actions: [{event: m_ids, event_data: {id: "{{ trigger.id }}", idx: "{{ trigger.idx }}", alias: "{{ trigger.alias }}", idx_is_str: "{{ trigger.idx is string }}"}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e0}}
+  - {at: 2, send: {type: event, event_type: e1}}
+  - {at: 3, send: {type: event, event_type: e2}}

@@ -1,0 +1,10 @@
+# attribute trigger: Python `==` between the wanted value and the attribute (1 == True)
+automations:
+  - alias: attr1
+    triggers: [{trigger: state, entity_id: sensor.a, attribute: flag, to: 1}]
+    actions: [{event: m_attr1}]
+states: [{entity_id: sensor.a, state: "x", attributes: {flag: false}}]
+steps:
+  - {at: 1, set: [sensor.a, "x"], attributes: {flag: true}}
+  - {at: 2, set: [sensor.a, "x"], attributes: {flag: 2}}
+  - {at: 3, set: [sensor.a, "x"], attributes: {flag: 1}}

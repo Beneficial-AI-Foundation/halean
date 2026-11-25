@@ -1,0 +1,10 @@
+description: A script calls a script.* service that does not exist (ServiceNotFound in the step; with continue_on_error it still stops).
+scripts:
+  runner:
+    sequence:
+      - action: script.does_not_exist
+        continue_on_error: true
+      - event: never
+steps:
+  - {at: 1, call: runner}
+  - {at: 2}

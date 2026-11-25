@@ -1,0 +1,17 @@
+description: A caller passing `this` and `context` as data; script variables named like run variables are skipped.
+scripts:
+  v:
+    variables:
+      a: from script
+      b: "{{ a }}-b"
+      this: replaced
+    sequence:
+      - event: v
+        event_data:
+          a: "{{ a }}"
+          b: "{{ b }}"
+          this_is_string: "{{ this is string }}"
+steps:
+  - {at: 1, call: v}
+  - {at: 2, call: v, data: {a: from caller}}
+  - {at: 3, call: v, data: {this: mine}}

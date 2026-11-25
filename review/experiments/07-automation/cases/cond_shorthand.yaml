@@ -1,0 +1,19 @@
+# shorthand and/or/not and template strings at automation level
+automations:
+  - alias: short
+    triggers: [{trigger: event, event_type: e}]
+    conditions:
+      - or:
+          - "{{ is_state('light.a', 'on') }}"
+          - and:
+              - not: [{condition: state, entity_id: light.b, state: "on"}]
+              - "{{ trigger.event.data.go | default(false) }}"
+    actions: [{event: m_short}]
+states: [{entity_id: light.a, state: "off"}, {entity_id: light.b, state: "on"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {go: true}}}
+  - {at: 2, set: [light.b, "off"]}
+  - {at: 3, send: {type: event, event_type: e, data: {go: true}}}
+  - {at: 4, send: {type: event, event_type: e}}
+  - {at: 5, set: [light.a, "on"]}
+  - {at: 6, send: {type: event, event_type: e}}

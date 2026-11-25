@@ -1,0 +1,10 @@
+# `not_to: "*"`: inverted match-all never matches
+automations:
+  - alias: notstar
+    triggers: [{trigger: state, entity_id: sensor.a, not_to: "*"}]
+    actions: [{event: m_notstar}]
+states: [{entity_id: sensor.a, state: "1"}]
+steps:
+  - {at: 1, set: [sensor.a, "2"]}
+  - {at: 2, set: [sensor.a, "*"]}
+  - {at: 3, set: [sensor.a, "3"]}

@@ -1,0 +1,375 @@
+# Review cases for the service registry (format of tests/core/services/registry.yaml).
+- name: s_brace_domain_not_found
+  ops:
+    - {op: call, domain: "{service}", service: x, blocking: true}
+
+- name: s_brace_variants_not_found
+  ops:
+    - {op: call, domain: "a", service: "{domain}", blocking: true}
+    - {op: call, domain: "{", service: "}", blocking: true}
+    - {op: call, domain: "{0}", service: "{}", blocking: false}
+    - {op: call, domain: "{{domain}}", service: "{return_response}", blocking: true}
+
+- name: s_brace_service_in_domain_uppercase
+  ops:
+    - {op: call, domain: "X{SERVICE}", service: "Y", blocking: true}
+
+- name: s_ctx_empty_id
+  ops:
+    - {op: register, domain: test_a, service: echo, handler: {echo: true}, supports_response: optional}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, context: {id: ""}}
+
+- name: s_ctx_empty_id_nonblocking_error_log
+  ops:
+    - {op: register, domain: test_a, service: bad, handler: {raise: ValueError, message: boom}}
+    - {op: call, domain: test_a, service: bad, context: {id: "", user_id: u, parent_id: p}}
+
+- name: s_ctx_fields
+  ops:
+    - {op: register, domain: test_a, service: echo, handler: {echo: true}, supports_response: optional}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, context: {id: c1, user_id: null, parent_id: null}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, context: {id: " ", user_id: "", parent_id: ""}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, context: {id: "id with 'quotes' and \\ backslash", parent_id: "p"}}
+    - {op: call, domain: test_a, service: echo, context: {id: only-nb}}
+    - {op: call, domain: test_a, service: nope, blocking: true, context: {id: c2}}
+
+- name: s_log_repr_nested_data
+  ops:
+    - {op: register, domain: test_a, service: f, handler: {raise: ValueError, message: "m"}}
+    - {op: call, domain: test_a, service: f, data: {a: [{b: 1}, "q'x"], c: "it's", d: {}, e: {f: {}}, g: "", h: [], i: null, j: 1.5e+20}}
+    - {op: call, domain: test_a, service: f, data: {"": 1, " ": " "}}
+    - {op: call, domain: test_a, service: f, data: {a: {b: [1, {c: 2}]}}, target: {a: 2}}
+    - {op: call, domain: test_a, service: f, data: {a: {b: {c: {d: true}}}, z: [[], [[]], {}]}}
+    - {op: call, domain: test_a, service: f, data: {"k=v": "a, b", "x": "=", "y": ","}}
+    - {op: call, domain: test_a, service: f, data: {t: true, f: false, n: null, i: -7, fl: -0.0, big: 123456789012345678901234567890}}
+
+- name: s_empty_names
+  ops:
+    - {op: register, domain: "", service: "", handler: {return: null}}
+    - {op: has, domain: "", service: ""}
+    - {op: call, domain: "", service: "", blocking: true}
+    - {op: list}
+    - {op: list_domain, domain: ""}
+    - {op: supports_response, domain: "", service: ""}
+    - {op: remove, domain: "", service: ""}
+    - {op: call, domain: "", service: "", blocking: true}
+    - {op: remove, domain: "", service: ""}
+
+- name: s_raise_without_message
+  ops:
+    - {op: register, domain: test_a, service: f, handler: {raise: HomeAssistantError}}
+    - {op: register, domain: test_a, service: g, handler: {raise: Invalid}}
+    - {op: register, domain: test_a, service: h, handler: {raise: ServiceValidationError, message: ""}}
+    - {op: register, domain: test_a, service: i, handler: {raise: RuntimeError}}
+    - {op: call, domain: test_a, service: f, blocking: true}
+    - {op: call, domain: test_a, service: g, blocking: true}
+    - {op: call, domain: test_a, service: h, blocking: true}
+    - {op: call, domain: test_a, service: i, blocking: true}
+    - {op: call, domain: test_a, service: f}
+    - {op: call, domain: test_a, service: g}
+    - {op: call, domain: test_a, service: h}
+    - {op: call, domain: test_a, service: i}
+
+- name: s_names_with_spaces_dots_tabs
+  ops:
+    - {op: register, domain: "Te St", service: "A.B\tC", handler: {echo: true}, supports_response: optional}
+    - {op: call, domain: "TE ST", service: "a.b\tc", blocking: true, return_response: true}
+    - {op: call, domain: "TE ST", service: "a.b\tc", data: {x: 1}}
+    - {op: call, domain: "TE ST", service: "nope\n", blocking: true}
+    - {op: remove, domain: "te st", service: "A.b\tC"}
+    - {op: remove, domain: "te st", service: "A.b\tC"}
+    - {op: list}
+
+- name: s_remove_last_service_drops_domain_and_order
+  ops:
+    - {op: register, domain: test_a, service: x, handler: {return: null}}
+    - {op: register, domain: test_b, service: y, handler: {return: null}}
+    - {op: register, domain: test_c, service: z, handler: {return: null}}
+    - {op: remove, domain: test_a, service: x}
+    - {op: list}
+    - {op: register, domain: test_a, service: x, handler: {return: null}}
+    - {op: list}
+    - {op: remove, domain: test_b, service: y}
+    - {op: register, domain: test_b, service: y2, handler: {return: null}}
+    - {op: register, domain: test_b, service: y, handler: {return: null}}
+    - {op: list}
+    - {op: list_domain, domain: test_b}
+
+- name: s_reregister_keeps_position_and_replaces_everything
+  ops:
+    - {op: register, domain: test_a, service: one, handler: {return: {v: 1}}, supports_response: only}
+    - {op: register, domain: test_a, service: two, handler: {return: null}}
+    - {op: register, domain: test_a, service: three, handler: {return: null}, schema: {fields: [{key: a, type: int}]}}
+    - {op: register, domain: TEST_A, service: One, handler: {raise: ValueError, message: replaced}}
+    - {op: list}
+    - {op: supports_response, domain: test_a, service: one}
+    - {op: call, domain: test_a, service: one, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: one, blocking: true}
+    - {op: register, domain: test_a, service: three, handler: {echo: true}, supports_response: optional}
+    - {op: call, domain: test_a, service: three, blocking: true, return_response: true, data: {a: "not an int", extra: 1}}
+    - {op: list}
+
+- name: s_target_overrides_keep_position
+  ops:
+    - {op: register, domain: test_a, service: echo, handler: {echo: true}, supports_response: optional}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {a: 1, b: 2, c: 3}, target: {d: 4, b: 20, a: 10}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, target: {z: 1, y: 2}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: null, target: null}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {}, target: {only: target}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {only: data}, target: {}}
+    - {op: call, domain: test_a, service: echo, data: {a: 1}, target: {a: {nested: [1]}}}
+
+- name: s_check_order_not_found_then_response_then_schema
+  ops:
+    - {op: register, domain: test_a, service: none, handler: {return: {a: 1}}, schema: {fields: [{key: n, type: int, required: true}]}}
+    - {op: register, domain: test_a, service: only, handler: {return: {a: 1}}, supports_response: only, schema: {fields: [{key: n, type: int, required: true}]}}
+    # not found comes before the return_response rules
+    - {op: call, domain: test_a, service: nope, return_response: true}
+    # blocking=False with return_response comes before "does not support"
+    - {op: call, domain: test_a, service: none, return_response: true, data: {bad: 1}}
+    # the response rules come before the schema
+    - {op: call, domain: test_a, service: none, blocking: true, return_response: true, data: {bad: 1}}
+    - {op: call, domain: test_a, service: only, blocking: true, data: {bad: 1}}
+    - {op: call, domain: test_a, service: only, data: {bad: 1}}
+    # then the schema: no call_service event
+    - {op: call, domain: test_a, service: only, blocking: true, return_response: true, data: {bad: 1}}
+    - {op: call, domain: test_a, service: none, data: {n: "x"}}
+    - {op: call, domain: test_a, service: none, data: {n: 1}}
+    - {op: call, domain: test_a, service: only, blocking: true, return_response: true, target: {n: 2}}
+
+- name: s_schema_default_event_carries_unvalidated
+  ops:
+    - {op: register, domain: test_a, service: echo, handler: {echo: true}, supports_response: optional, schema: {fields: [{key: level, value: {coerce: int}, default: 3}, {key: name, value: {all: [str, {lower: null}]}}], extra: allow}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {level: "12", name: "MiXed", other: [1]}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {name: "ABC"}, target: {level: 4.9}}
+    - {op: call, domain: test_a, service: echo, data: {level: "nope"}}
+
+- name: s_schema_extra_remove_with_target
+  ops:
+    - {op: register, domain: test_a, service: echo, handler: {echo: true}, supports_response: optional, schema: {fields: [{key: keep, type: str}], extra: remove}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {keep: k, drop: 1}, target: {entity_id: [light.a], keep: t}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {drop: 1}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {keep: 1}}
+
+- name: s_empty_schema_still_validates
+  ops:
+    - {op: register, domain: test_a, service: echo, handler: {echo: true}, supports_response: optional, schema: {fields: []}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {a: 1}}
+    - {op: call, domain: test_a, service: echo, data: {a: 1, b: 2}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, target: {entity_id: x}}
+
+- name: s_non_dict_response_only_checked_when_requested
+  ops:
+    - {op: register, domain: test_a, service: l, handler: {return: [{a: 1}]}, supports_response: optional}
+    - {op: register, domain: test_a, service: s, handler: {return: ""}, supports_response: optional}
+    - {op: register, domain: test_a, service: z, handler: {return: 0.0}, supports_response: optional}
+    - {op: register, domain: test_a, service: n, handler: {return: {a: {b: [1, 2.0, null, true, "s"]}}}, supports_response: optional}
+    - {op: call, domain: test_a, service: l, blocking: true}
+    - {op: call, domain: test_a, service: l}
+    - {op: call, domain: test_a, service: l, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: s, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: z, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: n, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: n, blocking: true}
+
+- name: s_handler_raise_with_return_response
+  ops:
+    - {op: register, domain: test_a, service: o, handler: {raise: ServiceValidationError, message: "nope {domain}"}, supports_response: optional}
+    - {op: register, domain: test_a, service: y, handler: {raise: HomeAssistantError, message: "x. "}, supports_response: only}
+    - {op: call, domain: test_a, service: o, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: o, blocking: true}
+    - {op: call, domain: test_a, service: o}
+    - {op: call, domain: test_a, service: y, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: y}
+
+- name: s_handler_error_messages_shapes
+  ops:
+    - {op: register, domain: test_a, service: a, handler: {raise: ValueError, message: "multi\nline"}}
+    - {op: register, domain: test_a, service: b, handler: {raise: Invalid, message: "path? @ data['x']"}}
+    - {op: register, domain: test_a, service: c, handler: {raise: HomeAssistantError, message: "ends with dots..."}}
+    - {op: register, domain: test_a, service: d, handler: {raise: RuntimeError, message: "{braces} %s %d"}}
+    - {op: call, domain: test_a, service: a, blocking: true}
+    - {op: call, domain: test_a, service: a, data: {p: "%s"}}
+    - {op: call, domain: test_a, service: b, blocking: true}
+    - {op: call, domain: test_a, service: b}
+    - {op: call, domain: test_a, service: c, blocking: true}
+    - {op: call, domain: test_a, service: c}
+    - {op: call, domain: test_a, service: d, blocking: true}
+    - {op: call, domain: test_a, service: d, data: {"%s": "%(x)s"}}
+
+- name: s_echo_value_shapes
+  ops:
+    - {op: register, domain: test_a, service: echo, handler: {echo: true}, supports_response: optional}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {i: 0, n: -1, big: 18446744073709551616, f: 0.1, g: 1.0e-7, h: 1.0e+22, t: true, z: null}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {s: "a\"b", q: "it's", both: "'\"", bs: "back\\slash", nl: "line\nbreak", tab: "t\tb"}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {l: [[1, [2, [3]]], {}], d: {x: {y: {z: []}}}}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {domain: other, service: thing, service_data: {a: 1}, context: c}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {"UPPER": 1, "upper": 2, "1": 3, "": 4}}
+
+- name: s_supports_response_and_has_case
+  ops:
+    - {op: register, domain: Test_A, service: O, handler: {return: null}, supports_response: optional}
+    - {op: register, domain: test_a, service: y, handler: {return: null}, supports_response: only}
+    - {op: register, domain: test_a, service: n, handler: {return: null}, supports_response: none}
+    - {op: supports_response, domain: TEST_a, service: o}
+    - {op: supports_response, domain: test_A, service: Y}
+    - {op: supports_response, domain: test_a, service: N}
+    - {op: supports_response, domain: test_a, service: ""}
+    - {op: supports_response, domain: "", service: n}
+    - {op: supports_response, domain: "TEST_B", service: "N'Q"}
+    - {op: has, domain: TEST_A, service: O}
+    - {op: has, domain: test_a, service: ""}
+    - {op: has, domain: "", service: o}
+    - {op: list_domain, domain: TEST_A}
+    - {op: list_domain, domain: test_a}
+
+- name: s_many_domains_insertion_order
+  ops:
+    - {op: register, domain: test_z, service: b, handler: {return: null}}
+    - {op: register, domain: test_y, service: a, handler: {return: null}, supports_response: only}
+    - {op: register, domain: test_z, service: a, handler: {return: null}, supports_response: optional}
+    - {op: register, domain: test_x, service: c, handler: {return: null}, schema: {fields: []}}
+    - {op: register, domain: test_y, service: A, handler: {return: null}}
+    - {op: list}
+    - {op: remove, domain: test_z, service: b}
+    - {op: register, domain: test_z, service: b, handler: {return: null}}
+    - {op: list}
+    - {op: remove, domain: test_z, service: a}
+    - {op: remove, domain: test_z, service: b}
+    - {op: register, domain: test_z, service: q, handler: {return: null}}
+    - {op: list}
+
+- name: s_remove_unknown_variants
+  ops:
+    - {op: register, domain: test_a, service: one, handler: {return: null}}
+    - {op: remove, domain: test_a, service: two}
+    - {op: remove, domain: TEST_B, service: ONE}
+    - {op: remove, domain: "Test A", service: "On E"}
+    - {op: remove, domain: test_a, service: ONE}
+    - {op: remove, domain: test_a, service: ONE}
+    - {op: list}
+
+- name: s_same_service_name_in_two_domains
+  ops:
+    - {op: register, domain: test_a, service: turn_on, handler: {return: {d: a}}, supports_response: optional}
+    - {op: register, domain: test_b, service: turn_on, handler: {return: {d: b}}, supports_response: only}
+    - {op: call, domain: test_a, service: turn_on, blocking: true, return_response: true}
+    - {op: call, domain: test_b, service: turn_on, blocking: true, return_response: true}
+    - {op: remove, domain: test_a, service: turn_on}
+    - {op: call, domain: test_a, service: turn_on, blocking: true, return_response: true}
+    - {op: call, domain: test_b, service: turn_on, blocking: true}
+    - {op: has, domain: test_b, service: turn_on}
+
+- name: s_domain_equals_service_and_swapped
+  ops:
+    - {op: register, domain: test_a, service: test_b, handler: {return: null}}
+    - {op: has, domain: test_b, service: test_a}
+    - {op: call, domain: test_b, service: test_a, blocking: true}
+    - {op: call, domain: test_a, service: test_a, blocking: true}
+    - {op: call, domain: test_a, service: test_b, blocking: true}
+
+- name: s_long_names
+  ops:
+    - {op: register, domain: test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, service: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS, handler: {echo: true}, supports_response: optional}
+    - {op: call, domain: TEST_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, service: ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss, blocking: true, return_response: true}
+
+- name: s_nonblocking_never_raises_handler_errors_but_raises_checks
+  ops:
+    - {op: register, domain: test_a, service: bad, handler: {raise: HomeAssistantError, message: "h"}, schema: {fields: [{key: n, type: int}]}}
+    - {op: call, domain: test_a, service: bad}
+    - {op: call, domain: test_a, service: bad, data: {n: 1}, context: {id: c9, user_id: u}}
+    - {op: call, domain: test_a, service: bad, data: {n: "s"}}
+    - {op: call, domain: test_a, service: bad, data: {m: 1}}
+    - {op: call, domain: test_a, service: BAD, target: {n: 2}}
+
+- name: s_response_dict_passthrough_identity
+  ops:
+    - {op: register, domain: test_a, service: r, handler: {return: {b: 2, a: 1, nested: {z: 1, y: [3, 2, 1]}}}, supports_response: only}
+    - {op: call, domain: test_a, service: r, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: r, blocking: true, return_response: true, data: {ignored: true}}
+
+- name: s_call_names_found_as_given_vs_lowered_event_names
+  ops:
+    - {op: register, domain: TEST_A, service: ECHO, handler: {echo: true}, supports_response: optional}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true}
+    - {op: call, domain: TEST_A, service: echo, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: ECHO, blocking: true, return_response: true}
+    - {op: call, domain: tEsT_a, service: eChO}
+    - {op: call, domain: test_a, service: ech, blocking: true}
+
+- name: s_invalid_then_valid_state_unchanged
+  ops:
+    - {op: register, domain: test_a, service: s, handler: {return: {ok: 1}}, supports_response: optional, schema: {fields: [{key: a, type: int, required: true}, {key: b, type: str}]}}
+    - {op: call, domain: test_a, service: s, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: s, blocking: true, return_response: true, data: {a: 1, b: 2, c: 3}}
+    - {op: call, domain: test_a, service: s, blocking: true, return_response: true, data: {a: 1, b: "x"}}
+    - {op: list}
+
+- name: s_required_with_default_and_target
+  ops:
+    - {op: register, domain: test_a, service: s, handler: {echo: true}, supports_response: only, schema: {fields: [{key: mode, value: {in: [a, b]}, required: true, default: a}, {key: entity_id, value: {cv: entity_id}}]}}
+    - {op: call, domain: test_a, service: s, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: s, blocking: true, return_response: true, target: {entity_id: Light.KITCHEN}}
+    - {op: call, domain: test_a, service: s, blocking: true, return_response: true, target: {entity_id: nodot}}
+    - {op: call, domain: test_a, service: s, blocking: true, return_response: true, data: {mode: c}}
+
+- name: s_register_after_failed_calls_and_events_time
+  ops:
+    - {op: call, domain: test_a, service: late, blocking: true}
+    - {op: remove, domain: test_a, service: late}
+    - {op: register, domain: test_a, service: late, handler: {echo: true}, supports_response: optional}
+    - {op: call, domain: test_a, service: late, blocking: true, return_response: true}
+    - {op: remove, domain: test_a, service: late}
+    - {op: call, domain: test_a, service: late, blocking: true, return_response: true}
+
+- name: s_response_only_nonblocking_and_blocking_matrix_mixed_case
+  ops:
+    - {op: register, domain: test_a, service: Only, handler: {return: 5}, supports_response: only}
+    - {op: call, domain: TEST_A, service: ONLY}
+    - {op: call, domain: TEST_A, service: ONLY, blocking: true}
+    - {op: call, domain: TEST_A, service: ONLY, return_response: true}
+    - {op: call, domain: TEST_A, service: ONLY, blocking: true, return_response: true}
+
+- name: s_data_with_non_ascii_printable_values
+  ops:
+    - {op: register, domain: test_a, service: echo, handler: {echo: true}, supports_response: optional}
+    - {op: register, domain: test_a, service: bad, handler: {raise: ValueError, message: "héllo wörld"}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {name: "Küche", "clé": "ß", jp: "日本"}}
+    - {op: call, domain: test_a, service: bad, data: {name: "Küche"}}
+    - {op: call, domain: test_a, service: bad, blocking: true}
+
+- name: s_unsupported_inputs_review
+  ops:
+    - {op: register, domain: test_u, service: "ü", handler: {return: null}, unsupported: true}
+    - {op: call, domain: "İ", service: x, unsupported: true}
+    - {op: has, domain: "é", service: x, unsupported: true}
+    - {op: remove, domain: test_u, service: "ñ", unsupported: true}
+    - {op: register, domain: test_u, service: x, handler: {raise: TypeError, message: k}, unsupported: true}
+    - {op: register, domain: test_u, service: x, handler: {return: null}, supports_response: maybe, unsupported: true}
+    - {op: list}
+
+- name: s_target_key_order_in_log_repr
+  ops:
+    - {op: register, domain: test_a, service: bad, handler: {raise: RuntimeError, message: r}}
+    - {op: call, domain: test_a, service: bad, data: {b: 1, a: 2}, target: {c: 3, a: 4}}
+    - {op: call, domain: test_a, service: bad, target: {z: {y: 1}, x: [1, 2]}}
+
+- name: s_handler_return_falsy_values_requested
+  ops:
+    - {op: register, domain: test_a, service: e, handler: {return: {}}, supports_response: optional}
+    - {op: register, domain: test_a, service: l, handler: {return: []}, supports_response: optional}
+    - {op: register, domain: test_a, service: f, handler: {return: false}, supports_response: optional}
+    - {op: register, domain: test_a, service: z, handler: {return: 0}, supports_response: optional}
+    - {op: call, domain: test_a, service: e, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: l, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: f, blocking: true, return_response: true}
+    - {op: call, domain: test_a, service: z, blocking: true, return_response: true}
+
+- name: s_validated_data_empty_after_remove_extra
+  ops:
+    - {op: register, domain: test_a, service: bad, handler: {raise: ValueError, message: v}, schema: {fields: [], extra: remove}}
+    - {op: register, domain: test_a, service: echo, handler: {echo: true}, supports_response: optional, schema: {fields: [], extra: remove}}
+    - {op: call, domain: test_a, service: bad, data: {a: 1}, context: {id: c1}}
+    - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {a: 1}, target: {b: 2}}

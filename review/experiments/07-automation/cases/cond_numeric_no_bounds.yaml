@@ -1,0 +1,9 @@
+# a numeric_state condition without above/below: HA rejects the automation
+automations:
+  - alias: nobounds
+    triggers: [{trigger: event, event_type: e}]
+    conditions: [{condition: numeric_state, entity_id: sensor.a}]
+    actions: [{event: m_nobounds}]
+states: [{entity_id: sensor.a, state: "6"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

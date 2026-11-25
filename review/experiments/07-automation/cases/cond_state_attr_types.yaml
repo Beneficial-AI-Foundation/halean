@@ -1,0 +1,27 @@
+# state condition on an attribute: Python == between the attribute and the wanted value
+automations:
+  - alias: attrcond
+    mode: parallel
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - choose:
+          - conditions: [{condition: state, entity_id: sensor.a, attribute: v, state: 1}]
+            sequence: [{event: m_is_1}]
+          - conditions: [{condition: state, entity_id: sensor.a, attribute: v, state: "1"}]
+            sequence: [{event: m_is_str1}]
+          - conditions: [{condition: state, entity_id: sensor.a, attribute: v, state: [null]}]
+            sequence: [{event: m_is_null}]
+        default: [{event: m_default}]
+states: [{entity_id: sensor.a, state: "x", attributes: {v: 1}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, set: [sensor.a, "x"], attributes: {v: "1"}}
+  - {at: 3, send: {type: event, event_type: e}}
+  - {at: 4, set: [sensor.a, "x"], attributes: {v: true}}
+  - {at: 5, send: {type: event, event_type: e}}
+  - {at: 6, set: [sensor.a, "x"], attributes: {v: 1.0}}
+  - {at: 7, send: {type: event, event_type: e}}
+  - {at: 8, set: [sensor.a, "x"], attributes: {v: null}}
+  - {at: 9, send: {type: event, event_type: e}}
+  - {at: 10, set: [sensor.a, "x"], attributes: {}}
+  - {at: 11, send: {type: event, event_type: e}}

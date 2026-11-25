@@ -1,0 +1,15 @@
+# state condition `for: 5`: last_changed exactly 5 s ago is not yet enough; attributes do not reset it
+automations:
+  - alias: condfor
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - if: [{condition: state, entity_id: light.a, state: "on", for: 5}]
+        then: [{event: m_long}]
+        else: [{event: m_short}]
+states: [{entity_id: light.a, state: "off"}]
+steps:
+  - {at: 1, set: [light.a, "on"]}
+  - {at: 3, set: [light.a, "on"], attributes: {b: 1}}
+  - {at: 5, send: {type: event, event_type: e}}
+  - {at: 6, send: {type: event, event_type: e}}
+  - {at: 7, send: {type: event, event_type: e}}

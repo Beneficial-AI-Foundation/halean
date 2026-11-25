@@ -1,0 +1,11 @@
+# the trigger variables of a template trigger: which entity made it true
+automations:
+  - alias: twoent
+    triggers: [{trigger: template, value_template: "{{ is_state('light.a', 'on') and is_state('light.b', 'on') }}"}]
+    actions: [{event: m_twoent, event_data: {e: "{{ trigger.entity_id }}", f: "{{ trigger.from_state.state }}", d: "{{ trigger.description }}"}}]
+states: [{entity_id: light.a, state: "off"}, {entity_id: light.b, state: "off"}]
+steps:
+  - {at: 1, set: [light.a, "on"]}
+  - {at: 2, set: [light.b, "on"]}
+  - {at: 3, set: [light.a, "off"]}
+  - {at: 4, set: [light.a, "on"]}

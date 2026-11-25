@@ -1,0 +1,12 @@
+description: A restart script calls itself directly (disallowed recursion; the call returns nothing).
+scripts:
+  r:
+    mode: restart
+    sequence:
+      - event: r_enter
+      - action: script.r
+        response_variable: x
+      - event: r_after
+        event_data: {x: "{{ x }}"}
+steps:
+  - {at: 1, call: r, return_response: true}

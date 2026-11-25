@@ -1,0 +1,11 @@
+# a template that stays true while its text changes does not fire again
+automations:
+  - alias: truetrue
+    triggers: [{trigger: template, value_template: "{{ states('sensor.n') | int(0) }}"}]
+    actions: [{event: m_truetrue, event_data: {n: "{{ states('sensor.n') }}"}}]
+states: [{entity_id: sensor.n, state: "0"}]
+steps:
+  - {at: 1, set: [sensor.n, "1"]}
+  - {at: 2, set: [sensor.n, "2"]}
+  - {at: 3, set: [sensor.n, "0"]}
+  - {at: 4, set: [sensor.n, "3"]}

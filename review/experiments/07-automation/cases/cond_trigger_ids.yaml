@@ -1,0 +1,16 @@
+# trigger condition with one id, several ids, and no match
+automations:
+  - alias: trigcond
+    mode: parallel
+    triggers: [{trigger: event, event_type: e1, id: one}, {trigger: event, event_type: e2, id: two}, {trigger: event, event_type: e3}]
+    actions:
+      - choose:
+          - conditions: [{condition: trigger, id: one}]
+            sequence: [{event: m_one}]
+          - conditions: [{condition: trigger, id: [two, "2"]}]
+            sequence: [{event: m_two_or_idx2}]
+        default: [{event: m_other}]
+steps:
+  - {at: 1, send: {type: event, event_type: e1}}
+  - {at: 2, send: {type: event, event_type: e2}}
+  - {at: 3, send: {type: event, event_type: e3}}

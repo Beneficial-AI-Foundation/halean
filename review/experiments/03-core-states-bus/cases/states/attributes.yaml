@@ -1,0 +1,132 @@
+# `old_state.attributes == attributes` (Python dict equality) and what is kept.
+
+- name: attr_bool_int_float_equal
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: true, z: 0}}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 1, z: false}, now: "2026-11-20T16:31:00+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 1.0, z: 0.0}, now: "2026-11-20T16:31:01+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 1.0, z: -0.0}, now: "2026-11-20T16:31:02+00:00"}
+    - {op: get, entity_id: s.a}
+    - {op: set, entity_id: s.a, state: y, attributes: {a: 1, z: 0.0}, now: "2026-11-20T16:31:03+00:00"}
+    - {op: get, entity_id: s.a}
+    - {op: set, entity_id: s.a, state: y, attributes: {a: 2, z: 0.0}, now: "2026-11-20T16:31:04+00:00"}
+    - {op: get, entity_id: s.a}
+
+- name: attr_string_is_not_number
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: "1"}}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 1}, now: "2026-11-20T16:31:00+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: "1.0"}, now: "2026-11-20T16:31:01+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: "True"}, now: "2026-11-20T16:31:02+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: true}, now: "2026-11-20T16:31:03+00:00"}
+
+- name: attr_nested_equality
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: [1, {b: 2.0, c: [true]}]}}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: [1.0, {c: [1], b: 2}]}, now: "2026-11-20T16:31:00+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: [1, {b: 2, c: [1, 0]}]}, now: "2026-11-20T16:31:01+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: [1, {b: 2, c: [1]}, null]}, now: "2026-11-20T16:31:02+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: [{b: 2, c: [1]}, 1]}, now: "2026-11-20T16:31:03+00:00"}
+    - {op: get, entity_id: s.a}
+
+- name: attr_key_order_is_irrelevant
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 1, b: 2, c: 3}}
+    - {op: set, entity_id: s.a, state: x, attributes: {c: 3, b: 2, a: 1}, now: "2026-11-20T16:31:00+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {c: 3, b: 2}, now: "2026-11-20T16:31:01+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {c: 3, b: 2, a: 1, d: 4}, now: "2026-11-20T16:31:02+00:00"}
+
+- name: attr_none_values
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: null}}
+    - {op: set, entity_id: s.a, state: x, attributes: {}, now: "2026-11-20T16:31:00+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: null}, now: "2026-11-20T16:31:01+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: null}, now: "2026-11-20T16:31:02+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: false}, now: "2026-11-20T16:31:03+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 0}, now: "2026-11-20T16:31:04+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: ""}, now: "2026-11-20T16:31:05+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: []}, now: "2026-11-20T16:31:06+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: {}}, now: "2026-11-20T16:31:07+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: null, now: "2026-11-20T16:31:08+00:00"}
+    - {op: set, entity_id: s.a, state: x, now: "2026-11-20T16:31:09+00:00"}
+
+- name: attr_big_int_vs_float
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 9007199254740993}}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 9007199254740992.0}, now: "2026-11-20T16:31:00+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 9007199254740992}, now: "2026-11-20T16:31:01+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 9007199254740993}, now: "2026-11-20T16:31:02+00:00"}
+    - {op: get, entity_id: s.a}
+
+- name: attr_float_1e23_vs_int
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 100000000000000000000000}}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 1.0e+23}, now: "2026-11-20T16:31:00+00:00"}
+
+- name: attr_float_1e16_keeps_type
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 1.0e+16}}
+    - {op: get, entity_id: s.a}
+
+- name: attr_negative_zero
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: -0.0}}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 0}, now: "2026-11-20T16:31:00+00:00"}
+    - {op: get, entity_id: s.a}
+
+- name: attr_same_keeps_old_object_on_state_change
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: true, l: [1, 2.0], d: {k: 0}}}
+    - {op: set, entity_id: s.a, state: y, attributes: {a: 1.0, l: [true, 2], d: {k: false}}, now: "2026-11-20T16:31:00+00:00"}
+    - {op: get, entity_id: s.a}
+    - {op: set, entity_id: s.a, state: y, attributes: {a: 1.0, l: [true, 2], d: {k: false}}, force_update: true, now: "2026-11-20T16:31:01+00:00"}
+    - {op: get, entity_id: s.a}
+
+- name: attr_special_keys
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {"": 1, " ": 2, "A": 3, "a": 4, "é": 5, "😀": 6, "a.b": 7, "id": 8}}
+    - {op: set, entity_id: s.a, state: x, attributes: {"": 1, " ": 2, "A": 3, "a": 4, "é": 5, "😀": 6, "a.b": 7, "id": 8}, now: "2026-11-20T16:31:00+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {"": 1, " ": 2, "A": 4, "a": 3, "é": 5, "😀": 6, "a.b": 7, "id": 8}, now: "2026-11-20T16:31:01+00:00"}
+    - {op: get, entity_id: s.a}
+
+- name: attr_unicode_values
+  ops:
+    - {op: set, entity_id: s.a, state: "21.5 °C", attributes: {unit_of_measurement: "°C", friendly_name: "Küche 😀", note: "e\u0301"}}
+    - {op: set, entity_id: s.a, state: "21.5 °C", attributes: {unit_of_measurement: "°C", friendly_name: "Küche 😀", note: "é"}, now: "2026-11-20T16:31:00+00:00"}
+    - {op: inspect, entity_id: s.a}
+
+- name: attr_deep_nesting
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: [[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]}}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: [[[[[[[[[[[[[[[[[[[[1.0]]]]]]]]]]]]]]]]]]]]}, now: "2026-11-20T16:31:00+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: [[[[[[[[[[[[[[[[[[[[2]]]]]]]]]]]]]]]]]]]]}, now: "2026-11-20T16:31:01+00:00"}
+
+- name: attr_nan_is_not_json
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: .nan}}
+
+- name: attr_infinity_is_not_json
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: .inf}}
+
+- name: force_update_variants
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 1}, force_update: true}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 1}, force_update: true, now: "2026-11-20T16:31:00+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 2}, force_update: true, now: "2026-11-20T16:31:01+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 2}, force_update: false, now: "2026-11-20T16:31:02+00:00"}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 2}, force_update: null, now: "2026-11-20T16:31:03+00:00"}
+    - {op: inspect, entity_id: s.a}
+
+- name: force_update_truthy_non_bool
+  ops:
+    - {op: set, entity_id: s.a, state: x}
+    - {op: set, entity_id: s.a, state: x, force_update: 1, now: "2026-11-20T16:31:00+00:00"}
+
+- name: force_update_set_internal
+  ops:
+    - {op: set_internal, entity_id: s.a, state: x, attributes: {a: 1}}
+    - {op: set_internal, entity_id: s.a, state: x, attributes: {a: 1}, force_update: true, now: "2026-11-20T16:31:00+00:00"}
+    - {op: set_internal, entity_id: s.a, state: x, attributes: {a: 1}, now: "2026-11-20T16:31:01+00:00"}
+    - {op: set_internal, entity_id: s.a, state: x, attributes: null, force_update: true, now: "2026-11-20T16:31:02+00:00"}
+    - {op: get, entity_id: s.a}

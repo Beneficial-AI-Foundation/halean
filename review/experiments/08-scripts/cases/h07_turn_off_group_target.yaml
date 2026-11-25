@@ -1,0 +1,12 @@
+description: turn_off / turn_on with a group.* entity id that does not exist (HA expands groups; nothing matches).
+scripts:
+  a:
+    sequence:
+      - delay: 5
+  b:
+    sequence:
+      - event: b_ran
+steps:
+  - {at: 1, call: a}
+  - {at: 2, call: turn_off, data: {entity_id: group.all_scripts}}
+  - {at: 3, call: turn_on, data: {entity_id: [group.x, script.b]}}

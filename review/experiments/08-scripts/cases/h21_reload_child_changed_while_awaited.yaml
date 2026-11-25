@@ -1,0 +1,25 @@
+description: A script waits for a child script (in a delay); a reload changes the child. The caller goes on.
+scripts:
+  child:
+    sequence:
+      - delay: 10
+  parent:
+    sequence:
+      - action: script.child
+      - event: parent_after
+      - action: script.child
+      - event: parent_after_2
+steps:
+  - {at: 1, call: parent}
+  - at: 2
+    reload:
+      parent:
+        sequence:
+          - action: script.child
+          - event: parent_after
+          - action: script.child
+          - event: parent_after_2
+      child:
+        sequence:
+          - action: test.new_child
+  - {at: 3}

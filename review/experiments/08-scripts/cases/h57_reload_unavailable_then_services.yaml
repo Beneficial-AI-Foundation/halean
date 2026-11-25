@@ -1,0 +1,19 @@
+description: After a reload removed a script, turn_on / toggle by its entity id and `all` skip it; it stays unavailable with its icon.
+scripts:
+  keep:
+    sequence:
+      - event: keep_ran
+  gone:
+    alias: Gone
+    icon: mdi:ghost
+    sequence:
+      - event: gone_ran
+steps:
+  - {at: 1, call: gone}
+  - at: 2
+    reload:
+      keep:
+        sequence:
+          - event: keep_ran
+  - {at: 3, call: turn_on, data: {entity_id: script.gone}}
+  - {at: 4, call: toggle, data: {entity_id: all}}

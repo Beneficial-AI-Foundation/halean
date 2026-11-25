@@ -1,0 +1,10 @@
+# a template that is true when the automation loads fires only after it was false
+automations:
+  - alias: startstrue
+    triggers: [{trigger: template, value_template: "{{ is_state('light.l', 'on') }}"}]
+    actions: [{event: m_startstrue}]
+states: [{entity_id: light.l, state: "on"}]
+steps:
+  - {at: 1, set: [light.l, "on"], attributes: {b: 1}}
+  - {at: 2, set: [light.l, "off"]}
+  - {at: 3, set: [light.l, "on"]}

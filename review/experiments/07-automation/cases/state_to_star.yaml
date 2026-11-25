@@ -1,0 +1,10 @@
+# state trigger `to: "*"`: process_state_match treats "*" (MATCH_ALL) as match-all
+automations:
+  - alias: star
+    triggers: [{trigger: state, entity_id: sensor.a, to: "*"}]
+    actions: [{event: m_star}]
+states: [{entity_id: sensor.a, state: "1"}]
+steps:
+  - {at: 1, set: [sensor.a, "2"]}
+  - {at: 2, set: [sensor.a, "2"], attributes: {x: 1}}
+  - {at: 3, set: [sensor.a, "*"]}

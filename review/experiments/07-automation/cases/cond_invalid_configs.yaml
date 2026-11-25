@@ -1,0 +1,29 @@
+# conditions HA's schema rejects (each automation is disabled by HA)
+automations:
+  - alias: badmatch
+    triggers: [{trigger: event, event_type: e}]
+    conditions: [{condition: state, entity_id: light.a, state: "off", match: some}]
+    actions: [{event: m_badmatch}]
+  - alias: nostate
+    triggers: [{trigger: event, event_type: e}]
+    conditions: [{condition: not, conditions: [{condition: state, entity_id: light.a}]}]
+    actions: [{event: m_nostate}]
+  - alias: noconds
+    triggers: [{trigger: event, event_type: e}]
+    conditions: [{condition: and}]
+    actions: [{event: m_noconds}]
+  - alias: badweekday
+    triggers: [{trigger: event, event_type: e}]
+    conditions: [{condition: time, weekday: [tuesday, tue]}]
+    actions: [{event: m_badweekday}]
+  - alias: noid
+    triggers: [{trigger: event, event_type: e}]
+    conditions: [{condition: not, conditions: [{condition: trigger}]}]
+    actions: [{event: m_noid}]
+  - alias: boolstate
+    triggers: [{trigger: event, event_type: e}]
+    conditions: [{condition: not, conditions: [{condition: state, entity_id: light.a, state: true}]}]
+    actions: [{event: m_boolstate}]
+states: [{entity_id: light.a, state: "off"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

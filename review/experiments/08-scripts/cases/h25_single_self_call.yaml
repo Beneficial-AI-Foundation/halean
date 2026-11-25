@@ -1,0 +1,11 @@
+description: A single script calls itself directly; the inner call returns nothing (already running) and the script goes on.
+scripts:
+  me:
+    sequence:
+      - event: me_enter
+      - action: script.me
+        response_variable: r
+      - event: me_after
+        event_data: {r: "{{ r }}"}
+steps:
+  - {at: 1, call: me}

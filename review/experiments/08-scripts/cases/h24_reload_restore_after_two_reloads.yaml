@@ -1,0 +1,27 @@
+description: A script is removed by a reload and added again by a second one; last_triggered is restored.
+scripts:
+  a:
+    alias: First A
+    icon: mdi:numeric-1
+    sequence:
+      - event: a_ran
+  b:
+    sequence:
+      - event: b_ran
+steps:
+  - {at: 1, call: a}
+  - at: 2
+    reload:
+      b:
+        sequence:
+          - event: b_ran
+  - at: 3
+    reload:
+      b:
+        sequence:
+          - event: b_ran
+      a:
+        alias: Second A
+        sequence:
+          - event: a_ran_again
+  - {at: 4, call: a}

@@ -1,0 +1,12 @@
+# nested event_data is a probatio schema: how literals compare there
+automations:
+  - alias: evnest
+    triggers: [{trigger: event, event_type: e, event_data: {a: {b: 1, c: "x"}}}]
+    actions: [{event: m_evnest}]
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {a: {b: 1, c: "x", d: 0}}}}
+  - {at: 2, send: {type: event, event_type: e, data: {a: {b: true, c: "x"}}}}
+  - {at: 3, send: {type: event, event_type: e, data: {a: {b: 1.0, c: "x"}}}}
+  - {at: 4, send: {type: event, event_type: e, data: {a: {b: 1}}}}
+  - {at: 5, send: {type: event, event_type: e, data: {a: 5}}}
+  - {at: 6, send: {type: event, event_type: e, data: {a: {b: 1, c: "x"}, z: 1}}}

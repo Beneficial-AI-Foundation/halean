@@ -1,0 +1,9 @@
+description: A script started with turn_on fails in a service call later; turn_on already returned; the state goes off.
+scripts:
+  f:
+    sequence:
+      - action: test.f
+      - event: never
+steps:
+  - {at: 1, call: turn_on, data: {entity_id: script.f}}
+  - {at: 2, result: 0, ok: false, error_kind: ha_error}

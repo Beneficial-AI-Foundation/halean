@@ -1,0 +1,24 @@
+description: A restart script waiting for a child script is restarted; the child is stopped and started again.
+scripts:
+  child:
+    fields:
+      n: {}
+    sequence:
+      - action: test.child
+        data: {n: "{{ n }}"}
+      - event: child_done
+        event_data: {n: "{{ n }}"}
+  r:
+    mode: restart
+    fields:
+      n: {}
+    sequence:
+      - action: script.child
+        data: {n: "{{ n }}"}
+      - event: r_done
+        event_data: {n: "{{ n }}"}
+steps:
+  - {at: 1, call: r, data: {n: 1}}
+  - {at: 2, call: r, data: {n: 2}}
+  - {at: 3, result: 0}
+  - {at: 4, result: 1}

@@ -1,0 +1,10 @@
+# `entity_id: "sensor.a, sensor.b"` (cv.entity_ids splits on commas)
+automations:
+  - alias: csv
+    triggers: [{trigger: state, entity_id: "sensor.a, sensor.b"}]
+    mode: parallel
+    actions: [{event: m_csv, event_data: {e: "{{ trigger.entity_id }}"}}]
+states: [{entity_id: sensor.a, state: "1"}, {entity_id: sensor.b, state: "1"}]
+steps:
+  - {at: 1, set: [sensor.a, "2"]}
+  - {at: 2, set: [sensor.b, "2"]}

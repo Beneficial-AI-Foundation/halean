@@ -1,0 +1,149 @@
+# Entity id validation, lower-casing and lookups.
+
+- name: id_valid_shapes
+  ops:
+    - {op: set, entity_id: "1.1", state: x}
+    - {op: set, entity_id: a.1, state: x}
+    - {op: set, entity_id: "0_0.0_0", state: x}
+    - {op: set, entity_id: a_b.c_d, state: x}
+    - {op: set, entity_id: a1_2b.z9_8y_7x, state: x}
+    - {op: entity_ids}
+    - {op: entity_ids, domain_filter: "1"}
+    - {op: inspect, entity_id: "0_0.0_0"}
+
+- name: id_invalid_shapes
+  ops:
+    - {op: set, entity_id: a.b_, state: x}
+    - {op: set, entity_id: a._b, state: x}
+    - {op: set, entity_id: a__b.c, state: x}
+    - {op: set, entity_id: a.b__c, state: x}
+    - {op: set, entity_id: a.b.c, state: x}
+    - {op: set, entity_id: a..b, state: x}
+    - {op: set, entity_id: ".", state: x}
+    - {op: set, entity_id: "a b.c", state: x}
+    - {op: set, entity_id: "a.b c", state: x}
+    - {op: set, entity_id: "a.b\t", state: x}
+    - {op: set, entity_id: "\nlight.a", state: x}
+    - {op: set, entity_id: "light.\n", state: x}
+    - {op: set, entity_id: "light.a\r\n", state: x}
+    - {op: set, entity_id: "light\n.a", state: x}
+    - {op: set, entity_id: "\n", state: x}
+    - {op: set, entity_id: "__.a", state: x}
+    - {op: set, entity_id: "_.a", state: x}
+    - {op: set, entity_id: "a._", state: x}
+    - {op: set, entity_id: "a_.b", state: x}
+    - {op: set, entity_id: "a.b_\n", state: x}
+    - {op: set, entity_id: "a-b.c", state: x}
+    - {op: set, entity_id: "a.b:c", state: x}
+    - {op: set, entity_id: "a/b.c", state: x}
+    - {op: set, entity_id: "a.*", state: x}
+    - {op: set, entity_id: "a_b_.c", state: x}
+    - {op: set, entity_id: "a._b_c", state: x}
+    - {op: entity_ids_count, expect: 0}
+
+- name: id_double_underscore_across_dot
+  ops:
+    - {op: set, entity_id: "a_._b", state: x}
+    - {op: set, entity_id: "a.b_c__d", state: x}
+    - {op: set, entity_id: "a___b.c", state: x}
+    - {op: set, entity_id: "a_b.c_d_e", state: x}
+    - {op: entity_ids, expect: [a_b.c_d_e]}
+
+- name: id_mixed_case_roundtrip
+  ops:
+    - {op: set, entity_id: LIGHT.Kitchen_Lamp, state: "on"}
+    - {op: get, entity_id: light.kitchen_lamp}
+    - {op: get, entity_id: Light.KITCHEN_LAMP}
+    - {op: is_state, entity_id: LIGHT.KITCHEN_LAMP, state: "on", expect: true}
+    - {op: available, entity_id: LIGHT.KITCHEN_LAMP, expect: false}
+    - {op: inspect, entity_id: LiGhT.kItChEn_LaMp}
+    - {op: set, entity_id: Light.Kitchen_Lamp, state: "on", now: "2026-11-20T16:31:00+00:00"}
+    - {op: remove, entity_id: LIGHT.KITCHEN_LAMP, now: "2026-11-20T16:31:01+00:00", expect: true}
+    - {op: get, entity_id: light.kitchen_lamp, expect: null}
+
+- name: id_upper_case_with_newline
+  ops:
+    - {op: set, entity_id: "LIGHT.A\n", state: "on"}
+    - {op: get, entity_id: "light.a\n"}
+    - {op: get, entity_id: "Light.A\n"}
+    - {op: get, entity_id: light.a, expect: null}
+    - {op: inspect, entity_id: "light.a\n"}
+    - {op: entity_ids, domain_filter: light}
+    - {op: remove, entity_id: "LIGHT.A\n", expect: true}
+
+- name: id_set_internal_is_not_lowered
+  ops:
+    - {op: set_internal, entity_id: Light.A, state: "on"}
+    - {op: set_internal, entity_id: light.A, state: "on"}
+    - {op: set_internal, entity_id: "light.a\n", state: "on"}
+    - {op: set_internal, entity_id: light.a, state: "on"}
+    - {op: set_internal, entity_id: "", state: "on"}
+    - {op: set_internal, entity_id: "light", state: "on"}
+    - {op: entity_ids}
+
+- name: id_set_internal_unicode_digit
+  ops:
+    - {op: set_internal, entity_id: "sensor.x١", state: "1"}
+    - {op: entity_ids}
+
+- name: id_set_internal_fullwidth_digit_domain
+  ops:
+    - {op: set_internal, entity_id: "１.a", state: "1"}
+    - {op: entity_ids_count}
+
+- name: id_set_internal_non_ascii_letter
+  ops:
+    - {op: set_internal, entity_id: "sensor.é", state: "1"}
+    - {op: set_internal, entity_id: "sensor.ǆ", state: "1"}
+    - {op: entity_ids_count, expect: 0}
+
+- name: id_non_ascii_set
+  ops:
+    - {op: set, entity_id: "sensor.x١", state: "1"}
+
+- name: id_non_ascii_get
+  ops:
+    - {op: get, entity_id: "sensor.é"}
+
+- name: id_non_ascii_is_state
+  ops:
+    - {op: is_state, entity_id: "sensor.é", state: "1"}
+
+- name: id_non_ascii_available
+  ops:
+    - {op: available, entity_id: "sensor.é"}
+
+- name: id_non_ascii_remove
+  ops:
+    - {op: remove, entity_id: "sensor.é"}
+
+- name: id_non_ascii_domain_filter_str
+  ops:
+    - {op: entity_ids, domain_filter: "é"}
+
+- name: id_non_ascii_domain_filter_list_and_reserve
+  ops:
+    - {op: entity_ids, domain_filter: ["é", "É"], expect: []}
+    - {op: entity_ids_count, domain_filter: ["é"], expect: 0}
+    - {op: all, domain_filter: ["é"], expect: []}
+    - {op: reserve, entity_id: "sensor.é"}
+    - {op: reserve, entity_id: "sensor.é"}
+
+- name: id_invalid_only_checked_for_new
+  ops:
+    - {op: set, entity_id: light.a, state: "on"}
+    - {op: set_internal, entity_id: light.a, state: "off", now: "2026-11-20T16:31:00+00:00"}
+    - {op: remove, entity_id: light.a, now: "2026-11-20T16:31:01+00:00"}
+    - {op: set_internal, entity_id: Light.a, state: "on", now: "2026-11-20T16:31:02+00:00"}
+    - {op: set, entity_id: light.a, state: "on", now: "2026-11-20T16:31:03+00:00"}
+    - {op: inspect, entity_id: light.a}
+
+- name: id_error_does_not_consume_a_context
+  ops:
+    - {op: set, entity_id: bad, state: x}
+    - {op: set, entity_id: light.a, state: x}
+    - {op: set_internal, entity_id: BAD.x, state: x}
+    - {op: set, entity_id: light.b, state: x}
+    - {op: remove, entity_id: light.nope}
+    - {op: remove, entity_id: light.a}
+    - {op: set, entity_id: light.c, state: x}

@@ -1,0 +1,13 @@
+description: A called script ends on a false condition; its caller goes on.
+scripts:
+  cond:
+    sequence:
+      - condition: template
+        value_template: "{{ false }}"
+      - event: never
+  outer:
+    sequence:
+      - action: script.cond
+      - event: outer_after
+steps:
+  - {at: 1, call: outer}

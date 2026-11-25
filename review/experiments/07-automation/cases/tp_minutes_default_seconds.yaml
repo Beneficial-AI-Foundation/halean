@@ -1,0 +1,10 @@
+# time_pattern with only minutes: seconds default to 0
+automations:
+  - alias: everymin
+    triggers: [{trigger: time_pattern, minutes: "/1"}]
+    actions: [{event: m_everymin, event_data: {t: "{{ trigger.now.strftime('%M:%S') }}"}}]
+steps:
+  - {at: 39, send: {type: event, event_type: tick}}
+  - {at: 40, send: {type: event, event_type: tick}}
+  - {at: 41, send: {type: event, event_type: tick}}
+  - {at: 100, send: {type: event, event_type: tick}}

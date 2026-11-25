@@ -1,0 +1,21 @@
+description: turn_off of two scripts, each awaited by its own caller; the order the callers go on in.
+scripts:
+  s1:
+    sequence:
+      - delay: 10
+  s2:
+    sequence:
+      - delay: 10
+  c1:
+    sequence:
+      - action: script.s1
+      - event: c1_after
+  c2:
+    sequence:
+      - action: script.s2
+      - event: c2_after
+steps:
+  - {at: 1, call: c2}
+  - {at: 1, call: c1}
+  - {at: 2, call: turn_off, data: {entity_id: [script.s1, script.s2]}}
+  - {at: 3}

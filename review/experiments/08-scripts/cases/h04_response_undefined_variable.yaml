@@ -1,0 +1,18 @@
+description: stop with a response_variable that is not defined aborts the script; the caller gets {} / null.
+scripts:
+  undef:
+    sequence:
+      - event: before
+      - stop: done
+        response_variable: nothing_here
+      - event: never
+  outer:
+    sequence:
+      - action: script.undef
+        response_variable: r
+      - event: outer_after
+        event_data: {r: "{{ r }}"}
+steps:
+  - {at: 1, call: undef, return_response: true}
+  - {at: 2, call: undef}
+  - {at: 3, call: outer}

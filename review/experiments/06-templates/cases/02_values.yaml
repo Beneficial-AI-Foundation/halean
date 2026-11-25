@@ -1,0 +1,211 @@
+# Python value semantics: numbers, formatting, arithmetic, comparisons, containers.
+- {name: val_float_1e22, template: "{{ 1e22 }}"}
+- {name: val_float_small_exp, template: "{{ 0.00001 }}"}
+- {name: val_float_0_0001, template: "{{ 0.0001 }}"}
+- {name: val_float_denormal_min, template: "{{ 5e-324 }}"}
+- {name: val_float_max, template: "{{ 1.7976931348623157e308 }}"}
+- {name: val_float_neg_zero, template: "{{ -0.0 }}"}
+- {name: val_float_neg_zero_mul, template: "{{ 0 * -1.0 }}"}
+- {name: val_float_inf_by_mul, template: "{{ 1e308 * 10 }}"}
+- {name: val_float_nan_sub, template: "{{ ('inf' | float) - ('inf' | float) }}"}
+- {name: val_float_neg_nan, template: "{{ -('nan' | float) }}"}
+- {name: val_float_third, template: "{{ 1 / 3 }}"}
+- {name: val_float_17_digits, template: "{{ 123456789012345678.0 }}"}
+- {name: val_float_2_53_plus_1, template: "{{ 2 ** 53 + 1.0 }}"}
+- {name: val_int_div_overflow, template: "{{ 10 ** 400 / 1 }}"}
+- {name: val_int_plus_float_overflow, template: "{{ 10 ** 400 + 0.5 }}"}
+- {name: val_int_cmp_float_huge, template: "{{ 10 ** 400 > 1e308 }}"}
+- {name: val_int_eq_float_exact, template: "{{ 2 ** 53 + 1 == 2.0 ** 53 }}"}
+- {name: val_float_pow_overflow, template: "{{ 2.0 ** 10000 }}"}
+- {name: val_int_pow_neg_overflow, template: "{{ (10 ** 400) ** -1 }}"}
+- {name: val_int_str_4300_ok, template: "{{ (10 ** 4299) | string | length }}"}
+- {name: val_int_str_4301_limit, template: "{{ (10 ** 4300) | string | length }}"}
+- {name: val_int_print_over_limit, template: "{{ 10 ** 5000 }}"}
+- {name: val_floordiv_float, template: "{{ 7 // 2.0 }}"}
+- {name: val_floordiv_neg_float, template: "{{ -7 // 2.0 }}"}
+- {name: val_mod_neg_float_divisor, template: "{{ 7 % -2.5 }}"}
+- {name: val_mod_neg_zero, template: "{{ -0.0 % 1 }}"}
+- {name: val_mod_inf_divisor, template: "{{ 5 % ('inf' | float) }}"}
+- {name: val_mod_neg_by_inf, template: "{{ -5 % ('inf' | float) }}"}
+- {name: val_floordiv_neg_by_inf, template: "{{ -5 // ('inf' | float) }}"}
+- {name: val_floordiv_inf_dividend, template: "{{ ('inf' | float) // 2 }}"}
+- {name: val_floordiv_tiny_neg, template: "{{ -1e-20 // 3 }}"}
+- {name: val_mod_tiny_neg, template: "{{ -1e-20 % 3 }}"}
+- {name: val_floordiv_big_float, template: "{{ 1e300 // 3 }}"}
+- {name: val_floordiv_float_zero, template: "{{ 1 // 0.0 }}"}
+- {name: val_mod_int_zero, template: "{{ 1 % 0 }}"}
+- {name: val_pow_complex, template: "{{ (-8) ** (1 / 3) }}"}
+- {name: val_pow_zero_zero, template: "{{ 0 ** 0 }}"}
+- {name: val_pow_zero_neg, template: "{{ 0 ** -1 }}"}
+- {name: val_pow_neg_base_int, template: "{{ (-2) ** 3 }}"}
+- {name: val_pow_neg_base_neg_exp, template: "{{ (-2) ** -1 }}"}
+- {name: val_pow_tiny, template: "{{ 10 ** -400 }}"}
+- {name: val_pow_float_int, template: "{{ 1.5 ** 2 }}"}
+- {name: val_pow_bool, template: "{{ true ** 2 }}"}
+- {name: val_pow_large_exp, template: "{{ (2 ** 100001) % 7 }}"}
+- {name: val_bool_add, template: "{{ true + true }}"}
+- {name: val_bool_neg, template: "{{ -true }}"}
+- {name: val_bool_pos, template: "{{ +true }}"}
+- {name: val_bool_div, template: "{{ true / 2 }}"}
+- {name: val_bool_mul_str, template: "{{ true * 'a' }}"}
+- {name: val_bool_mul_list, template: "{{ [1] * true }}"}
+- {name: val_tuple_mul, template: "{{ (1, 2) * 2 }}"}
+- {name: val_tuple_add, template: "{{ (1,) + (2,) }}"}
+- {name: val_list_add_tuple, template: "{{ [1] + (2,) }}"}
+- {name: val_str_mul_neg, template: "{{ 'ab' * -1 }}|"}
+- {name: val_str_mul_float, template: "{{ 'a' * 2.0 }}"}
+- {name: val_str_percent_format, template: "{{ '%s-%s' % (1, 2) }}"}
+- {name: val_str_percent_single, template: "{{ 'v=%d' % 5 }}"}
+- {name: val_none_add, template: "{{ none + 1 }}"}
+- {name: val_cmp_str_int, template: "{{ 'a' < 1 }}"}
+- {name: val_cmp_none_none_le, template: "{{ none <= none }}"}
+- {name: val_cmp_dict_le, template: "{{ {'a': 1} <= {'a': 1} }}"}
+- {name: val_cmp_str_le_eq, template: "{{ 'a' <= 'a' }}"}
+- {name: val_cmp_list_tuple_eq, template: "{{ [1] == (1,) }}"}
+- {name: val_cmp_list_mixed, template: "{{ [1, 'a'] < [1, 2] }}"}
+- {name: val_cmp_list_prefix, template: "{{ [1] < [1, 0] }}"}
+- {name: val_cmp_str_numeric_strings, template: "{{ '10' < '9' }}"}
+- {name: val_cmp_bool_int, template: "{{ true < 2 }}"}
+- {name: val_cmp_nan_le, template: "{{ ('nan' | float) <= ('nan' | float) }}"}
+- {name: val_cmp_nan_eq_self_in_list, template: "{% set x = 'nan' | float %}{{ [x] == [x] }}"}
+- {name: val_nan_in_list_identity, template: "{% set x = 'nan' | float %}{{ x in [x] }}"}
+- {name: val_cmp_ge_tuple, template: "{{ (1, 2) >= (1, 2) }}"}
+- {name: val_cmp_range_eq, template: "{{ range(0) == range(5, 5) }}"}
+- {name: val_in_str_nonstr, template: "{{ 1 in 'abc' }}"}
+- {name: val_in_int_container, template: "{{ 'a' in 5 }}"}
+- {name: val_in_dict_unhashable, template: "{{ [1] in {'a': 1} }}"}
+- {name: val_in_empty_str, template: "{{ '' in 'abc' }}"}
+- {name: val_in_tuple, template: "{{ 'a' in ('a',) }}"}
+- {name: val_in_none, template: "{{ 'a' in none }}"}
+- {name: val_in_dict_bool_key, template: "{{ true in {1: 'x'} }}"}
+- {name: val_truthy_range_empty, template: "{{ 'y' if range(0) else 'n' }}"}
+- {name: val_truthy_neg_zero, template: "{{ 'y' if -0.0 else 'n' }}"}
+- {name: val_truthy_empty_tuple, template: "{{ 'y' if () else 'n' }}"}
+- {name: val_truthy_timedelta_zero, template: "{{ 'y' if timedelta(0) else 'n' }}"}
+- {name: val_truthy_nan, template: "{{ 'y' if 'nan' | float else 'n' }}"}
+- {name: val_truthy_domain_empty, template: "{{ 'y' if states.sensor else 'n' }}", render_info: true}
+- name: val_truthy_domain_nonempty
+  template: "{{ 'y' if states.sensor else 'n' }}"
+  states: [{entity_id: sensor.a, state: "1"}]
+  render_info: true
+- {name: val_truthy_all_states_empty, template: "{{ 'y' if states else 'n' }}", render_info: true}
+- {name: val_not_domain_empty, template: "{{ not states.light }}"}
+- {name: val_or_returns_operand, template: "{{ [] or {} }}"}
+- {name: val_and_returns_operand, template: "{{ 0.0 and 1 }}"}
+- {name: val_dict_dup_keys, template: "{{ {'a': 1, 'a': 2} }}"}
+- {name: val_dict_dup_keys_len, template: "{{ {'a': 1, 'a': 2} | length }}"}
+- {name: val_dict_int_bool_float_keys, template: "{{ {1: 'a', 1.0: 'b', true: 'c'} }}"}
+- {name: val_dict_unhashable_key, template: "{{ {[1]: 2} }}"}
+- {name: val_dict_keys_print, template: "{{ {'a': 1}.keys() }}"}
+- {name: val_dict_values_print, template: "{{ {'a': 1}.values() }}"}
+- {name: val_dict_items_print, template: "{{ {'a': 1}.items() }}"}
+- {name: val_dict_keys_eq_list, template: "{{ {'a': 1}.keys() == ['a'] }}"}
+- {name: val_dict_keys_index, template: "{{ {'a': 1}.keys()[0] is defined }}"}
+- {name: val_dict_keys_list, template: "{{ {'a': 1, 'b': 2}.keys() | list }}"}
+- {name: val_dict_items_len, template: "{{ {'a': 1}.items() | length }}"}
+- {name: val_dict_values_sum, template: "{{ {'a': 1, 'b': 2}.values() | sum }}"}
+- {name: val_dict_get_no_args, template: "{{ {'a': 1}.get() }}"}
+- {name: val_dict_get_kw, template: "{{ {'a': 1}.get('b', default=5) }}"}
+- {name: val_dict_copy, template: "{{ {'a': 1}.copy() }}"}
+- {name: val_dict_items_key, template: "{{ {'items': 5}.items }}"}
+- {name: val_dict_items_subscript, template: "{{ {'items': 5}['items'] }}"}
+- {name: val_dict_missing_then_method, template: "{{ {'a': 1}['keys']() | list }}"}
+- {name: val_dict_global_positional, template: "{{ dict({'a': 1}) }}"}
+- {name: val_dict_global_pairs, template: "{{ dict([('a', 1)]) }}"}
+- {name: val_dict_global_kw, template: "{{ dict(a=1, b=none) }}"}
+- {name: val_dict_order, template: "{{ {'b': 1, 'a': 2} }}"}
+- {name: val_dict_eq_order, template: "{{ {'b': 1, 'a': 2} == {'a': 2, 'b': 1} }}"}
+- {name: val_dict_nonstr_keys, template: "{{ {1: 'a', none: 'b', (1, 2): 'c', 1.5: 'd'} }}"}
+- {name: val_dict_attr_vs_key_int, template: "{{ {1: 'a'}[1] }}"}
+- {name: val_dict_float_key_lookup, template: "{{ {1: 'a'}[1.0] }}"}
+- {name: val_list_method_index, template: "{{ [1, 2].index(2) }}"}
+- {name: val_list_method_count, template: "{{ [1, 1, 2].count(1) }}"}
+- {name: val_list_append_blocked, template: "{{ [1].append(2) }}"}
+- {name: val_list_attr_undefined, template: "{{ [1].foo is defined }}"}
+- {name: val_list_str_subscript, template: "{{ [1]['foo'] is defined }}"}
+- {name: val_list_float_index, template: "{{ [1, 2][1.0] is defined }}"}
+- {name: val_list_bool_index, template: "{{ [1, 2][true] }}"}
+- {name: val_list_neg_index_oob, template: "{{ [1, 2][-3] is defined }}"}
+- {name: val_str_index, template: "{{ 'abc'[1] }}{{ 'abc'[-1] }}"}
+- {name: val_str_index_oob, template: "{{ 'abc'[5] is defined }}"}
+- {name: val_str_attr_undefined, template: "{{ 'abc'.foo is defined }}"}
+- {name: val_int_attr_undefined, template: "{{ (1).foo is defined }}"}
+- {name: val_int_dot_attr_lex, template: "{{ 1.foo is defined }}"}
+- {name: val_int_real_attr, template: "{{ (5).real }}"}
+- {name: val_int_method_bit_length, template: "{{ (5).bit_length() }}"}
+- {name: val_float_is_integer, template: "{{ (5.0).is_integer() }}"}
+- {name: val_none_attr, template: "{{ none.foo is defined }}"}
+- {name: val_none_attr_attr, template: "{{ none.foo.bar }}"}
+- {name: val_none_subscript, template: "{{ none[0] is defined }}"}
+- {name: val_private_attr, template: "{{ 'a'.__class__ }}"}
+- {name: val_private_attr_dict, template: "{{ {'_a': 1}._a }}"}
+- {name: val_private_subscript_dict, template: "{{ {'_a': 1}['_a'] }}"}
+- {name: val_str_method_join, template: "{{ ','.join(['a', 'b']) }}"}
+- {name: val_str_method_format, template: "{{ '{}-{}'.format(1, 2) }}"}
+- {name: val_str_method_isdigit, template: "{{ '12'.isdigit() }}"}
+- {name: val_str_method_count, template: "{{ 'banana'.count('a') }}"}
+- {name: val_str_method_find, template: "{{ 'banana'.find('n') }}"}
+- {name: val_str_method_zfill, template: "{{ '7'.zfill(3) }}"}
+- {name: val_str_method_rsplit, template: "{{ 'a.b.c'.rsplit('.', 1) }}"}
+- {name: val_str_method_splitlines, template: "{{ 'a\\nb'.splitlines() }}"}
+- {name: val_str_method_partition, template: "{{ 'a=b'.partition('=') }}"}
+- {name: val_str_method_removeprefix, template: "{{ 'sensor.x'.removeprefix('sensor.') }}"}
+- {name: val_str_method_swapcase, template: "{{ 'aB'.swapcase() }}"}
+- {name: val_str_method_center, template: "{{ 'a'.center(5, '*') }}"}
+- {name: val_str_split_none_maxsplit, template: "{{ ' a b  c '.split(none, 1) }}"}
+- {name: val_str_split_empty_sep, template: "{{ 'abc'.split('') }}"}
+- {name: val_str_split_kw, template: "{{ 'a,b,c'.split(sep=',', maxsplit=1) }}"}
+- {name: val_str_split_multi_char, template: "{{ 'a--b--c'.split('--') }}"}
+- {name: val_str_split_empty_string, template: "{{ ''.split() }}{{ ''.split(',') }}"}
+- {name: val_str_strip_chars, template: "{{ 'xxaxx'.strip('x') }}{{ 'xxaxx'.lstrip('x') }}{{ 'xxaxx'.rstrip('x') }}"}
+- {name: val_str_strip_none, template: "{{ ' a '.strip(none) }}|"}
+- {name: val_str_strip_vt, template: "{{ '\x0ba\x0c'.strip() | length }}"}
+- {name: val_str_replace_count, template: "{{ 'aaa'.replace('a', 'b', 2) }}"}
+- {name: val_str_replace_count_kw, template: "{{ 'aaa'.replace('a', 'b', count=1) }}"}
+- {name: val_str_replace_empty_old, template: "{{ 'ab'.replace('', '-') }}"}
+- {name: val_str_replace_empty_old_count, template: "{{ 'abc'.replace('', '-', 2) }}"}
+- {name: val_str_startswith_tuple, template: "{{ 'abc'.startswith(('x', 'a')) }}"}
+- {name: val_str_startswith_start, template: "{{ 'abc'.startswith('b', 1) }}"}
+- {name: val_str_startswith_int, template: "{{ 'abc'.startswith(1) }}"}
+- {name: val_str_title_method_apostrophe, template: "{{ \"it's a o'neil 1st\".title() }}"}
+- {name: val_str_capitalize_method, template: "{{ 'hELLO wORLD'.capitalize() }}"}
+- {name: val_str_upper_nonascii, template: "{{ 'straße'.upper() }}", expect_error_in_halean_only: true}
+- {name: val_str_lower_no_call, template: "{{ 'A'.lower }}"}
+- {name: val_repr_both_quotes, template: "{{ ['a\"b\\'c'] }}"}
+- {name: val_repr_backslash, template: "{{ ['a\\\\b'] | string | length }}"}
+- {name: val_repr_del, template: "{{ ['\\x7f'] | string | length }}"}
+- {name: val_repr_nbsp, template: "{{ [' '] | string | length }}"}
+- {name: val_repr_c1_control, template: "{{ ['\u0085'] | string | length }}"}
+- {name: val_repr_soft_hyphen, template: "{{ ['­'] | string | length }}"}
+- {name: val_repr_line_separator, template: "{{ [' '] | string | length }}"}
+- {name: val_repr_private_use, template: "{{ [''] | string | length }}"}
+- {name: val_repr_zero_width_space, template: "{{ ['​'] | string | length }}"}
+- {name: val_repr_printable_nonascii, template: "{{ ['é', '日本'] | string | length }}"}
+- {name: val_repr_nbsp_result, template: "{{ [' '] }}"}
+- {name: val_repr_nested_tuple, template: "{{ [(1,), (), {'a': (2, 3)}] }}"}
+- {name: val_print_undefined_in_list, template: "{{ [trigger.x] }}", variables: {trigger: {}}}
+- {name: val_print_undefined_in_dict, template: "{{ {'a': trigger.x} }}", variables: {trigger: {}}}
+- {name: val_print_undefined_in_tuple_len, template: "{{ (trigger.x, 1) | string | length }}", variables: {trigger: {}}}
+- {name: val_print_namespace, template: "{{ namespace(a=1) }}"}
+- {name: val_print_namespace_empty, template: "{{ namespace() }}"}
+- {name: val_print_loop, template: "{% for x in [1, 2] %}{{ loop }}{% endfor %}"}
+- {name: val_print_range_step, template: "{{ range(1, 10, 2) }}"}
+- {name: val_print_range_one_arg, template: "{{ range(3) | string }}"}
+- {name: val_print_generator, template: "{{ [1] | map('int') }}", expect_error_in_halean_only: true}
+- {name: val_print_function, template: "{{ float }}"}
+- {name: val_print_states, template: "{{ states }}"}
+- {name: val_print_domain, template: "{{ states.sensor }}"}
+- name: val_print_state_object
+  template: "{{ states.sensor.a }}"
+  states: [{entity_id: sensor.a, state: "1"}]
+- {name: val_var_float_exp, template: "{{ x }}", variables: {x: 1.0e+20}}
+- {name: val_var_float_small, template: "{{ x }}", variables: {x: 1.5e-7}}
+- {name: val_var_float_whole, template: "{{ x is float }}", variables: {x: 20.0}}
+- {name: val_var_big_int, template: "{{ x + 1 }}", variables: {x: 123456789012345678901234567890}}
+- {name: val_var_dict_order, template: "{{ x }}", variables: {x: {b: 1, a: 2}}}
+- {name: val_var_nested, template: "{{ x.a[1].b }}", variables: {x: {a: [0, {b: 7}]}}}
+- {name: val_var_shadows_global, template: "{{ float }}", variables: {float: 5}}
+- {name: val_var_shadows_states, template: "{{ states }}", variables: {states: 5}}
+- {name: val_set_shadows_global, template: "{% set int = 7 %}{{ int }}"}
+- {name: val_set_shadows_global_call, template: "{% set int = 7 %}{{ int('3') }}"}
+- {name: val_filter_not_shadowed_by_set, template: "{% set int = 7 %}{{ '3' | int }}"}

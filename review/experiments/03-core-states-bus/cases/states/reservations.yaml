@@ -1,0 +1,54 @@
+# async_reserve / async_available / async_remove and the reservation set.
+
+- name: reserve_is_case_sensitive
+  ops:
+    - {op: reserve, entity_id: Light.X}
+    - {op: available, entity_id: Light.X, expect: true}     # lower-cased lookup misses "Light.X"
+    - {op: available, entity_id: light.x, expect: true}
+    - {op: remove, entity_id: Light.X, expect: false}       # discards "light.x", not "Light.X"
+    - {op: reserve, entity_id: Light.X}
+    - {op: reserve, entity_id: light.x}
+    - {op: available, entity_id: LIGHT.X, expect: false}
+    - {op: reserve, entity_id: light.x}
+
+- name: reserve_then_set_then_remove
+  ops:
+    - {op: reserve, entity_id: light.a}
+    - {op: available, entity_id: light.a, expect: false}
+    - {op: get, entity_id: light.a, expect: null}
+    - {op: entity_ids, expect: []}
+    - {op: set, entity_id: light.a, state: "on"}
+    - {op: reserve, entity_id: light.a}
+    - {op: remove, entity_id: light.a, expect: true}
+    - {op: available, entity_id: light.a, expect: true}
+    - {op: reserve, entity_id: light.a}
+    - {op: available, entity_id: light.a, expect: false}
+
+- name: reserve_removed_by_remove_of_unknown
+  ops:
+    - {op: reserve, entity_id: light.a}
+    - {op: remove, entity_id: LIGHT.A, expect: false}
+    - {op: available, entity_id: light.a, expect: true}
+    - {op: reserve, entity_id: light.a}
+
+- name: reserve_any_string
+  ops:
+    - {op: reserve, entity_id: ""}
+    - {op: reserve, entity_id: ""}
+    - {op: reserve, entity_id: "not an id"}
+    - {op: available, entity_id: "", expect: false}
+    - {op: available, entity_id: "not an id", expect: false}
+    - {op: available, entity_id: "NOT AN ID", expect: false}
+    - {op: remove, entity_id: "", expect: false}
+    - {op: available, entity_id: "", expect: true}
+    - {op: entity_ids_count, expect: 0}
+
+- name: reserve_existing_state_fails
+  ops:
+    - {op: set, entity_id: light.a, state: "on"}
+    - {op: reserve, entity_id: light.a}
+    - {op: reserve, entity_id: LIGHT.A}
+    - {op: available, entity_id: light.a, expect: false}
+    - {op: remove, entity_id: light.a}
+    - {op: available, entity_id: light.a, expect: true}
+    - {op: reserve, entity_id: LIGHT.A}

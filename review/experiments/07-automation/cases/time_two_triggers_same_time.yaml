@@ -1,0 +1,7 @@
+# two time triggers at the same second: both fire, in order, single mode lets the first finish
+automations:
+  - alias: twotime
+    triggers: [{trigger: time, at: "22:13:25", id: a}, {trigger: time, at: "22:13:25", id: b}]
+    actions: [{event: m_twotime, event_data: {id: "{{ trigger.id }}"}}]
+steps:
+  - {at: 6, send: {type: event, event_type: tick}}

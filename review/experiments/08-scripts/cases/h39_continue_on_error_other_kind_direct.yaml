@@ -1,0 +1,10 @@
+description: A service call fails with an unexpected error; continue_on_error on the step lets the script go on.
+scripts:
+  s:
+    sequence:
+      - action: test.work
+        continue_on_error: true
+      - event: s_after
+steps:
+  - {at: 1, call: s}
+  - {at: 2, result: 0, ok: false, error_kind: other}

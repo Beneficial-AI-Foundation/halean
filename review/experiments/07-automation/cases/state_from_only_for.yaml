@@ -1,0 +1,14 @@
+# `from` without `to`: the timer survives as long as the state is not the old one
+automations:
+  - alias: fromfor
+    triggers: [{trigger: state, entity_id: sensor.a, from: "a", for: "00:00:05"}]
+    actions: [{event: m_fromfor, event_data: {to: "{{ trigger.to_state.state }}", for: "{{ trigger.for }}"}}]
+states: [{entity_id: sensor.a, state: "a"}]
+steps:
+  - {at: 1, set: [sensor.a, "b"]}
+  - {at: 3, set: [sensor.a, "c"]}
+  - {at: 6, send: {type: event, event_type: tick}}
+  - {at: 7, set: [sensor.a, "a"]}
+  - {at: 8, set: [sensor.a, "d"]}
+  - {at: 10, set: [sensor.a, "a"]}
+  - {at: 14, send: {type: event, event_type: tick}}

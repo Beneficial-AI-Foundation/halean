@@ -1,0 +1,11 @@
+description: turn_on of two scripts; the first finishes at once, the second waits in a service call.
+scripts:
+  quick:
+    sequence:
+      - event: quick_ran
+  slow:
+    sequence:
+      - action: test.slow
+steps:
+  - {at: 1, call: turn_on, data: {entity_id: [script.quick, script.slow], variables: {x: 1}}}
+  - {at: 2, result: 0}

@@ -1,0 +1,126 @@
+# str(new_state) for non-string states (async_set: `state = str(new_state)`).
+
+- name: state_float_large_integral
+  ops:
+    - {op: set, entity_id: sensor.a, state: 1.0e+16}
+    - {op: get, entity_id: sensor.a}
+
+- name: state_float_huge
+  ops:
+    - {op: set, entity_id: sensor.a, state: 1.5e+300}
+    - {op: set, entity_id: sensor.j, state: 1.7976931348623157e+308}
+    - {op: get, entity_id: sensor.a}
+
+- name: state_float_negative_zero
+  ops:
+    - {op: set, entity_id: sensor.a, state: -0.0}
+    - {op: is_state, entity_id: sensor.a, state: "-0.0", expect: true}
+
+- name: state_float_reprs
+  ops:
+    - {op: set, entity_id: sensor.a, state: 0.1}
+    - {op: set, entity_id: sensor.b, state: 1.0e-7}
+    - {op: set, entity_id: sensor.c, state: 123456789.123456789}
+    - {op: set, entity_id: sensor.d, state: 1.0e+15}
+    - {op: set, entity_id: sensor.e, state: 9999999999999998.0}
+    - {op: set, entity_id: sensor.f, state: 5.0e-324}
+    - {op: set, entity_id: sensor.g, state: 0.30000000000000004}
+    - {op: set, entity_id: sensor.h, state: 1.0e-5}
+    - {op: set, entity_id: sensor.i, state: 0.0001}
+    - {op: set, entity_id: sensor.k, state: 2.5}
+    - {op: set, entity_id: sensor.l, state: -1.0}
+    - {op: set, entity_id: sensor.m, state: 100.0}
+    - {op: set, entity_id: sensor.n, state: 0.0}
+    - {op: all}
+
+- name: state_ints
+  ops:
+    - {op: set, entity_id: sensor.a, state: 0}
+    - {op: set, entity_id: sensor.b, state: -1}
+    - {op: set, entity_id: sensor.c, state: 18446744073709551616}
+    - {op: set, entity_id: sensor.d, state: -1180591620717411303424}
+    - {op: set, entity_id: sensor.e, state: 007}
+    - {op: all}
+
+- name: state_bool_none
+  ops:
+    - {op: set, entity_id: sensor.a, state: true}
+    - {op: set, entity_id: sensor.b, state: false}
+    - {op: set, entity_id: sensor.c, state: null}
+    - {op: is_state, entity_id: sensor.a, state: "True", expect: true}
+    - {op: is_state, entity_id: sensor.a, state: "true", expect: false}
+    - {op: is_state, entity_id: sensor.c, state: "None", expect: true}
+    - {op: set, entity_id: sensor.a, state: "True"}
+    - {op: set, entity_id: sensor.c, state: "None"}
+
+- name: state_list_repr
+  ops:
+    - {op: set, entity_id: sensor.a, state: [1, 1.5, true, null, "a"]}
+    - {op: set, entity_id: sensor.b, state: []}
+    - {op: set, entity_id: sensor.c, state: [[1, [2]], {k: v}]}
+    - {op: set, entity_id: sensor.d, state: [[], {}, [[]], ""]}
+    - {op: set, entity_id: sensor.e, state: [false, 0, 0.0, -1, 2.0]}
+    - {op: all}
+
+- name: state_dict_repr_one_key
+  ops:
+    - {op: set, entity_id: sensor.a, state: {a: 1}}
+    - {op: set, entity_id: sensor.b, state: {}}
+    - {op: set, entity_id: sensor.c, state: {k: [1, {n: null}]}}
+    - {op: all}
+
+- name: state_dict_repr_key_order
+  ops:
+    - {op: set, entity_id: sensor.a, state: {b: 1, a: 2}}
+    - {op: get, entity_id: sensor.a}
+
+- name: state_repr_quotes_and_escapes
+  ops:
+    - {op: set, entity_id: sensor.a, state: ["it's"]}
+    - {op: set, entity_id: sensor.b, state: ['say "hi"']}
+    - {op: set, entity_id: sensor.c, state: ["both ' and \""]}
+    - {op: set, entity_id: sensor.d, state: ["a\\b"]}
+    - {op: set, entity_id: sensor.e, state: ["line\nfeed", "tab\t", "cr\r"]}
+    - {op: set, entity_id: sensor.f, state: ["\0", "\x01", "\x1f", "\x7f"]}
+    - {op: set, entity_id: sensor.g, state: [""]}
+    - {op: set, entity_id: sensor.h, state: {"it's": "q\"q"}}
+    - {op: all}
+
+- name: state_repr_non_ascii_printable
+  ops:
+    - {op: set, entity_id: sensor.a, state: ["é", "日本", "😀", "°C", "ß"]}
+    - {op: get, entity_id: sensor.a}
+
+- name: state_repr_non_ascii_non_printable
+  ops:
+    - {op: set, entity_id: sensor.a, state: ["​"]}
+    - {op: get, entity_id: sensor.a}
+
+- name: state_repr_nbsp_and_private_use
+  ops:
+    - {op: set, entity_id: sensor.a, state: ["\xa0", "\xad", "\ue000", "\u2028", "\x80", "\x9f"]}
+    - {op: get, entity_id: sensor.a}
+
+- name: state_str_same_as_string
+  ops:
+    - {op: set, entity_id: sensor.a, state: 1}
+    - {op: set, entity_id: sensor.a, state: "1", now: "2026-11-20T16:31:00+00:00"}
+    - {op: set, entity_id: sensor.b, state: 1.0}
+    - {op: set, entity_id: sensor.b, state: "1.0", now: "2026-11-20T16:31:01+00:00"}
+    - {op: set, entity_id: sensor.b, state: 1, now: "2026-11-20T16:31:02+00:00"}
+    - {op: set, entity_id: sensor.c, state: [1, 2]}
+    - {op: set, entity_id: sensor.c, state: "[1, 2]", now: "2026-11-20T16:31:03+00:00"}
+    - {op: set, entity_id: sensor.c, state: "[1,2]", now: "2026-11-20T16:31:04+00:00"}
+
+- name: state_strings_edge
+  ops:
+    - {op: set, entity_id: sensor.a, state: ""}
+    - {op: set, entity_id: sensor.b, state: " "}
+    - {op: set, entity_id: sensor.c, state: "\n"}
+    - {op: set, entity_id: sensor.d, state: "\0"}
+    - {op: set, entity_id: sensor.e, state: "ON"}
+    - {op: is_state, entity_id: sensor.a, state: "", expect: true}
+    - {op: is_state, entity_id: sensor.e, state: "on", expect: false}
+    - {op: is_state, entity_id: sensor.b, state: "", expect: false}
+    - {op: set, entity_id: sensor.a, state: " ", now: "2026-11-20T16:31:00+00:00"}
+    - {op: all}

@@ -1,0 +1,13 @@
+# the bound entity changing does not fire the trigger; the watched entity's next change does
+automations:
+  - alias: boundmoves
+    triggers: [{trigger: numeric_state, entity_id: sensor.t, above: sensor.limit}]
+    actions: [{event: m_boundmoves}]
+states: [{entity_id: sensor.t, state: "5"}, {entity_id: sensor.limit, state: "10"}]
+steps:
+  - {at: 1, set: [sensor.limit, "1"]}
+  - {at: 2, set: [sensor.t, "6"]}
+  - {at: 3, set: [sensor.limit, "unknown"]}
+  - {at: 4, set: [sensor.t, "7"]}
+  - {at: 5, set: [sensor.limit, "2"]}
+  - {at: 6, set: [sensor.t, "8"]}

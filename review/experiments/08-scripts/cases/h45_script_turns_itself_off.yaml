@@ -1,0 +1,11 @@
+description: A script turns itself off; the steps after it do not run and its caller is cancelled.
+scripts:
+  selfoff:
+    sequence:
+      - event: before
+      - action: script.turn_off
+        target: {entity_id: script.selfoff}
+      - event: never
+steps:
+  - {at: 1, call: selfoff}
+  - {at: 2}

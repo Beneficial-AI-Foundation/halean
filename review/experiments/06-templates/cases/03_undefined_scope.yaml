@@ -1,0 +1,118 @@
+# Undefined handling, scoping of set/for, loop variables, namespace.
+- {name: und_default_boolean, template: "{{ trigger.x | default('a', true) }}", variables: {trigger: {}}}
+- {name: und_add, template: "{{ trigger.x + 1 }}", variables: {trigger: {}}}
+- {name: und_concat, template: "{{ trigger.x ~ 'a' }}", variables: {trigger: {}}}
+- {name: und_eq_none, template: "{{ trigger.x == none }}", variables: {trigger: {}}}
+- {name: und_eq_undefined, template: "{{ trigger.x == trigger.y }}", variables: {trigger: {}}}
+- {name: und_is_none, template: "{{ trigger.x is none }}", variables: {trigger: {}}}
+- {name: und_lt, template: "{{ trigger.x < 1 }}", variables: {trigger: {}}}
+- {name: und_in_list, template: "{{ trigger.x in [1] }}", variables: {trigger: {}}}
+- {name: und_as_container, template: "{{ 1 in trigger.x }}", variables: {trigger: {}}}
+- {name: und_string_filter, template: "{{ trigger.x | string | length }}", variables: {trigger: {}}}
+- {name: und_int_default, template: "{{ trigger.x | int(5) }}", variables: {trigger: {}}}
+- {name: und_float_default, template: "{{ trigger.x | float(0) }}", variables: {trigger: {}}}
+- {name: und_bool_default, template: "{{ trigger.x | bool(false) }}", variables: {trigger: {}}}
+- {name: und_bool_no_default, template: "{{ trigger.x | bool }}", variables: {trigger: {}}}
+- {name: und_round_default, template: "{{ trigger.x | round(default=5) }}", variables: {trigger: {}}}
+- {name: und_round_no_default, template: "{{ trigger.x | round }}", variables: {trigger: {}}}
+- {name: und_is_number, template: "{{ trigger.x | is_number }}", variables: {trigger: {}}}
+- {name: und_list, template: "{{ trigger.x | list }}", variables: {trigger: {}}}
+- {name: und_first, template: "{{ trigger.x | first is defined }}", variables: {trigger: {}}}
+- {name: und_last, template: "{{ trigger.x | last is defined }}", variables: {trigger: {}}}
+- {name: und_reverse, template: "{{ trigger.x | reverse | list }}", variables: {trigger: {}}}
+- {name: und_join, template: "{{ trigger.x | join(',') }}|", variables: {trigger: {}}}
+- {name: und_sum, template: "{{ trigger.x | sum }}", variables: {trigger: {}}}
+- {name: und_map, template: "{{ trigger.x | map('int') | list }}", variables: {trigger: {}}}
+- {name: und_sort, template: "{{ trigger.x | sort }}", variables: {trigger: {}}}
+- {name: und_min, template: "{{ trigger.x | min is defined }}", variables: {trigger: {}}}
+- {name: und_unique, template: "{{ trigger.x | unique | list }}", variables: {trigger: {}}}
+- {name: und_abs, template: "{{ trigger.x | abs }}", variables: {trigger: {}}}
+- {name: und_neg, template: "{{ -trigger.x }}", variables: {trigger: {}}}
+- {name: und_lower, template: "{{ trigger.x | lower }}|", variables: {trigger: {}}}
+- {name: und_replace, template: "{{ trigger.x | replace('a', 'b') }}|", variables: {trigger: {}}}
+- {name: und_iif, template: "{{ trigger.x | iif('a', 'b') }}", variables: {trigger: {}}}
+- {name: und_not, template: "{{ not trigger.x }}", variables: {trigger: {}}}
+- {name: und_call, template: "{{ trigger.x() }}", variables: {trigger: {}}}
+- {name: und_slice, template: "{{ trigger.x[1:2] }}", variables: {trigger: {}}}
+- {name: und_is_iterable, template: "{{ trigger.x is iterable }}", variables: {trigger: {}}}
+- {name: und_is_sequence, template: "{{ trigger.x is sequence }}", variables: {trigger: {}}}
+- {name: und_is_string, template: "{{ trigger.x is string }}", variables: {trigger: {}}}
+- {name: und_is_mapping, template: "{{ trigger.x is mapping }}", variables: {trigger: {}}}
+- {name: und_is_number_test, template: "{{ trigger.x is number }}", variables: {trigger: {}}}
+- {name: und_is_even, template: "{{ trigger.x is even }}", variables: {trigger: {}}}
+- {name: und_states_arg, template: "{{ states(trigger.x) }}", variables: {trigger: {}}}
+- {name: und_is_state_arg, template: "{{ is_state(trigger.x, 'on') }}", variables: {trigger: {}}}
+- {name: und_state_attr_arg, template: "{{ state_attr(trigger.x, 'a') }}", variables: {trigger: {}}}
+- {name: und_has_value_arg, template: "{{ has_value(trigger.x) }}", variables: {trigger: {}}}
+- {name: und_for_iter, template: "{% for a in trigger.x %}{{ a }}{% else %}e{% endfor %}", variables: {trigger: {}}}
+- {name: und_if_test, template: "{% if trigger.x %}a{% else %}b{% endif %}", variables: {trigger: {}}}
+- {name: und_timestamp_default, template: "{{ trigger.x | timestamp_local(0) }}", variables: {trigger: {}}}
+- {name: und_as_datetime_default, template: "{{ trigger.x | as_datetime('d') }}", variables: {trigger: {}}}
+- {name: und_as_timestamp_default, template: "{{ trigger.x | as_timestamp(5) }}", variables: {trigger: {}}}
+- {name: und_dict_get_missing_attr, template: "{{ {'a': 1}.b is defined }}"}
+- {name: und_dict_missing_item_int, template: "{{ {'a': 1}[0] is defined }}"}
+- {name: und_cond_no_else_printed, template: "{{ 'a' if false }}|"}
+- {name: und_cond_no_else_default, template: "{{ ('a' if false) | default('z') }}"}
+- {name: und_cond_no_else_add, template: "{{ ('a' if false) ~ 'b' }}"}
+- {name: und_plain_name, template: "{{ nosuchvar }}", unsupported: true}
+- {name: und_plain_name_default, template: "{{ nosuchvar | default('z') }}", unsupported: true}
+- {name: und_plain_name_is_defined, template: "{{ nosuchvar is defined }}", unsupported: true}
+- {name: scope_set_in_for_not_leaking, template: "{% set x = 1 %}{% for i in [1] %}{% set x = 2 %}{{ x }}{% endfor %}{{ x }}"}
+- {name: scope_set_in_for_new_name, template: "{% for i in [1, 2] %}{% set y = i %}{% endfor %}{{ y is defined }}"}
+- {name: scope_loop_var_after, template: "{% for i in [1, 2] %}{% endfor %}{{ i is defined }}"}
+- {name: scope_set_not_carried_iter, template: "{% for i in [1, 2] %}{{ y is defined }}{% set y = i %}{% endfor %}"}
+- {name: scope_outer_read_before_set_in_loop, template: "{% set x = 1 %}{% for i in [1] %}{{ x }}{% set x = 2 %}{{ x }}{% endfor %}"}
+- {name: scope_set_in_if_leaks, template: "{% if true %}{% set z = 1 %}{% endif %}{{ z }}"}
+- {name: scope_set_in_untaken_if, template: "{% if false %}{% set q = 1 %}{% endif %}{{ q is defined }}"}
+- {name: scope_set_in_elif, template: "{% if false %}{% elif true %}{% set q = 2 %}{% endif %}{{ q }}"}
+- {name: scope_set_in_for_else, template: "{% for i in [] %}{% else %}{% set w = 3 %}{% endfor %}{{ w is defined }}"}
+- {name: scope_loop_var_shadows, template: "{% set i = 9 %}{% for i in [1] %}{{ i }}{% endfor %}{{ i }}"}
+- {name: scope_if_in_for_set, template: "{% for i in [1, 2] %}{% if i == 1 %}{% set v = 5 %}{% endif %}{{ v is defined }}{% endfor %}"}
+- {name: scope_for_filter_sees_outer, template: "{% set lim = 1 %}{% for i in [1, 2, 3] if i > lim %}{{ i }}{% endfor %}"}
+- {name: scope_for_filter_loop_undefined, template: "{% for i in [1, 2] if loop is defined %}{{ i }}{% else %}none{% endfor %}"}
+- {name: scope_nested_loop_outer_loop, template: "{% for i in [1, 2] %}{% for j in [1] %}{{ loop.index }}{% endfor %}{{ loop.index }}{% endfor %}"}
+- {name: scope_set_from_loop_var, template: "{% for i in [1, 2] %}{% set i = i * 10 %}{{ i }}{% endfor %}"}
+- {name: scope_set_twice_tuple, template: "{% set a, b = 1, 2 %}{% set a, b = b, a %}{{ a }}{{ b }}"}
+- {name: loop_index_all, template: "{% for x in 'abc' %}{{ loop.index }}{{ loop.index0 }}{{ loop.revindex }}{{ loop.revindex0 }}{{ loop.first }}{{ loop.last }}{{ loop.length }};{% endfor %}"}
+- {name: loop_previtem_first, template: "{% for x in [1, 2] %}{{ loop.previtem is defined }}{% endfor %}"}
+- {name: loop_nextitem_last, template: "{% for x in [1, 2] %}{{ loop.nextitem is defined }}{% endfor %}"}
+- {name: loop_previtem_value, template: "{% for x in [5, 6, 7] %}{{ loop.previtem | default('-') }}{{ loop.nextitem | default('-') }};{% endfor %}"}
+- {name: loop_previtem_with_filter, template: "{% for x in [1, 2, 3, 4] if x is even %}{{ loop.previtem | default('-') }}{{ loop.length }};{% endfor %}"}
+- {name: loop_cycle, template: "{% for x in [1, 2, 3] %}{{ loop.cycle('a', 'b') }}{% endfor %}"}
+- {name: loop_changed, template: "{% for x in [1, 1, 2] %}{{ loop.changed(x) }}{% endfor %}"}
+- {name: loop_depth, template: "{% for x in [1] %}{{ loop.depth }}{{ loop.depth0 }}{% endfor %}"}
+- {name: loop_missing_attr, template: "{% for x in [1] %}{{ loop.nope is defined }}{% endfor %}"}
+- {name: loop_subscript, template: "{% for x in [1] %}{{ loop['index'] }}{% endfor %}"}
+- {name: loop_is_mapping, template: "{% for x in [1] %}{{ loop is mapping }}{% endfor %}"}
+- {name: loop_length_filter, template: "{% for x in [1, 2] %}{{ loop | length }}{% endfor %}"}
+- {name: loop_iterate_loop, template: "{% for x in [1] %}{% for k in loop %}{{ k }}{% endfor %}{% endfor %}"}
+- {name: loop_outside, template: "{% for x in [] %}{% endfor %}{{ loop is defined }}"}
+- {name: loop_name_reassigned, template: "{% for x in [1] %}{% set loop = 5 %}{{ loop }}{% endfor %}"}
+- {name: loop_break_nested, template: "{% for i in [1, 2] %}{% for j in [1, 2] %}{% if j == 2 %}{% break %}{% endif %}{{ i }}{{ j }}{% endfor %}{% endfor %}"}
+- {name: loop_continue_after_output, template: "{% for i in [1, 2, 3] %}{{ i }}{% if i == 2 %}{% continue %}{% endif %}-{% endfor %}"}
+- {name: loop_break_then_else, template: "{% for i in [1] %}{% break %}{% else %}e{% endfor %}x"}
+- {name: loop_break_in_else, template: "{% for j in [1, 2] %}{% for i in [] %}{% else %}{% break %}{% endfor %}{{ j }}{% endfor %}"}
+- {name: loop_over_int, template: "{% for x in 5 %}{{ x }}{% endfor %}"}
+- {name: loop_over_none, template: "{% for x in none %}{{ x }}{% endfor %}"}
+- {name: loop_over_dict, template: "{% for k in {'a': 1, 'b': 2} %}{{ k }}{% endfor %}"}
+- {name: loop_unpack_mismatch, template: "{% for a, b in [1] %}{{ a }}{% endfor %}"}
+- {name: loop_unpack_string_items, template: "{% for a, b in ['xy', 'zw'] %}{{ a }}{{ b }}{% endfor %}"}
+- {name: loop_unpack_dict_item, template: "{% for a, b in [{'k': 1, 'j': 2}] %}{{ a }}{{ b }}{% endfor %}"}
+- {name: loop_over_generator_twice, template: "{% set g = [1, 2] | map('int') %}{% for x in g %}{{ x }}{% endfor %}{% for x in g %}{{ x }}{% endfor %}"}
+- {name: loop_generator_list_twice, template: "{% set g = [1, 2] | select %}{{ g | list }}{{ g | list }}"}
+- {name: loop_range_big_break, template: "{% for x in range(100000) %}{% if x == 2 %}{% break %}{% endif %}{{ x }}{% endfor %}"}
+- {name: ns_basic_attr, template: "{% set ns = namespace(a=1) %}{{ ns.a }}"}
+- {name: ns_missing_attr, template: "{% set ns = namespace() %}{{ ns.b is defined }}"}
+- {name: ns_subscript, template: "{% set ns = namespace(a=1) %}{{ ns['a'] }}"}
+- {name: ns_set_new_attr, template: "{% set ns = namespace() %}{% set ns.b = 2 %}{{ ns.b }}"}
+- {name: ns_alias, template: "{% set ns = namespace(a=1) %}{% set m = ns %}{% set m.a = 5 %}{{ ns.a }}"}
+- {name: ns_eq, template: "{{ namespace(a=1) == namespace(a=1) }}"}
+- {name: ns_positional_dict, template: "{% set ns = namespace({'a': 1}) %}{{ ns.a }}"}
+- {name: ns_set_attr_on_dict, template: "{% set d = {'a': 1} %}{% set d.a = 2 %}{{ d.a }}"}
+- {name: ns_set_attr_on_undefined, template: "{% set q.a = 2 %}x"}
+- {name: ns_set_in_loop_persists, template: "{% set ns = namespace(xs=[]) %}{% for i in [1, 2] %}{% set ns.xs = ns.xs + [i] %}{% endfor %}{{ ns.xs }}"}
+- {name: ns_in_list, template: "{% set ns = namespace(a=1) %}{{ [ns] | length }}"}
+- {name: ns_truthy_empty, template: "{{ 'y' if namespace() else 'n' }}"}
+- {name: ns_is_mapping, template: "{{ namespace() is mapping }}"}
+- {name: ns_attr_shadowed_in_loop, template: "{% set ns = namespace(a=1) %}{% for i in [1] %}{% set ns = 5 %}{% endfor %}{{ ns.a }}"}
+- {name: ns_set_attr_inside_for_on_outer, template: "{% set ns = namespace(c=0) %}{% for i in [1, 2, 3] %}{% if i is odd %}{% set ns.c = ns.c + 1 %}{% endif %}{% endfor %}{{ ns.c }}"}

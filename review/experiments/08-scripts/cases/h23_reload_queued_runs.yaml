@@ -1,0 +1,20 @@
+description: A reload that changes a queued script stops its running and waiting runs; the callers' outcomes.
+scripts:
+  q:
+    mode: queued
+    sequence:
+      - delay: 5
+      - event: q_done
+steps:
+  - {at: 1, call: q}
+  - {at: 1, call: q}
+  - {at: 1, call: q}
+  - at: 2
+    reload:
+      q:
+        mode: queued
+        max: 3
+        sequence:
+          - delay: 5
+          - event: q_done
+  - {at: 7}

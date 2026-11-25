@@ -1,0 +1,16 @@
+description: A reload renames a script (same config under another key).
+scripts:
+  old_name:
+    sequence:
+      - delay: 3
+      - event: done
+steps:
+  - {at: 1, call: old_name}
+  - at: 2
+    reload:
+      new_name:
+        sequence:
+          - delay: 3
+          - event: done
+  - {at: 3, call: new_name}
+  - {at: 6}

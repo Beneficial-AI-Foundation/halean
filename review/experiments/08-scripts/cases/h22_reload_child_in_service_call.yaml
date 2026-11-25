@@ -1,0 +1,23 @@
+description: A script waits for a child script that is in a service call; a reload changes the child. The caller is cancelled.
+scripts:
+  child:
+    sequence:
+      - action: test.child
+  parent:
+    sequence:
+      - action: script.child
+      - event: never
+steps:
+  - {at: 1, call: parent}
+  - at: 2
+    reload:
+      parent:
+        sequence:
+          - action: script.child
+          - event: never
+      child:
+        alias: New child
+        sequence:
+          - action: test.child
+  - {at: 3, result: 0}
+  - {at: 4, call: child}

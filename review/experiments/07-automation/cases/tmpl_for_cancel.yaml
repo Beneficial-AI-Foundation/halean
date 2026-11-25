@@ -1,0 +1,14 @@
+# template trigger with `for`: turning false cancels; turning true again restarts
+automations:
+  - alias: tmplfor
+    triggers: [{trigger: template, value_template: "{{ states('sensor.n') | int > 5 }}", for: "00:00:04"}]
+    actions: [{event: m_tmplfor, event_data: {n: "{{ states('sensor.n') }}", for: "{{ trigger.for }}"}}]
+states: [{entity_id: sensor.n, state: "0"}]
+steps:
+  - {at: 1, set: [sensor.n, "6"]}
+  - {at: 3, set: [sensor.n, "7"]}
+  - {at: 4, set: [sensor.n, "1"]}
+  - {at: 6, set: [sensor.n, "8"]}
+  - {at: 9, send: {type: event, event_type: tick}}
+  - {at: 10, send: {type: event, event_type: tick}}
+  - {at: 11, send: {type: event, event_type: tick}}

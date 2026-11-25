@@ -1,0 +1,23 @@
+description: A response passed up three levels of script calls, changed at each.
+scripts:
+  l3:
+    sequence:
+      - variables: {out: {v: [3]}}
+      - stop: done
+        response_variable: out
+  l2:
+    sequence:
+      - action: script.l3
+        response_variable: r
+      - variables: {out: {v: "{{ r.v + [2] }}"}}
+      - stop: done
+        response_variable: out
+  l1:
+    sequence:
+      - action: script.l2
+        response_variable: r
+      - variables: {out: {v: "{{ r.v + [1] }}"}}
+      - stop: done
+        response_variable: out
+steps:
+  - {at: 1, call: l1, return_response: true}

@@ -1,0 +1,12 @@
+# an automation whose only condition is disabled runs
+automations:
+  - alias: disauto
+    triggers: [{trigger: event, event_type: e}]
+    conditions: [{condition: template, value_template: "{{ false }}", enabled: false}]
+    actions: [{event: m_disauto}]
+  - alias: disauto2
+    triggers: [{trigger: event, event_type: e}]
+    conditions: [{condition: template, value_template: "{{ false }}", enabled: "{{ 1 == 2 }}"}]
+    actions: [{event: m_disauto2}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

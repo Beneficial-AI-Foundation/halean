@@ -1,0 +1,14 @@
+description: A script lists the attribute names of a running script entity (HA has last_action there while it runs).
+scripts:
+  busy:
+    sequence:
+      - delay: 5
+  look:
+    sequence:
+      - event: look
+        event_data:
+          keys: "{{ states.script.busy.attributes | list | sort | join(',') }}"
+steps:
+  - {at: 1, call: look}
+  - {at: 2, call: busy}
+  - {at: 3, call: look}

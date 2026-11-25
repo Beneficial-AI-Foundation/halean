@@ -1,0 +1,191 @@
+# Review cases: nested service calls (blocking / non-blocking), response rules, names.
+- name: h_nested_blocking_chain_3
+  ops:
+    - {op: register, domain: test, service: c, handler: {do: [{fire: {event_type: c_ran, context: inherit}}], echo: true}, supports_response: optional}
+    - {op: register, domain: test, service: b, handler: {do: [{call: {id: b_to_c, domain: test, service: c, data: {n: 2}, blocking: true, return_response: true, context: inherit}}, {fire: {event_type: b_ran}}], return: {b: 1}}, supports_response: only}
+    - {op: register, domain: test, service: a, handler: {do: [{call: {id: a_to_b, domain: test, service: b, blocking: true, return_response: true}}, {fire: {event_type: a_ran, context: inherit}}], return: {a: [1, 2]}}, supports_response: optional}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: a, blocking: true, return_response: true, context: {id: top, user_id: u1}}
+    - {op: call, domain: test, service: a, blocking: true}
+    - {op: call, domain: test, service: a}
+
+- name: h_nested_nonblocking_in_handler_inner_suspends
+  ops:
+    - {op: register, domain: test, service: inner, handler: {do: [{fire: {event_type: inner_1}}, {sleep: 0}, {fire: {event_type: inner_2}}, {sleep: 0}, {fire: {event_type: inner_3}}]}}
+    - {op: register, domain: test, service: outer, handler: {do: [{call: {id: nb, domain: test, service: inner}}, {fire: {event_type: outer_after}}, {sleep: 0}, {fire: {event_type: outer_end}}], return: {ok: true}}, supports_response: optional}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: outer, blocking: true, return_response: true}
+    - {op: call, domain: test, service: outer}
+
+- name: h_nested_nonblocking_in_handler_inner_suspends_manual
+  manual: true
+  ops:
+    - {op: register, domain: test, service: inner, handler: {do: [{fire: {event_type: inner_1}}, {sleep: 0}, {fire: {event_type: inner_2}}, {sleep: 0}, {fire: {event_type: inner_3}}]}}
+    - {op: register, domain: test, service: outer, handler: {do: [{call: {id: nb, domain: test, service: inner}}, {fire: {event_type: outer_after}}, {sleep: 0}, {fire: {event_type: outer_end}}], return: {ok: true}}, supports_response: optional}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: outer, blocking: true, return_response: true}
+    - {op: sleep}
+    - {op: call, domain: test, service: outer}
+    - {op: sleep}
+    - {op: sleep}
+    - {op: sleep}
+
+- name: h_nested_nonblocking_error_logged_with_repr
+  ops:
+    - {op: register, domain: test, service: bad, handler: {raise: ValueError, message: "inner bad"}}
+    - {op: register, domain: test, service: bad_late, handler: {do: [{sleep: 0}], raise: HomeAssistantError, message: "late bad"}}
+    - {op: register, domain: test, service: outer, handler: {do: [{call: {id: c1, domain: test, service: bad, data: {a: 1, b: [1, {c: "x"}], d: {e: 2}}, context: {id: ctx-in}}}, {call: {id: c2, domain: Test, service: BAD_late, data: {s: "it's"}, target: {entity_id: [light.a]}, context: inherit}}, {call: {id: c3, domain: test, service: bad, blocking: true, catch: true}}, {call: {id: c4, domain: test, service: bad, blocking: true}}, {fire: {event_type: never}}]}}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: outer, blocking: true, context: {id: top}}
+    - {op: call, domain: test, service: outer, context: {id: top2}}
+
+- name: h_return_response_each_supports_in_scripts
+  ops:
+    - {op: register, domain: test, service: none, handler: {return: {a: 1}}}
+    - {op: register, domain: test, service: optional, handler: {return: {a: 1}}, supports_response: optional}
+    - {op: register, domain: test, service: only, handler: {return: {a: 1}}, supports_response: only}
+    - op: register
+      domain: test
+      service: driver
+      handler:
+        do:
+          - call: {id: n_b, domain: test, service: none, blocking: true, catch: true}
+          - call: {id: n_b_rr, domain: test, service: none, blocking: true, return_response: true, catch: true}
+          - call: {id: n_nb_rr, domain: test, service: none, return_response: true, catch: true}
+          - call: {id: n_nb, domain: test, service: none, catch: true}
+          - call: {id: o_b, domain: test, service: optional, blocking: true, catch: true}
+          - call: {id: o_b_rr, domain: test, service: optional, blocking: true, return_response: true, catch: true}
+          - call: {id: o_nb, domain: test, service: optional, catch: true}
+          - call: {id: o_nb_rr, domain: test, service: optional, return_response: true, catch: true}
+          - call: {id: y_b, domain: test, service: only, blocking: true, catch: true}
+          - call: {id: y_nb, domain: test, service: only, catch: true}
+          - call: {id: y_b_rr, domain: test, service: only, blocking: true, return_response: true, catch: true}
+          - call: {id: y_nb_rr, domain: test, service: only, return_response: true, catch: true}
+          - call: {id: missing_rr, domain: test, service: nope, return_response: true, catch: true}
+    - {op: listen, id: m, event_type: call_service}
+    - {op: call, domain: test, service: driver, blocking: true}
+    - op: listen
+      id: cb
+      event_type: go
+      react:
+        - call: {id: cb_n_rr, domain: test, service: none, blocking: true, return_response: true}
+        - call: {id: cb_o_rr, domain: test, service: optional, blocking: true, return_response: true}
+        - call: {id: cb_y, domain: test, service: only, blocking: true}
+        - call: {id: cb_y_nb_rr, domain: test, service: only, return_response: true}
+        - call: {id: cb_y_rr, domain: TEST, service: Only, blocking: true, return_response: true}
+    - {op: fire, event_type: go}
+
+- name: h_non_dict_responses
+  ops:
+    - {op: register, domain: test, service: r_none, handler: {do: [{sleep: 0}]}, supports_response: optional}
+    - {op: register, domain: test, service: r_list, handler: {return: [1, 2]}, supports_response: only}
+    - {op: register, domain: test, service: r_str, handler: {do: [{sleep: 0}], return: "s"}, supports_response: only}
+    - {op: register, domain: test, service: r_int, handler: {return: 0}, supports_response: optional}
+    - {op: register, domain: test, service: r_float, handler: {return: 1.5}, supports_response: optional}
+    - {op: register, domain: test, service: r_bool, handler: {return: false}, supports_response: optional}
+    - {op: register, domain: test, service: r_empty, handler: {return: {}}, supports_response: optional}
+    - {op: call, domain: test, service: r_none, blocking: true, return_response: true}
+    - {op: call, domain: test, service: r_list, blocking: true, return_response: true}
+    - {op: call, domain: test, service: r_str, blocking: true, return_response: true}
+    - {op: call, domain: test, service: r_int, blocking: true, return_response: true}
+    - {op: call, domain: test, service: r_float, blocking: true, return_response: true}
+    - {op: call, domain: test, service: r_bool, blocking: true, return_response: true}
+    - {op: call, domain: test, service: r_empty, blocking: true, return_response: true}
+    - {op: call, domain: test, service: r_int, blocking: true}
+    - {op: call, domain: test, service: r_int}
+    - op: listen
+      id: al
+      event_type: go
+      async: true
+      react:
+        - call: {id: a1, domain: test, service: r_str, blocking: true, return_response: true, catch: true}
+        - call: {id: a2, domain: test, service: r_empty, blocking: true, return_response: true}
+        - call: {id: a3, domain: test, service: r_none, blocking: true, return_response: true}
+        - fire: {event_type: not_reached}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go}
+
+- name: h_mixed_case_names
+  ops:
+    - {op: register, domain: TeSt, service: MiXeD, handler: {echo: true}, supports_response: optional}
+    - {op: has, domain: TEST, service: mixed}
+    - {op: has, domain: test, service: MIXED}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: TEST, service: MIXED, blocking: true, return_response: true, data: {K: V}}
+    - {op: call, domain: test, service: Mixed, blocking: true, return_response: true}
+    - {op: call, domain: Test, service: mixed}
+    - {op: call, domain: TEST, service: NOPE, blocking: true}
+    - {op: register, domain: TEST, service: mixed, handler: {return: {v: 2}}, supports_response: only}
+    - {op: call, domain: tEST, service: mIXED, blocking: true, return_response: true}
+    - {op: remove_service, domain: Test, service: MIXED}
+    - {op: has, domain: test, service: mixed}
+    - {op: remove_service, domain: Test, service: MIXED}
+    - {op: call, domain: tEST, service: mIXED, blocking: true, return_response: true}
+
+- name: h_brace_in_names_not_found
+  ops:
+    - {op: call, domain: "{service}", service: x, blocking: true}
+    - {op: call, domain: "a", service: "{domain}", blocking: true}
+    - {op: call, domain: "{domain}", service: "{service}", blocking: true}
+    - {op: call, domain: "{", service: "}", blocking: true}
+
+- name: h_brace_domain_in_script_call
+  ops:
+    - {op: register, domain: test, service: outer, handler: {do: [{call: {id: c, domain: "{service}", service: y, blocking: true, catch: true}}]}}
+    - {op: call, domain: test, service: outer, blocking: true}
+
+- name: h_context_inherit_through_nested
+  ops:
+    - {op: register, domain: test, service: leaf, handler: {do: [{set: {entity_id: sensor.leaf, state: "1", context: inherit}}], echo: true}, supports_response: optional}
+    - {op: register, domain: test, service: mid, handler: {do: [{call: {id: inh, domain: test, service: leaf, blocking: true, return_response: true, context: inherit}}, {call: {id: fresh, domain: test, service: leaf, blocking: true, return_response: true}}, {call: {id: given, domain: test, service: leaf, blocking: true, return_response: true, context: {id: g1, parent_id: p1}}}]}}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: mid, blocking: true, context: {id: root, user_id: usr}}
+    - {op: call, domain: test, service: mid, blocking: true}
+    - {op: get, entity_id: sensor.leaf}
+
+- name: h_target_merge_and_schema_in_core
+  ops:
+    - {op: register, domain: test, service: s, handler: {echo: true}, supports_response: optional, schema: {fields: [{key: entity_id, value: {cv: entity_ids}}, {key: level, value: {coerce: int}, default: 5}, {key: name, type: str}], extra: remove}}
+    - {op: listen, id: m, event_type: call_service}
+    - {op: call, domain: test, service: s, blocking: true, return_response: true, data: {entity_id: light.a, junk: 1}, target: {entity_id: [light.b, light.c], more: x}}
+    - {op: call, domain: test, service: s, blocking: true, return_response: true, data: {level: "7"}}
+    - {op: call, domain: test, service: s, blocking: true, return_response: true, data: {level: "x"}}
+    - {op: call, domain: test, service: s, data: {name: 3}}
+    - {op: call, domain: test, service: s, blocking: true, return_response: true, target: {}}
+    - op: listen
+      id: cb
+      event_type: go
+      react:
+        - call: {id: bad, domain: test, service: s, blocking: true, data: {level: []}}
+        - call: {id: good, domain: test, service: s, blocking: true, return_response: true, data: {name: n}, target: {level: 2.0}}
+    - {op: fire, event_type: go}
+
+- name: h_handler_do_raise_beats_result
+  ops:
+    - {op: register, domain: test, service: s1, handler: {do: [{raise: ValueError, message: from do}], raise: RuntimeError, message: from spec}}
+    - {op: register, domain: test, service: s2, handler: {do: [{raise: ServiceValidationError, message: sve}], return: {a: 1}}, supports_response: only}
+    - {op: register, domain: test, service: s3, handler: {do: [{raise: Invalid, message: inv}]}}
+    - {op: register, domain: test, service: s4, handler: {do: [{raise: HomeAssistantError}]}}
+    - {op: call, domain: test, service: s1, blocking: true}
+    - {op: call, domain: test, service: s1}
+    - {op: call, domain: test, service: s2, blocking: true, return_response: true}
+    - {op: call, domain: test, service: s3, blocking: true}
+    - {op: call, domain: test, service: s3, data: {x: {y: 1}}}
+    - {op: call, domain: test, service: s4, blocking: true}
+    - {op: call, domain: test, service: s4}
+
+- name: h_depth_20_chain
+  ops:
+    - {op: register, domain: test, service: s20, handler: {do: [{fire: {event_type: bottom}}], return: {d: 20}}, supports_response: optional}
+    - {op: register, domain: test, service: s19, handler: {do: [{call: {id: c19, domain: test, service: s20, blocking: true}}]}}
+    - {op: register, domain: test, service: s18, handler: {do: [{call: {id: c18, domain: test, service: s19, blocking: true}}]}}
+    - {op: register, domain: test, service: s17, handler: {do: [{call: {id: c17, domain: test, service: s18, blocking: true}}]}}
+    - {op: register, domain: test, service: s16, handler: {do: [{call: {id: c16, domain: test, service: s17, blocking: true}}]}}
+    - {op: register, domain: test, service: s15, handler: {do: [{call: {id: c15, domain: test, service: s16, blocking: true}}]}}
+    - {op: register, domain: test, service: s14, handler: {do: [{call: {id: c14, domain: test, service: s15, blocking: true}}]}}
+    - {op: register, domain: test, service: s13, handler: {do: [{call: {id: c13, domain: test, service: s14, blocking: true}}]}}
+    - {op: register, domain: test, service: s12, handler: {do: [{call: {id: c12, domain: test, service: s13, blocking: true}}]}}
+    - {op: register, domain: test, service: s11, handler: {do: [{call: {id: c11, domain: test, service: s12, blocking: true}}]}}
+    - {op: register, domain: test, service: s10, handler: {do: [{call: {id: c10, domain: test, service: s11, blocking: true}}]}}
+    - {op: listen, id: m, event_type: bottom}
+    - {op: call, domain: test, service: s10, blocking: true}

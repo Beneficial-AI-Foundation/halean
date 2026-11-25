@@ -1,0 +1,10 @@
+# time_pattern out of range: HA rejects the automation
+automations:
+  - alias: oor
+    triggers: [{trigger: time_pattern, seconds: "/60"}, {trigger: event, event_type: go}]
+    actions: [{event: m_oor}]
+  - alias: oor2
+    triggers: [{trigger: time_pattern, hours: 24}, {trigger: event, event_type: go}]
+    actions: [{event: m_oor2}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}}
