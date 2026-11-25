@@ -1,0 +1,95 @@
+# input_select: config (options, initial, duplicates), the select_* and
+# set_options services, cycling, restore.
+- name: input_select_services
+  steps:
+    - setup:
+        input_select:
+          s: {options: [a, b, c], name: Pick, icon: "mdi:list-box"}
+          t: {options: [x, y, x, 3], initial: y}
+          u: {options: only}
+    - call: input_select.select_next
+      data: {entity_id: input_select.s}
+    - call: input_select.select_next
+      data: {entity_id: input_select.s}
+    - call: input_select.select_next
+      data: {entity_id: input_select.s}
+    - call: input_select.select_next
+      data: {entity_id: input_select.s, cycle: false}
+    - call: input_select.select_next
+      data: {entity_id: input_select.s, cycle: false}
+    - call: input_select.select_previous
+      data: {entity_id: input_select.s}
+    - call: input_select.select_previous
+      data: {entity_id: input_select.s}
+    - call: input_select.select_previous
+      data: {entity_id: input_select.s}
+    - call: input_select.select_previous
+      data: {entity_id: input_select.s, cycle: false}
+    - call: input_select.select_previous
+      data: {entity_id: input_select.s, cycle: 1}
+    - call: input_select.select_last
+      data: {entity_id: input_select.s}
+    - call: input_select.select_first
+      data: {entity_id: input_select.s}
+    - call: input_select.select_option
+      data: {entity_id: input_select.s, option: c}
+    - call: input_select.select_option
+      data: {entity_id: input_select.s, option: z}
+    - call: input_select.select_option
+      data: {entity_id: input_select.t, option: 3}
+    - call: input_select.select_option
+      data: {entity_id: input_select.t}
+    - call: input_select.set_options
+      data: {entity_id: input_select.s, options: [c, d]}
+    - call: input_select.set_options
+      data: {entity_id: input_select.s, options: [e, f]}
+    - call: input_select.set_options
+      data: {entity_id: input_select.s, options: [e, e]}
+    - call: input_select.set_options
+      data: {entity_id: input_select.s, options: []}
+    - call: input_select.set_options
+      data: {entity_id: input_select.s, options: g}
+    - call: input_select.set_options
+      data: {entity_id: input_select.s, options: [1, 2.5, true]}
+    - call: input_select.select_next
+      data: {entity_id: all}
+    - call: input_select.select_option
+      data: {entity_id: [input_select.s, input_select.u], option: "True"}
+
+- name: input_select_config_initial_not_option
+  steps:
+    - setup:
+        input_select:
+          x: {options: [a], initial: b}
+- name: input_select_config_no_options
+  steps:
+    - setup:
+        input_select:
+          x: {options: []}
+- name: input_select_config_missing_options
+  steps:
+    - setup:
+        input_select:
+          x: {name: X}
+- name: input_select_config_initial_duplicate
+  steps:
+    - setup:
+        input_select:
+          x: {options: [a, b, a], initial: a, name: Dup}
+- name: input_select_config_option_none
+  steps:
+    - setup:
+        input_select:
+          x: {options: [a, null]}
+
+- name: input_select_restore
+  steps:
+    - setup:
+        input_select:
+          a: {options: [a, b, c]}
+          b: {options: [a, b, c]}
+          c: {options: [a, b, c], initial: a}
+      restore:
+        - [input_select.a, "c", {}]
+        - [input_select.b, "d", {}]
+        - [input_select.c, "b", {}]

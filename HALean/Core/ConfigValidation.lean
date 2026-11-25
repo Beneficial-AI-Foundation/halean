@@ -121,6 +121,12 @@ def cvSlug (v : Value) : VResult := do
   if s == slg then return .str s
   throw (inv s!"invalid slug {s} (try {slg})")
 
+/-- `cv.icon`: `str(value)` must contain `:`. -/
+def cvIcon (v : Value) : VResult := do
+  let s ← strOf v
+  if s.contains ':' then return .str s
+  throw (inv "Icons should be specified in the form \"prefix:name\"")
+
 /-- `timedelta(...)` (`HALean.Automation.timedeltaNew`); a NaN, an infinity or
 an overflow, where CPython raises `ValueError` or `OverflowError` with
 messages HALean does not reproduce, is unsupported. -/
@@ -203,6 +209,7 @@ def CvFn.run : CvFn → Value → VResult
   | .entityDomain d, v => cvEntityDomain d v
   | .colorHex, v => cvColorHex v
   | .slug, v => cvSlug v
+  | .icon, v => cvIcon v
   | .timePeriodStr, v => cvTimePeriodStr v
   | .timePeriodSeconds, v => cvTimePeriodSeconds v
   | .timedeltaKwargs, v => cvTimedeltaKwargs v

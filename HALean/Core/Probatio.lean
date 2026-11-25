@@ -314,6 +314,8 @@ the probatio validators they are). -/
 inductive CvFn where
   | string | boolean | entityId | entityIds | entityDomain (domain : DomainArg)
   | colorHex | slug
+  /-- `cv.icon` -/
+  | icon
   /-- `cv.time_period_str`, `cv.time_period_seconds`, `cv.positive_timedelta` -/
   | timePeriodStr | timePeriodSeconds | positiveTimedelta
   /-- the `lambda value: timedelta(**value)` of `cv.time_period_dict` -/

@@ -8,6 +8,7 @@ function by function, so it can be formally verified and still track upstream.
 | Automation engine (triggers → conditions → actions, run modes) | `HALean/Automation/` | `halean-automation` | done, tested against real HA |
 | Templates (Jinja) | `HALean/Template/` | `halean-template` (test driver) | subset done, used by automations, tested against real HA |
 | Scripts (`script.*` entities and services) | `HALean/Script/` | `halean-script` | subset done, tested against real HA, runs with the bridge (`--scripts`) |
+| Helpers (`input_boolean`, `input_number`, `input_select`, `input_text`, `counter`, `timer`) | `HALean/Helpers/` | `halean-helpers` (test driver) | YAML helpers and their services done, tested against real HA; not yet connected to the engine |
 | State machine (`hass.states`) | `HALean/Core/StateMachine.lean` | `halean-core-states` (test driver) | done, tested against real HA |
 | Event bus (`hass.bus`) | `HALean/Core/EventBus.lean` | `halean-core-events` (test driver) | subset done (callback listeners), tested against real HA |
 | Service registry (`hass.services`) | `HALean/Core/ServiceRegistry.lean` | `halean-core-services` | subset done, tested against real HA |
@@ -66,7 +67,8 @@ export ELAN_HOME=/Volumes/MacStorage/AppData/elan
 export PATH=$ELAN_HOME/bin:$PATH
 lake build                       # the HALean library: engine + all proofs
 lake build halean-automation halean-script halean-template halean-sun-grid \
-  halean-core halean-core-states halean-core-services halean-core-events  # the executables the tests drive
+  halean-core halean-core-states halean-core-services halean-core-events \
+  halean-helpers  # the executables the tests drive
 uv run tests/run_scenarios.py    # behaviour scenarios (engine only)
 uv run tests/run_script_scenarios.py  # script scenarios (halean-script only)
 uv run tests/differential/run.py # scenarios + template cases through a real Home Assistant vs Lean
@@ -139,7 +141,11 @@ git -C upstream/ha-core sparse-checkout set --no-cone /homeassistant/components/
   /homeassistant/helpers/ /homeassistant/components/homeassistant/triggers/ \
   /homeassistant/const.py /homeassistant/core.py /homeassistant/components/template/trigger.py \
   /homeassistant/util/dt.py /homeassistant/util/__init__.py /homeassistant/util/location.py \
-  /homeassistant/components/zone/ /homeassistant/components/sun/ /homeassistant/components/script/
+  /homeassistant/components/zone/ /homeassistant/components/sun/ /homeassistant/components/script/ \
+  /homeassistant/components/input_boolean/ /homeassistant/components/input_number/ \
+  /homeassistant/components/input_select/ /homeassistant/components/input_text/ \
+  /homeassistant/components/counter/ /homeassistant/components/timer/ \
+  /homeassistant/components/number/ /homeassistant/components/select/ /homeassistant/components/text/
 ```
 
 ## Tracking upstream
@@ -509,6 +515,65 @@ Known gaps:
 * Field selectors are not validated. Reload compares configs as sent, so
   reordering a script's `variables` counts as a change (HA compares dicts).
 
+### Helpers (`HALean/Helpers/`)
+
+`input_boolean`, `input_number`, `input_select`, `input_text`, `counter` and
+`timer`, translated as pure state machines driven by their services. Each
+helper has a file with its config schema (`CONFIG_SCHEMA` value schema and
+its custom check, run with the probatio model of the service registry, so
+error messages are HA's), its entity (state, attributes in HA's order, and
+`async_added_to_hass` with restore) and its entity services (schema and
+method). `Common.lean` holds what they share: `cv.schema_with_slug_keys`,
+`cv.make_entity_service_schema`, target resolution, `Entity._stringify_state`
+(`f"{x:.15}"` for floats, digit for digit), and the handler monad (`HM`: a
+handler mutates its entity, writes states and fires events, and may raise
+after a write, as upstream). `Component.lean` joins them: `Helpers.setup`
+(`async_setup_component` with a YAML config and a restore cache),
+`Helpers.call` (`ServiceRegistry.async_call` → `entity_service_call`: all
+targets run, the first error is raised), `Helpers.tick` (the timers'
+`async_track_point_in_utc_time` callbacks), and the state machine's view
+(a write fires `state_changed` unless nothing changed; timers force it).
+
+**Why a separate model and not services of the joined core (`Hass.lean`).**
+The core's handlers are scripts over the core (fire, set, call...), chosen to
+test the core's ordering; none holds the fields of an entity object
+(`_attr_is_on`, `_remaining`, the input_text value that failed its pattern),
+which is where a helper's state lives. So the helpers are, like scripts, their
+own pure model with an explicit state, the clock as an argument, and their
+effects as data, ready to be driven by the engine (see "What is left to
+convert").
+
+| Helper | Supported | Refused (`unsupported`) or not modelled |
+|---|---|---|
+| `input_boolean` | `name`, `initial`, `icon`; `turn_on`, `turn_off`, `toggle`; restore (`on` when no `initial`) | storage (UI) helpers, `reload` |
+| `input_number` | `min`, `max`, `initial`, `step`, `mode`, `unit_of_measurement`, `icon`, `name` (`_cv_input_number`); `set_value` (`probatio.Invalid` outside the range), `increment`, `decrement` (Python's `min`/`max`, float arithmetic); the state as HA formats floats; restore (`float()` of the last state, within the range, else `min`) | storage helpers, `reload` |
+| `input_select` | `options` (duplicates removed with a warning), `initial` (checked before), `icon`, `name`; `select_option` (`HomeAssistantError`), `select_first`/`last`, `select_next`/`previous` with `cycle`, `set_options` (duplicates refused; a lost current option falls back to the first, with a warning); restore | storage helpers, `reload` |
+| `input_text` | `min`, `max`, `initial`, `pattern`, `mode`, `unit_of_measurement`, `icon`, `name` (`_cv_input_text`); `set_value` (wrong length: a warning, nothing written; a value not matching the pattern is stored, then the write raises `ValueError` and the state machine keeps the old state); an `initial` that does not match: the entity is not added; restore | patterns outside the regex subset of `HALean/Helpers/Pattern.lean` (lazy quantifiers, lookarounds, flags, backreferences, `\b`, ...); non-ASCII values against `\d \w \s`; storage helpers, `reload` |
+| `counter` | `initial`, `minimum`, `maximum`, `step` (0 allowed), `restore`, `icon`, `name`; `increment`, `decrement`, `reset` (clamped), `set_value` (`ValueError` above/below the bounds or off-step, `ZeroDivisionError` for step 0); restore (`int()` of the last state, clamped) | a last state `int()` cannot read (HA fails to add the entity); storage helpers |
+| `timer` | `duration` (every `cv.time_period` form; it goes through `_format_timedelta` and back, so `-0:00:05` becomes minus 1 h 59 min 55 s, as upstream), `restore`, `icon`, `name`; `start` (with `duration`; restart/resume), `pause`, `cancel`, `finish`, `change` (its three errors); `timer.started/restarted/paused/cancelled/finished/changed` events; attributes `duration`, `remaining`, `finishes_at`, `last_transition`, `restore`; the scheduled finish at the first clock at or after `finishes_at` (and right after a call that leaves it in the past) | restoring a paused or active timer; `reload` |
+
+`halean-helpers` speaks JSON lines (`setup`, `call`, `tick`, see
+`Exe/Helpers.lean`). `tests/differential/test_helpers.py` runs every case of
+`tests/helpers/*.yaml` on a real HA (the integrations set up from YAML by
+`async_setup_component`, `mock_restore_cache` for restores, a frozen clock)
+and on `halean-helpers`, and requires after each step the same config errors
+(`str()` of `CONFIG_SCHEMA`'s error), call errors (class and message),
+`state_changed` events of the helpers and `timer.*` events (with `repr()` of
+attributes and data, so `1` is not `1.0`), warnings, and states.
+
+Known gaps:
+
+* **Not connected to the automation engine yet**: an automation calling
+  `input_boolean.turn_on` still goes to HA through the bridge.
+* Only YAML helpers: storage helpers (created in the UI, `editable: true`),
+  their WebSocket CRUD and `reload` are not modelled. Entity registry
+  overrides (a name or icon set in the UI) are not either.
+* Calls naming several entities: HA runs them in the order of a Python
+  `set` (hash order, random per process); HALean runs them in the order
+  given. Timers finishing in the same tick finish in entity order.
+* Device, area, floor and label targets are refused (no registries).
+* `input_datetime`, `group` and `schedule` are not translated yet.
+
 ## Proved so far (`HALean/Automation/Proofs.lean`)
 
 `evalAnd_nil`, `evalOr_nil`, `evalCond_disabled`, `evalNot_disabled`,
@@ -678,7 +743,7 @@ listeners before anything else is delivered).
 
 ## What is left to convert
 
-HALean covers 322 upstream functions (`manifest.yaml`), 28 of them proved.
+HALean covers 402 upstream functions (`manifest.yaml`), 53 of them proved.
 What is still missing, roughly in order of value:
 
 1. **What makes real automations fail to load today.**
@@ -698,11 +763,16 @@ What is still missing, roughly in order of value:
      time zone.
    * Event triggers with `context`: the shell would have to send each
      event's context (user, parent).
-2. **HA's helper entities as state machines.** `input_boolean`, `input_number`,
-   `input_select`, `input_text`, `counter`, `timer`, `schedule`, `group`. With
-   them an `automations.yaml` and the helpers it drives form a closed system,
-   which is what user-level properties need (next steps, item 3); `group`
-   would also let `expand` see groups in other domains (known gaps).
+2. **HA's helper entities as state machines.** `input_boolean`,
+   `input_number`, `input_select`, `input_text`, `counter` and `timer` are
+   translated (`HALean/Helpers/`, above). Left: connecting them to the engine
+   (route the engine's calls of their services to `Helpers.call`, and feed the
+   writes and `timer.*` events back as the engine's `state_changed` / `event`
+   inputs, the way script entities are run in `Engine.lean`), so that an
+   `automations.yaml` and the helpers it drives form a closed system, which is
+   what user-level properties need (next steps, item 3); then `input_datetime`,
+   `schedule` and `group` (which would also let `expand` see groups in other
+   domains, known gaps).
 3. **Pure utility code.** `util/color.py` (the `light` color conversions, with
    round-trip proofs); time zones in `util/dt.py` (a zone database, to fix the
    DST deviation above); probatio's compiled schema path, so that whole

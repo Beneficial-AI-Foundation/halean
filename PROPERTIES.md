@@ -96,6 +96,37 @@ kernel never unfolds it). The timer and wake-up loops take fuel
 (`LOOP_FUEL`), and `familyOf` / `rootOf` take `runs.length + 1`. When fuel runs
 out, the engine logs an error and does nothing more.
 
+## Helpers
+
+In `HALean/Helpers/Proofs.lean`, about the helper state machines
+(`HALean/Helpers/`):
+
+| Theorem | Says |
+|---|---|
+| `InputBoolean.toggle_toggle`, `state_toggle` | toggling twice is the identity; toggling always changes the state |
+| `InputBoolean.turnOn_idem`, `turnOff_idem`, `state_turnOn`, `state_turnOff` | `turn_on`/`turn_off` are idempotent and set the state to `on`/`off` |
+| `InputNumber.setValue_bounded`, `increment_bounded`, `decrement_bounded` | a successful `set_value`/`increment`/`decrement` leaves the value neither below `min` nor above `max`, and the config unchanged |
+| `InputNumber.setValue_error` | a value below `min` or above `max` is refused with `probatio.Invalid` |
+| `InputSelect.selectOption_valid`, `selectIndex_valid`, `offsetIndex_valid` | `select_option`, `select_first`/`last`, `select_next`/`previous` keep the current option among the options (which they do not change) |
+| `InputSelect.setOptions_valid` | `set_options` with a non-empty list leaves the current option among the new options |
+| `InputSelect.create_valid`, `state_of_valid` | a valid config (non-empty options, `initial` among them) gives an entity whose current option is an option, restored or not; then the state is that option, never `unknown` |
+| `Counter.increment_inBounds`, `decrement_inBounds`, `reset_inBounds` | with `minimum ≤ maximum`, these leave the counter within the bounds that are set |
+| `Counter.setValue_inBounds` | a successful `set_value` stores exactly the value, which is within the bounds |
+| `Counter.clamp_le_max`, `min_le_clamp` | `compute_next_state` clamps |
+| `Timer.toIdle_idle`, `toIdle_not_due` | cancelling or finishing leaves the timer idle, with nothing scheduled, no `remaining`/`finishes_at`, its configured duration, and no callback due |
+
+Two of these are weaker than the obvious statement, because upstream is:
+`input_number`'s value is "not strictly outside" `[min, max]`, since
+`set_value` with `value: nan` passes both range checks (HA stores `nan`); and
+a counter can start outside its bounds, since `initial` is never checked
+against `minimum`/`maximum` (`initial: 10, maximum: 5` starts at 10; the
+first `increment` brings it to 5).
+
+Worth proving next, once the helpers are connected to the engine: for an
+`automations.yaml` plus its helpers, reachability and invariants of the
+closed system (e.g. "this `input_boolean` is never on while that `timer` is
+idle").
+
 ## Functions proved to compute what upstream computes
 
 The theorems above are properties. These go further: for a whole function,
