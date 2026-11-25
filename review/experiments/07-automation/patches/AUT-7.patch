@@ -1,0 +1,40 @@
+diff --git a/HALean/Automation/Config.lean b/HALean/Automation/Config.lean
+index 67f632f..c5aa41d 100644
+--- a/HALean/Automation/Config.lean
++++ b/HALean/Automation/Config.lean
+@@ -389,6 +389,17 @@ def isEnabled (j : Json) (how : EnabledTmpl := .render [] none) : D Bool := do
+         | none => throw s!"Error rendering enabled template: {e}"
+   | some v => throw s!"invalid enabled {v.compress}"
+ 
++/-- An optional `cv.boolean` key. -/
++def cvBooleanKey (j : Json) (k : String) (dflt : Bool) : D Bool :=
++  match field? j k with
++  | none => pure dflt
++  | some (.bool b) => pure b
++  | some (.num n) => pure (n.mantissa != 0)
++  | some (.str s) => match Template.cvBooleanText s with
++    | some b => pure b
++    | none => throw s!"invalid boolean value {s} for '{k}'"
++  | some v => throw s!"invalid boolean value {v.compress} for '{k}'"
++
+ /-- `cv.template_complex` -/
+ partial def decodeComplex (j : Json) (nm : List String := TEMPLATE_VARS) : D Complex := do
+   match j with
+@@ -1011,7 +1022,7 @@ def compEntityIds (v : Json) : D Json := do
+ 
+ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Option Action) := do
+   if !(← isEnabled j) then return none
+-  let coe := match field? j "continue_on_error" with | some (.bool true) => true | _ => false
++  let coe ← cvBooleanKey j "continue_on_error" false
+   let wrap (a : Action) : Option Action := some (if coe then .continueOnError a else a)
+   let seq (k : String) : D (List Action) := do
+     let xs ← (ensureList ((field? j k).getD .null)).mapM (decodeAction · nm)
+@@ -1102,7 +1113,7 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
+     if let some items := field? r "for_each" then return wrap (.repeatEach (← decodeComplex items nm) body)
+     throw "repeat needs count, for_each, while or until"
+   if let some s := str? j "stop" then
+-    let err := match field? j "error" with | some (.bool true) => true | _ => false
++    let err ← cvBooleanKey j "error" false
+     let rv ← responseVariable? j
+     -- `_stop_action_check_error_response`
+     if err && rv.isSome then throw "'response_variable' cannot be used with 'error: true'"

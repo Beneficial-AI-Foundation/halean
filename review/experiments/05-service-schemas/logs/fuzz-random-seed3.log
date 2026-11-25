@@ -1,0 +1,319 @@
+seed 3: 15000 pairs, 693 differ
+
+== 393 x UNSUP[text outside printable ASCII in a value a text-handling validator read] ha=err
+  spec {"fields": [{"key": "", "value": {"coerce": "int"}, "required": true}]}
+  data {"": "\u00b2"}
+  HA   ('err', 'MultipleInvalid', "expected int at '['']'")
+  Lean ('unsupported', 'text outside printable ASCII in a value a text-handling validator reads')
+
+== 69 x UNSUP[text outside printable ASCII in a value a text-handling validator read] ha=ok
+  spec {"fields": [{"key": "c", "value": {"coerce": "float"}}]}
+  data {"c": "\u0661\u0662\u0663"}
+  HA   ('ok', "{'c': 123.0}")
+  Lean ('unsupported', 'text outside printable ASCII in a value a text-handling validator reads')
+
+== 42 x UNSUP[timedelta(...) raises (OverflowError: cannot convert float infinity to] ha=err
+  spec {"fields": [{"key": "effect", "value": {"cv": "time_period_seconds"}}]}
+  data {"effect": "-inf"}
+  HA   ('err', 'OverflowError', 'cannot convert float infinity to integer')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: cannot convert float infinity to integer)')
+
+== 26 x UNSUP[timedelta(...) raises (ValueError: cannot convert float NaN to integer] ha=err
+  spec {"fields": [{"key": "odd key", "value": {"any": [{"cv": "color_hex"}, {"cv": "time_period"}]}}], "extra": "prevent"}
+  data {"odd key": "nan"}
+  HA   ('err', 'MultipleInvalid', "Color should be in the format #RRGGBB at '['odd key']'")
+  Lean ('unsupported', 'timedelta(...) raises (ValueError: cannot convert float NaN to integer)')
+
+== 25 x UNSUP[timedelta(...) raises (OverflowError: days=115740740740; must have mag] ha=err
+  spec {"fields": [{"key": "_u", "value": "any"}, {"key": "name", "value": {"cv": "time_period_str"}}]}
+  data {"name": "0:0:1e16"}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=115740740740; must have magnitude <= 999999999)')
+
+== 21 x VALUE
+  spec {"fields": [{"key": "rgb_color", "value": {"ensure_list": null}}], "extra": "allow"}
+  data {"rgb_color": "1\u00a0"}
+  HA   ('ok', "{'rgb_color': ['1\\xa0']}")
+  Lean ('ok', "{'rgb_color': ['1\xa0']}")
+
+== 12 x UNSUP[timedelta(...) raises (OverflowError: days=1000000000; must have magni] ha=err
+  spec {"fields": [{"key": "brightness", "value": {"cv": "time_period_dict"}, "required": true}]}
+  data {"brightness": {"days": 1000000000, "milliseconds": 123456.789}, "BRIGHTNESS": 1e-05}
+  HA   ('err', 'OverflowError', 'days=1000000000; must have magnitude <= 999999999')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=1000000000; must have magnitude <= 999999999)')
+
+== 12 x UNSUP[util.slugify of this text (HTML entities) is not modelled] ha=err
+  spec {"fields": [{"key": "effect", "value": {"all": [{"cv": "slug"}]}}], "extra": "allow"}
+  data {"effect": "&#x41;"}
+  HA   ('err', 'MultipleInvalid', "invalid slug &#x41; (try a) at 'effect'")
+  Lean ('unsupported', 'util.slugify of this text (HTML entities) is not modelled')
+
+== 11 x UNSUP[timedelta(...) raises (OverflowError: days=11574074074; must have magn] ha=err
+  spec {"fields": [{"key": "color", "value": {"list": [{"cv": "time_period_seconds"}]}}], "extra": "prevent"}
+  data {"color": ["1:b", "1e15"]}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=11574074074; must have magnitude <= 999999999)')
+
+== 10 x UNSUP[timedelta(...) raises (OverflowError: days=416666666666666688543650106] ha=err
+  spec {"fields": [{"key": "brightness", "value": {"cv": "time_period_dict"}, "required": true}]}
+  data {"brightness": {"hours": 1e+300, "milliseconds": 0.0025, "seconds": 0.0005}, "brightaess": true}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=41666666666666668854365010633517510362686190879506631454827254812991769082871174824432140628351994335154351826370161590705938468140017940651866341032779457618682800038607325155742926408116170419140373051457116664378379959956985036669777197615839270607469116200835701784921486228008182786060808355840; must have magnitude <= 999999999)')
+
+== 7 x UNSUP[timedelta(...) raises (OverflowError: days=106751991167300; must have ] ha=err
+  spec {"fields": [{"key": "seconds", "value": {"cv": "time_period"}}, {"key": "a", "value": {"in": ["colour"]}}]}
+  data {"seconds": 9223372036854775808, "": "a'b"}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=106751991167300; must have magnitude <= 999999999)')
+
+== 5 x UNSUP[timedelta(...) raises (OverflowError: days=69444444444; must have magn] ha=err
+  spec {"fields": [{"key": "colour", "value": {"literal": true}}, {"key": "odd key", "value": {"range": {"min": null}}}, {"key": "brightness", "value": {"all": []}}, {"key": "minutes", "value": {"cv": "time_period"}, "required": true}]}
+  data {"minutes": "0:99999999999999", "brightness": "a\fb", "odd key": "light.kitchen,switch.x"}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=69444444444; must have magnitude <= 999999999)')
+
+== 4 x UNSUP[timedelta(...) raises (OverflowError: days=416666666666666666; must ha] ha=err
+  spec {"fields": [{"key": "b", "value": {"cv": "positive_time_period"}, "required": true}, {"key": "x.y", "value": {"list": [{"any": [{"coerce": "int"}]}, "float"]}, "required": true}]}
+  data {"x.y": ["infinity", "NaN", -0.0], "b": "9999999999999999999:00"}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=416666666666666666; must have magnitude <= 999999999)')
+
+== 4 x UNSUP[timedelta(...) raises (OverflowError: days=4166666666; must have magni] ha=err
+  spec {"fields": [{"key": "rgb_color", "value": {"cv": "positive_time_period"}, "inclusive": "color", "default": "light.a.b"}], "extra": "allow"}
+  data {"rgb_color": "99999999999:00"}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=4166666666; must have magnitude <= 999999999)')
+
+== 3 x UNSUP[timedelta(...) raises (OverflowError: days=115740740740740740; must ha] ha=err
+  spec {"fields": [{"key": "effect", "value": {"cv": "time_period_seconds"}}]}
+  data {"effect": 1e+22}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=115740740740740740; must have magnitude <= 999999999)')
+
+== 3 x UNSUP[timedelta(...) raises (OverflowError: days=100000000000000005250476025] ha=err
+  spec {"fields": [{"key": "mode", "value": {"cv": "positive_time_period"}, "default": 5e-324}, {"key": "minutes", "value": {"length": {"max": 0}}, "default": 260.59185}]}
+  data {"mode": {"days": 1e+300}, "minutes": null}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160; must have magnitude <= 999999999)')
+
+== 3 x UNSUP[timedelta(...) raises (OverflowError: days=41666666666666; must have m] ha=err
+  spec {"fields": [{"key": "brightness", "value": {"cv": "small_float"}}, {"key": "_u", "type": "bool"}, {"key": "", "value": {"cv": "positive_time_period"}, "exclusive": "color"}]}
+  data {"": {"hours": 1000000000000000.0}, "_u": 0, "brightness": 1.0000000000000002}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=41666666666666; must have magnitude <= 999999999)')
+
+== 3 x UNSUP[timedelta(...) raises (OverflowError: days=213503982334601; must have ] ha=err
+  spec {"fields": [{"key": "odd key", "value": {"literal": null}, "inclusive": "x.y"}, {"key": "seconds", "value": {"cv": "time_period_seconds"}}]}
+  data {"seconds": 18446744073709551616}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=213503982334601; must have magnitude <= 999999999)')
+
+== 3 x UNSUP[timedelta(...) raises (OverflowError: days=694444444444444480906083510] ha=err
+  spec {"fields": [{"key": "colour", "value": {"all": [{"cv": "positive_time_period_dict"}]}, "default": {"minutes": 1.5e-06, "hours": 0.001, "milliseconds": 59.9999999}}, {"key": "odd key", "value": {"coerce": "int"}, "default": "1e400"}]}
+  data {"colour": {"minutes": 1e+300, "days": 0.0015, "milliseconds": "1_0"}, "odd key": 1e-05}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=694444444444444480906083510558625172711436514658443857580454246883196151381186247073869010472533238919239197106169359845098974469000299010864439017212990960311380000643455419262382106801936173652339550857618611072972999332616417277829619960263987843457818603347261696415358103800136379767680139264; must have magnitude <= 999999999)')
+
+== 3 x UNSUP[timedelta(...) raises (OverflowError: days=104249991374; must have mag] ha=err
+  spec {"fields": [{"key": "c", "value": {"coerce": "int"}}, {"key": "minutes", "value": {"all": [{"cv": "time_period"}]}, "required": true}, {"key": "brightness", "value": {"literal": "heat"}}]}
+  data {"c": true, "minutes": 9007199254740993}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=104249991374; must have magnitude <= 999999999)')
+
+== 2 x UNSUP[timedelta(...) raises (OverflowError: days=-11574074074074074304220195] ha=err
+  spec {"fields": [{"key": "seconds", "value": {"cv": "time_period"}, "default": {"1": 1e-05}}]}
+  data {"seconds": -1000000000000000000000000000000}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=-11574074074074074304220195; must have magnitude <= 999999999)')
+
+== 1 x UNSUP[timedelta(...) raises (OverflowError: days=1000000000000000; must have] ha=err
+  spec {"fields": [{"key": "a", "value": {"in": ["light", "b", "a\\b", "switch", "colorloop"]}}, {"key": "name", "value": {"type": "bool"}}, {"key": "effect", "value": {"list": [{"cv": "positive_time_period_dict"}]}}, {"key": "rgb_color", "value": {"list": [{"cv": "positive_float"}, {"cv": "byte"}]}, "required": true}, {"key": "b", "value": {"coerce": "int"}}]}
+  data {"a": "COLORLOOP", "name": "1',2", "effect": [{"days": 1000000000000000.0, "minutes": 0.0005, "hours": 0.5}, null], "rgb_color": ["1E3"]}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=1000000000000000; must have magnitude <= 999999999)')
+
+== 1 x MSG int too large to convert to float / expected float at 'minutes.days'
+  spec {"fields": [{"key": "minutes", "value": {"cv": "positive_time_period"}}, {"key": "milliseconds", "value": {"cv": "positive_float"}, "required": true}, {"key": "transition", "value": {"in": ["light", "a", "b"]}, "required": true}]}
+  data {"milliseconds": 255, "minutes": {"seconds": -0.0005, "milliseconds": 0.0015, "days": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "weeks": 1}}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at 'minutes.days'")
+
+== 1 x UNSUP[timedelta(...) raises (OverflowError: days=115740740740740746817680585] ha=err
+  spec {"fields": [{"key": "c", "value": {"in": ["dry", "fan_only", "heat", "AUTO", "say \"hi\"", "light"]}}, {"key": "minutes", "value": {"dict": [{"key": "Mode", "value": {"cv": "positive_time_period_dict"}, "inclusive": "g"}, {"key": "b", "value": {"list": [{"all": [{"cv": "entity_domain", "domain": "light"}, "timedelta"]}]}}, {"key": "with-dash", "value": {"all": ["str", {"length": {"min": 0}}, "bool"]}}]}, "default": true}], "extra": "allow"}
+  data {"c": "fan_only", "minutes": {"with-dash": 11, "Mode": {"milliseconds": 1e+300, "minutes": 0.001}, "b": [[], {"hours": 1}, "1:00"]}}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=11574074074074074681768058509310419545190608577640730959674237448053269189686437451231150174542220648653986618436155997418316241150004983514407316953549849338523000010724256987706368446698936227538992514293643517882883322210273621297160332671066464057630310055787694940255968396668939662794668; must have magnitude <= 999999999)')
+
+== 1 x UNSUP[timedelta(...) raises (OverflowError: days=-1000000000; must have magn] ha=err
+  spec {"fields": [{"key": "_u", "value": {"cv": "time_period_dict"}, "exclusive": "color"}, {"key": "transition", "value": {"list": [{"literal": "auto"}]}}], "extra": "remove"}
+  data {"_u": {"days": -1000000000, "hours": 0}}
+  HA   ('err', 'OverflowError', 'days=-1000000000; must have magnitude <= 999999999')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=-1000000000; must have magnitude <= 999999999)')
+
+== 1 x UNSUP[timedelta(...) raises (OverflowError: days=208066335053508762516814147] ha=err
+  spec {"fields": [{"key": "Mode", "value": {"literal": "effects"}}, {"key": "odd key", "value": {"any": [{"dict": [{"key": "effect", "value": {"cv": "slug"}, "inclusive": "color", "default": "a_1"}, {"key": "c", "value": {"any": [{"literal": "abc"}, {"range": {"max": 5, "min_included": true}}, {"lower": null}]}, "required": true}]}]}, "required": true}, {"key": "effects", "value": {"literal": "Mode"}}, {"key": "minutes", "value": {"cv": "time_period"}}, {"key": "days", "value": {"at_least_one": ["effects", "a"]}, "default": {"dry": true}}], "extra": "remove"}
+  data {"odd key": {"c": 9007199254740993}, "effects": "Mode", "Mode": "effects", "days": [], "minutes": 1.7976931348623157e+308}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=2080663350535087625168141478376207833311001938956539312487470796332838666435515494914231002694061089948384941591601648891600941283442872485746152160920573113264466557598973172178767246416543159074952181810823309517414157834528043381548710177455131345773122988473897258897432606260640044921879676228982926; must have magnitude <= 999999999)')
+
+== 1 x UNSUP[timedelta(...) raises (OverflowError: days=41665666666667; must have m] ha=err
+  spec {"fields": [{"key": "a", "value": {"cv": "time_period_dict"}}, {"key": "rgb_color", "value": {"not_in": ["opt29", "opt63", "opt66", "opt82", "opt67", "opt91", "opt42", "opt23", "opt18", "opt36", "opt7", "opt56", "opt21", "opt38", "opt2", "opt84", "opt99", "opt14", "opt11", "opt72", "opt69", "opt6", "opt31", "opt40", "opt75", "opt47", "opt88", "opt22", "opt53", "opt45", "opt74", "opt37", "opt5", "opt85", "opt60", "opt49", "opt54", "opt58", "opt64", "opt12", "opt1"]}, "inclusive": "g"}, {"key": "effects", "value": {"length": {"min": 0}}, "required": true}]}
+  data {"a": {"hours": 1000000000000000.0, "seconds": "1_0", "days": -999999999}, "rgb_color": "light.kitchen\n", "effects": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=41665666666667; must have magnitude <= 999999999)')
+
+== 1 x UNSUP[timedelta(...) raises (OverflowError: days=1000000000000041; must have] ha=err
+  spec {"fields": [{"key": "Mode", "value": {"dict": [{"key": "minutes", "value": {"cv": "positive_time_period_dict"}, "default": {"milliseconds": 0.001, "seconds": 1}}]}, "default": {}}, {"key": "_u", "value": {"coerce": "float"}}]}
+  data {"Mode": {"minutes": {"hours": "1e3", "days": 1000000000000000.0}, "transition": 5}, "_u": "-1"}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=1000000000000041; must have magnitude <= 999999999)')
+
+== 1 x MSG int too large to convert to float / expected float at '_u.hours'
+  spec {"fields": [{"key": "", "value": {"cv": "ensure_list"}}, {"key": "_u", "value": {"cv": "positive_time_period_dict"}}, {"key": "b", "value": {"range": {"min": 255, "max_included": false}}, "default": 5e-324}, {"key": "milliseconds", "value": {"cv": "positive_time_period_dict"}, "inclusive": "g"}, {"key": "name", "value": {"cv": "time_period_seconds"}, "required": true}]}
+  data {"": "effects", "_u": {"hours": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}, "b": 1, "name": false}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at '_u.hours'")
+
+== 1 x MSG int too large to convert to float / Entity IDs cannot be None at 'milliseconds'
+  spec {"fields": [{"key": "milliseconds", "value": {"cv": "entity_ids"}}, {"key": "effects", "value": {"cv": "time_period"}}, {"key": "b", "value": {"range": {"min": 4.67, "max": 9007199254740992, "min_included": true}}, "required": true}], "extra": "prevent"}
+  data {"milliseconds": null, "effects": {"days": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "seconds": "x", "hours": -1}, "b": 0.5}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "Entity IDs cannot be None at 'milliseconds'")
+
+== 1 x MSG int too large to convert to float / expected float at 'with-dash.hours'
+  spec {"fields": [{"key": "with-dash", "value": {"cv": "time_period_dict"}}, {"key": "", "value": {"not_in": [-1, 100, null, 255]}, "required": true}, {"key": "name", "value": {"cv": "string"}, "exclusive": "g"}]}
+  data {"with-dash": {"milliseconds": 0.001, "seconds": "inf", "hours": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "x": 1}, "": "999999999999999999999999999999", "name": "1"}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at 'with-dash.hours'")
+
+== 1 x UNSUP[timedelta(...) raises (OverflowError: days=1000000041666666; must have] ha=err
+  spec {"fields": [{"key": "c", "value": {"cv": "positive_time_period"}, "required": true}, {"key": "effects", "value": {"all": []}, "default": {"abc": "auto", "": "1:b"}}, {"key": "x.y", "value": {"range": {"max": null}}}]}
+  data {"c": {"hours": 999999999, "days": 1000000000000000.0}, "effects": " ", "x.y": 5e-324}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=1000000041666666; must have magnitude <= 999999999)')
+
+== 1 x MSG int too large to convert to float / expected float at '_u.seconds'
+  spec {"fields": [{"key": "a", "value": {"coerce": "float"}}, {"key": "_u", "value": {"cv": "positive_time_period"}, "default": "Yes"}, {"key": "", "value": {"cv": "comp_entity_ids"}}, {"key": "brightness", "value": {"list": [{"list": [{"literal": -1000000000000000000000000000000}]}, "dict"]}, "required": true}]}
+  data {"a": "+inf", "_u": {"seconds": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "milliseconds": 1000000000.0, "hours": -1}, "": {"group.all_lights": null, ",light.a": null}, "brightness": [[-1000000000000000000000000000000]]}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at '_u.seconds'")
+
+== 1 x MSG int too large to convert to float / expected float at 'brightness.hours'
+  spec {"fields": [{"key": "brightness", "value": {"cv": "time_period_dict"}, "required": true}]}
+  data {"brightness": {"minutes": "inf", "hours": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "days": -1000000000}}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at 'brightness.hours'")
+
+== 1 x MSG int too large to convert to float / 'int' object is not iterable
+  spec {"fields": [{"key": "effects", "value": {"cv": "slug"}, "required": true}, {"key": "colour", "value": {"cv": "positive_time_period_dict"}, "inclusive": "a b", "default": {"seconds": "\u00e9", "milliseconds": 1000000000000000.0, "days": 0.0025}}, {"key": "brightness", "value": {"dict": [{"key": "b", "value": {"cv": "entity_ids"}}, {"key": "rgb_color", "value": {"all": [{"coerce": "int"}, {"any": [{"coerce": "int"}, {"range": {"min": 0, "max": 1e+16}}]}]}}]}, "default": {"b": 1, "rgb_color": "1.0"}}]}
+  data {"colour": {"minutes": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "seconds": -1}, "effects": "1,,2"}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'TypeError', "'int' object is not iterable")
+
+== 1 x MSG int too large to convert to float / expected a mapping at 'brightness'
+  spec {"fields": [{"key": "effects", "value": {"cv": "slug"}, "required": true}, {"key": "colour", "value": {"cv": "positive_time_period_dict"}, "inclusive": "a b", "default": {"seconds": "\u00e9", "milliseconds": 1000000000000000.0, "days": 0.0025}}, {"key": "brightness", "value": {"dict": [{"key": "b", "value": {"cv": "entity_ids"}}, {"key": "rgb_color", "value": {"all": [{"coerce": "int"}, {"any": [{"coerce": "int"}, {"range": {"min": 0, "max": 1e+16}}]}]}}]}, "default": {"b": 1, "rgb_color": "1.0"}}]}
+  data {"brightness": "#\uff11\uff12\uff13\uff14\uff15\uff16", "colour": {"seconds": "1", "milliseconds": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "minutes": 0.1}, "effects": "1,"}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected a mapping at 'brightness'")
+
+== 1 x UNSUP[timedelta(...) raises (OverflowError: days=1000000060; must have magni] ha=err
+  spec {"fields": [{"key": "with-dash", "type": "str", "exclusive": "x.y", "group_required": false}, {"key": "c", "value": {"cv": "comp_entity_ids"}}, {"key": "entity_id", "value": {"in": ["AUTO", "cool", "ab", "heat", "dry"]}}, {"key": "hours", "value": {"cv": "time_period_dict"}}, {"key": "Mode", "value": {"cv": "time_period"}}]}
+  data {"entity_id": "1:60", "hours": {"hours": true, "minutes": 86399.9999995, "days": 1000000000}, "Mode": "1:60"}
+  HA   ('err', 'OverflowError', 'days=1000000060; must have magnitude <= 999999999')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=1000000060; must have magnitude <= 999999999)')
+
+== 1 x MSG int too large to convert to float / expected float at '['odd key'].seconds'
+  spec {"fields": [{"key": "odd key", "value": {"cv": "time_period_dict"}, "exclusive": "g"}, {"key": "effect", "value": {"dict": [{"key": "c", "value": {"in": [" ", "none"]}}, {"key": "effects", "value": {"dict": [{"key": "milliseconds", "type": "any", "default": "\n#ff00ff"}, {"key": "entity_id", "value": {"port": null}, "inclusive": "color"}, {"key": "a", "value": {"literal": "colorloop"}}]}}]}, "inclusive": "grp"}, {"key": "color", "value": {"cv": "ensure_list"}, "required": true}, {"key": "colour", "value": {"in": ["Auto", "1"]}, "required": true}]}
+  data {"odd key": {"seconds": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "days": -0.0005}, "effect": {"c": {"rgb_color": null}}, "colour": "1"}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at '['odd key'].seconds'")
+
+== 1 x MSG int too large to convert to float / invalid value or type at 'c'
+  spec {"fields": [{"key": "c", "value": {"all": [{"range": {"min": 5, "max": 0.5, "min_included": true}}]}, "required": true}, {"key": "brightness", "value": {"cv": "positive_time_period_dict"}}]}
+  data {"c": null, "brightness": {"hours": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "invalid value or type at 'c'")
+
+== 1 x MSG int too large to convert to float / expected float at 'effect.milliseconds'
+  spec {"fields": [{"key": "effect", "value": {"cv": "time_period"}, "required": true}, {"key": "milliseconds", "value": {"list": [{"cv": "comp_entity_ids"}, {"ensure_list": null}, {"type": "dict"}]}}, {"key": "brightness", "value": {"coerce": "int"}}, {"key": "c", "type": "int"}]}
+  data {"effect": {"milliseconds": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}, "milliseconds": [], "brightness": "1E3"}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at 'effect.milliseconds'")
+
+== 1 x MSG int too large to convert to float / expected float at 'days.hours'
+  spec {"fields": [{"key": "a", "value": {"coerce": "float"}}, {"key": "effect", "value": {"list": ["list", {"literal": null}]}, "default": "true"}, {"key": "days", "value": {"cv": "time_period_dict"}}, {"key": "effects", "type": "float"}, {"key": "mode", "value": {"list": [{"literal": 1e+16}, {"any": [{"in": ["cool", "light", "x", "on", "", "AUTO"]}, {"at_least_one": ["mode"]}]}]}}], "extra": "remove"}
+  data {"a": 123456.789, "days": {"hours": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}, "effects": true, "myde": 1e+16}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at 'days.hours'")
+
+== 1 x MSG int too large to convert to float / expected float at 'brightness.minutes'
+  spec {"fields": [{"key": "brightness", "value": {"cv": "positive_time_period_dict"}}, {"key": "odd key", "value": {"cv": "boolean"}, "default": "tRuE"}, {"key": "transition", "value": {"coerce": "float"}}]}
+  data {"brightness": {"minutes": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "milliseconds": 1e+300, "seconds": 999999999}, "transiton": "1.1"}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at 'brightness.minutes'")
+
+== 1 x MSG int too large to convert to float / value must be one of ['dry', 'light', 'none', 'say
+  spec {"fields": [{"key": "transition", "value": {"cv": "time_period_dict"}}, {"key": "entity_id", "value": {"in": ["none", "say \"hi\"", "dry", "light"]}}, {"key": "rgb_color", "value": {"dict": [{"key": "x.y", "value": {"cv": "time_period_dict"}, "required": true}, {"key": "entity_id", "value": {"any": [{"dict": [{"key": "_u", "value": {"literal": "effect"}, "required": true}, {"key": "9lives", "type" ...  -6.5, "_u": "it's"}}]}, "inclusive": "x.y"}, {"key": "milliseconds", "type": "list"}, {"key": "odd key", "value": {"length": {"min": 1, "max": 0}}}]}
+  data {"transition": {"seconds": "1e3", "milliseconds": 0.1, "days": 1}, "entity_id": "_sayb \"hi\"", "rgb_color": {"x.y": {"milliseconds": 1000000000, "hours": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 ... 0000000000000000000000000000000000000000000000000000000000000000000000000000000}, "entity_id": {"_u": 0.0, "9lives": {"hours": 1}, "effect": " 12 "}}}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', 'value must be one of [\'dry\', \'light\', \'none\', \'say "hi"\'], did you mean \'say "hi"\'? at \'entity_id\'')
+
+== 1 x MSG int too large to convert to float / expected float at '['x.y'].seconds'
+  spec {"fields": [{"key": "effect", "value": {"port": null}}, {"key": "x.y", "value": {"cv": "positive_time_period_dict"}, "default": {"seconds": 1.5e-06}}, {"key": "_u", "type": "object"}], "extra": "allow"}
+  data {"x.y": {"minutes": 1.5e-06, "hours": 1000000000, "seconds": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}, "_u": true}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at '['x.y'].seconds'")
+
+== 1 x MSG int too large to convert to float / expected float at 'colour.hours'
+  spec {"fields": [{"key": "colour", "value": {"cv": "time_period_dict"}}, {"key": "brightness", "value": {"cv": "boolean"}, "required": true}, {"key": "Mode", "value": {"at_least_one": ["x.y"]}, "inclusive": "x.y"}], "extra": "remove"}
+  data {"colour": {"milliseconds": 5e-07, "hours": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "days": 1e+300}, "brightness": "yes", "Mode": {}}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at 'colour.hours'")
+
+== 1 x MSG int too large to convert to float / expected float at 'transition.days'
+  spec {"fields": [{"key": "transition", "value": {"cv": "time_period_dict"}}, {"key": "days", "value": {"literal": "1:30"}, "inclusive": "grp", "default": "b"}]}
+  data {"transition": {"days": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at 'transition.days'")
+
+== 1 x MSG int too large to convert to float / expected float at 'milliseconds.hours'
+  spec {"fields": [{"key": "milliseconds", "value": {"cv": "positive_time_period_dict"}, "inclusive": "grp"}, {"key": "seconds", "value": {"length": {"min": -1, "max": 5}}, "default": [1, 1, 1]}]}
+  data {"milliseconds": {"hours": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "milliseconds": 999999999, "seconds": 1000000000}}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at 'milliseconds.hours'")
+
+== 1 x UNSUP[timedelta(...) raises (OverflowError: days=-514971689108290; must have] ha=err
+  spec {"fields": [{"key": "", "value": {"cv": "positive_time_period"}, "required": true}, {"key": "brightness", "value": {"clamp": {"min": -1, "max": 1e+22}}, "inclusive": "a b"}, {"key": "x.y", "value": {"type": "dict"}, "inclusive": "x.y"}, {"key": "seconds", "type": "int", "required": true}, {"key": "_u", "type": "any"}], "extra": "prevent"}
+  data {"": -4.44935539389562e+19, "brightness": [], "seconds": 0, "_u": {"odd key": "seconds", "": "#FF00FF"}}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=-514971689108290; must have magnitude <= 999999999)')
+
+== 1 x MSG int too large to convert to float / expected float at 'hours'
+  spec {"fields": [{"key": "hours", "value": {"cv": "positive_float"}, "required": true}, {"key": "b", "value": {"dict": [{"key": "Mode", "value": "list"}, {"key": "seconds", "value": {"cv": "positive_time_period_dict"}, "default": {"hours": []}}, {"key": "c", "value": {"any": [{"cv": "entity_domain", "domain": "light"}, "dict"]}}]}, "exclusive": "grp", "group_required": true}], "extra": "prevent"}
+  data {"hours": "0o7", "b": {"Mode": [], "seconds": {"minutes": 1, "days": 1000000000, "milliseconds": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}}}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at 'hours'")
+
+== 1 x UNSUP[timedelta(...) raises (OverflowError: days=694456018518; must have mag] ha=err
+  spec {"fields": [{"key": "days", "value": {"cv": "comp_entity_ids"}}, {"key": "rgb_color", "value": {"list": [{"in": ["opt34", "opt65", "opt3", "opt9", "opt29", "opt22", "opt42", "opt8", "opt83", "opt74", "opt5", "opt10", "opt2", "opt70", "opt18", "opt99", "opt61", "opt14", "opt24", "opt55", "opt33", "opt75", "opt86", "opt53", "opt44", "opt89", "opt43", "opt79", "opt91", "opt1", "opt15", "opt4", "opt56", "opt35", "opt36", "opt50", "opt96", "opt95", "opt84", "opt19"]}, {"all": [{"any": [{"cv": "time_period_dict"}]}]}]}, "default": ["opt43"]}], "extra": "remove"}
+  data {"rgb_color": [[], {"hours": 5e-07, "minutes": 1000000000000000.0, "milliseconds": 1000000000000000.0}, "opt10"]}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=694456018518; must have magnitude <= 999999999)')
+
+== 1 x UNSUP[timedelta(...) raises (OverflowError: days=11574074074074074304220194;] ha=err
+  spec {"fields": [{"key": "effects", "value": {"length": {"min": -1, "max": 5}}}, {"key": "colour", "value": {"cv": "comp_entity_ids"}, "exclusive": "color", "group_required": true}, {"key": "name", "value": {"cv": "positive_time_period"}, "required": true}]}
+  data {"colour": ["light.kitchen\r"], "name": 1000000000000000000000000000000}
+  HA   ('err', 'OverflowError', 'Python int too large to convert to C int')
+  Lean ('unsupported', 'timedelta(...) raises (OverflowError: days=11574074074074074304220194; must have magnitude <= 999999999)')
+
+== 1 x MSG int too large to convert to float / expected timedelta at 'effect'
+  spec {"fields": [{"key": "effect", "value": "timedelta"}, {"key": "9lives", "value": {"dict": [{"key": "effects", "value": {"dict": [{"key": "odd key", "value": {"any": [{"range": {"min": 1.0, "max": 255}}, "object"]}}, {"key": "_u", "value": {"in": ["heat", "heat", "with-dash"]}}, {"key": "days", "value": {"in": ["it's", "say \"hi\"", "all", "abd", "x", "AUTO", "colorloop"]}, "default": "say \"hz\""}]}}, {"key": "milliseconds", "value": {"cv": "entity_id"}}, {"key": "effect", "value": {"cv": "positive_time_period_dict"}, "default": {"minutes": -1000000000}}]}}]}
+  data {"effect": "1:00", "9lives": {"effects": {"_u": "hsad-htiw"}, "effect": {"minutes": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "days": 1.5}}}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected timedelta at 'effect'")
+
+== 1 x MSG int too large to convert to float / expected float at '[''].milliseconds'
+  spec {"fields": [{"key": "seconds", "value": {"range": {"min": 1000000000000000000000000000000}}, "required": true}, {"key": "", "value": {"cv": "time_period_dict"}, "required": true}, {"key": "transition", "type": "bool", "inclusive": "color"}, {"key": "x.y", "type": "list", "inclusive": "grp"}, {"key": "rgb_color", "value": {"cv": "entity_id"}, "exclusive": "grp", "group_required": false, "default": {"rgb_color": null}}], "extra": "allow"}
+  data {"": {"milliseconds": null, "minutes": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, "days": 0.001}, "transition": false, "x.y": "#ff00ff\n\n"}
+  HA   ('err', 'OverflowError', 'int too large to convert to float')
+  Lean ('err', 'MultipleInvalid', "expected float at '[''].milliseconds'")

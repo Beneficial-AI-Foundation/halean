@@ -1,0 +1,33 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 2b109f4..29f3875 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -1446,6 +1446,8 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
+               | .int i => some (intToFloat i) | .bool b => some (if b then 1.0 else 0.0)
+               | .float f => some f | _ => none)
+           | _ => none
++        -- `fromtimestamp(nan)` is a ValueError: HA goes on to `parse_datetime`
++        let viaFloat := viaFloat.bind fun f => if f.isNaN then none else some f
+         match viaFloat with
+         | some f => match utcFromTimestamp (.float f) with
+           | some d => pure d
+@@ -1658,11 +1660,9 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+     | _ => pure (.int (← lenV ctx v))
+   | "first" =>
+     match v with
+-    | .undef _ => undefErr v
+     | _ => pure ((← iterV ctx v).head?.getD (.undef "No first item, sequence was empty."))
+   | "last" =>
+     match v with
+-    | .undef _ => undefErr v
+     | .dict _ => throw "last on a dict is not supported by HALean"
+     | .gen k _ => throw s!"'{k}' object is not reversible"
+     | _ => pure ((← iterV ctx v).getLast?.getD (.undef "No last item, sequence was empty."))
+@@ -1725,7 +1725,6 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+   | "reverse" =>
+     match v with
+     | .str s => pure (.str (String.ofList s.toList.reverse))
+-    | .undef _ => undefErr v
+     | v => pure (.gen "list_reverseiterator" (← iterV ctx v).reverse)
+   | "map" =>
+     let items ← iterV ctx v

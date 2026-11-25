@@ -59,6 +59,7 @@ TITLES = {
     "TPL-45": "HA gives Undefined/default, HALean raises",
     "TPL-46": "documented render errors (non-ASCII case mapping)",
     "TPL-47": "huge float exponent: time and memory",
+    "TPL-48": "step budget of 1,000,000",
 }
 
 # (regex on the case name, ID) for the hand-written cases
@@ -109,6 +110,7 @@ HAND = [
     (r"val_print_(function|states|domain|state_object)|dt_in_list_repr|flt_reverse_generator_is_list", "TPL-44"),
     (r"und_(first|last|reverse)|dt_as_datetime_nan_string|flt_round_nan_ceil_default", "TPL-45"),
     (r"flt_float_exponent", "TPL-47"),
+    (r"loop_step_budget", "TPL-48"),
 ]
 
 
@@ -135,6 +137,7 @@ def rules(r):
             (r"unsupported operand type\(s\) for (\*|//): '(tuple|int|list|bool|timedelta)' and '(tuple|int|list|bool)'", "TPL-40"),
             (r"attribute '\w+' of \w+ is not supported|^str\.\w+ is not supported|timedelta\.\w+ is not supported|is unsafe|string formatting with %", "TPL-40"),
             (r"non-ASCII", "TPL-46"),
+            (r"step budget", "TPL-48"),
             (r"parsing '.*' as a date/time", "TPL-43"),
             (r"ValueError: year is out of range|slicing (int|float|dict|bool|NoneType)", "TPL-45"),
             (r"object is not iterable", "TPL-4"),

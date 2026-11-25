@@ -1,0 +1,131 @@
+description: random scenario seed=101 index=69
+scripts:
+  s0:
+    alias: Script 0 B
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - delay: 1
+    - variables:
+        out:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+  s1:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - event: mark
+      event_data:
+        id: s1.4
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s0'') }}'
+        cur: '{{ state_attr(''script.s0'', ''current'') }}'
+  s2:
+    alias: Script 2 B
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+      response_variable: r
+  s3:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.toggle
+      target:
+        entity_id: script.s4
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+    - delay: 2
+  s4:
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+    - stop: bad
+      error: true
+    - delay: 1
+    - variables:
+        out:
+          id: s4.6
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+steps:
+- at: 1
+  call: s2
+  data:
+    v: 3
+- at: 2
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+    - script.s2
+- at: 3
+- at: 4
+  call: s1
+  return_response: true
+- at: 7
+  call: s4
+  data:
+    v: 4
+- at: 9
+  call: s4
+  data:
+    v: 1
+- at: 10
+  call: s1
+  data:
+    v: 2
+- at: 11
+  result: 0
+  response:
+    n: 0
+- at: 12
+  call: s3
+  data:
+    v: 3
+- at: 13
+  call: s3
+  data:
+    v: 0

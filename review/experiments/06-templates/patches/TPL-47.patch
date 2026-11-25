@@ -1,0 +1,13 @@
+diff --git a/HALean/Template/Value.lean b/HALean/Template/Value.lean
+index b5db2a5..98a1d2c 100644
+--- a/HALean/Template/Value.lean
++++ b/HALean/Template/Value.lean
+@@ -186,6 +186,8 @@ def parseFloatStr (s : String) : Option Float := do
+       some (if eneg then -(ed.toNat! : Int) else ed.toNat!)
+   let m := (ip ++ fp).toNat!
+   let exp : Int := e - fp.length
++  -- more than 400 decimal digits before the point: infinity, without computing the power
++  if m != 0 && exp + (natDigits m : Int) > 400 then return (if neg then -1.0 / 0.0 else 1.0 / 0.0)
+   if exp ≥ 0 then return ratToFloat neg (m * 10 ^ exp.toNat) 1
+   -- huge negative exponents underflow to zero anyway; cap the work
+   if exp < -400 && m < 10 ^ 400 then return (if neg then -0.0 else 0.0)

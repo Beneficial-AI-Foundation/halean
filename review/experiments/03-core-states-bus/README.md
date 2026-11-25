@@ -73,3 +73,34 @@ entity ids and domain filters) with `unsupported: true`, as the shipped `non_asc
 does. The hand-written `id_non_ascii_*`, `attr_nan_is_not_json` and `attr_infinity_is_not_json`
 cases are deliberately not marked: they fail in the harness copy with "HALean rejected it", and
 the recording variant supplies HA's answer. They are classified `Refuses`, documented.
+
+## Patches
+
+`patches/ST-3.patch`, `patches/ST-6.patch` (both `Exe/CoreStates.lean`) and `patches/BUS-1.patch`
+(`Exe/CoreEvents.lean`) were applied together in a throwaway copy and tested there; the copy has
+been deleted. To repeat:
+
+```sh
+cp -a /home/user/halean /tmp/claude-0/halean-copies/03-core-states-bus-1
+cd /tmp/claude-0/halean-copies/03-core-states-bus-1
+for p in ST-3 ST-6 BUS-1; do git apply /home/user/halean/review/experiments/03-core-states-bus/patches/$p.patch; done
+PATH=$HOME/.elan/bin:$PATH lake build halean-core-states halean-core-events
+/opt/havenv/bin/python -m pytest tests/differential/test_states.py tests/differential/test_events.py \
+  tests/differential/test_core.py -p no:cacheprovider -q            # logs/patch-shipped-tests.log
+cd /home/user/halean/review/experiments/03-core-states-bus
+HALEAN_BIN=/tmp/claude-0/halean-copies/03-core-states-bus-1/.lake/build/bin ./run.sh patched 1001 2001   # logs/patched-*
+```
+
+`logs/patch-reproducers.log`: the reproducer cases of ST-3, ST-6 and BUS-1 against the patched
+binaries. `logs/patched-*.log`: all hand-written and random cases against the patched binaries.
+
+## Notes
+
+* `FINDINGS.md` could not be written from the reviewing session (its file tool refuses report
+  files); its full text was handed back to the caller to be saved here.
+* The generated files in `gen/out/` are reproducible from the seeds (`logs/run*-generated.sha256`).
+* The record step of run1 was repeated after a fix to `harness/test_states_record.py` (it failed to
+  write lone surrogates to the JSONL file); the verdict logs of the harness copy were not affected.
+* During the work one `pkill -f halean-core-events` was issued to stop this reviewer's own
+  runaway engine process. A process listing taken just before showed only that one process with
+  that name; if another reviewer's bus test failed around 15:34 UTC with a broken pipe, rerun it.

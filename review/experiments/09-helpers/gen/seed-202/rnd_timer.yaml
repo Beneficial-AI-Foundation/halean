@@ -1,0 +1,3034 @@
+- name: rnd_timer_s202_0
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: -1
+        a: {}
+  - call: timer.start
+    data:
+      entity_id: timer.a
+      duration:
+        seconds: x
+  - advance: 59
+  - advance: 1.0e-06
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration: '1:00:00'
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: not an id
+  - advance: 1.0e-06
+  - call: timer.start
+    data:
+      entity_id: []
+      duration:
+        minutes: 1
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration:
+        seconds: -5
+  - advance: 1
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - advance: 61
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.b
+  - call: timer.start
+    data:
+      entity_id: timer.missing
+      duration: '100:00:00'
+  - advance: 3
+- name: rnd_timer_s202_1
+  steps:
+  - setup:
+      timer:
+        long_name: {}
+    restore:
+    - - timer.long_name
+      - idle
+      - duration: 0:00:10
+  - call: timer.start
+    data:
+      entity_id: TIMER.LONG_NAME
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+  - call: timer.start
+    data:
+      entity_id: TIMER.LONG_NAME
+  - advance: 1.5
+  - advance: 0.876545
+  - advance: 5
+  - advance: 10
+  - call: timer.pause
+    data:
+      entity_id: timer.long_name
+  - advance: 1.0e-06
+  - advance: 31
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration:
+        seconds: -5
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration:
+        days: 1
+- name: rnd_timer_s202_2
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: 60
+          restore: 'yes'
+          name: A b
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: -0:00:05
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration:
+        hours: 100
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration:
+        days: 0
+  - call: timer.nosuch
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: '24:00'
+  - call: timer.start
+    data:
+      entity_id: timer.missing
+      duration:
+      - 5
+- name: rnd_timer_s202_3
+  steps:
+  - setup:
+      timer:
+        x1:
+          duration: 1.000001
+          name: Name
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.x1
+      duration: 2.25
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+      duration:
+        days: 1
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+  - advance: 0.876545
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+- name: rnd_timer_s202_4
+  steps:
+  - setup:
+      timer:
+        c:
+          duration:
+            days: 0
+          icon: mdi:timer-outline
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: '-1:00:00'
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: -0.5
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.c
+  - call: timer.nosuch
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: null
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration:
+        hours: 100
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: null
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: 90
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.pause
+    data:
+      entity_id: null
+- name: rnd_timer_s202_5
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: 0:01:00
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - advance: 61
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: '0:00:00.5'
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: -1
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration:
+        days: 1
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+  - call: timer.change
+    data:
+      entity_id: timer.b
+  - advance: 59
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: '-0:00:00.5'
+  - advance: 1.0e-06
+- name: rnd_timer_s202_6
+  steps:
+  - setup:
+      timer:
+        x1:
+          duration: {}
+          restore: 'yes'
+  - call: timer.change
+    data:
+      entity_id: timer.x1
+      duration: 2
+  - call: timer.change
+    data:
+      entity_id: timer.x1
+      duration: 2
+  - call: timer.change
+    data:
+      entity_id: timer.x1
+      duration: 1.000001
+  - call: timer.cancel
+    data:
+      entity_id: none
+  - advance: 0.5
+  - call: timer.change
+    data:
+      entity_id: timer.x1
+      duration: -1
+  - advance: 86400
+- name: rnd_timer_s202_7
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 2.25
+          icon: mdi:a
+    restore:
+    - - timer.c
+      - idle
+      - duration: 0:00:10
+        last_transition: weird
+  - advance: 3600
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration:
+        hours: 1
+        seconds: 1
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: -90
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: -00:02
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration:
+        days: 1
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: 10
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - advance: 1.0e-06
+  - call: timer.cancel
+    data:
+      entity_id: all
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.c
+      duration: '1:00:00'
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: '0:00:00.5'
+  - call: timer.change
+    data:
+      entity_id: timer.c
+- name: rnd_timer_s202_8
+  steps:
+  - setup:
+      timer:
+        long_name:
+          duration: 59.9999995
+          restore: true
+        x1:
+          duration:
+            minutes: 0.5
+            seconds: 0.5
+    restore:
+    - - timer.long_name
+      - idle
+      - duration: 0:00:10
+        last_transition: weird
+  - call: timer.change
+    data:
+      entity_id: timer.x1
+      duration:
+        seconds: -5
+  - call: timer.pause
+    data:
+      entity_id: timer.x1
+  - call: timer.cancel
+    data:
+      entity_id: timer.long_name
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+  - advance: 0
+  - call: timer.pause
+    data:
+      entity_id: timer.long_name
+  - advance: 3600
+  - call: timer.finish
+    data:
+      entity_id: timer.x1
+  - advance: 10
+  - call: timer.pause
+    data:
+      entity_id: timer.long_name
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+      duration: 0
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: -5
+- name: rnd_timer_s202_9
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: 10
+          name: ''
+  - call: timer.change
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.b
+      duration: 90000
+  - advance: 0.876545
+  - advance: 59
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - advance: 86400
+  - advance: 59
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: '-0:00:00.5'
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - advance: 0.876543
+  - advance: 0.876546
+  - call: timer.finish
+    data:
+      entity_id: timer.missing
+  - call: timer.change
+    data:
+      entity_id: not an id
+- name: rnd_timer_s202_10
+  steps:
+  - setup:
+      timer:
+        long_name:
+          duration: '-0:00:00.5'
+    restore:
+    - - timer.long_name
+      - idle
+      - duration: 0:00:10
+        last_transition: weird
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration: 1.5
+  - advance: 61
+  - advance: 4
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: 0.5
+  - call: timer.pause
+    data:
+      entity_id: timer.long_name
+  - advance: 3
+- name: rnd_timer_s202_11
+  steps:
+  - setup:
+      timer:
+        a:
+          restore: null
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration: +0:00:03
+  - call: timer.start
+    data:
+      entity_id: timer.a
+  - call: timer.start
+    data:
+      entity_id: timer.a
+  - advance: 0
+  - advance: 59
+  - advance: 0
+  - call: timer.pause
+    data:
+      entity_id: timer.a
+- name: rnd_timer_s202_12
+  steps:
+  - setup:
+      timer:
+        c:
+          duration:
+            days: 1
+  - call: timer.cancel
+    data:
+      entity_id: []
+  - call: timer.start
+    data:
+      entity_id: []
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration:
+        hours: 100
+  - advance: 10
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: '100:00:00'
+  - advance: 100000
+  - call: timer.finish
+    data:
+      entity_id:
+      - timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: '-0:00:00.5'
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: -0.5
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+- name: rnd_timer_s202_13
+  steps:
+  - setup:
+      timer:
+        long_name:
+          duration: 0:01:00
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration: 2.25
+  - advance: 86400
+  - call: timer.finish
+    data:
+      entity_id: timer.long_name
+  - call: timer.pause
+    data:
+      entity_id: []
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: -0:00:05
+  - call: timer.start
+    data:
+      entity_id: TIMER.LONG_NAME
+      duration:
+        weeks: 2
+  - advance: 1.0e-06
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration: 90000
+- name: rnd_timer_s202_14
+  steps:
+  - setup:
+      timer:
+        b: null
+    restore:
+    - - timer.b
+      - idle
+      - duration: 0:00:10
+        last_transition: finished
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - advance: 61
+  - advance: 100000
+  - advance: 2
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: -1
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: -3600
+- name: rnd_timer_s202_15
+  steps:
+  - setup:
+      timer:
+        x1:
+          duration:
+            days: 0
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+  - advance: 2
+  - advance: 1
+  - advance: 29
+  - call: timer.pause
+    data:
+      entity_id: timer.x1
+  - call: timer.pause
+    data:
+      entity_id:
+      - timer.x1
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+      duration:
+        seconds: 5
+  - call: timer.pause
+    data:
+      entity_id: timer.x1
+- name: rnd_timer_s202_16
+  steps:
+  - setup:
+      timer:
+        c:
+          restore: 'yes'
+          icon: x:y
+        z9_q:
+          duration:
+            minutes: 0.5
+            seconds: 0.5
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+      bogus: 1
+  - advance: 1.5
+  - call: timer.pause
+    data:
+      entity_id: timer.missing
+  - call: timer.change
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration:
+        milliseconds: 1500
+  - call: timer.cancel
+    data:
+      entity_id: []
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+  - advance: 0
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: -90
+  - advance: 1
+  - call: timer.pause
+    data:
+      entity_id: timer.z9_q
+- name: rnd_timer_s202_17
+  steps:
+  - setup:
+      timer:
+        b:
+          duration:
+            milliseconds: 1500
+          restore: true
+          name: ''
+          icon: nocolon
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: none
+  - advance: 31
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: '-1:00:00'
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      bogus: 1
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: 1.5
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: 3600
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+- name: rnd_timer_s202_18
+  steps:
+  - setup:
+      timer:
+        c:
+          name: x_y
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: '-1:00:00'
+  - advance: 0.876546
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration:
+        days: 1
+  - call: timer.change
+    data:
+      entity_id: not an id
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+      bogus: 1
+  - advance: 4
+  - call: timer.start
+    data:
+      entity_id: timer.missing
+      duration: 5
+  - call: timer.start
+    data:
+      entity_id: not an id
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: {}
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: '25:00:00'
+  - advance: 1.0e-06
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+- name: rnd_timer_s202_19
+  steps:
+  - setup:
+      timer:
+        x1: {}
+  - call: timer.change
+    data:
+      entity_id: timer.x1
+      duration: 0:00:05
+  - call: timer.finish
+    data:
+      entity_id: timer.x1
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.x1
+  - call: timer.change
+    data:
+      entity_id: null
+  - call: timer.finish
+    data:
+      entity_id: TIMER.X1
+  - advance: 0
+  - call: timer.finish
+    data:
+      entity_id: timer.x1
+- name: rnd_timer_s202_20
+  steps:
+  - setup:
+      timer:
+        a:
+          duration: 86400
+          name: 42
+  - call: timer.start
+    data:
+      entity_id: TIMER.A
+      duration: '0:00:00.5'
+  - advance: 61
+  - call: timer.change
+    data:
+      entity_id: timer.a
+  - call: timer.start
+    data:
+      entity_id: null
+  - call: timer.start
+    data:
+      entity_id: null
+  - call: timer.start
+    data:
+      entity_id: timer.a
+      duration: -0.5
+  - advance: 0.876546
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration:
+        seconds: '5'
+  - advance: 4
+  - advance: 1.0e-06
+- name: rnd_timer_s202_21
+  steps:
+  - setup:
+      timer:
+        b: {}
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration:
+        minutes: 0.5
+        seconds: 0.5
+  - call: timer.start
+    data:
+      entity_id: timer.missing
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: 30
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: 1.5
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: 86400
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - call: timer.pause
+    data:
+      entity_id: all
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - advance: 61
+  - call: timer.start
+    data:
+      entity_id: timer.b
+- name: rnd_timer_s202_22
+  steps:
+  - setup:
+      timer:
+        b:
+          restore: x
+    restore:
+    - - timer.b
+      - idle
+      - duration: 0:00:10
+        last_transition: weird
+  - advance: 4
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: 2.25
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: -0:00:05
+  - call: timer.start
+    data:
+      entity_id: all
+      duration:
+        seconds: x
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - advance: 5
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - call: timer.change
+    data:
+      entity_id: not an id
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: 5
+- name: rnd_timer_s202_23
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: -90
+          icon: nocolon
+  - advance: 2
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - call: timer.finish
+    data:
+      entity_id: []
+  - call: timer.start
+    data:
+      entity_id: timer.missing
+      duration: 1.5
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: timer.cancel
+    data:
+      entity_id: TIMER.B
+- name: rnd_timer_s202_24
+  steps:
+  - setup:
+      timer:
+        z9_q:
+          duration: 1.000001
+          restore: true
+          icon: mdi:a
+    restore:
+    - - timer.z9_q
+      - idle
+      - duration: 0:00:10
+  - call: timer.cancel
+    data:
+      entity_id: timer.z9_q
+  - advance: 0.876543
+  - call: timer.pause
+    data:
+      entity_id: timer.missing
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+      duration: 90000
+  - call: timer.finish
+    data:
+      entity_id: timer.z9_q
+  - call: timer.pause
+    data:
+      entity_id: not an id
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+      duration: -0.5
+  - call: timer.change
+    data:
+      entity_id: null
+  - call: timer.finish
+    data:
+      entity_id: timer.z9_q
+  - call: timer.finish
+    data:
+      entity_id: timer.missing
+  - call: timer.finish
+    data:
+      entity_id: all
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: -5
+  - call: timer.pause
+    data:
+      entity_id: timer.z9_q
+- name: rnd_timer_s202_25
+  steps:
+  - setup:
+      timer:
+        long_name:
+          duration: 10
+          icon: x:y
+  - call: timer.pause
+    data:
+      entity_id: timer.long_name
+      bogus: 1
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: -5
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: '00:00:10.250'
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: ''
+  - advance: 30
+- name: rnd_timer_s202_26
+  steps:
+  - setup:
+      timer:
+        z9_q:
+          duration: 86400
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: ':'
+  - advance: 60
+  - call: timer.cancel
+    data:
+      entity_id: timer.z9_q
+  - call: timer.finish
+    data:
+      entity_id: timer.z9_q
+  - call: timer.pause
+    data:
+      entity_id: timer.z9_q
+  - call: timer.finish
+    data:
+      entity_id: timer.z9_q
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+      duration: 0
+  - call: timer.pause
+    data:
+      entity_id:
+      - timer.z9_q
+  - call: timer.cancel
+    data:
+      entity_id: timer.z9_q
+  - call: timer.nosuch
+    data:
+      entity_id: timer.z9_q
+- name: rnd_timer_s202_27
+  steps:
+  - setup:
+      timer:
+        z9_q:
+          duration:
+          - 5
+          icon: mdi:timer-outline
+  - call: timer.cancel
+    data:
+      entity_id: all
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      bogus: 1
+  - call: timer.pause
+    data:
+      entity_id: timer.z9_q
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration:
+        weeks: 2
+  - call: timer.cancel
+    data:
+      entity_id: timer.z9_q
+  - call: timer.nosuch
+    data:
+      entity_id: timer.z9_q
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: -0:00:05
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+      duration: +0:00:03
+- name: rnd_timer_s202_28
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 1.000001
+          icon: mdi:a
+  - call: timer.start
+    data:
+      entity_id: TIMER.C
+  - advance: 3600
+  - advance: 86400
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration:
+        seconds: -5
+  - advance: 0.876546
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: '-1:00:00'
+  - advance: 60
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 00:05
+  - call: timer.start
+    data:
+      entity_id: all
+      duration: '0:00:00.5'
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 59.9999995
+- name: rnd_timer_s202_29
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: 86400
+    restore:
+    - - timer.b
+      - idle
+      - duration: 0:00:10
+        last_transition: started
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: 1:-2:3
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: '-0:00:00.5'
+  - advance: 59
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration:
+        seconds: -5
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: '-1:00:00'
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: -5
+  - call: timer.start
+    data:
+      entity_id: []
+      duration: 00:05
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: timer.cancel
+    data:
+      entity_id: []
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+- name: rnd_timer_s202_30
+  steps:
+  - setup:
+      timer:
+        c:
+          duration:
+          - 5
+          restore: x
+          name: 42
+    restore:
+    - - timer.c
+      - idle
+      - duration: 0:00:10
+  - advance: 0.876543
+  - advance: 3
+  - call: timer.change
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: '0:00:00.5'
+  - advance: 59
+  - advance: 1
+  - advance: 5
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration:
+        hours: 100
+- name: rnd_timer_s202_31
+  steps:
+  - setup:
+      timer:
+        long_name:
+          duration: '100:00:00'
+        c:
+          duration: '00:00:10.250'
+          bogus: 1
+  - call: timer.cancel
+    data:
+      entity_id: timer.long_name
+  - advance: 5
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: -0.5
+  - advance: 30
+  - call: timer.start
+    data:
+      entity_id: all
+  - advance: 86400
+  - advance: 61
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration: 1.5
+  - call: timer.nosuch
+    data:
+      entity_id: timer.long_name
+  - call: timer.start
+    data:
+      entity_id: TIMER.C
+      duration: '-1:00:00'
+  - advance: 5
+- name: rnd_timer_s202_32
+  steps:
+  - setup:
+      timer:
+        c:
+          duration:
+            weeks: 2
+  - advance: 1.0e-06
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - advance: 5
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 10
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 1
+  - advance: 0
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+- name: rnd_timer_s202_33
+  steps:
+  - setup:
+      timer:
+        a:
+          duration: 59.9999995
+          name: 42
+  - call: timer.change
+    data: {}
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration: '100:00:00'
+  - call: timer.start
+    data:
+      entity_id: timer.a
+  - call: timer.pause
+    data:
+      entity_id: timer.a
+  - call: timer.pause
+    data:
+      entity_id: timer.a
+  - advance: 0.876545
+  - call: timer.start
+    data:
+      entity_id: none
+      duration: 59.9999995
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration: '-0:00:00.5'
+  - call: timer.start
+    data:
+      entity_id: all
+  - call: timer.start
+    data:
+      entity_id: timer.missing
+  - call: timer.pause
+    data:
+      entity_id: timer.a
+  - call: timer.pause
+    data:
+      entity_id: null
+- name: rnd_timer_s202_34
+  steps:
+  - setup:
+      timer:
+        a: {}
+    restore:
+    - - timer.a
+      - idle
+      - duration: 0:00:10
+        last_transition: cancelled
+  - advance: 100000
+  - advance: 1
+  - call: timer.start
+    data:
+      entity_id: all
+      duration: 1.5
+  - call: timer.finish
+    data:
+      entity_id: timer.a
+  - advance: 29
+  - advance: 100000
+  - call: timer.start
+    data:
+      entity_id: timer.a
+      duration: 1.5
+- name: rnd_timer_s202_35
+  steps:
+  - setup:
+      timer:
+        x1:
+          duration: 90000
+  - call: timer.pause
+    data:
+      entity_id: timer.x1
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+      duration: 0
+  - call: timer.finish
+    data:
+      entity_id: timer.x1
+  - advance: 1.5
+  - call: timer.pause
+    data:
+      entity_id: timer.x1
+  - advance: 86400
+  - advance: 0.876545
+  - advance: 59
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+- name: rnd_timer_s202_36
+  steps:
+  - setup:
+      timer:
+        a:
+          duration: 0.999999
+          icon: x:y
+  - call: timer.start
+    data:
+      entity_id: timer.a
+      duration:
+        minutes: 0.5
+        seconds: 0.5
+  - advance: 3
+  - call: timer.cancel
+    data:
+      entity_id: timer.a
+  - call: timer.start
+    data:
+      entity_id: timer.a
+      duration: '-1:00:00'
+  - call: timer.start
+    data:
+      entity_id: timer.a
+      duration: 5
+  - call: timer.cancel
+    data:
+      entity_id: all
+  - advance: 2
+  - call: timer.start
+    data:
+      entity_id: timer.a
+  - call: timer.start
+    data:
+      entity_id: timer.a
+      duration: 0
+  - call: timer.start
+    data:
+      entity_id: timer.a
+  - call: timer.start
+    data:
+      entity_id: all
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration: '-0:00:00.5'
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration: true
+- name: rnd_timer_s202_37
+  steps:
+  - setup:
+      timer:
+        x1:
+          duration: '1.5'
+          name: 42
+  - advance: 1.0e-06
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+      duration: 60
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+  - call: timer.change
+    data:
+      entity_id: not an id
+  - call: timer.finish
+    data:
+      entity_id:
+      - timer.x1
+  - call: timer.cancel
+    data:
+      entity_id: timer.x1
+- name: rnd_timer_s202_38
+  steps:
+  - setup:
+      timer:
+        c: null
+        b:
+          duration: '0:00:00.5'
+          restore: 'yes'
+          name: A b
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+  - call: timer.finish
+    data:
+      entity_id:
+      - timer.c
+  - call: timer.start
+    data:
+      entity_id: not an id
+  - call: timer.start
+    data:
+      entity_id: all
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration:
+        minutes: 1
+  - call: timer.pause
+    data:
+      entity_id: not an id
+  - advance: 1.5
+  - call: timer.finish
+    data:
+      entity_id: all
+  - call: timer.change
+    data:
+      entity_id: timer.b
+  - advance: 0.876545
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+- name: rnd_timer_s202_39
+  steps:
+  - setup:
+      timer:
+        b: {}
+        x1: {}
+  - advance: 86400
+  - advance: 3
+  - call: timer.pause
+    data:
+      entity_id: timer.x1
+  - advance: 0.876545
+  - advance: 60
+  - call: timer.start
+    data:
+      entity_id: null
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.x1
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: all
+      duration: 5
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+      duration:
+        seconds: -5
+  - advance: 60
+  - advance: 3600
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+      duration:
+        hours: 1
+        seconds: 1
+  - call: timer.change
+    data:
+      entity_id: timer.x1
+      duration: +0:00:03
+- name: rnd_timer_s202_40
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 00:05
+  - advance: 30
+  - advance: 0.876546
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: -0.5
+  - advance: 59
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: '00:00:10.250'
+  - call: timer.start
+    data:
+      entity_id: null
+  - call: timer.start
+    data:
+      entity_id: none
+      duration:
+        minutes: 0.5
+        seconds: 0.5
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: -3600
+  - call: timer.start
+    data:
+      entity_id: TIMER.C
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - advance: 3600
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: '-1:00:00'
+  - advance: 1.5
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 2.25
+- name: rnd_timer_s202_41
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 5
+          name: Name
+          bogus: 1
+        b:
+          icon: mdi:timer-outline
+    restore:
+    - - timer.c
+      - idle
+      - duration: 0:00:10
+    - - timer.b
+      - idle
+      - duration: 0:00:10
+        last_transition: started
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration:
+        seconds: '5'
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: all
+  - call: timer.change
+    data:
+      entity_id: null
+  - advance: 0.876543
+  - advance: 0.5
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: -0.5
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+  - advance: 1
+  - advance: 10
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration:
+        seconds: 2.5
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: {}
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: '25:00:00'
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: 59.9999995
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: timer.b
+- name: rnd_timer_s202_42
+  steps:
+  - setup:
+      timer:
+        x1:
+          duration: '24:00'
+          restore: true
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+      duration: 0:0:7
+  - advance: 3600
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+      bogus: 1
+  - call: timer.change
+    data: {}
+  - call: timer.change
+    data:
+      entity_id: timer.x1
+      duration: 90000
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+      duration: 0.5
+- name: rnd_timer_s202_43
+  steps:
+  - setup:
+      timer:
+        b:
+          restore: true
+          name: x_y
+          icon: nocolon
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: '0:00:00.5'
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.b
+      duration: '0:00:00.5'
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration:
+        days: 0
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - advance: 61
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - advance: 29
+  - advance: 30
+  - advance: 60
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: '24:00'
+  - advance: 0.876543
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: -1
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+- name: rnd_timer_s202_44
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: '100:00:00'
+  - advance: 0.5
+  - advance: 0.876546
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration:
+        seconds: 5
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - advance: 1
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration:
+        minutes: 0.5
+        seconds: 0.5
+- name: rnd_timer_s202_45
+  steps:
+  - setup:
+      timer:
+        long_name:
+          duration: 0
+          restore: true
+  - advance: 60
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration: 30
+  - call: timer.start
+    data:
+      entity_id: timer.missing
+      duration: 0:00:05
+  - call: timer.pause
+    data:
+      entity_id: all
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: 2.25
+  - call: timer.finish
+    data:
+      entity_id:
+      - timer.long_name
+- name: rnd_timer_s202_46
+  steps:
+  - setup:
+      timer:
+        a: {}
+    restore:
+    - - timer.a
+      - idle
+      - duration: 0:00:10
+        last_transition: cancelled
+  - advance: 5
+  - call: timer.cancel
+    data:
+      entity_id: timer.a
+  - advance: 1.0e-06
+  - call: timer.pause
+    data:
+      entity_id: timer.missing
+  - call: timer.cancel
+    data:
+      entity_id:
+      - timer.a
+  - call: timer.pause
+    data:
+      entity_id: timer.a
+  - advance: 2
+  - call: timer.finish
+    data:
+      entity_id: timer.a
+  - call: timer.start
+    data:
+      entity_id: timer.a
+      duration:
+        seconds: '5'
+  - advance: 2
+  - call: timer.cancel
+    data:
+      entity_id: timer.a
+- name: rnd_timer_s202_47
+  steps:
+  - setup:
+      timer:
+        z9_q: {}
+        a: null
+  - advance: 29
+  - advance: 0
+  - advance: 1.0e-06
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: -5
+  - advance: 0
+  - advance: 1.5
+- name: rnd_timer_s202_48
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 90000
+          name: Name
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+  - advance: 4
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      bogus: 1
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+  - advance: 0
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration:
+        minutes: 1
+  - advance: 60
+  - call: timer.pause
+    data:
+      entity_id: timer.missing
+  - advance: 1.5
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: '100:00:00'
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration:
+        seconds: 2.5
+- name: rnd_timer_s202_49
+  steps:
+  - setup:
+      timer:
+        a:
+          duration: 0.5
+    restore:
+    - - timer.a
+      - idle
+      - duration: 0:00:10
+        last_transition: cancelled
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration: '0:00:00.5'
+  - advance: 3
+  - call: timer.pause
+    data:
+      entity_id: timer.a
+  - call: timer.pause
+    data:
+      entity_id: timer.a
+  - call: timer.start
+    data:
+      entity_id: timer.a
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration:
+        hours: 100
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration: -90
+  - advance: 5
+  - call: timer.start
+    data:
+      entity_id: timer.a
+      duration: '100:00:00'
+- name: rnd_timer_s202_50
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: -5
+  - advance: 5
+  - call: timer.pause
+    data:
+      entity_id: timer.missing
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+  - advance: 29
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: -00:02
+  - call: timer.change
+    data:
+      entity_id: timer.b
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - advance: 10
+- name: rnd_timer_s202_51
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: '00:00:10.250'
+    restore:
+    - - timer.b
+      - idle
+      - duration: 0:00:10
+        last_transition: cancelled
+  - advance: 1
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: -0.5
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: '-1:00:00'
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: -5
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: 60
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.pause
+    data:
+      entity_id: timer.b
+  - advance: 3600
+  - advance: 59
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: timer.missing
+      duration: -0:00:05
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration:
+        hours: 1
+        seconds: 1
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+- name: rnd_timer_s202_52
+  steps:
+  - setup:
+      timer:
+        c:
+          duration:
+            seconds: '5'
+    restore:
+    - - timer.c
+      - idle
+      - duration: 0:00:10
+        last_transition: finished
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 10
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - advance: 86400
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 59.9999995
+  - advance: 3600
+  - advance: 2
+  - call: timer.start
+    data:
+      entity_id: all
+      duration:
+        milliseconds: 1500
+  - call: timer.start
+    data:
+      entity_id: all
+  - advance: 0
+  - advance: 31
+  - advance: 1
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: -0:00:05
+- name: rnd_timer_s202_53
+  steps:
+  - setup:
+      timer:
+        c:
+          duration:
+            minutes: 1
+          name: 42
+  - call: timer.change
+    data:
+      entity_id: timer.c
+  - advance: 30
+  - advance: 1
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: -00:02
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.c
+      duration: {}
+  - advance: 61
+  - advance: 3600
+  - advance: 0
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - advance: 29
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: timer.pause
+    data:
+      entity_id:
+      - timer.c
+  - advance: 1.5
+- name: rnd_timer_s202_54
+  steps:
+  - setup:
+      timer:
+        c: {}
+  - call: timer.nosuch
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: all
+      duration: +0:00:03
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - advance: 59
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - advance: 1.5
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration:
+        days: 0
+  - advance: 0.5
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: 0:00:0x1
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 0.5
+- name: rnd_timer_s202_55
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 60
+          icon: x:y
+  - advance: 1.0e-06
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - advance: 0.876546
+  - advance: 0.876546
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 10
+  - call: timer.start
+    data: {}
+  - call: timer.finish
+    data:
+      entity_id: all
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration:
+        hours: 100
+  - advance: 100000
+  - advance: 61
+  - advance: 86400
+- name: rnd_timer_s202_56
+  steps:
+  - setup:
+      timer:
+        z9_q:
+          duration: 0.999999
+    restore:
+    - - timer.z9_q
+      - idle
+      - duration: 0:00:10
+        last_transition: started
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+  - advance: 0.5
+  - call: timer.pause
+    data:
+      entity_id: timer.z9_q
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+  - call: timer.pause
+    data:
+      entity_id: timer.z9_q
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: 2.25
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+  - advance: 61
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration:
+        days: 1
+  - call: timer.start
+    data: {}
+  - advance: 1.5
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+      duration: 1.5
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: -0:00:05
+  - advance: 0
+  - advance: 5
+- name: rnd_timer_s202_57
+  steps:
+  - setup:
+      timer:
+        long_name:
+          duration:
+            seconds: '5'
+          icon: 5
+  - advance: 0.876545
+  - advance: 3
+  - call: timer.pause
+    data:
+      entity_id: timer.long_name
+  - advance: 2
+  - call: timer.pause
+    data:
+      entity_id: none
+  - call: timer.start
+    data:
+      entity_id: none
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration: 90
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+- name: rnd_timer_s202_58
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 60
+  - call: timer.cancel
+    data:
+      entity_id: TIMER.C
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - call: timer.pause
+    data:
+      entity_id: null
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: -0:00:05
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration:
+        minutes: 0.5
+        seconds: 0.5
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+      bogus: 1
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 3600
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: not an id
+  - call: timer.start
+    data:
+      entity_id: all
+  - advance: 0.876543
+  - advance: 60
+  - call: timer.start
+    data:
+      entity_id: not an id
+- name: rnd_timer_s202_59
+  steps:
+  - setup:
+      timer:
+        b: {}
+  - advance: 59
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration:
+        days: 1
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - advance: 0.5
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: -00:02
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: +0:00:03
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: TIMER.B
+  - advance: 1.0e-06
+  - advance: 1
+- name: rnd_timer_s202_60
+  steps:
+  - setup:
+      timer:
+        a:
+          duration:
+            hours: 1
+            seconds: 1
+          restore: true
+          name: 42
+        long_name:
+          duration:
+            seconds: 2.5
+          restore: true
+  - call: timer.finish
+    data:
+      entity_id: TIMER.LONG_NAME
+  - advance: 5
+  - call: timer.nosuch
+    data:
+      entity_id: timer.long_name
+  - call: timer.start
+    data:
+      entity_id: timer.a
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration: 90
+  - advance: 0.876543
+  - call: timer.pause
+    data:
+      entity_id: []
+  - call: timer.cancel
+    data:
+      entity_id: timer.a
+  - call: timer.start
+    data:
+      entity_id: timer.a
+  - call: timer.start
+    data:
+      entity_id: TIMER.LONG_NAME
+      duration: '-1:00:00'
+  - advance: 31
+  - call: timer.start
+    data:
+      entity_id: none
+  - call: timer.start
+    data: {}
+- name: rnd_timer_s202_61
+  steps:
+  - setup:
+      timer:
+        z9_q:
+          duration: '1.5'
+        long_name:
+          duration: 30
+          restore: true
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: -00:02
+  - call: timer.pause
+    data:
+      entity_id: timer.z9_q
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: -1
+  - advance: 31
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: '-0:00:00.5'
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration: '1:00:00'
+  - call: timer.pause
+    data:
+      entity_id: timer.long_name
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: 10
+  - advance: 1.5
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+      duration: 3600
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+  - call: timer.cancel
+    data:
+      entity_id: timer.long_name
+- name: rnd_timer_s202_62
+  steps:
+  - setup:
+      timer:
+        a:
+          duration: -5
+        z9_q:
+          restore: x
+    restore:
+    - - timer.z9_q
+      - idle
+      - duration: 0:00:10
+        last_transition: finished
+  - call: timer.pause
+    data:
+      entity_id: timer.a
+  - call: timer.finish
+    data:
+      entity_id: timer.a
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.a
+      duration: 60
+  - advance: 1.5
+  - call: timer.start
+    data:
+      entity_id: timer.a
+  - advance: 100000
+  - call: timer.finish
+    data:
+      entity_id: all
+- name: rnd_timer_s202_63
+  steps:
+  - setup:
+      timer:
+        x1:
+          duration: '0:00:00.5'
+        long_name: null
+    restore:
+    - - timer.long_name
+      - idle
+      - duration: 0:00:10
+  - call: timer.pause
+    data:
+      entity_id: timer.long_name
+  - call: timer.cancel
+    data:
+      entity_id: timer.x1
+  - call: timer.pause
+    data:
+      entity_id: timer.x1
+  - advance: 61
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+  - advance: 0
+  - advance: 1
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+  - call: timer.finish
+    data:
+      entity_id: timer.long_name
+  - call: timer.finish
+    data:
+      entity_id: timer.long_name
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+- name: rnd_timer_s202_64
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: '0:00:00.5'
+          name: x_y
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: -90
+  - advance: 0.5
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: '-1:00:00'
+  - call: timer.pause
+    data:
+      entity_id: null
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.cancel
+    data:
+      entity_id: timer.missing
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: -0.5
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.b
+      duration:
+        seconds: 2.5
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: null
+  - call: timer.pause
+    data:
+      entity_id: null
+  - call: timer.start
+    data:
+      entity_id: null
+  - advance: 0.876546
+- name: rnd_timer_s202_65
+  steps:
+  - setup:
+      timer:
+        x1:
+          duration: 59.9999995
+          restore: null
+        b:
+          duration:
+            seconds: '5'
+          restore: 'yes'
+          name: null
+          icon: 5
+          bogus: 1
+    restore:
+    - - timer.x1
+      - idle
+      - duration: 0:00:10
+        last_transition: cancelled
+  - advance: 86400
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.change
+    data:
+      entity_id: timer.x1
+  - advance: 86400
+  - advance: 3600
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: '1:00:00'
+- name: rnd_timer_s202_66
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: 1
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: 90
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration:
+        weeks: 2
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: 1.5
+  - advance: 0.5
+  - advance: 10
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: '100:00:00'
+- name: rnd_timer_s202_67
+  steps:
+  - setup:
+      timer:
+        z9_q: null
+  - advance: 5
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+      duration: '5'
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: -1
+  - advance: 0.876543
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+- name: rnd_timer_s202_68
+  steps:
+  - setup:
+      timer:
+        z9_q: {}
+    restore:
+    - - timer.z9_q
+      - idle
+      - duration: 0:00:10
+        last_transition: started
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration:
+        hours: 1
+        seconds: 1
+  - advance: 5
+  - advance: 5
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+  - call: timer.pause
+    data:
+      entity_id: timer.z9_q
+  - advance: 2
+  - advance: 0
+  - call: timer.start
+    data: {}
+  - advance: 2
+  - advance: 0
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      bogus: 1
+  - call: timer.finish
+    data:
+      entity_id: timer.z9_q
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration:
+        seconds: x
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+- name: rnd_timer_s202_69
+  steps:
+  - setup:
+      timer:
+        b: {}
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - advance: 1
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration:
+        seconds: '5'
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.b
+      duration: 2
+  - call: timer.change
+    data:
+      entity_id: timer.b
+      duration: 2.25
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+  - advance: 59
+  - call: timer.start
+    data:
+      entity_id: timer.b
+      duration: 2
+  - advance: 1.5
+  - call: timer.start
+    data:
+      entity_id: all
+      duration: true
+- name: rnd_timer_s202_70
+  steps:
+  - setup:
+      timer:
+        long_name:
+          duration: 86400
+          icon: x:y
+    restore:
+    - - timer.long_name
+      - idle
+      - duration: 0:00:10
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: -3600
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: 3600
+  - advance: 1.0e-06
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: -5
+  - advance: 0.876546
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration: 2.25
+  - call: timer.finish
+    data:
+      entity_id: timer.long_name
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration:
+        hours: 1
+        seconds: 1
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration: 30
+- name: rnd_timer_s202_71
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 0:0:7
+          restore: false
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+  - call: timer.pause
+    data:
+      entity_id: null
+  - advance: 4
+  - advance: 30
+  - advance: 0.876546
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration:
+        hours: 1
+        seconds: 1
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: 2
+  - call: timer.pause
+    data:
+      entity_id: timer.missing
+  - advance: 0.876546
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: 0:00:05
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 0:00:05
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: -5
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: timer.c
+- name: rnd_timer_s202_72
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 5
+          icon: 5
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 1.5
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: -0.5
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: -0.5
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.cancel
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: '-0:00:00.5'
+- name: rnd_timer_s202_73
+  steps:
+  - setup:
+      timer:
+        long_name: {}
+  - call: timer.change
+    data: {}
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration:
+        minutes: 1
+  - advance: 60
+  - call: timer.change
+    data:
+      entity_id: null
+  - advance: 61
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration: 30
+- name: rnd_timer_s202_74
+  steps:
+  - setup:
+      timer:
+        a:
+          duration:
+            secs: 5
+          icon: 5
+    restore:
+    - - timer.a
+      - idle
+      - duration: 0:00:10
+  - call: timer.start
+    data:
+      entity_id: timer.a
+      duration: -0.5
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration:
+        weeks: 2
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration: +0:00:03
+  - call: timer.pause
+    data:
+      entity_id: timer.a
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration:
+        seconds: 5
+  - call: timer.start
+    data:
+      entity_id: timer.a
+      duration: 10
+  - call: timer.change
+    data:
+      entity_id: timer.a
+      duration: 00:05
+  - call: timer.finish
+    data:
+      entity_id: timer.a
+- name: rnd_timer_s202_75
+  steps:
+  - setup:
+      timer:
+        z9_q: {}
+    restore:
+    - - timer.z9_q
+      - idle
+      - duration: 0:00:10
+        last_transition: weird
+  - call: timer.finish
+    data:
+      entity_id: timer.z9_q
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      bogus: 1
+  - advance: 0.876545
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: -90
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration:
+        days: 1
+- name: rnd_timer_s202_76
+  steps:
+  - setup:
+      timer:
+        long_name:
+          duration: -90
+          icon: nocolon
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: 0.5
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+  - call: timer.cancel
+    data:
+      entity_id: timer.long_name
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: 60
+  - call: timer.change
+    data:
+      entity_id: null
+  - call: timer.start
+    data:
+      entity_id: []
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      bogus: 1
+- name: rnd_timer_s202_77
+  steps:
+  - setup:
+      timer:
+        z9_q:
+          duration: -1
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+  - call: timer.pause
+    data: {}
+  - call: timer.start
+    data:
+      entity_id: none
+      duration:
+        days: 1
+  - call: timer.nosuch
+    data:
+      entity_id: timer.z9_q
+  - call: timer.cancel
+    data:
+      entity_id: timer.z9_q
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: 1:60
+  - advance: 5
+  - call: timer.pause
+    data:
+      entity_id: timer.z9_q
+  - call: timer.change
+    data:
+      entity_id: timer.z9_q
+      duration: '1.5'
+- name: rnd_timer_s202_78
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 0:5:5:5
+    restore:
+    - - timer.c
+      - idle
+      - duration: 0:00:10
+        last_transition: finished
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration: 2
+  - advance: 5
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - advance: 60
+  - call: timer.change
+    data:
+      entity_id: timer.c
+      duration:
+        days: 0
+- name: rnd_timer_s202_79
+  steps:
+  - setup:
+      timer:
+        z9_q:
+          duration: '-0:00:00.5'
+          restore: true
+          name: ''
+        long_name:
+          name: Name
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: '-1:00:00'
+  - advance: 0
+  - advance: 4
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration:
+        hours: 100
+  - advance: 0.876546
+  - advance: 10
+  - call: timer.change
+    data:
+      entity_id: timer.long_name
+      duration: -0.5

@@ -1,0 +1,42 @@
+diff --git a/HALean/Template/Syntax.lean b/HALean/Template/Syntax.lean
+index a2637a3..11c8204 100644
+--- a/HALean/Template/Syntax.lean
++++ b/HALean/Template/Syntax.lean
+@@ -558,15 +558,33 @@ inductive Stmt where
+   | brkS | contS
+   deriving Inhabited
+ 
++/-- An assignment target: `true`, `false`, `none` are constants ("can't assign to 'const'"). -/
++def targetName : PS String := do
++  let n ← expectName
++  if ["true", "false", "none", "True", "False", "None"].contains n then throw "can't assign to 'const'"
++  pure n
++
+ def parseTargets : PS (List String) := do
+-  let mut ts := #[← expectName]
+-  while ← isOp "," do advance; ts := ts.push (← expectName)
++  let mut ts := #[← targetName]
++  while ← isOp "," do advance; ts := ts.push (← targetName)
+   return ts.toList
+ 
++/-- `parse_tuple(with_condexpr=False)`: the test of `if` / `elif`. -/
++def parseTestTuple : PS Expr := do
++  let e ← parseExpr (withCond := false)
++  if !(← isOp ",") then return e
++  let mut xs := #[e]
++  while ← isOp "," do
++    advance
++    match ← peek with
++    | none => break
++    | _ => xs := xs.push (← parseExpr (withCond := false))
++  return .tuple xs.toList
++
+ def parseStmt (toks : List Tok) : P Stmt := do
+   match toks with
+-  | .name "if" :: rest => return .ifS (← runExpr parseTuple rest)
+-  | .name "elif" :: rest => return .elifS (← runExpr parseTuple rest)
++  | .name "if" :: rest => return .ifS (← runExpr parseTestTuple rest)
++  | .name "elif" :: rest => return .elifS (← runExpr parseTestTuple rest)
+   | [.name "else"] => return .elseS
+   | [.name "endif"] => return .endifS
+   | [.name "endfor"] => return .endforS

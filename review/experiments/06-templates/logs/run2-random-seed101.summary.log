@@ -1,0 +1,22 @@
+ERROR:homeassistant.helpers.template:Template variable error: 'int object' has no attribute 'get' when rendering '{# c #}{{ (60 | timestamp_utc(default=none)) }}{{- '' }}{% set v0 = ((-2.get('a', 0)) | string) %}{% if (states.binary_sensor.d.entity_id == 'light.b') %}{{ (states('binary_sensor.d') | int) }}{% endif %}'
+ERROR:homeassistant.helpers.template:Template variable error: 'homeassistant.util.read_only_dict.ReadOnlyDict object' has no attribute 'startswith' when rendering '{% for i0 in [none, (10000000000000000000000000 | round(1, 'ceil'))] %}{% if loop.last %}.{% endif %}{{ i0 }}{{ (states.group.g.attributes.startswith('Hello World')) }},{% endfor %}{{ {'c': ('1_000' | length), 1: dict(a=(as_timestamp('é', none) | iif(today_at(), utcnow())))} }}'
+ERROR:homeassistant.helpers.template:Template variable error: 'homeassistant.util.read_only_dict.ReadOnlyDict object' has no attribute 'startswith' when rendering '{% for i0 in [none, (10000000000000000000000000 | round(1, 'ceil'))] %}{% if loop.last %}.{% endif %}{{ i0 }}{{ (states.group.g.attributes.startswith('Hello World')) }},{% endfor %}{{ {'c': ('1_000' | length), 1: dict(a=(as_timestamp('é', none) | iif(today_at(), utcnow())))} }}'
+BATCH cases=3000 accepts=5 info=50 refuses_render=86 same=2815 silent=44
+1 passed, 9 warnings in 7.91s
+logs/run2-random-seed101.jsonl: cases=3000 failing=185 unclassified=0
+  TPL-2      10  dict keys: no dedup, no hash check
+  TPL-4      43  bool() of states objects; `if value:` guard of map/select
+  TPL-6       5  case-insensitive entity id lookup
+  TPL-9      21  Undefined inside a printed container
+  TPL-12      5  for-else after break/continue
+  TPL-25      7  zone database / DST (documented)
+  TPL-27      2  attribute / variable key order (documented)
+  TPL-37      1  uncaught HA errors treated as 'use default'
+  TPL-38      3  Jinja compile-time constant folding
+  TPL-40     11  Python methods / attributes / operators not modelled
+  TPL-41     18  argument forms not modelled
+  TPL-42      4  datetime methods and strftime directives not modelled
+  TPL-43      1  date strings only ciso8601 parses
+  TPL-44     50  printing objects
+  TPL-45      3  HA gives Undefined/default, HALean raises
+  TPL-46      1  documented render errors (non-ASCII case mapping)

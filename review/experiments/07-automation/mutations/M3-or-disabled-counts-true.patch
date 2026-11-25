@@ -1,0 +1,13 @@
+diff --git a/HALean/Automation/Condition.lean b/HALean/Automation/Condition.lean
+index 83c8737..79645d9 100644
+--- a/HALean/Automation/Condition.lean
++++ b/HALean/Automation/Condition.lean
+@@ -387,7 +387,7 @@ def evalOr (env : CondEnv) : List Condition → List String → CondResult
+   | [], errs => if errs.isEmpty then .ok (some false) else .err (String.intercalate "; " errs)
+   | c :: cs, errs =>
+     match evalCond env c with
+-    | .ok (some true) => .ok (some true)
++    | .ok (some true) | .ok none => .ok (some true)
+     | .ok _ => evalOr env cs errs
+     | .err e => evalOr env cs (errs ++ [e])
+ 

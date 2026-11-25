@@ -1,0 +1,263 @@
+......FF.....FF...F......FFFFFFFFF..........................FFF.....F..F [ 75%]
+F..FF.......F........F.                                                  [100%]
+=================================== FAILURES ===================================
+_____________________ test_states[attr_float_1e23_vs_int] ______________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 1: {'op': 'set', 'entity_id': 's.a', 'state': 'x', 'attributes': {'a': 1e+23}, 'now': '2026-11-20T16:31:00+00:00'}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 's.a', 'old_state': {'entity_id': 's.a', 'state': 'x', 'attributes': {'a': 100000000000000000000000}, 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}}, 'new_state': {'entity_id': 's.a', 'state': 'x', 'attributes': {'a': 1e+23}, 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:31:00+00:00', 'last_updated': '2026-11-20T16:31:00+00:00', 'context': {'id': 'ulid:1', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'ulid:1', 'parent_id': None, 'user_id': None}, 'time_fired': '2026-11-20T16:31:00+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'events': [{'context': {'id': 'ulid:1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'last_reported': '2026-11-20T16:31:00+00:00', 'new_state': {'attributes': {'a': 100000000000000000000000}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'entity_id': 's.a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:31:00+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'state': 'x'}, 'old_last_reported': '2026-11-20T16:30:45.123456+00:00'}, 'event_type': 'state_reported', 'origin': 'LOCAL', 'time_fired': '2026-11-20T16:31:00+00:00'}], 'result': None}
+E   assert {'events': [{...result': None} == {'events': [{...result': None}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'events': [{'context': {'id': 'ulid:1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'last_repor....}, 'old_last_reported': '2026-11-20T16:30:45.123456+00:00'}, 'event_type': 'state_reported', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'ulid:1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state'...a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', ...}}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}
+E     Use -v to get more diff
+___________________ test_states[attr_float_1e16_keeps_type] ____________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 's.a', 'state': 'x', 'attributes': {'a': 1e+16}}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 's.a', 'old_state': None, 'new_state': {'entity_id': 's.a', 'state': 'x', 'attributes': {'a': 1e+16}, 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'time_fired': '2026-11-20T16:30:45.123456+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'attributes': {'a': 10000000000000000}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'entity_id': 's.a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'state': 'x'}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2026-11-20T16:30:45.123456+00:00'}], 'result': None}
+E   assert {'events': [{...result': None} == {'events': [{...result': None}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state'... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state'... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}
+E     Use -v to get more diff
+______________________ test_states[attr_nan_is_not_json] _______________________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 's.a', 'state': 'x', 'attributes': {'a': nan}}
+E     HALean rejected it: offset 68: unexpected input
+E   assert 'unsupported' not in {'unsupported': 'offset 68: unexpected input'}
+____________________ test_states[attr_infinity_is_not_json] ____________________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 's.a', 'state': 'x', 'attributes': {'a': inf}}
+E     HALean rejected it: offset 68: unexpected input
+E   assert 'unsupported' not in {'unsupported': 'offset 68: unexpected input'}
+____________________ test_states[attr_float_2pow60_vs_int] _____________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 1: {'op': 'set', 'entity_id': 's.a', 'state': 'x', 'attributes': {'a': 1.152921504606847e+18}, 'now': '2026-11-20T16:31:00+00:00'}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_reported', 'data': {'entity_id': 's.a', 'last_reported': '2026-11-20T16:31:00+00:00', 'old_last_reported': '2026-11-20T16:30:45.123456+00:00', 'new_state': {'entity_id': 's.a', 'state': 'x', 'attributes': {'a': 1152921504606846976}, 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:31:00+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'ulid:1', 'parent_id': None, 'user_id': None}, 'time_fired': '2026-11-20T16:31:00+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'events': [{'context': {'id': 'ulid:1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'attributes': {'a': 1152921504606847000}, 'context': {'id': 'ulid:1', 'parent_id': None, 'user_id': None}, 'entity_id': 's.a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:31:00+00:00', 'last_updated': '2026-11-20T16:31:00+00:00', 'state': 'x'}, 'old_state': {'attributes': {'a': 1152921504606846976}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'entity_id': 's.a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'state': 'x'}}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2026-11-20T16:31:00+00:00'}], 'result': None}
+E   assert {'events': [{...result': None} == {'events': [{...result': None}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'events': [{'context': {'id': 'ulid:1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state'...a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', ...}}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'ulid:1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'last_repor....}, 'old_last_reported': '2026-11-20T16:30:45.123456+00:00'}, 'event_type': 'state_reported', 'origin': 'LOCAL', ...}]}
+E     Use -v to get more diff
+__________________ test_states[id_set_internal_unicode_digit] __________________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'set_internal', 'entity_id': 'sensor.x١', 'state': '1'}
+E     HALean rejected it: non-ASCII entity_id (Python's \d is Unicode-aware): sensor.x١
+E   assert 'unsupported' not in {'unsupported': "non-ASCII entity_id (Python's \\d is Unicode-aware): sensor.x١"}
+_____________ test_states[id_set_internal_fullwidth_digit_domain] ______________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'set_internal', 'entity_id': '１.a', 'state': '1'}
+E     HALean rejected it: non-ASCII entity_id (Python's \d is Unicode-aware): １.a
+E   assert 'unsupported' not in {'unsupported': "non-ASCII entity_id (Python's \\d is Unicode-aware): １.a"}
+________________ test_states[id_set_internal_non_ascii_letter] _________________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'set_internal', 'entity_id': 'sensor.é', 'state': '1'}
+E     HALean rejected it: non-ASCII entity_id (Python's \d is Unicode-aware): sensor.é
+E   assert 'unsupported' not in {'unsupported': "non-ASCII entity_id (Python's \\d is Unicode-aware): sensor.é"}
+________________________ test_states[id_non_ascii_set] _________________________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 'sensor.x١', 'state': '1'}
+E     HALean rejected it: non-ASCII entity_id (Python's str.lower() is Unicode-aware): sensor.x١
+E   assert 'unsupported' not in {'unsupported': "non-ASCII entity_id (Python's str.lower() is Unicode-aware): sensor.x١"}
+________________________ test_states[id_non_ascii_get] _________________________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'get', 'entity_id': 'sensor.é'}
+E     HALean rejected it: non-ASCII entity_id (Python's str.lower() is Unicode-aware): sensor.é
+E   assert 'unsupported' not in {'unsupported': "non-ASCII entity_id (Python's str.lower() is Unicode-aware): sensor.é"}
+______________________ test_states[id_non_ascii_is_state] ______________________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'is_state', 'entity_id': 'sensor.é', 'state': '1'}
+E     HALean rejected it: non-ASCII entity_id (Python's str.lower() is Unicode-aware): sensor.é
+E   assert 'unsupported' not in {'unsupported': "non-ASCII entity_id (Python's str.lower() is Unicode-aware): sensor.é"}
+_____________________ test_states[id_non_ascii_available] ______________________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'available', 'entity_id': 'sensor.é'}
+E     HALean rejected it: non-ASCII entity_id (Python's str.lower() is Unicode-aware): sensor.é
+E   assert 'unsupported' not in {'unsupported': "non-ASCII entity_id (Python's str.lower() is Unicode-aware): sensor.é"}
+_______________________ test_states[id_non_ascii_remove] _______________________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'remove', 'entity_id': 'sensor.é'}
+E     HALean rejected it: non-ASCII entity_id (Python's str.lower() is Unicode-aware): sensor.é
+E   assert 'unsupported' not in {'unsupported': "non-ASCII entity_id (Python's str.lower() is Unicode-aware): sensor.é"}
+_________________ test_states[id_non_ascii_domain_filter_str] __________________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'entity_ids', 'domain_filter': 'é'}
+E     HALean rejected it: non-ASCII domain (Python's str.lower() is Unicode-aware): é
+E   assert 'unsupported' not in {'unsupported': "non-ASCII domain (Python's str.lower() is Unicode-aware): é"}
+___________________ test_states[state_float_large_integral] ____________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 'sensor.a', 'state': 1e+16}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 'sensor.a', 'old_state': None, 'new_state': {'entity_id': 'sensor.a', 'state': '1e+16', 'attributes': {}, 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'time_fired': '2026-11-20T16:30:45.123456+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_state': {'attributes': {}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'entity_id': 'sensor.a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'state': '10000000000000000'}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2026-11-20T16:30:45.123456+00:00'}], 'result': None}
+E   assert {'events': [{...result': None} == {'events': [{...result': None}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_s... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_s... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}
+E     Use -v to get more diff
+________________________ test_states[state_float_huge] _________________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 'sensor.a', 'state': 1.5e+300}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 'sensor.a', 'old_state': None, 'new_state': {'entity_id': 'sensor.a', 'state': '1.5e+300', 'attributes': {}, 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'time_fired': '2026-11-20T16:30:45.123456+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'error': {'message': 'Invalid state with length 301. State max length is 255 characters.', 'type': 'InvalidStateError'}, 'events': []}
+E   assert {'error': {'m... 'events': []} == {'events': [{...result': None}
+E     
+E     Differing items:
+E     {'events': []} != {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_s... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}
+E     Left contains 1 more item:
+E     {'error': {'message': 'Invalid state with length 301. State max length is 255 '
+E                           'characters.',
+E                'type': 'InvalidStateError'}}...
+E     
+E     ...Full output truncated (3 lines hidden), use '-vv' to show
+____________________ test_states[state_float_negative_zero] ____________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 'sensor.a', 'state': -0.0}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 'sensor.a', 'old_state': None, 'new_state': {'entity_id': 'sensor.a', 'state': '-0.0', 'attributes': {}, 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'time_fired': '2026-11-20T16:30:45.123456+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_state': {'attributes': {}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'entity_id': 'sensor.a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'state': '0.0'}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2026-11-20T16:30:45.123456+00:00'}], 'result': None}
+E   assert {'events': [{...result': None} == {'events': [{...result': None}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_s... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_s... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}
+E     Use -v to get more diff
+____________________ test_states[state_dict_repr_key_order] ____________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 'sensor.a', 'state': {'b': 1, 'a': 2}}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 'sensor.a', 'old_state': None, 'new_state': {'entity_id': 'sensor.a', 'state': "{'b': 1, 'a': 2}", 'attributes': {}, 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'time_fired': '2026-11-20T16:30:45.123456+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_state': {'attributes': {}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'entity_id': 'sensor.a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'state': "{'a': 2, 'b': 1}"}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2026-11-20T16:30:45.123456+00:00'}], 'result': None}
+E   assert {'events': [{...result': None} == {'events': [{...result': None}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_s... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_s... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}
+E     Use -v to get more diff
+_______________ test_states[state_repr_non_ascii_non_printable] ________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 'sensor.a', 'state': ['\u200b']}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 'sensor.a', 'old_state': None, 'new_state': {'entity_id': 'sensor.a', 'state': "['\\u200b']", 'attributes': {}, 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'time_fired': '2026-11-20T16:30:45.123456+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_state': {'attributes': {}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'entity_id': 'sensor.a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'state': "['\u200b']"}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2026-11-20T16:30:45.123456+00:00'}], 'result': None}
+E   assert {'events': [{...result': None} == {'events': [{...result': None}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_s... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_s... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}
+E     Use -v to get more diff
+_________________ test_states[state_repr_nbsp_and_private_use] _________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 'sensor.a', 'state': ['\xa0', '\xad', '\ue000', '\u2028', '\x80', '\x9f']}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 'sensor.a', 'old_state': None, 'new_state': {'entity_id': 'sensor.a', 'state': "['\\xa0', '\\xad', '\\ue000', '\\u2028', '\\x80', '\\x9f']", 'attributes': {}, 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'time_fired': '2026-11-20T16:30:45.123456+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_state': {'attributes': {}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'entity_id': 'sensor.a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'state': "['\xa0', '\xad', '\ue000', '\u2028', '\x80', '\x9f']"}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2026-11-20T16:30:45.123456+00:00'}], 'result': None}
+E   assert {'events': [{...result': None} == {'events': [{...result': None}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_s... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.a', 'new_s... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}
+E     Use -v to get more diff
+______________________ test_states[state_lone_surrogate] _______________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 's.a', 'state': 'a\ud800b'}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 's.a', 'old_state': None, 'new_state': {'entity_id': 's.a', 'state': 'a\ud800b', 'attributes': {}, 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'time_fired': '2026-11-20T16:30:45.123456+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'attributes': {}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'entity_id': 's.a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'state': 'a�b'}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2026-11-20T16:30:45.123456+00:00'}], 'result': None}
+E   assert {'events': [{...result': None} == {'events': [{...result': None}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state'... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state'... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}
+E     Use -v to get more diff
+___________________ test_states[attr_lone_surrogates_differ] ___________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 's.a', 'state': 'x', 'attributes': {'a': '\ud800'}}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 's.a', 'old_state': None, 'new_state': {'entity_id': 's.a', 'state': 'x', 'attributes': {'a': '\ud800'}, 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'time_fired': '2026-11-20T16:30:45.123456+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'attributes': {'a': '�'}, 'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'entity_id': 's.a', 'last_changed': '2026-11-20T16:30:45.123456+00:00', 'last_reported': '2026-11-20T16:30:45.123456+00:00', 'last_updated': '2026-11-20T16:30:45.123456+00:00', 'state': 'x'}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2026-11-20T16:30:45.123456+00:00'}], 'result': None}
+E   assert {'events': [{...result': None} == {'events': [{...result': None}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state'... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'ulid:0', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state'... '2026-11-20T16:30:45.123456+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}
+E     Use -v to get more diff
+_________________ test_states[time_year_2300_float_resolution] _________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 's.a', 'state': 'x', 'now': '2300-01-01T00:00:00.000001+00:00', 'context': {'id': 'c1'}}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 's.a', 'old_state': None, 'new_state': {'entity_id': 's.a', 'state': 'x', 'attributes': {}, 'last_changed': '2300-01-01T00:00:00+00:00', 'last_reported': '2300-01-01T00:00:00+00:00', 'last_updated': '2300-01-01T00:00:00+00:00', 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'time_fired': '2300-01-01T00:00:00+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'attributes': {}, 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'entity_id': 's.a', 'last_changed': '2300-01-01T00:00:00.000001+00:00', 'last_reported': '2300-01-01T00:00:00.000001+00:00', 'last_updated': '2300-01-01T00:00:00.000001+00:00', 'state': 'x'}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2300-01-01T00:00:00.000001+00:00'}], 'result': None}
+E   assert {'events': [{...result': None} == {'events': [{...result': None}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'... '2300-01-01T00:00:00.000001+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'...anged': '2300-01-01T00:00:00+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}
+E     Use -v to get more diff
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task finished name='Task-678' coro=<test_states() done, defined at /home/user/halean/review/experiments/03-core-states-bus/harness/test_states.py:178> exception=AssertionError("op 0: {'op': 'set', 'entity_id': 's.a', 'state': 'x', 'now': '2300-01-01T00:00:00.000001+00:00', 'context': {'id': 'c1'}}\n  HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 's.a', 'old_state': None, 'new_state': {'entity_id': 's.a', 'state': 'x', 'attributes': {}, 'last_changed': '2300-01-01T00:00:00+00:00', 'last_reported': '2300-01-01T00:00:00+00:00', 'last_updated': '2300-01-01T00:00:00+00:00', 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'time_fired': '2300-01-01T00:00:00+00:00', 'origin': 'LOCAL'}]}\n  HALean: {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'attributes': {}, 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'entity_id': 's.a', 'last_changed': '2300-01-01T00:00:00.000001+00:00', 'last_reported': '2300-01-01T00:00:00.000001+00:00', 'last_updated': '2300-01-01T00:00:00.000001+00:00', 'state': 'x'}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2300-01-01T00:00:00.000001+00:00'}], 'result': None}\nassert {'events': [{...result': None} == {'events': [{...result': None}\n  \n  Omitting 1 identical items, use -vv to show\n  Differing items:\n  {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'... '2300-01-01T00:00:00.000001+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'...anged': '2300-01-01T00:00:00+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}\n  Use -v to get more diff") created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 8618169952.952 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task finished name='Task-678' coro=<test_states() done, defined at /home/user/halean/review/experiments/03-core-states-bus/harness/test_states.py:178> exception=AssertionError("op 0: {'op': 'set', 'entity_id': 's.a', 'state': 'x', 'now': '2300-01-01T00:00:00.000001+00:00', 'context': {'id': 'c1'}}\n  HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 's.a', 'old_state': None, 'new_state': {'entity_id': 's.a', 'state': 'x', 'attributes': {}, 'last_changed': '2300-01-01T00:00:00+00:00', 'last_reported': '2300-01-01T00:00:00+00:00', 'last_updated': '2300-01-01T00:00:00+00:00', 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'time_fired': '2300-01-01T00:00:00+00:00', 'origin': 'LOCAL'}]}\n  HALean: {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'attributes': {}, 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'entity_id': 's.a', 'last_changed': '2300-01-01T00:00:00.000001+00:00', 'last_reported': '2300-01-01T00:00:00.000001+00:00', 'last_updated': '2300-01-01T00:00:00.000001+00:00', 'state': 'x'}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2300-01-01T00:00:00.000001+00:00'}], 'result': None}\nassert {'events': [{...result': None} == {'events': [{...result': None}\n  \n  Omitting 1 identical items, use -vv to show\n  Differing items:\n  {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'... '2300-01-01T00:00:00.000001+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'...anged': '2300-01-01T00:00:00+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}\n  Use -v to get more diff") created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 8618169952.952 seconds
+_________________ test_states[time_just_after_2pow33_seconds] __________________
+test_states.py:215: in test_states
+    assert _typed(lean) == _typed(ha), f"{where}\nHA:     {ha}\nHALean: {lean}"
+E   AssertionError: op 0: {'op': 'set', 'entity_id': 's.a', 'state': 'x', 'now': '2242-03-16T12:56:32.000001+00:00', 'context': {'id': 'c1'}}
+E     HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 's.a', 'old_state': None, 'new_state': {'entity_id': 's.a', 'state': 'x', 'attributes': {}, 'last_changed': '2242-03-16T12:56:32.000002+00:00', 'last_reported': '2242-03-16T12:56:32.000002+00:00', 'last_updated': '2242-03-16T12:56:32.000002+00:00', 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'time_fired': '2242-03-16T12:56:32.000002+00:00', 'origin': 'LOCAL'}]}
+E     HALean: {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'attributes': {}, 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'entity_id': 's.a', 'last_changed': '2242-03-16T12:56:32.000001+00:00', 'last_reported': '2242-03-16T12:56:32.000001+00:00', 'last_updated': '2242-03-16T12:56:32.000001+00:00', 'state': 'x'}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2242-03-16T12:56:32.000001+00:00'}], 'result': None}
+E   assert {'events': [{...result': None} == {'events': [{...result': None}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'... '2242-03-16T12:56:32.000001+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'... '2242-03-16T12:56:32.000002+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}
+E     Use -v to get more diff
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task finished name='Task-750' coro=<test_states() done, defined at /home/user/halean/review/experiments/03-core-states-bus/harness/test_states.py:178> exception=AssertionError("op 0: {'op': 'set', 'entity_id': 's.a', 'state': 'x', 'now': '2242-03-16T12:56:32.000001+00:00', 'context': {'id': 'c1'}}\n  HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 's.a', 'old_state': None, 'new_state': {'entity_id': 's.a', 'state': 'x', 'attributes': {}, 'last_changed': '2242-03-16T12:56:32.000002+00:00', 'last_reported': '2242-03-16T12:56:32.000002+00:00', 'last_updated': '2242-03-16T12:56:32.000002+00:00', 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'time_fired': '2242-03-16T12:56:32.000002+00:00', 'origin': 'LOCAL'}]}\n  HALean: {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'attributes': {}, 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'entity_id': 's.a', 'last_changed': '2242-03-16T12:56:32.000001+00:00', 'last_reported': '2242-03-16T12:56:32.000001+00:00', 'last_updated': '2242-03-16T12:56:32.000001+00:00', 'state': 'x'}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2242-03-16T12:56:32.000001+00:00'}], 'result': None}\nassert {'events': [{...result': None} == {'events': [{...result': None}\n  \n  Omitting 1 identical items, use -vv to show\n  Differing items:\n  {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'... '2242-03-16T12:56:32.000001+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'... '2242-03-16T12:56:32.000002+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}\n  Use -v to get more diff") created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 6794312544.017 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task finished name='Task-750' coro=<test_states() done, defined at /home/user/halean/review/experiments/03-core-states-bus/harness/test_states.py:178> exception=AssertionError("op 0: {'op': 'set', 'entity_id': 's.a', 'state': 'x', 'now': '2242-03-16T12:56:32.000001+00:00', 'context': {'id': 'c1'}}\n  HA:     {'result': None, 'events': [{'event_type': 'state_changed', 'data': {'entity_id': 's.a', 'old_state': None, 'new_state': {'entity_id': 's.a', 'state': 'x', 'attributes': {}, 'last_changed': '2242-03-16T12:56:32.000002+00:00', 'last_reported': '2242-03-16T12:56:32.000002+00:00', 'last_updated': '2242-03-16T12:56:32.000002+00:00', 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}}}, 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'time_fired': '2242-03-16T12:56:32.000002+00:00', 'origin': 'LOCAL'}]}\n  HALean: {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'attributes': {}, 'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'entity_id': 's.a', 'last_changed': '2242-03-16T12:56:32.000001+00:00', 'last_reported': '2242-03-16T12:56:32.000001+00:00', 'last_updated': '2242-03-16T12:56:32.000001+00:00', 'state': 'x'}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2242-03-16T12:56:32.000001+00:00'}], 'result': None}\nassert {'events': [{...result': None} == {'events': [{...result': None}\n  \n  Omitting 1 identical items, use -vv to show\n  Differing items:\n  {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'... '2242-03-16T12:56:32.000001+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]} != {'events': [{'context': {'id': 'c1', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 's.a', 'new_state': {'... '2242-03-16T12:56:32.000002+00:00', ...}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', ...}]}\n  Use -v to get more diff") created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 6794312544.017 seconds
+=========================== short test summary info ============================
+FAILED test_states.py::test_states[attr_float_1e23_vs_int] - AssertionError: ...
+FAILED test_states.py::test_states[attr_float_1e16_keeps_type] - AssertionErr...
+FAILED test_states.py::test_states[attr_nan_is_not_json] - AssertionError: op...
+FAILED test_states.py::test_states[attr_infinity_is_not_json] - AssertionErro...
+FAILED test_states.py::test_states[attr_float_2pow60_vs_int] - AssertionError...
+FAILED test_states.py::test_states[id_set_internal_unicode_digit] - Assertion...
+FAILED test_states.py::test_states[id_set_internal_fullwidth_digit_domain] - ...
+FAILED test_states.py::test_states[id_set_internal_non_ascii_letter] - Assert...
+FAILED test_states.py::test_states[id_non_ascii_set] - AssertionError: op 0: ...
+FAILED test_states.py::test_states[id_non_ascii_get] - AssertionError: op 0: ...
+FAILED test_states.py::test_states[id_non_ascii_is_state] - AssertionError: o...
+FAILED test_states.py::test_states[id_non_ascii_available] - AssertionError: ...
+FAILED test_states.py::test_states[id_non_ascii_remove] - AssertionError: op ...
+FAILED test_states.py::test_states[id_non_ascii_domain_filter_str] - Assertio...
+FAILED test_states.py::test_states[state_float_large_integral] - AssertionErr...
+FAILED test_states.py::test_states[state_float_huge] - AssertionError: op 0: ...
+FAILED test_states.py::test_states[state_float_negative_zero] - AssertionErro...
+FAILED test_states.py::test_states[state_dict_repr_key_order] - AssertionErro...
+FAILED test_states.py::test_states[state_repr_non_ascii_non_printable] - Asse...
+FAILED test_states.py::test_states[state_repr_nbsp_and_private_use] - Asserti...
+FAILED test_states.py::test_states[state_lone_surrogate] - AssertionError: op...
+FAILED test_states.py::test_states[attr_lone_surrogates_differ] - AssertionEr...
+FAILED test_states.py::test_states[time_year_2300_float_resolution] - Asserti...
+FAILED test_states.py::test_states[time_just_after_2pow33_seconds] - Assertio...
+24 failed, 71 passed in 8.94s

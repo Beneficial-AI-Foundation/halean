@@ -1,0 +1,130 @@
+description: random scenario seed=101 index=1
+scripts:
+  s0:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s3'') }}'
+        cur: '{{ state_attr(''script.s3'', ''current'') }}'
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+      response_variable: r
+  s2:
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - stop: bad
+      error: true
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s3:
+    alias: Script 3 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s3.4
+        v: '{{ v | default(0) }}'
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - event: mark
+      event_data:
+        id: s3.5
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - repeat:
+        count: 2
+        sequence:
+        - action: script.s1
+          data:
+            v: '{{ v | default(0) + 1 }}'
+        - delay: 3
+steps:
+- at: 1
+  call: s2
+  data:
+    v: 0
+- at: 1
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+- at: 2
+  call: s3
+  data:
+    v: 1
+- at: 3
+  call: toggle
+  data:
+    entity_id:
+    - script.s3
+- at: 6
+  result: 1
+  response:
+    n: 1
+- at: 6
+  call: s2
+- at: 8
+  call: s3
+  data:
+    v: 1
+- at: 11
+  call: s1
+- at: 12
+  result: 0
+  response:
+    n: 0
+- at: 15
+  result: 2
+  ok: false
+  error_kind: other
+- at: 16
+  call: s2
+  return_response: true
+- at: 18
+  call: s1
+  data:
+    v: 2
+  return_response: true
+- at: 21
+- at: 22
+- at: 23
+  call: turn_off
+  data:
+    entity_id: all
+- at: 23
+  result: 3
+  ok: false
+  error_kind: other

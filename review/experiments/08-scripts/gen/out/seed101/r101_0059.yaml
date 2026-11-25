@@ -1,0 +1,108 @@
+description: random scenario seed=101 index=59
+scripts:
+  s0:
+    icon: mdi:script
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - delay: 1
+  s1:
+    alias: Script 1 A
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s3'') }}'
+        cur: '{{ state_attr(''script.s3'', ''current'') }}'
+    - event: mark
+      event_data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - event: mark
+      event_data:
+        id: s1.4
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+  s2:
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s2'') }}'
+        cur: '{{ state_attr(''script.s2'', ''current'') }}'
+    - delay: 2
+  s3:
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - variables:
+        out:
+          id: s3.6
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+steps:
+- at: 3
+  call: s0
+  data:
+    v: 1
+  return_response: true
+- at: 5
+  call: s2
+  data:
+    v: 0
+- at: 7
+  call: s2
+  data:
+    v: 1
+- at: 7
+  call: s0
+  data:
+    v: 4
+- at: 10
+  call: s0
+  data:
+    v: 1
+  return_response: true
+- at: 11
+  call: s0
+  return_response: true
+- at: 14
+  call: s3
+- at: 15
+  call: turn_off
+  data:
+    entity_id:
+    - script.s0
+    - script.s2
+- at: 16

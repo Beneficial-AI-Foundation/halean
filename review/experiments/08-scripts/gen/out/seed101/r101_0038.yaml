@@ -1,0 +1,175 @@
+description: random scenario seed=101 index=38
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - stop: bad
+      error: true
+  s1:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+  s2:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - stop: bad
+      error: true
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+  s3:
+    alias: Script 3 A
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s4
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+  s4:
+    alias: Script 4 A
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: test.m
+      data:
+        id: s4.4
+        v: '{{ v | default(0) }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+steps:
+- at: 1
+  call: turn_on
+  data:
+    entity_id:
+    - script.s3
+    - script.s0
+- at: 3
+  call: s0
+  data:
+    v: 2
+  return_response: true
+- at: 4
+  result: 0
+  response:
+    n: 0
+- at: 5
+  result: 1
+  response:
+    n: 1
+- at: 5
+  call: s0
+  data:
+    v: 4
+- at: 5
+  reload:
+    s0:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - stop: bad
+        error: true
+    s1:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: test.m
+        data:
+          id: s1.5
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+    s2:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - stop: bad
+        error: true
+      - event: mark
+        event_data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+    s3:
+      alias: Script 3 A
+      mode: parallel
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s4
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+    s4:
+      alias: Script 4 A
+      mode: queued
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: test.m
+        data:
+          id: s4.4
+          v: '{{ v | default(0) }}'
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+- at: 8
+  call: s1
+  data:
+    v: 2
+- at: 9
+  result: 2
+  ok: false
+  error_kind: ha_error
+- at: 10
+  call: s2
+  return_response: true

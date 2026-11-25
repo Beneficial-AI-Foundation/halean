@@ -1,20 +1,23 @@
-# time_pattern values go through int(): "05", " 25 ", "+25" and 25.0 are all valid
+# time_pattern values go through int(): "025", " 26 ", "+27" and 28.0 are all valid (one second per automation)
 automations:
   - alias: lead0
     triggers: [{trigger: time_pattern, seconds: "025"}]
     actions: [{event: m_lead0}]
   - alias: spaces
-    triggers: [{trigger: time_pattern, seconds: " 25 "}]
+    triggers: [{trigger: time_pattern, seconds: " 26 "}]
     actions: [{event: m_spaces}]
   - alias: plus
-    triggers: [{trigger: time_pattern, seconds: "+25"}]
+    triggers: [{trigger: time_pattern, seconds: "+27"}]
     actions: [{event: m_plus}]
   - alias: float
-    triggers: [{trigger: time_pattern, seconds: 25.0}]
+    triggers: [{trigger: time_pattern, seconds: 28.0}]
     actions: [{event: m_float}]
   - alias: int
-    triggers: [{trigger: time_pattern, seconds: 25}]
+    triggers: [{trigger: time_pattern, seconds: 29}]
     actions: [{event: m_int}]
 steps:
   - {at: 5, send: {type: event, event_type: tick}}
   - {at: 6, send: {type: event, event_type: tick}}
+  - {at: 7, send: {type: event, event_type: tick}}
+  - {at: 8, send: {type: event, event_type: tick}}
+  - {at: 9, send: {type: event, event_type: tick}}

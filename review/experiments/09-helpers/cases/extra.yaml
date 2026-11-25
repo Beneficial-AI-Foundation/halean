@@ -1,0 +1,103 @@
+# entity id forms, quoting in repr(), big integers, more timer durations.
+- name: hw_x_eid_forms
+  steps:
+    - setup: {counter: {a: {}, b: {}}}
+    - call: counter.increment
+      data: {entity_id: [5]}
+    - call: counter.increment
+      data: {entity_id: [[counter.a]]}
+    - call: counter.increment
+      data: {entity_id: {counter.a: 1}}
+    - call: counter.increment
+      data: {entity_id: [counter.a, COUNTER.A]}
+    - call: counter.increment
+      data: {entity_id: "counter.a,counter.a"}
+    - call: counter.increment
+      data: {entity_id: true}
+    - call: counter.increment
+      data: {entity_id: 1.5}
+    - call: counter.increment
+      data: {entity_id: "all "}
+    - call: counter.increment
+      data: {entity_id: [all]}
+    - call: counter.increment
+      data: {entity_id: "counter.a", device_id: none, area_id: [], label_id: none, floor_id: none}
+    - call: counter.increment
+      data: {device_id: 5}
+    - call: counter.increment
+      data: {entity_id: counter.a, device_id: [1]}
+- name: hw_x_eid_uuid
+  steps:
+    - setup: {counter: {a: {}}}
+    - call: counter.increment
+      data: {entity_id: "0123456789abcdef0123456789abcdef"}
+- name: hw_x_eid_dots
+  steps:
+    - setup: {counter: {a: {}}}
+    - call: counter.increment
+      data: {entity_id: "counter.a.b"}
+    - call: counter.increment
+      data: {entity_id: "counter."}
+    - call: counter.increment
+      data: {entity_id: ".a"}
+    - call: counter.increment
+      data: {entity_id: "counter.a_"}
+    - call: counter.increment
+      data: {entity_id: "counter.a__b"}
+    - call: counter.increment
+      data: {entity_id: "counter.a-b"}
+- name: hw_x_text_ctrl
+  steps:
+    - setup: {input_text: {a: {name: "n\x01\x7f", initial: "v\x00\x1b"}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "back\\slash 'q' \"dq\""}
+- name: hw_x_select_quotes
+  steps:
+    - setup: {input_select: {a: {options: ["'", "\"", "'\"", "\\", "\x7f"]}}}
+    - call: input_select.select_last
+      data: {entity_id: input_select.a}
+- name: hw_x_counter_step_big
+  steps:
+    - setup: {counter: {a: {step: 9223372036854775808, initial: -9223372036854775809, minimum: -1e30}}}
+    - call: counter.increment
+      data: {entity_id: counter.a}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: -18446744073709551616}
+- name: hw_x_number_initial_eq_bounds
+  steps:
+    - setup: {input_number: {a: {min: 0.1, max: 0.3, initial: 0.30000000000000004}}}
+- name: hw_x_number_step_gt_range
+  steps:
+    - setup: {input_number: {a: {min: 1, max: 2, step: 1e300, initial: 1.5}}}
+    - call: input_number.decrement
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+- name: hw_x_timer_dict_all_keys
+  steps:
+    - setup: {timer: {a: {duration: {weeks: 1, days: 1, hours: 1, minutes: 1, seconds: 1, milliseconds: 1}}}}
+    - call: timer.start
+      data: {entity_id: timer.a, duration: {milliseconds: 1}}
+    - call: timer.pause
+      data: {entity_id: timer.a}
+    - call: timer.start
+      data: {entity_id: timer.a}
+- name: hw_x_timer_dict_microseconds
+  steps:
+    - setup: {timer: {a: {duration: {microseconds: 5}}}}
+- name: hw_x_timer_str_ws
+  steps:
+    - setup: {timer: {a: {duration: "1:00"}, b: {duration: "0:00:5.5"}, c: {duration: "00:00:00.0000001"}, d: {duration: "-0:00"}}}
+- name: hw_x_timer_neg_dict
+  steps:
+    - setup: {timer: {a: {duration: {hours: -1, minutes: 30}}}}
+    - call: timer.start
+      data: {entity_id: timer.a}
+- name: hw_x_restore_attr_types
+  steps:
+    - setup: {input_boolean: {a: null}}
+      restore: [[input_boolean.a, "on", {x: [1, {y: null}], z: 1.5}]]
+- name: hw_x_nbsp_option_repr
+  # documented (README line 349): repr() of a non-printable non-ASCII character
+  steps:
+    - setup: {input_select: {a: {options: ["a\u00a0b"]}}}

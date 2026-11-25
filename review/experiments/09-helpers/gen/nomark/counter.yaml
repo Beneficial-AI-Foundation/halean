@@ -1,0 +1,182 @@
+# counter: config, clamping, set_value errors, restore.
+- name: hw_c_config_coercions
+  steps:
+    - setup: {counter: {a: {initial: "5", step: "2", minimum: 1.9, maximum: " 9 "}, b: {initial: 5.7, step: 2.5}, c: {initial: true, restore: "no"}, d: null, e: {}}}
+    - call: counter.increment
+      data: {entity_id: counter.a}
+    - call: counter.increment
+      data: {entity_id: counter.b}
+- name: hw_c_config_bad_initial
+  steps:
+    - setup: {counter: {a: {initial: "5.7"}}}
+- name: hw_c_config_initial_none
+  steps:
+    - setup: {counter: {a: {initial: null}}}
+- name: hw_c_config_negative_step
+  steps:
+    - setup: {counter: {a: {step: -1}}}
+- name: hw_c_config_bad_restore
+  steps:
+    - setup: {counter: {a: {restore: 2}}}
+- name: hw_c_config_bad_maximum
+  steps:
+    - setup: {counter: {a: {maximum: high}}}
+- name: hw_c_config_extra
+  steps:
+    - setup: {counter: {a: {min: 1}}}
+- name: hw_c_config_initial_inf
+  steps:
+    - setup: {counter: {a: {initial: "inf"}}}
+- name: hw_c_config_false_value
+  steps:
+    - setup: {counter: {a: false}}
+- name: hw_c_min_gt_max
+  steps:
+    - setup: {counter: {a: {minimum: 10, maximum: 5, initial: 7}}}
+    - call: counter.increment
+      data: {entity_id: counter.a}
+    - call: counter.decrement
+      data: {entity_id: counter.a}
+    - call: counter.reset
+      data: {entity_id: counter.a}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: 7}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: 11}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: 4}
+- name: hw_c_initial_outside_bounds
+  steps:
+    - setup: {counter: {a: {minimum: 0, maximum: 5, initial: 99, step: 3}}}
+    - call: counter.reset
+      data: {entity_id: counter.a}
+    - call: counter.decrement
+      data: {entity_id: counter.a}
+    - call: counter.decrement
+      data: {entity_id: counter.a}
+    - call: counter.decrement
+      data: {entity_id: counter.a}
+    - call: counter.reset
+      data: {entity_id: counter.a}
+- name: hw_c_set_value_step
+  steps:
+    - setup: {counter: {a: {step: 3, initial: 1}, z: {step: 0}}}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: -3}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: -4}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: 0}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: "9"}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: 9.9}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: "9.0"}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: true}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: null}
+    - call: counter.set_value
+      data: {entity_id: counter.a}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: " -6 "}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: "1_2"}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: "0x12"}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: 1e30}
+    - call: counter.set_value
+      data: {entity_id: counter.z, value: 5}
+    - call: counter.set_value
+      data: {entity_id: counter.z, value: 0}
+    - call: counter.increment
+      data: {entity_id: counter.z}
+- name: hw_c_set_value_inf
+  steps:
+    - setup: {counter: {a: {}}}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: "inf"}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: "nan"}
+- name: hw_c_set_value_float_overflow
+  steps:
+    - setup: {counter: {a: {}}}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: 1e400}
+- name: hw_c_set_value_bounds
+  steps:
+    - setup: {counter: {a: {minimum: -4, maximum: 4, step: 2}}}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: 5}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: 6}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: -5}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: 3}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: -4}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: -4}
+- name: hw_c_huge_values
+  steps:
+    - setup: {counter: {a: {initial: 99999999999999999999999999999999999999, step: 100000000000000000000}}}
+    - call: counter.increment
+      data: {entity_id: counter.a}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: -300000000000000000000}
+- name: hw_c_state_too_long
+  steps:
+    - setup: {counter: {a: {step: 1}}}
+    - call: counter.set_value
+      data: {entity_id: counter.a, value: "1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"}
+    - call: counter.increment
+      data: {entity_id: counter.a}
+- name: hw_c_restore_forms
+  steps:
+    - setup:
+        counter:
+          a: {}
+          b: {minimum: 0, maximum: 10}
+          c: {restore: false, initial: 3}
+          d: {initial: 3}
+          e: {}
+          f: {}
+          g: {maximum: 5}
+      restore:
+        - [counter.a, "42", {}]
+        - [counter.b, "42", {}]
+        - [counter.c, "42", {}]
+        - [counter.e, " -7 ", {}]
+        - [counter.f, "1_000", {}]
+        - [counter.g, "+0009", {initial: 77, step: 5}]
+- name: hw_c_restore_unknown
+  steps:
+    - setup: {counter: {a: {}}}
+      restore: [[counter.a, "unknown", {}]]
+- name: hw_c_restore_float_string
+  steps:
+    - setup: {counter: {a: {}}}
+      restore: [[counter.a, "4.0", {}]]
+- name: hw_c_restore_arabic_digits
+  steps:
+    - setup: {counter: {a: {}}}
+      restore: [[counter.a, "٤٢", {}]]
+- name: hw_c_reload_not_found
+  steps:
+    - setup: {counter: {a: {}}}
+    - call: counter.reload
+      data: {}
+    - call: counter.configure
+      data: {entity_id: counter.a, step: 2}
+- name: hw_c_all_and_multi
+  steps:
+    - setup: {counter: {a: {}, b: {initial: 5}}}
+    - call: counter.increment
+      data: {entity_id: all}
+    - call: counter.increment
+      data: {entity_id: [counter.a, counter.b]}
+    - call: counter.reset
+      data: {entity_id: [counter.b, counter.nope]}

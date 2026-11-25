@@ -1,0 +1,121 @@
+description: random scenario seed=101 index=73
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+  s1:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s3'') }}'
+        cur: '{{ state_attr(''script.s3'', ''current'') }}'
+  s2:
+    alias: Script 2 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+      response_variable: r
+  s3:
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+  s4:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - delay: 1
+      else:
+      - action: test.m
+        data:
+          id: s4.3
+          v: '{{ v | default(0) }}'
+      - variables:
+          out:
+            id: s4.4
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+    - action: test.m
+      data:
+        id: s4.5
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+steps:
+- at: 2
+  call: s1
+- at: 5
+  call: s1
+  data:
+    v: 4
+  return_response: true
+- at: 6
+- at: 6
+  call: s0
+  data:
+    v: 0
+  return_response: true
+- at: 6
+  call: s2
+  data:
+    v: 0
+- at: 7
+  call: s3
+  return_response: true
+- at: 10
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s3
+    variables:
+      v: 3
+- at: 13
+  result: 0
+  response:
+    n: 0
+- at: 14
+- at: 16
+  result: 1
+  response:
+    n: 1

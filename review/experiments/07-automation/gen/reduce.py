@@ -126,15 +126,31 @@ def main() -> int:
         sites.sort(key=lambda s: len(s[0]))
         cands = [(s, c) for s in sites if (c := apply(sc, *s)) is not None]
         res = run_batch([c for _, c in cands])
-        progressed = False
-        for (site, cand), r in zip(cands, res):
+        ok_sites = []
+        for (site, _cand), r in zip(cands, res):
             d, t, _ = verdict(r)
             if d and (taint0 or not t):
-                sc = cand
-                progressed = True
-                print(f"round {rnd}: {site[1]} {site[0]}", flush=True)
+                ok_sites.append(site)
+        if not ok_sites:
+            break
+        # apply every removal that worked alone, deepest / last index first so that the
+        # paths of the others stay valid; fall back to halves, then to the first one
+        def combine(sites):
+            cur = sc
+            for site in sorted(sites, key=lambda s: tuple(str(x).rjust(6, "0") if isinstance(x, int) else x for x in s[0]), reverse=True):
+                nxt = apply(cur, *site)
+                if nxt is not None:
+                    cur = nxt
+            return cur
+        tries = [ok_sites, ok_sites[: max(1, len(ok_sites) // 2)], ok_sites[: max(1, len(ok_sites) // 4)], ok_sites[:1]]
+        res2 = run_batch([combine(t) for t in tries])
+        for t, r in zip(tries, res2):
+            d, tnt, _ = verdict(r)
+            if d and (taint0 or not tnt):
+                sc = combine(t)
+                print(f"round {rnd}: applied {len(t)} of {len(ok_sites)} removals", flush=True)
                 break
-        if not progressed:
+        else:
             break
     args.out.write_text(yaml.safe_dump(sc, sort_keys=False, default_flow_style=None, width=200))
     print(f"wrote {args.out}")

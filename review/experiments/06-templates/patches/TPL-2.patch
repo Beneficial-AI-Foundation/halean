@@ -1,0 +1,104 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 427edb3..6759963 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -456,13 +456,34 @@ def lenV (ctx : Ctx) (v : Value) : R Int :=
+   | .pyobj "MultiDictProxy" _ => throw "len() of a MultiDictProxy is not supported by HALean"
+   | v => throw s!"object of type '{typeName v}' has no len()"
+ 
++/-- Python's `hash()` succeeds (`none`), raises `TypeError` (`some msg`), or
++HALean cannot tell what a set does with the value (an error). -/
++partial def hashCheck (v : Value) : R Unit :=
++  match v with
++  | .none | .undef _ | .bool _ | .int _ | .str _ | .datetime .. | .timedelta _ | .range .. => pure ()
++  | .float f => if f.isNaN then throw "NaN in a set is not supported by HALean (identity semantics)" else pure ()
++  | .tuple xs => xs.forM hashCheck
++  | .list _ | .dict _ | .state .. => throw s!"TypeError: unhashable type: '{typeName v}'"
++  | v => throw s!"hashing a {typeName v} is not supported by HALean"
++
++/-- A `dict` display: a later key equal to an earlier one replaces its value (the first
++key object stays); an unhashable key is a `TypeError`. -/
++def mkDict (kvs : List (Value × Value)) : R Value := do
++  let mut out : Array (Value × Value) := #[]
++  for (k, v) in kvs do
++    hashCheck k
++    match out.findIdx? (fun (k', _) => pyEq k' k) with
++    | some i => out := out.modify i fun (k', _) => (k', v)
++    | none => out := out.push (k, v)
++  pure (.dict out.toList)
++
+ /-- Python `x in c` -/
+ def containsV (ctx : Ctx) (c x : Value) : R Bool := do
+   match c with
+   | .str s => match x with
+     | .str t => pure ((s.splitOn t).length > 1 || t.isEmpty)
+     | _ => throw s!"'in <string>' requires string as left operand, not {typeName x}"
+-  | .dict kvs => pure ((lookupKV kvs x).isSome)
++  | .dict kvs => do hashCheck x; pure ((lookupKV kvs x).isSome)
+   | .undef _ => pure false
+   | .pyobj "MultiDictProxy" fs => match x with
+     | .str k => pure (fs.any (·.1 == k))
+@@ -1052,16 +1073,6 @@ def minOrMax (ctx : Ctx) (isMax : Bool) (items : List Value) (caseSensitive : Bo
+       if ← liftExcept (if isMax then pyLt bk k else pyLt k bk) then best := some (k, x)
+   pure ((best.map (·.2)).getD .none)
+ 
+-/-- Python's `hash()` succeeds (`none`), raises `TypeError` (`some msg`), or
+-HALean cannot tell what a set does with the value (an error). -/
+-partial def hashCheck (v : Value) : R Unit :=
+-  match v with
+-  | .none | .undef _ | .bool _ | .int _ | .str _ | .datetime .. | .timedelta _ | .range .. => pure ()
+-  | .float f => if f.isNaN then throw "NaN in a set is not supported by HALean (identity semantics)" else pure ()
+-  | .tuple xs => xs.forM hashCheck
+-  | .list _ | .dict _ | .state .. => throw s!"TypeError: unhashable type: '{typeName v}'"
+-  | v => throw s!"hashing a {typeName v} is not supported by HALean"
+-
+ /-- `jinja2.filters.sync_do_unique`: items whose key was not seen yet (a set
+ membership test: hash + `==`), as a generator. -/
+ def doUnique (ctx : Ctx) (items : List Value) (caseSensitive : Bool) (attr : Value) : R Value := do
+@@ -1246,7 +1257,7 @@ partial def eval (ctx : Ctx) (e : Expr) : R Value := do
+       else pure (.undef s!"'{n}'")
+   | .list xs => return .list (← xs.mapM (eval ctx))
+   | .tuple xs => return .tuple (← xs.mapM (eval ctx))
+-  | .dict kvs => return .dict (← kvs.mapM fun (k, v) => do pure (← eval ctx k, ← eval ctx v))
++  | .dict kvs => mkDict (← kvs.mapM fun (k, v) => do pure (← eval ctx k, ← eval ctx v))
+   | .getattr x a => getattrV ctx (← eval ctx x) a
+   | .getitem x k => getitemV ctx (← eval ctx x) (← eval ctx k)
+   | .slice x a b c =>
+@@ -2071,6 +2082,20 @@ where
+     let s ← if raw then some (String.ofList raw') else (unescape raw').toOption
+     return (s, r)
+ 
++/-- Whether Python can hash the literal (a dict key or a set element). -/
++partial def litHashable : Value → Bool
++  | .list _ | .dict _ => false
++  | .tuple xs => xs.all litHashable
++  | _ => true
++
++/-- A dict literal: a later equal key replaces the value of the first; an unhashable key is a `TypeError`. -/
++def litDict (kvs : List (Value × Value)) : Option Value :=
++  if kvs.all (fun (k, _) => litHashable k) then
++    some (.dict (kvs.foldl (fun (out : List (Value × Value)) (k, v) =>
++      if out.any (fun (k', _) => pyEq k' k) then out.map (fun (k', v') => if pyEq k' k then (k', v) else (k', v'))
++      else out ++ [(k, v)]) []))
++  else none
++
+ mutual
+ /-- Parse a token list as one literal. -/
+ partial def litParse (ts : List LTok) : Option (Value × List LTok) := do
+@@ -2127,14 +2152,14 @@ partial def litParse (ts : List LTok) : Option (Value × List LTok) := do
+           kvs (acc.push (k, v)) r3
+         | _ => none
+       let (rest, r4) ← kvs #[(k, v)] r3
+-      some (.dict rest, r4)
++      (litDict rest).map (·, r4)
+     | _ => do
+       -- a set: HALean hands it on as a list
+       let (xs, r2) ← match r1 with
+         | .op '}' :: r => some ([], r)
+         | .op ',' :: r => litItems r '}' #[]
+         | _ => none
+-      some (Value.list (k :: xs), r2)
++      if (k :: xs).all litHashable then some (Value.list (k :: xs), r2) else none
+   | _ => none
+ where
+   complexTail (v : Value) (r : List LTok) : Option (Value × List LTok) :=

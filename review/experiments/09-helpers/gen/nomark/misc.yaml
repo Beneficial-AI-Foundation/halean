@@ -1,0 +1,54 @@
+# several domains together, repeated setup, cross-domain targets.
+- name: hw_m_all_hits_other_domains
+  steps:
+    - setup: {input_boolean: {x: null}}
+    - setup: {counter: {x: {initial: 7}}}
+    - call: input_boolean.toggle
+      data: {entity_id: all}
+- name: hw_m_all_timer_cancel_resets_counter
+  steps:
+    - setup: {counter: {x: {initial: 7}}}
+    - setup: {timer: {t: {duration: 5}}}
+    - setup: {input_text: {s: {initial: keep}}}
+    - call: timer.start
+      data: {entity_id: all}
+    - call: timer.cancel
+      data: {entity_id: all}
+- name: hw_m_all_counter_increment_toggles_boolean
+  steps:
+    - setup: {input_boolean: {x: null}}
+    - setup: {counter: {x: null}}
+    - setup: {input_select: {s: {options: [a, b]}}}
+    - setup: {input_number: {n: {min: 0, max: 5, initial: 2}}}
+    - call: counter.increment
+      data: {entity_id: all}
+- name: hw_m_explicit_ids_other_domain
+  steps:
+    - setup: {input_boolean: {x: null}}
+    - setup: {counter: {x: null}}
+    - setup: {timer: {x: null}}
+    - call: counter.increment
+      data: {entity_id: [counter.x, input_boolean.x, timer.x]}
+    - call: input_boolean.toggle
+      data: {entity_id: counter.x}
+- name: hw_m_setup_twice
+  steps:
+    - setup: {counter: {a: {initial: 1}}}
+    - setup: {counter: {b: {initial: 2}}}
+- name: hw_m_entity_id_non_ascii
+  steps:
+    - setup: {counter: {a: {}}}
+    - call: counter.increment
+      data: {entity_id: "counter.é"}
+- name: hw_m_name_non_ascii_lower
+  steps:
+    - setup: {input_boolean: {a: {name: "ÀÉ", initial: "ÖN"}}}
+- name: hw_m_icon_forms
+  steps:
+    - setup: {counter: {a: {icon: "mdi:a:b"}, b: {icon: ":"}}}
+- name: hw_m_icon_number
+  steps:
+    - setup: {counter: {a: {icon: 5}}}
+- name: hw_m_icon_null
+  steps:
+    - setup: {counter: {a: {icon: null}}}

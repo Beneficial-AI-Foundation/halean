@@ -1,0 +1,20 @@
+ERROR    homeassistant.helpers.template:__init__.py:721 Template variable error: 'pytest_homeassistant_custom_component.patch_time.HAFakeDatetime object' has no attribute 'values' when rendering '{% for i0 in ((today_at('23:59:59') if true else utcnow()).values() | list) %}{{ loop.previtem | default('-') }}>{{ i0 }}{{ states.binary_sensor.d.name }},{% else %}empty{% endfor %}{% for i0 in [1, 2] %}{{ loop.index }}:{{ i0 }} {{ ((time_since((today_at('7:5') + timedelta(weeks=1.5)), 0) | select('string') | list) | select('is_number') | list) }} {% endfor %}'
+ERROR    homeassistant.helpers.template:__init__.py:721 Template variable error: dict object has no element slice(1, None, None) when compiling '{% if (none | bool(none)) %}{% set ns = namespace(t=[]) %}{% for n in (expand('light.a', 'switch.c') | map(attribute='entity_id') | list) %}{% set ns.t = ns.t + [n] %}{% endfor %}{{ ns.t }}{% elif relative_time((today_at('7:5') - (utcnow() - utcnow()))) %}{{ iif(timedelta(seconds=3600)) }}{% else %}{% if (({'a': 1}[1:]).startswith('12')) %}{{ ((-(timedelta(days=59, seconds=1).total_seconds())) | round(1, 'ceil')) }}{% elif 'inf' %}{{ (((-timedelta(days=1)) / 2).total_seconds()) }}{% else %}{{ ((utcnow().replace(second=30)) - today_at('7:5')) }}{% endif %}{% endif %}{% if true %}{% set ns = namespace(t=0) %}{% for n in [] %}{% set ns.t = ns.t + n %}{% endfor %}{{ ns.t }}{% elif (-timedelta()) %}{{ ((('{\'a\': 1}'[1:]) ~ ('1_000' ~ {1: 'x', 'k': none})) | length) }}{% else %}{{ ('[1, 2]'.split()) }}{% endif %}'
+ERROR    homeassistant.helpers.template:__init__.py:721 Template variable error: dict object has no element slice(1, None, None) when compiling '{% if (none | bool(none)) %}{% set ns = namespace(t=[]) %}{% for n in (expand('light.a', 'switch.c') | map(attribute='entity_id') | list) %}{% set ns.t = ns.t + [n] %}{% endfor %}{{ ns.t }}{% elif relative_time((today_at('7:5') - (utcnow() - utcnow()))) %}{{ iif(timedelta(seconds=3600)) }}{% else %}{% if (({'a': 1}[1:]).startswith('12')) %}{{ ((-(timedelta(days=59, seconds=1).total_seconds())) | round(1, 'ceil')) }}{% elif 'inf' %}{{ (((-timedelta(days=1)) / 2).total_seconds()) }}{% else %}{{ ((utcnow().replace(second=30)) - today_at('7:5')) }}{% endif %}{% endif %}{% if true %}{% set ns = namespace(t=0) %}{% for n in [] %}{% set ns.t = ns.t + n %}{% endfor %}{{ ns.t }}{% elif (-timedelta()) %}{{ ((('{\'a\': 1}'[1:]) ~ ('1_000' ~ {1: 'x', 'k': none})) | length) }}{% else %}{{ ('[1, 2]'.split()) }}{% endif %}'
+ERROR test_batch.py::test_batch - AssertionError: assert (False or False or '...
+1 passed, 7 warnings, 1 error in 8.72s
+logs/run2-random-seed102.jsonl: cases=3000 failing=195 unclassified=0
+  TPL-2       8  dict keys: no dedup, no hash check
+  TPL-4      63  bool() of states objects; `if value:` guard of map/select
+  TPL-6       2  case-insensitive entity id lookup
+  TPL-9      21  Undefined inside a printed container
+  TPL-12      9  for-else after break/continue
+  TPL-25      8  zone database / DST (documented)
+  TPL-27      1  attribute / variable key order (documented)
+  TPL-38      1  Jinja compile-time constant folding
+  TPL-40     10  Python methods / attributes / operators not modelled
+  TPL-41     14  argument forms not modelled
+  TPL-42      1  datetime methods and strftime directives not modelled
+  TPL-44     53  printing objects
+  TPL-45      2  HA gives Undefined/default, HALean raises
+  TPL-46      2  documented render errors (non-ASCII case mapping)

@@ -1,0 +1,140 @@
+# input_text: config schema, lengths, restore, set_value coercions.
+- name: hw_it_config_none_and_falsy
+  steps:
+    - setup: {input_text: {a: null, b: {}, c: 0, d: "", e: []}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: x}
+- name: hw_it_config_string_value
+  steps:
+    - setup: {input_text: {a: "abc"}}
+- name: hw_it_config_min_gt_max
+  steps:
+    - setup: {input_text: {a: {min: 10, max: 5}}}
+- name: hw_it_config_min_eq_max
+  steps:
+    - setup: {input_text: {a: {min: 3, max: 3, initial: abc}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: ab}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: xyz}
+- name: hw_it_config_coerce_bounds
+  steps:
+    - setup: {input_text: {a: {min: "2", max: 7.9}, b: {min: true, max: "0x10"}}}
+- name: hw_it_config_coerce_bounds_ok
+  steps:
+    - setup: {input_text: {a: {min: "2", max: 7.9}, b: {min: true, max: " 16 "}}}
+- name: hw_it_config_max_zero
+  steps:
+    - setup: {input_text: {a: {max: 0}}}
+- name: hw_it_config_max_256
+  steps:
+    - setup: {input_text: {a: {max: 256}}}
+- name: hw_it_config_min_negative
+  steps:
+    - setup: {input_text: {a: {min: -1}}}
+- name: hw_it_config_min_inf
+  steps:
+    - setup: {input_text: {a: {min: .inf}}}
+- name: hw_it_config_min_nan
+  steps:
+    - setup: {input_text: {a: {min: .nan}}}
+- name: hw_it_config_initial_too_long
+  steps:
+    - setup: {input_text: {a: {max: 3, initial: abcd}}}
+- name: hw_it_config_initial_too_short
+  steps:
+    - setup: {input_text: {a: {min: 3, initial: ab}}}
+- name: hw_it_config_initial_number
+  steps:
+    - setup: {input_text: {a: {initial: 12.50}, b: {initial: true}, c: {initial: 0}}}
+- name: hw_it_config_initial_null
+  steps:
+    - setup: {input_text: {a: {initial: null}}}
+- name: hw_it_config_initial_list
+  steps:
+    - setup: {input_text: {a: {initial: [a]}}}
+- name: hw_it_config_bad_mode
+  steps:
+    - setup: {input_text: {a: {mode: secret}}}
+- name: hw_it_config_extra_key
+  steps:
+    - setup: {input_text: {a: {minimum: 1}}}
+- name: hw_it_config_two_errors
+  steps:
+    - setup: {input_text: {a: {mode: secret}, b: {max: 0}}}
+- name: hw_it_config_bad_slug
+  steps:
+    - setup: {input_text: {"Bad Key": {}}}
+- name: hw_it_config_bad_icon_and_name
+  steps:
+    - setup: {input_text: {a: {icon: nocolon}}}
+- name: hw_it_config_name_forms
+  steps:
+    - setup: {input_text: {a: {name: ""}, b: {name: 42}, c: {name: "Ünï cödé", unit_of_measurement: "", icon: "mdi:a"}}}
+- name: hw_it_config_name_null
+  steps:
+    - setup: {input_text: {a: {name: null}}}
+- name: hw_it_length_code_points
+  steps:
+    - setup: {input_text: {a: {min: 2, max: 3}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "é"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "éé"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "😀😀😀"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "😀😀😀😀"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "éé"}
+- name: hw_it_set_value_coercions
+  steps:
+    - setup: {input_text: {a: {}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: 1.50}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: true}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: [x]}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: {x: 1}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: 1e22}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: -0.0}
+- name: hw_it_set_value_same_twice
+  steps:
+    - setup: {input_text: {a: {initial: x}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: x}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "unknown"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "unavailable"}
+- name: hw_it_restore_forms
+  steps:
+    - setup: {input_text: {a: {}, b: {min: 3}, c: {max: 2}, d: {initial: keep}, e: {initial: ""}, f: {pattern: "[0-9]+$"}, g: {}}}
+      restore:
+        - [input_text.a, "unknown", {}]
+        - [input_text.b, "ab", {}]
+        - [input_text.c, "abc", {}]
+        - [input_text.d, "old", {}]
+        - [input_text.e, "old", {}]
+        - [input_text.f, "abc", {}]
+        - [input_text.g, "unavailable", {}]
+- name: hw_it_pattern_mismatch_then_ok
+  steps:
+    - setup: {input_text: {a: {pattern: "[0-9]+$", initial: "1"}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "x"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "1"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "22"}
+- name: hw_it_max_255
+  steps:
+    - setup: {input_text: {a: {max: 255, min: 255}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "short"}

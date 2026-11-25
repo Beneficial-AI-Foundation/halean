@@ -1,0 +1,171 @@
+# input_select: options, initial, services, restore.
+- name: hw_is_config_no_options
+  steps:
+    - setup: {input_select: {a: {}}}
+- name: hw_is_config_empty_options
+  steps:
+    - setup: {input_select: {a: {options: []}}}
+- name: hw_is_config_scalar_option
+  steps:
+    - setup: {input_select: {a: {options: one}, b: {options: 5}}}
+    - call: input_select.select_next
+      data: {entity_id: input_select.a}
+- name: hw_is_config_options_null
+  steps:
+    - setup: {input_select: {a: {options: null}}}
+- name: hw_is_config_non_string_options
+  steps:
+    - setup: {input_select: {a: {options: [1, 2.50, true, "x"], initial: 1}}}
+    - call: input_select.select_option
+      data: {entity_id: input_select.a, option: 2.5}
+    - call: input_select.select_option
+      data: {entity_id: input_select.a, option: true}
+    - call: input_select.select_option
+      data: {entity_id: input_select.a, option: [x]}
+- name: hw_is_config_null_option
+  steps:
+    - setup: {input_select: {a: {options: [a, null]}}}
+- name: hw_is_config_nested_option
+  steps:
+    - setup: {input_select: {a: {options: [a, [b]]}}}
+- name: hw_is_config_initial_not_option
+  steps:
+    - setup: {input_select: {a: {options: [a, b, "c,d"], initial: z}}}
+- name: hw_is_config_duplicates_named
+  steps:
+    - setup: {input_select: {a: {options: [a, b, a, 1, "1"], name: Sel}, b: {options: [x, x]}}}
+- name: hw_is_config_duplicates_empty_name
+  steps:
+    - setup: {input_select: {a: {options: [a, a], name: ""}}}
+- name: hw_is_config_duplicates_quotes
+  steps:
+    - setup: {input_select: {a: {options: ["it's", "it's", 'say "hi"', "back\\slash", "tab\there", "é"]}}}
+- name: hw_is_config_initial_duplicate
+  steps:
+    - setup: {input_select: {a: {options: [a, b, b], initial: b}}}
+- name: hw_is_long_option
+  steps:
+    - setup:
+        input_select:
+          a:
+            options:
+              - short
+              - "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL"
+    - call: input_select.select_last
+      data: {entity_id: input_select.a}
+    - call: input_select.select_first
+      data: {entity_id: input_select.a}
+- name: hw_is_special_option_names
+  steps:
+    - setup: {input_select: {a: {options: ["", unknown, unavailable, " ", "none"]}}}
+    - call: input_select.select_next
+      data: {entity_id: input_select.a}
+    - call: input_select.select_next
+      data: {entity_id: input_select.a}
+    - call: input_select.select_next
+      data: {entity_id: input_select.a}
+    - call: input_select.select_option
+      data: {entity_id: input_select.a, option: ""}
+    - call: input_select.select_option
+      data: {entity_id: input_select.a, option: "  "}
+- name: hw_is_cycle
+  steps:
+    - setup: {input_select: {a: {options: [a, b, c]}}}
+    - call: input_select.select_previous
+      data: {entity_id: input_select.a, cycle: false}
+    - call: input_select.select_previous
+      data: {entity_id: input_select.a}
+    - call: input_select.select_next
+      data: {entity_id: input_select.a, cycle: false}
+    - call: input_select.select_next
+      data: {entity_id: input_select.a, cycle: true}
+    - call: input_select.select_next
+      data: {entity_id: input_select.a, cycle: "yes"}
+    - call: input_select.select_next
+      data: {entity_id: input_select.a, cycle: 1}
+    - call: input_select.select_next
+      data: {entity_id: input_select.a, cycle: null}
+    - call: input_select.select_first
+      data: {entity_id: input_select.a, cycle: true}
+    - call: input_select.select_last
+      data: {entity_id: input_select.a}
+    - call: input_select.select_last
+      data: {entity_id: input_select.a}
+- name: hw_is_single_option
+  steps:
+    - setup: {input_select: {a: {options: [only]}}}
+    - call: input_select.select_next
+      data: {entity_id: input_select.a}
+    - call: input_select.select_previous
+      data: {entity_id: input_select.a, cycle: false}
+    - call: input_select.select_last
+      data: {entity_id: input_select.a}
+- name: hw_is_select_option_errors
+  steps:
+    - setup: {input_select: {a: {options: [a, "b, c", d]}}}
+    - call: input_select.select_option
+      data: {entity_id: input_select.a, option: A}
+    - call: input_select.select_option
+      data: {entity_id: input_select.a}
+    - call: input_select.select_option
+      data: {entity_id: input_select.a, option: null}
+    - call: input_select.select_option
+      data: {entity_id: input_select.a, option: "b, c"}
+    - call: input_select.select_option
+      data: {entity_id: input_select.a, option: "b, c"}
+- name: hw_is_set_options
+  steps:
+    - setup: {input_select: {a: {options: [a, b, c], initial: b}}}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a, options: [c, b]}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a, options: [x, y]}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a, options: [x, y]}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a, options: [y, x]}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a, options: [x, x, "it's"]}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a, options: []}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a, options: single}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a, options: [1, "1"]}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a, options: [1, 2.0, false]}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a, options: [a, null]}
+    - call: input_select.select_previous
+      data: {entity_id: input_select.a}
+- name: hw_is_restore
+  steps:
+    - setup: {input_select: {a: {options: [a, b]}, b: {options: [a, b]}, c: {options: [a, b], initial: a}, d: {options: [unknown, x]}, e: {options: [a, b]}}}
+      restore:
+        - [input_select.a, "b", {}]
+        - [input_select.b, "gone", {}]
+        - [input_select.c, "b", {}]
+        - [input_select.d, "unknown", {}]
+        - [input_select.e, "B", {options: [B]}]
+
+- name: hw_is_dup_warning_with_invalid_sibling_icon
+  steps:
+    - setup: {input_select: {c: {options: [a, a]}, l: {options: [b], icon: 5}}}
+- name: hw_is_dup_warning_with_invalid_sibling_extra_key
+  steps:
+    - setup: {input_select: {x: {options: [a, a]}, y: {options: [b], bogus: 1}}}
+- name: hw_is_dup_warning_with_invalid_sibling_first
+  steps:
+    - setup: {input_select: {l: {options: [b], initial: q}, z: {options: [u, u]}}}
+- name: hw_is_dup_and_invalid_same_item
+  steps:
+    - setup: {input_select: {z: {options: [u, u], bogus: 1}}}
+- name: hw_is_set_options_long_current_lost
+  steps:
+    - setup: {input_select: {a: {options: [a, b], initial: b}}}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a, options: ["x\x7fy", "tab\t", "nl\n"]}
+    - call: input_select.select_next
+      data: {entity_id: input_select.a}

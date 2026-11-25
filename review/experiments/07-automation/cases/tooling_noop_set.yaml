@@ -1,0 +1,9 @@
+# harness note: a `set` step that changes neither state nor attributes. HA fires no state_changed
+# (only state_reported); tests/run_scenarios.py `build` still sends the engine a state_changed
+automations:
+  - alias: noop
+    triggers: [{trigger: state, entity_id: light.a}]
+    actions: [{event: m_noop}]
+states: [{entity_id: light.a, state: "off"}]
+steps:
+  - {at: 1, set: [light.a, "off"]}

@@ -1,0 +1,61 @@
+diff --git a/HALean/Core/ConfigValidation.lean b/HALean/Core/ConfigValidation.lean
+index acf6959..a0ad3bb 100644
+--- a/HALean/Core/ConfigValidation.lean
++++ b/HALean/Core/ConfigValidation.lean
+@@ -60,6 +60,8 @@ def pyIter (v : Value) : Except VErr (List Value) :=
+   match v with
+   | .list xs => pure xs
+   | .dict kvs => pure (kvs.map (·.1))
++  -- the message prints `tp_name`, which is qualified for `datetime.timedelta`
++  | .timedelta _ => throw (.raise "TypeError" "'datetime.timedelta' object is not iterable")
+   | v => throw (.raise "TypeError" s!"'{typeName v}' object is not iterable")
+ 
+ /-- `cv.entity_ids` (`_entity_ids(value, allow_uuid=False)`): a string is split
+diff --git a/HALean/Core/ConfigValidationSpec.lean b/HALean/Core/ConfigValidationSpec.lean
+index c325063..63296df 100644
+--- a/HALean/Core/ConfigValidationSpec.lean
++++ b/HALean/Core/ConfigValidationSpec.lean
+@@ -224,8 +224,8 @@ theorem pyIter_dict (kvs : List (Value × Value)) : pyIter (.dict kvs) = .ok (kv
+ /-- Iterating anything else is a `TypeError`, not an `Invalid`: it escapes
+ the schema. -/
+ theorem pyIter_error (v : Value) (e : VErr) (h : pyIter v = .error e) :
+-    e = .raise "TypeError" s!"'{typeName v}' object is not iterable" := by
+-  cases v <;> first | (cases h; rfl) | cases h
++    ∃ t : String, e = .raise "TypeError" s!"'{t}' object is not iterable" := by
++  cases v <;> first | (cases h; exact ⟨_, rfl⟩) | (cases h; exact ⟨"datetime.timedelta", rfl⟩) | cases h
+ 
+ /-- `iter(5)`: `'int' object is not iterable`. -/
+ theorem pyIter_int (i : Int) :
+diff --git a/HALean/Core/ServicesJson.lean b/HALean/Core/ServicesJson.lean
+index c9a5294..e25dbdc 100644
+--- a/HALean/Core/ServicesJson.lean
++++ b/HALean/Core/ServicesJson.lean
+@@ -198,6 +198,8 @@ partial def decodeValidator (v : Value) : Except String Validator := do
+   | "port" => pure .port
+   | "at_least_one" => do
+     let .list ks := arg | throw "at_least_one needs a list of keys"
++    -- `AtLeastOne()` raises `SchemaError("needs at least one key")`
++    if ks.isEmpty then throw "at_least_one needs at least one key"
+     specText arg
+     pure (.atLeastOne (← ks.mapM fun k => match k with
+       | .str s => pure s
+diff --git a/HALean/Template/Value.lean b/HALean/Template/Value.lean
+index 2ef5b08..da9f80b 100644
+--- a/HALean/Template/Value.lean
++++ b/HALean/Template/Value.lean
+@@ -186,9 +186,13 @@ def parseFloatStr (s : String) : Option Float := do
+       some (if eneg then -(ed.toNat! : Int) else ed.toNat!)
+   let m := (ip ++ fp).toNat!
+   let exp : Int := e - fp.length
++  if m == 0 then return (if neg then -0.0 else 0.0)
++  -- `m * 10^exp` lies in `[10^(d-1+exp), 10^(d+exp))` for a `d`-digit `m`:
++  -- beyond the double range the answer is known without computing the power
++  let d : Int := (toString m).length
++  if d - 1 + exp ≥ 310 then return (if neg then -1.0 / 0.0 else 1.0 / 0.0)
++  if d + exp ≤ -400 then return (if neg then -0.0 else 0.0)
+   if exp ≥ 0 then return ratToFloat neg (m * 10 ^ exp.toNat) 1
+-  -- huge negative exponents underflow to zero anyway; cap the work
+-  if exp < -400 && m < 10 ^ 400 then return (if neg then -0.0 else 0.0)
+   return ratToFloat neg m (10 ^ (-exp).toNat)
+ 
+ /-- Python `int(s)` (base 10): whitespace, sign, underscores between digits.

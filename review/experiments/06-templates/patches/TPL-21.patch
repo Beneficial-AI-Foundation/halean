@@ -1,0 +1,19 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index b7c8ff1..93a3b3b 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -593,7 +593,13 @@ def fracOf (n : Num) : Bool × Nat × Nat :=
+ 
+ /-- Exact floor of a/b for finite floats (Python's float `//` and `%`). -/
+ def floatFloorDivMod (a b : Float) : Float × Float :=
+-  if !Float.isFinite' a || !Float.isFinite' b then (Float.floor (a / b), a - b * Float.floor (a / b)) else
++  -- CPython's `float_divmod`: `fmod` of an infinite or NaN dividend is NaN; with an infinite
++  -- divisor `fmod(a, b) = a`, then the sign fix-up (`mod += b`, `div -= 1`)
++  if a.isNaN || b.isNaN || a.isInf then (0.0 / 0.0, 0.0 / 0.0)
++  else if b.isInf then
++    (if a == 0 then (a / b, if b < 0 then -0.0 else 0.0)
++     else if (a < 0) == (b < 0) then (a / b, a)
++     else (-1.0, b)) else
+   let (na, pa, qa) := floatFrac a
+   let (nb, pb, qb) := floatFrac b
+   -- a/b = (±pa*qb) / (±pb*qa)

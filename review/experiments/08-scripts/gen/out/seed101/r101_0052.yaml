@@ -1,0 +1,117 @@
+description: random scenario seed=101 index=52
+scripts:
+  s0:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+    - delay: 1
+    - parallel:
+      - sequence:
+        - event: mark
+          event_data:
+            id: s1.3
+            v: '{{ v | default(0) }}'
+            st: '{{ states(''script.s1'') }}'
+            cur: '{{ state_attr(''script.s1'', ''current'') }}'
+        - action: test.m
+          data:
+            id: s1.4
+            v: '{{ v | default(0) }}'
+          response_variable: r
+          continue_on_error: true
+      - sequence:
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s2
+  s2:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - action: script.turn_off
+        target:
+          entity_id: script.s1
+      else:
+      - action: script.turn_off
+        target:
+          entity_id: script.s1
+      - action: test.m
+        data:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+steps:
+- at: 3
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    variables:
+      v: 2
+- at: 4
+  result: 0
+  response:
+    n: 0
+- at: 5
+  result: 1
+  ok: false
+  error_kind: other
+- at: 5
+  call: s0
+  data:
+    v: 2
+- at: 6
+  call: s2
+  data:
+    v: 1
+- at: 6
+  call: s0
+  data:
+    v: 1
+- at: 7
+  call: turn_off
+  data:
+    entity_id: all
+- at: 10
+  call: turn_off
+  data:
+    entity_id: script.s0
+- at: 10
+  call: s1
+- at: 10
+  call: s2
+  data:
+    v: 3
+  return_response: true

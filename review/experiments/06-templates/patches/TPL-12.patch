@@ -1,0 +1,24 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 2d9c544..4f681d7 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -1794,6 +1794,9 @@ partial def renderNodes (ctx : Ctx) (nodes : List Node) : R (Ctx × Signal) := d
+         | some f =>
+           if truthy (← eval { ctx with vars := b ++ ctx.vars } f) then kept := kept.push (x, b)
+       let len := kept.size
++      -- Jinja runs the `else` block unless some iteration reached the end of the body
++      -- (the compiled loop clears its flag there, which `break` and `continue` skip)
++      let mut completed := false
+       for h : i in [0:len] do
+         tick
+         let (_, b) := kept[i]
+@@ -1807,7 +1810,8 @@ partial def renderNodes (ctx : Ctx) (nodes : List Node) : R (Ctx × Signal) := d
+         -- each iteration starts from the outer scope (Jinja's loop scoping)
+         let (_, sig) ← renderNodes { ctx with vars := b ++ ("loop", loop) :: ctx.vars } body
+         if sig == .brk then break
+-      if len == 0 then
++        if sig == .normal then completed := true
++      if !completed then
+         let (_, sig) ← renderNodes ctx el
+         if sig != .normal then return (ctx, sig)
+   return (ctx, .normal)

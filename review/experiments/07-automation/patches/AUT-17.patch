@@ -1,0 +1,13 @@
+diff --git a/HALean/Automation/Config.lean b/HALean/Automation/Config.lean
+index c39914f..5fb003a 100644
+--- a/HALean/Automation/Config.lean
++++ b/HALean/Automation/Config.lean
+@@ -1114,6 +1114,8 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
+     -- single action (`_parallel_sequence_action`); a disabled branch is
+     -- skipped (`_async_run_script` with `enabled: false`)
+     let branches ← (ensureList ps).mapM fun b => do
++      -- `_parallel_sequence_action`: `SCRIPT_SCHEMA` (a list of actions) wrapped in a sequence
++      if let .arr _ := b then return (← seqOf b)
+       if has b "sequence" && !(has b "action" || has b "service") then
+         if !(← isEnabled b .truthy) then return []
+         seqOf ((field? b "sequence").getD .null)

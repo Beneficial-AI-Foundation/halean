@@ -1,0 +1,19 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 8fe01d0..427edb3 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -2086,14 +2086,6 @@ partial def litParse (ts : List LTok) : Option (Value × List LTok) := do
+         | _, _ => none
+       complexTail v' r
+     | .cplx :: r => some (.opaque "complex", r)
+-    | .op '-' :: _ | .op '+' :: _ => do
+-      -- `--1` is UnaryOp(UnaryOp(1)): literal_eval allows nested unary on numbers
+-      let (v, r) ← litParse rest
+-      match v, neg with
+-      | .int i, true => some (.int (-i), r)
+-      | .float f, true => some (.float (-f), r)
+-      | .int _, false | .float _, false => some (v, r)
+-      | _, _ => none
+     | _ => none
+   | .num v :: r => complexTail v r
+   | .cplx :: r => some (.opaque "complex", r)

@@ -1,0 +1,260 @@
+# input_number: config, float formatting, range, increment/decrement, restore.
+- name: hw_in_config_min_ge_max
+  steps:
+    - setup: {input_number: {a: {min: 5, max: 5}}}
+- name: hw_in_config_min_gt_max_floats
+  steps:
+    - setup: {input_number: {a: {min: 1e22, max: -0.5}}}
+- name: hw_in_config_initial_out_of_range
+  steps:
+    - setup: {input_number: {a: {min: 0, max: 10, initial: 10.000001}}}
+- name: hw_in_config_initial_below
+  steps:
+    - setup: {input_number: {a: {min: 1e-7, max: 123456789012345678, initial: 0}}}
+- name: hw_in_config_missing_max
+  steps:
+    - setup: {input_number: {a: {min: 0}}}
+- name: hw_in_config_missing_both
+  steps:
+    - setup: {input_number: {a: {}}}
+- name: hw_in_config_none
+  steps:
+    - setup: {input_number: {a: null}}
+- name: hw_in_config_step_zero
+  steps:
+    - setup: {input_number: {a: {min: 0, max: 1, step: 0}}}
+- name: hw_in_config_step_tiny
+  steps:
+    - setup: {input_number: {a: {min: 0, max: 1, step: 1e-9}, b: {min: 0, max: 1, step: 0.999e-9}}}
+- name: hw_in_config_step_min_ok
+  steps:
+    - setup: {input_number: {a: {min: 0, max: 1, step: 1e-9}}}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+- name: hw_in_config_bad_mode
+  steps:
+    - setup: {input_number: {a: {min: 0, max: 1, mode: auto}}}
+- name: hw_in_config_coercions
+  steps:
+    - setup: {input_number: {a: {min: "0", max: " 1e2 ", initial: true, step: "0.5", mode: box, unit_of_measurement: 5}, b: {min: false, max: "1_0"}}}
+- name: hw_in_config_bad_float_string
+  steps:
+    - setup: {input_number: {a: {min: "0x1", max: 5}}}
+- name: hw_in_config_min_none
+  steps:
+    - setup: {input_number: {a: {min: null, max: 5}}}
+- name: hw_in_config_nan_bounds
+  steps:
+    - setup: {input_number: {a: {min: "nan", max: 5}, b: {min: 0, max: "nan"}, c: {min: "-inf", max: "inf", step: "inf"}}}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: -1e300}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 6}
+    - call: input_number.set_value
+      data: {entity_id: input_number.b, value: "nan"}
+    - call: input_number.increment
+      data: {entity_id: input_number.b}
+    - call: input_number.increment
+      data: {entity_id: input_number.b}
+    - call: input_number.set_value
+      data: {entity_id: input_number.c, value: "-Infinity"}
+    - call: input_number.increment
+      data: {entity_id: input_number.c}
+    - call: input_number.decrement
+      data: {entity_id: input_number.c}
+- name: hw_in_state_format
+  steps:
+    - setup: {input_number: {a: {min: -1e300, max: 1e300}}}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 0.1}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 0.30000000000000004}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 1e15}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 999999999999999.9}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 1e16}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 123456789012345678}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 0.0001}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 0.00001}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 1.2345678901234567e-7}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: -0.0}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 0}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 5e-324}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 0.9999999999999999}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 9.9999999999999995}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 2.5e-5}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 1.7976931348623157e308}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 100}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 100.0}
+- name: hw_in_set_value_errors
+  steps:
+    - setup: {input_number: {a: {min: -5, max: 5.5, initial: 1}}}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 6}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: -5.000000000000001}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: "1e400"}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 1e22}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: "abc"}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: null}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: [1]}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: " 5.5 "}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: true}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: "1_0"}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: -5}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 123456789012345678901234567890}
+    - call: input_number.increment
+      data: {entity_id: input_number.a, value: 1}
+- name: hw_in_increment_accumulation
+  steps:
+    - setup: {input_number: {a: {min: 0, max: 1, step: 0.1}}}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.decrement
+      data: {entity_id: input_number.a}
+    - call: input_number.decrement
+      data: {entity_id: input_number.a}
+- name: hw_in_clamp_ends
+  steps:
+    - setup: {input_number: {a: {min: -1, max: 1, step: 3, initial: 0}}}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.decrement
+      data: {entity_id: input_number.a}
+    - call: input_number.decrement
+      data: {entity_id: input_number.a}
+- name: hw_in_absorbed_step
+  steps:
+    - setup: {input_number: {a: {min: 0, max: 1e17, step: 1, initial: 1e16}}}
+    - call: input_number.increment
+      data: {entity_id: input_number.a}
+    - call: input_number.decrement
+      data: {entity_id: input_number.a}
+- name: hw_in_restore_forms
+  steps:
+    - setup:
+        input_number:
+          a: {min: 0, max: 100}
+          b: {min: 0, max: 100}
+          c: {min: 0, max: 100}
+          d: {min: 0, max: 100}
+          e: {min: 0, max: 100}
+          f: {min: 0, max: 100}
+          g: {min: 0, max: 100}
+          h: {min: 0, max: 100, initial: 7}
+          i: {min: -5, max: 100}
+          j: {min: 0, max: 100}
+          k: {min: 0, max: 100}
+          l: {min: 0, max: 100}
+      restore:
+        - [input_number.a, "42", {}]
+        - [input_number.b, " 4.2e1 ", {}]
+        - [input_number.c, "unknown", {}]
+        - [input_number.d, "100.0000001", {}]
+        - [input_number.e, "nan", {}]
+        - [input_number.f, "1_0", {}]
+        - [input_number.g, "-0.0", {}]
+        - [input_number.h, "50", {}]
+        - [input_number.i, "unavailable", {}]
+        - [input_number.j, "+.5", {}]
+        - [input_number.k, "5.", {}]
+        - [input_number.l, "٤٢", {}]
+- name: hw_in_restore_more
+  steps:
+    - setup:
+        input_number:
+          a: {min: -1e400, max: 100}
+          b: {min: 0, max: 100}
+          c: {min: 0, max: 100}
+          d: {min: 0, max: 100}
+          e: {min: 0, max: 100}
+      restore:
+        - [input_number.a, "-Infinity", {}]
+        - [input_number.b, "1e1", {}]
+        - [input_number.c, "0x10", {}]
+        - [input_number.d, "", {}]
+        - [input_number.e, "1__0", {}]
+- name: hw_in_attr_ints_vs_floats
+  steps:
+    - setup: {input_number: {a: {min: 1, max: 10, step: 2, initial: 3, unit_of_measurement: "°C", name: N, icon: "mdi:n"}}}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 3}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 3.0000000000000004}
+- name: hw_in_negative_zero_kept
+  steps:
+    - setup: {input_number: {a: {min: -5, max: 5, initial: -0.0}, b: {min: -5, max: 5, initial: 0}}}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 0}
+    - call: input_number.set_value
+      data: {entity_id: input_number.b, value: -0.0}
+- name: hw_in_decrement_to_negative_zero_bound
+  steps:
+    - setup: {input_number: {a: {min: -0.0, max: 5, initial: 1}}}
+    - call: input_number.decrement
+      data: {entity_id: input_number.a}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 0.0}
+- name: hw_in_restore_control_whitespace
+  steps:
+    - setup: {input_number: {a: {min: 0, max: 100}, b: {min: 0, max: 100}, c: {min: 0, max: 100}}}
+      restore:
+        - [input_number.a, "\x0c5\x0b", {}]
+        - [input_number.b, "5\x1c", {}]
+        - [input_number.c, "\t6\r\n", {}]
+- name: hw_in_set_value_arabic_digit_refused
+  steps:
+    - setup: {input_number: {a: {min: 0, max: 5}}}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: "٣"}

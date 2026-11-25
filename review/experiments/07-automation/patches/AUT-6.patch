@@ -1,0 +1,19 @@
+diff --git a/HALean/Automation/Config.lean b/HALean/Automation/Config.lean
+index aa20fa6..67f632f 100644
+--- a/HALean/Automation/Config.lean
++++ b/HALean/Automation/Config.lean
+@@ -1084,7 +1084,13 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
+     let body ← seqOf ((field? r "sequence").getD .null)
+     if let some c := field? r "count" then
+       match c with
+-      | .num n => return wrap (.repeatCount n.mantissa.toNat body)
++      | .num _ =>
++        -- `probatio.Coerce(int)`: `int()` truncates a float
++        let n : Int := match Template.Value.ofJson c with
++          | .int i => i
++          | .float f => (Template.floatToInt? f).getD 0
++          | _ => 0
++        return wrap (.repeatCount n.toNat body)
+       | .str s =>
+         if Template.isTemplateString s then return wrap (.repeatCountT (← compileTemplate s nm) body)
+         match s.toNat? with

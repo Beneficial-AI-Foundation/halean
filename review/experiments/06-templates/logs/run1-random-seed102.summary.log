@@ -2,29 +2,19 @@ ERROR:homeassistant.helpers.template:Template variable error: 'pytest_homeassist
 ERROR:homeassistant.helpers.template:Template variable error: dict object has no element slice(1, None, None) when compiling '{% if (none | bool(none)) %}{% set ns = namespace(t=[]) %}{% for n in (expand('light.a', 'switch.c') | map(attribute='entity_id') | list) %}{% set ns.t = ns.t + [n] %}{% endfor %}{{ ns.t }}{% elif relative_time((today_at('7:5') - (utcnow() - utcnow()))) %}{{ iif(timedelta(seconds=3600)) }}{% else %}{% if (({'a': 1}[1:]).startswith('12')) %}{{ ((-(timedelta(days=59, seconds=1).total_seconds())) | round(1, 'ceil')) }}{% elif 'inf' %}{{ (((-timedelta(days=1)) / 2).total_seconds()) }}{% else %}{{ ((utcnow().replace(second=30)) - today_at('7:5')) }}{% endif %}{% endif %}{% if true %}{% set ns = namespace(t=0) %}{% for n in [] %}{% set ns.t = ns.t + n %}{% endfor %}{{ ns.t }}{% elif (-timedelta()) %}{{ ((('{\'a\': 1}'[1:]) ~ ('1_000' ~ {1: 'x', 'k': none})) | length) }}{% else %}{{ ('[1, 2]'.split()) }}{% endif %}'
 ERROR:homeassistant.helpers.template:Template variable error: dict object has no element slice(1, None, None) when compiling '{% if (none | bool(none)) %}{% set ns = namespace(t=[]) %}{% for n in (expand('light.a', 'switch.c') | map(attribute='entity_id') | list) %}{% set ns.t = ns.t + [n] %}{% endfor %}{{ ns.t }}{% elif relative_time((today_at('7:5') - (utcnow() - utcnow()))) %}{{ iif(timedelta(seconds=3600)) }}{% else %}{% if (({'a': 1}[1:]).startswith('12')) %}{{ ((-(timedelta(days=59, seconds=1).total_seconds())) | round(1, 'ceil')) }}{% elif 'inf' %}{{ (((-timedelta(days=1)) / 2).total_seconds()) }}{% else %}{{ ((utcnow().replace(second=30)) - today_at('7:5')) }}{% endif %}{% endif %}{% if true %}{% set ns = namespace(t=0) %}{% for n in [] %}{% set ns.t = ns.t + n %}{% endfor %}{{ ns.t }}{% elif (-timedelta()) %}{{ ((('{\'a\': 1}'[1:]) ~ ('1_000' ~ {1: 'x', 'k': none})) | length) }}{% else %}{{ ('[1, 2]'.split()) }}{% endif %}'
 BATCH cases=3000 accepts=5 info=66 refuses_render=81 same=2805 silent=43
-1 passed, 7 warnings in 11.27s
-logs/run1-random-seed102.jsonl: cases=3000 failing=195 unclassified=4
+1 passed, 7 warnings in 7.95s
+logs/run1-random-seed102.jsonl: cases=3000 failing=195 unclassified=0
   TPL-2       8  dict keys: no dedup, no hash check
-  TPL-4      62  bool() of states / states.<domain>
+  TPL-4      63  bool() of states objects; `if value:` guard of map/select
   TPL-6       2  case-insensitive entity id lookup
   TPL-9      21  Undefined inside a printed container
   TPL-12      9  for-else after break/continue
   TPL-25      8  zone database / DST (documented)
+  TPL-27      1  attribute / variable key order (documented)
   TPL-38      1  Jinja compile-time constant folding
   TPL-40     10  Python methods / attributes / operators not modelled
   TPL-41     14  argument forms not modelled
   TPL-42      1  datetime methods and strftime directives not modelled
   TPL-44     53  printing objects
+  TPL-45      2  HA gives Undefined/default, HALean raises
   TPL-46      2  documented render errors (non-ASCII case mapping)
-  UNCLASSIFIED r102_2142 [silent] '{{ trigger }}'
-      HA: {'ok': True, 'type': 'dict', 'repr': "{'platform': 'state', 'id': '0', 'xs': []}"}
-    Lean: {'ok': True, 'repr': "{'id': '0', 'platform': 'state', 'xs': []}", 'type': 'dict'}
-  UNCLASSIFIED r102_2206 [refuses_render] "{% for i1 in ((states | map(attribute='entity_id') | list) | map('is_number') | list) %}{{ loop.revindex }}/{{ loop.length }} {{ i1 }}{% else %}{{ 0 }}{% endfor"
-      HA: {'ok': True, 'type': 'int', 'repr': '0'}
-    Lean: {'error': 'slicing float is not supported by HALean', 'ok': False}
-  UNCLASSIFIED r102_2603 [refuses_render] "{% for i0 in ([{'a': 86400, 'b': 'a,b,c'}, {'a': 1e22, 'b': '0.50'}] | map(attribute='a') | list) if i0 is string %}{{ loop.index }}:{{ i0 }}{% if is_state('swi"
-      HA: {'ok': True, 'type': 'str', 'repr': "''"}
-    Lean: {'error': 'slicing dict is not supported by HALean', 'ok': False}
-  UNCLASSIFIED r102_2680 [refuses_render] "{% set v0 = {'a': (12 | timestamp_custom('%a-%-S')), 'k k': (none if true), 1: range(5)} %}{% if (state_attr('light.a', 'xs') not in (timedelta() | map('round',"
-      HA: {'ok': True, 'type': 'str', 'repr': "'2025-02-28 23:59:59+00:00'"}
-    Lean: {'error': "'timedelta' object is not iterable", 'info': {'all_states': False, 'all_states_lifecycle': False, 'domains': [], 'domains_lifecycle': [], 'entities': ['light.a']}, 'ok': False}

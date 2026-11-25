@@ -1,0 +1,17 @@
+description: >
+  One turn_on starts a script whose first step is `parallel`, then a script that turns the first
+  one off. HA's branch tasks were scheduled before the stop: their first steps still run.
+scripts:
+  p:
+    sequence:
+      - parallel:
+          - event: p_branch_1
+          - event: p_branch_2
+      - event: p_after
+  killer:
+    sequence:
+      - action: script.turn_off
+        target: {entity_id: script.p}
+steps:
+  - {at: 1, call: turn_on, data: {entity_id: [script.p, script.killer]}}
+  - {at: 2}

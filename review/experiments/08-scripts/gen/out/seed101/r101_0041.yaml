@@ -1,0 +1,181 @@
+description: random scenario seed=101 index=41
+scripts:
+  s0:
+    alias: Script 0 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+  s1:
+    alias: Script 1 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+  s2:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - delay: 1
+    - action: test.m
+      data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+  s3:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - action: test.m
+      data:
+        id: s3.3
+        v: '{{ v | default(0) }}'
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+    - action: test.m
+      data:
+        id: s3.4
+        v: '{{ v | default(0) }}'
+steps:
+- at: 1
+  call: s2
+  return_response: true
+- at: 4
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s3
+    variables:
+      v: 1
+- at: 4
+  call: s1
+- at: 5
+  reload:
+    s0:
+      alias: Script 0 B
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 3
+    s1:
+      alias: Script 1 B
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+    s2:
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - delay: 1
+      - action: test.m
+        data:
+          id: s2.2
+          v: '{{ v | default(0) }}'
+      alias: Reloaded s2
+    s3:
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s1
+      - action: test.m
+        data:
+          id: s3.3
+          v: '{{ v | default(0) }}'
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+      - action: test.m
+        data:
+          id: s3.4
+          v: '{{ v | default(0) }}'
+- at: 6
+  call: s0
+  data:
+    v: 4
+- at: 9
+  result: 0
+  ok: false
+  error_kind: ha_error
+- at: 10
+  result: 2
+  response:
+    n: 2
+- at: 11
+  result: 1
+  ok: false
+  error_kind: other
+- at: 12
+  call: s1
+- at: 13
+  call: s2
+  return_response: true
+- at: 13
+  result: 3
+  response:
+    n: 3
+- at: 14
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+- at: 16
+  call: s3
+  data:
+    v: 0
+- at: 19
+  call: turn_off
+  data:
+    entity_id:
+    - script.s1
+    - script.s2
+- at: 20
+  result: 4
+  ok: false
+  error_kind: invalid

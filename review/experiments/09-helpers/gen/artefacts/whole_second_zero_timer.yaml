@@ -1,0 +1,19 @@
+# Not a HALean divergence: a harness artefact (FINDINGS.md, "Notes on the harness").
+# After `advance: 0.876544` the frozen clock is exactly 16:30:46.000000. A timer started
+# with a zero duration then has `finishes_at` == now. HA schedules the finish with
+# `loop.call_at(loop.time() + end.timestamp() - time.time())` (helpers/event.py); under
+# freezegun the float sum can land just after the frozen `loop.time()`, so the callback
+# does not run until the next `advance`. On a running HA it runs within microseconds,
+# which is what halean-helpers answers.
+- name: artefact_zero_timer_on_whole_second
+  steps:
+    - setup: {timer: {t: null}}
+    - advance: 0.876544
+    - call: timer.start
+      data: {entity_id: timer.t}
+- name: artefact_control_zero_timer_off_whole_second
+  steps:
+    - setup: {timer: {t: null}}
+    - advance: 0.876545
+    - call: timer.start
+      data: {entity_id: timer.t}

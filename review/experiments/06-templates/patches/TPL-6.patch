@@ -1,0 +1,83 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index b63a855..5e9c669 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -277,9 +277,15 @@ def stateAttr (s : EntityState) (collectIt : Bool) (a : String) : R Value := do
+   | a => if STATE_OPAQUE.contains a then pure (.opaque s!"state.{a}")
+          else pure (.undef s!"'TemplateState object' has no attribute '{a}'")
+ 
++/-- `StateMachine.get`: the id as given, then `entity_id.lower()` (ASCII ids). -/
++def statesGetCI (ctx : Ctx) (eid : String) : Option EntityState :=
++  match ctx.states.get? eid with
++  | some s => some s
++  | none => if eid.all (fun (c : Char) => c.toNat < 128) then ctx.states.get? eid.toLower else none
++
+ /-- `_get_state_if_valid` -/
+ def stateIfValid (ctx : Ctx) (eid : String) : R Value :=
+-  match ctx.states.get? eid with
++  match statesGetCI ctx eid with
+   | some s => pure (.state s true)
+   | none =>
+     if validEntityId eid then do collect eid; pure .none
+@@ -829,8 +835,8 @@ def needStr (fn : String) (v : Value) : R String :=
+ /-- `is_state` -/
+ def isState (ctx : Ctx) (eid state : Value) : R Bool := do
+   let .str e := eid | return false
+-  collect e
+-  let some s := ctx.states.get? e | return false
++  let some s := statesGetCI ctx e | do collect e; return false
++  collect s.entityId
+   return pyEq (.str s.state) state ||
+     (match state with
+      | .list xs => xs.any (pyEq (.str s.state))
+@@ -839,19 +845,18 @@ def isState (ctx : Ctx) (eid state : Value) : R Bool := do
+ /-- `state_attr` -/
+ def stateAttrFn (ctx : Ctx) (eid name : Value) : R Value := do
+   let .str e := eid | return .none
+-  collect e
++  let some s := statesGetCI ctx e | do collect e; return .none
++  collect s.entityId
+   let .str n := name | return .none
+-  let some s := ctx.states.get? e | return .none
+   return (s.attr? n).map Value.ofJson |>.getD .none
+ 
+ /-- `has_value` -/
+ def hasValue (ctx : Ctx) (eid : Value) : R Bool := do
+   match eid with
+   | .str e =>
+-    collect e
+-    match ctx.states.get? e with
+-    | some s => pure (s.state != STATE_UNAVAILABLE && s.state != STATE_UNKNOWN)
+-    | none => pure false
++    match statesGetCI ctx e with
++    | some s => do collect s.entityId; pure (s.state != STATE_UNAVAILABLE && s.state != STATE_UNKNOWN)
++    | none => do collect e; pure false
+   | _ => pure false
+ 
+ /-- `forgiving_float` -/
+@@ -1314,10 +1319,9 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
+     if a.pos.length > 1 || !a.kw.isEmpty then
+       throw "states() with rounded/with_unit is not supported by HALean"
+     let some (.str e) := a.get 0 "entity_id" | throw "states() needs an entity id"
+-    collect e
+-    match ctx.states.get? e with
+-    | some s => pure (.str s.state)
+-    | none => pure (.str STATE_UNKNOWN)
++    match statesGetCI ctx e with
++    | some s => do collect s.entityId; pure (.str s.state)
++    | none => do collect e; pure (.str STATE_UNKNOWN)
+   | .func n self =>
+     match n, self with
+     | "is_state", _ => do
+@@ -1329,9 +1333,9 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
+     | "is_state_attr", _ => do
+       a.check n ["entity_id", "name", "value"]
+       let .str e := (a.get 0 "entity_id").getD .none | return .bool false
+-      collect e
++      let some s := statesGetCI ctx e | do collect e; return .bool false
++      collect s.entityId
+       let .str nm := (a.get 1 "name").getD .none | return .bool false
+-      let some s := ctx.states.get? e | return .bool false
+       match s.attr? nm with
+       | none => return .bool false
+       | some j => return .bool (pyEq (Value.ofJson j) ((a.get 2 "value").getD .none))

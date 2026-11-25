@@ -1,0 +1,92 @@
+description: random scenario seed=101 index=44
+scripts:
+  s0:
+    alias: Script 0 B
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - event: mark
+      event_data:
+        id: s0.3
+        v: '{{ v | default(0) }}'
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+    - stop: bad
+      error: true
+  s2:
+    alias: Script 2 B
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+steps:
+- at: 1
+  call: s2
+  return_response: true
+- at: 3
+  call: s0
+  return_response: true
+- at: 4
+  call: s1
+  data:
+    v: 4
+  return_response: true
+- at: 7
+  call: s0
+  data:
+    v: 0
+- at: 8
+  call: s0
+- at: 9
+  call: s0
+  data:
+    v: 0
+- at: 10
+  call: s2
+  data:
+    v: 3
+- at: 10
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 11
+  call: s0
+  data:
+    v: 4
+  return_response: true
+- at: 12
+- at: 13

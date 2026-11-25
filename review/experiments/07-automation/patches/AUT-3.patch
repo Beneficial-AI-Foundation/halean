@@ -1,0 +1,63 @@
+diff --git a/HALean/Automation/Condition.lean b/HALean/Automation/Condition.lean
+index 83c8737..9c704d1 100644
+--- a/HALean/Automation/Condition.lean
++++ b/HALean/Automation/Condition.lean
+@@ -136,7 +136,7 @@ def stateOne (env : CondEnv) (eid : String) (req : List Json) (forP : Option For
+       if isInputEntityId s then
+         let some se := env.states.get? s | throw s!"the 'state' entity {s} is unavailable"
+         sv := .str se.state
+-    isState := value == sv
++    isState := jsonPyEq value sv
+     if isState then break
+   match forP with
+   | none => return isState
+diff --git a/HALean/Automation/Config.lean b/HALean/Automation/Config.lean
+index 5fece19..23f8d66 100644
+--- a/HALean/Automation/Config.lean
++++ b/HALean/Automation/Config.lean
+@@ -84,6 +84,10 @@ inductive Condition where
+   | disabled
+   deriving Repr, Inhabited
+ 
++/-- Python's `==` between two JSON values (`1 == 1.0 == True`, `"1" != 1`). -/
++def jsonPyEq (a b : Json) : Bool :=
++  Template.pyEq (Template.Value.ofJson a) (Template.Value.ofJson b)
++
+ /-- `process_state_match`: `values = none` is MATCH_ALL. -/
+ structure StateMatch where
+   values : Option (List Json) := none
+diff --git a/HALean/Automation/Engine.lean b/HALean/Automation/Engine.lean
+index e46db66..42e1b94 100644
+--- a/HALean/Automation/Engine.lean
++++ b/HALean/Automation/Engine.lean
+@@ -296,7 +296,7 @@ def valueOf (attr : Option String) : Option EntityState → Json
+ def StateMatch.matches (m : StateMatch) (v : Json) : Bool :=
+   match m.values with
+   | none => !m.invert
+-  | some vs => m.invert != vs.contains v
++  | some vs => m.invert != vs.any (jsonPyEq · v)
+ 
+ /-! ## Runs and run modes -/
+ 
+@@ -1120,8 +1120,8 @@ def onStateTrigger (o : Owner) (t : Trigger) (eid : String) (old new : Option En
+   if !eids.contains eid then return
+   let oldV := valueOf attr old
+   let newV := valueOf attr new
+-  if attr.isSome && oldV == newV then return
+-  if !fromM.matches oldV || !toM.matches newV || (!matchAll && oldV == newV) then return
++  if attr.isSome && jsonPyEq oldV newV then return
++  if !fromM.matches oldV || !toM.matches newV || (!matchAll && jsonPyEq oldV newV) then return
+   let check := if fromKeyOnly then SameCheck.notEqualOld attr oldV else .equalNew attr newV
+   match forP with
+   | none => fire o (stateTriggerVars t eid old new attr .none)
+@@ -1186,8 +1186,8 @@ def sameStillHolds (env : CondEnv) (c : SameCheck) (new : Option EntityState) :
+   | none => false
+   | some s =>
+     match c with
+-    | .equalNew attr v => valueOf attr (some s) == v
+-    | .notEqualOld attr v => valueOf attr (some s) != v
++    | .equalNew attr v => jsonPyEq (valueOf attr (some s)) v
++    | .notEqualOld attr v => !jsonPyEq (valueOf attr (some s)) v
+     | .numeric below above attr vt =>
+       match numericStateOf env s below above attr vt with
+       | .ok b => b

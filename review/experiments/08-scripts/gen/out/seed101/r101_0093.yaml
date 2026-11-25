@@ -1,0 +1,126 @@
+description: random scenario seed=101 index=93
+scripts:
+  s0:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+  s1:
+    icon: mdi:script
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+    - delay: 3
+  s2:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - action: test.m
+      data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: test.m
+      data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+      response_variable: r
+  s3:
+    alias: Script 3 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s3.6
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+steps:
+- at: 1
+- at: 2
+  call: s1
+  data:
+    v: 4
+  return_response: true
+- at: 3
+  result: 0
+  response:
+    n: 0
+- at: 6
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+    - script.s2
+- at: 7
+  result: 2
+  ok: false
+  error_kind: ha_error
+- at: 8
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 9
+  call: s1
+- at: 11
+  result: 1
+  response:
+    n: 1
+- at: 11
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s2
+- at: 12
+  result: 3
+  response:
+    n: 3
+- at: 13
+  call: s1
+  data:
+    v: 1
+  return_response: true
+- at: 14
+  call: toggle
+  data:
+    entity_id:
+    - script.s3

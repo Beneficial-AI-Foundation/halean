@@ -1,0 +1,78 @@
+description: random scenario seed=101 index=57
+scripts:
+  s0:
+    alias: Script 0 A
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+  s2:
+    alias: Script 2 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: test.m
+      data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+      response_variable: r
+steps:
+- at: 3
+  call: s1
+  data:
+    v: 4
+- at: 3
+  call: turn_off
+  data:
+    entity_id: all
+- at: 5
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+    variables:
+      v: 1
+- at: 6
+- at: 7
+  result: 1
+  response:
+    n: 1
+- at: 7
+  result: 0
+  response:
+    n: 0
+- at: 8
+  call: turn_off
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 10
+  call: s1

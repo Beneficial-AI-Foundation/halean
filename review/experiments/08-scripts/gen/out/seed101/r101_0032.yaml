@@ -1,0 +1,118 @@
+description: random scenario seed=101 index=32
+scripts:
+  s0:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s1'') }}'
+        cur: '{{ state_attr(''script.s1'', ''current'') }}'
+    - parallel:
+      - sequence:
+        - condition: template
+          value_template: '{{ v | default(0) < 2 }}'
+        - delay: 1
+      - sequence:
+        - parallel:
+          - sequence:
+            - delay: 1
+          - sequence:
+            - event: mark
+              event_data:
+                id: s0.2
+                v: '{{ v | default(0) }}'
+                r: '{{ r | default(''undef'') }}'
+            - action: script.s1
+              data:
+                v: '{{ v | default(0) + 1 }}'
+              response_variable: r
+        - event: mark
+          event_data:
+            id: s0.3
+            v: '{{ v | default(0) }}'
+            this: '{{ this.state }}/{{ this.attributes.current }}'
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.4
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - delay: 1
+    - event: mark
+      event_data:
+        id: s1.5
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+  s2:
+    alias: Script 2 B
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+    - action: test.m
+      data:
+        id: s2.6
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - delay: 1
+steps:
+- at: 1
+  call: s2
+  data:
+    v: 3
+- at: 2
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+- at: 3
+  result: 0
+  response:
+    n: 0
+- at: 3
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 3
+  call: s2
+  data:
+    v: 0
+  return_response: true
+- at: 4
+  call: s0
+- at: 6
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+- at: 6
+  result: 1
+  response:
+    n: 1
+- at: 7
+  call: s2
+  data:
+    v: 0
+- at: 8
+  call: s2

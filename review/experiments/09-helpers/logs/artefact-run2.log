@@ -1,0 +1,221 @@
+FF.                                                                      [100%]
+=================================== FAILURES ===================================
+________________ test_helpers[artefact_setup_retry_after_error] ________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc12c752a50>
+engine = <function engine.<locals>.ask at 0x7fc12ca09e80>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7fc12b66f230>
+case = {'name': 'artefact_setup_retry_after_error', 'steps': [{'setup': {'counter': {'a': {'step': -1}}}}, {'setup': {'counter': {'a': {'step': 1}}}}, {'call': 'counter.increment', 'data': {'entity_id': 'counter.a'}}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+            assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+    
+            ha: dict = {}
+            if "setup" in step:
+                if step.get("restore"):
+                    mock_restore_cache(hass, [State(e, s, a) for e, s, a in step["restore"]])
+                module = importlib.import_module(f"homeassistant.components.{domain}")
+                try:
+                    module.CONFIG_SCHEMA({domain: cfg})
+                    ha["ok"] = True
+                except probatio.Invalid as err:
+                    ha["ok"] = False
+                    ha["error"] = str(err)
+                caplog.clear()  # what that validation logged is logged again by the setup
+                ok = await async_setup_component(hass, domain, {domain: cfg})
+                await hass.async_block_till_done()
+>               assert ok == ha["ok"], f"{where}\nasync_setup_component returned {ok}"
+E               AssertionError: step 1: {'setup': {'counter': {'a': {'step': 1}}}}
+E                 async_setup_component returned False
+E               assert False == True
+
+harness/test_helpers.py:181: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+------------------------------ Captured log setup ------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+----------------------------- Captured stderr call -----------------------------
+ERROR:homeassistant.config:Invalid config for 'counter': value must be at least 0 for dictionary value 'counter->a->step', got -1, please check the docs at https://www.home-assistant.io/integrations/counter
+ERROR:homeassistant.setup:Setup failed for 'counter': Invalid config.
+------------------------------ Captured log call -------------------------------
+ERROR    homeassistant.config:config.py:979 Invalid config for 'counter': value must be at least 0 for dictionary value 'counter->a->step', got -1, please check the docs at https://www.home-assistant.io/integrations/counter
+ERROR    homeassistant.setup:setup.py:276 Setup failed for 'counter': Invalid config.
+______________ test_helpers[artefact_zero_timer_on_whole_second] _______________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc12c76df90>
+engine = <function engine.<locals>.ask at 0x7fc12ca09e80>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7fc12c76f610>
+case = {'name': 'artefact_zero_timer_on_whole_second', 'steps': [{'setup': {'timer': {'t': None}}}, {'advance': 0.876544}, {'call': 'timer.start', 'data': {'entity_id': 'timer.t'}}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+            assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+    
+            ha: dict = {}
+            if "setup" in step:
+                if step.get("restore"):
+                    mock_restore_cache(hass, [State(e, s, a) for e, s, a in step["restore"]])
+                module = importlib.import_module(f"homeassistant.components.{domain}")
+                try:
+                    module.CONFIG_SCHEMA({domain: cfg})
+                    ha["ok"] = True
+                except probatio.Invalid as err:
+                    ha["ok"] = False
+                    ha["error"] = str(err)
+                caplog.clear()  # what that validation logged is logged again by the setup
+                ok = await async_setup_component(hass, domain, {domain: cfg})
+                await hass.async_block_till_done()
+                assert ok == ha["ok"], f"{where}\nasync_setup_component returned {ok}"
+            elif "call" in step:
+                try:
+                    await hass.services.async_call(domain, service, data, blocking=True)
+                    ha["error"] = None
+                except Exception as err:  # noqa: BLE001
+                    ha["error"] = {"type": type(err).__name__, "message": str(err)}
+                # a timer that ends now (zero duration) has its callback in the
+                # loop's ready queue: let the loop run it, as it would at once
+                for _ in range(5):
+                    await asyncio.sleep(0)
+                await hass.async_block_till_done()
+            else:
+                freezer.move_to(now)
+                async_fire_time_changed_exact(hass, now)
+                await hass.async_block_till_done()
+    
+            ha["outs"] = list(outs)
+            ha["logs"] = warnings()
+            ha["states"] = _states(hass)
+            lean["states"] = sorted(lean["states"])
+            lean["logs"] = [l for l in lean["logs"] if l[0] == "warning"]
+            if sort_outs:
+                ha["outs"] = sorted(ha["outs"])
+                lean["outs"] = sorted(lean["outs"])
+            if "expect_error" in step:  # documents the upstream behaviour the step is about
+                assert ha.get("error") == step["expect_error"], f"{where}\nHA: {ha.get('error')}"
+>           assert lean == ha, f"{where}\nHA:     {ha}\nHALean: {lean}"
+E           AssertionError: step 2: {'call': 'timer.start', 'data': {'entity_id': 'timer.t'}}
+E             HA:     {'error': None, 'outs': [['state_changed', 'timer.t', 'active', "{'duration': '0:00:00', 'editable': False, 'last_transition': 'started', 'finishes_at': '2026-11-20T16:30:46+00:00', 'remaining': '0:00:00'}"], ['event', 'timer.started', "{'entity_id': 'timer.t'}"]], 'logs': [], 'states': [['timer.t', 'active', "{'duration': '0:00:00', 'editable': False, 'last_transition': 'started', 'finishes_at': '2026-11-20T16:30:46+00:00', 'remaining': '0:00:00'}"]]}
+E             HALean: {'error': None, 'logs': [], 'outs': [['state_changed', 'timer.t', 'active', "{'duration': '0:00:00', 'editable': False, 'last_transition': 'started', 'finishes_at': '2026-11-20T16:30:46+00:00', 'remaining': '0:00:00'}"], ['event', 'timer.started', "{'entity_id': 'timer.t'}"], ['state_changed', 'timer.t', 'idle', "{'duration': '0:00:00', 'editable': False, 'last_transition': 'finished'}"], ['event', 'timer.finished', "{'entity_id': 'timer.t', 'finished_at': '2026-11-20T16:30:46+00:00'}"]], 'states': [['timer.t', 'idle', "{'duration': '0:00:00', 'editable': False, 'last_transition': 'finished'}"]]}
+E           assert {'error': Non...finished'}"]]} == {'error': Non...'0:00:00'}"]]}
+E             
+E             Omitting 2 identical items, use -vv to show
+E             Differing items:
+E             {'states': [['timer.t', 'idle', "{'duration': '0:00:00', 'editable': False, 'last_transition': 'finished'}"]]} != {'states': [['timer.t', 'active', "{'duration': '0:00:00', 'editable': False, 'last_transition': 'started', 'finishes_at': '2026-11-20T16:30:46+00:00', 'remaining': '0:00:00'}"]]}
+E             {'outs': [['state_changed', 'timer.t', 'active', "{'duration': '0:00:00', 'editable': False, 'last_transition': 'start...': 'finished'}"], ['event', 'timer.finished', "{'entity_id': 'timer.t', 'finished_at': '2026-11-20T16:3...
+E             
+E             ...Full output truncated (2 lines hidden), use '-vv' to show
+
+harness/test_helpers.py:208: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-15' coro=<test_helpers() running at /home/user/halean/review/experiments/09-helpers/harness/test_helpers.py:196> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 0.877 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-15' coro=<test_helpers() running at /home/user/halean/review/experiments/09-helpers/harness/test_helpers.py:196> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 0.877 seconds
+--------------------------- Captured stderr teardown ---------------------------
+WARNING:pytest_homeassistant_custom_component.plugins:Lingering timer after test <TimerHandle when=1795192246.0 _TrackPointUTCTime(hass=<HomeAssistant STOPPED>, job=<Job track point in utc time 2026-11-20 16:30:46+00:00 HassJobType.Callback <bound method Timer._async_finished of <entity timer.t=active>>>, utc_point_in_time=HAFakeDatetime(2026, 11, 20, 16, 30, 46, tzinfo=datetime.timezone.utc), expected_fire_timestamp=1795192246.0, _cancel_callback=<TimerHandle when=1795192246.0 ...() created at /opt/havenv/lib/python3.14/site-packages/homeassistant/helpers/event.py:1464>)() created at /opt/havenv/lib/python3.14/site-packages/homeassistant/helpers/event.py:1464>
+---------------------------- Captured log teardown -----------------------------
+WARNING  pytest_homeassistant_custom_component.plugins:plugins.py:466 Lingering timer after test <TimerHandle when=1795192246.0 _TrackPointUTCTime(hass=<HomeAssistant STOPPED>, job=<Job track point in utc time 2026-11-20 16:30:46+00:00 HassJobType.Callback <bound method Timer._async_finished of <entity timer.t=active>>>, utc_point_in_time=HAFakeDatetime(2026, 11, 20, 16, 30, 46, tzinfo=datetime.timezone.utc), expected_fire_timestamp=1795192246.0, _cancel_callback=<TimerHandle when=1795192246.0 ...() created at /opt/havenv/lib/python3.14/site-packages/homeassistant/helpers/event.py:1464>)() created at /opt/havenv/lib/python3.14/site-packages/homeassistant/helpers/event.py:1464>
+=========================== short test summary info ============================
+FAILED harness/test_helpers.py::test_helpers[artefact_setup_retry_after_error]
+FAILED harness/test_helpers.py::test_helpers[artefact_zero_timer_on_whole_second]
+2 failed, 1 passed in 0.45s

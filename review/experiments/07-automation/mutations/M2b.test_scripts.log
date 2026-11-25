@@ -1,0 +1,279 @@
+..F......s.                                                              [100%]
+=================================== FAILURES ===================================
+_________________________ test_script_scenario[modes] __________________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc64bc40e10>
+path = PosixPath('/tmp/claude-0/halean-copies/07-automation-m/tests/script_scenarios/modes.yaml')
+
+    @pytest.mark.parametrize("path", SCENARIOS, ids=[p.stem for p in SCENARIOS])
+    async def test_script_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = {"script_started"}
+        configs = [sc["scripts"]] + [st["reload"] for st in sc["steps"] if "reload" in st]
+        for scripts in configs:
+            for cfg in (scripts or {}).values():
+                _walk(cfg.get("sequence"), services, events)
+        for auto in sc.get("automations", []):
+            _walk(auto.get("actions", auto.get("action")), services, events)
+    
+        observed: dict[str, list] = {"call_service": [], "fire_event": [], "call_done": []}
+        futures: list[asyncio.Future] = []
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall):
+            observed["call_service"].append([call.domain, call.service, norm_data(dict(call.data))])
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut
+    
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type in events and event.context is not input_ctx:
+                observed["fire_event"].append([event.event_type, dict(event.data)])
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "script", {"script": copy.deepcopy(sc["scripts"])})
+        await _settle()
+        if "automations" in sc:
+            assert await async_setup_component(
+                hass, "automation", {"automation": copy.deepcopy(sc["automations"])})
+            await _settle()
+    
+        def snapshot() -> dict:
+            obs = {k: list(v) for k, v in observed.items()}
+            for v in observed.values():
+                v.clear()
+            obs["states"] = {
+                s.entity_id: [s.state, {k: _attr(s.attributes[k]) for k in ATTRS if k in s.attributes}]
+                for s in sorted(hass.states.async_all("script"), key=lambda s: s.entity_id)}
+            return obs
+    
+        per_step = [snapshot()]
+        tasks: list[asyncio.Task] = []
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "call" in st:
+                idx = len(tasks)
+                rr = st.get("return_response", False)
+                task = hass.async_create_task(hass.services.async_call(
+                    "script", st["call"], copy.deepcopy(st.get("data", {})), blocking=True,
+                    return_response=rr))
+    
+                def done(t: asyncio.Task, idx: int = idx) -> None:
+                    if t.cancelled():
+                        observed["call_done"].append([idx, False, "cancelled"])
+                    elif (exc := t.exception()) is not None:
+                        observed["call_done"].append([idx, False, _error_kind(exc)])
+                    else:
+                        observed["call_done"].append([idx, True, t.result()])
+    
+                task.add_done_callback(done)
+                tasks.append(task)
+            elif "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            elif "event" in st:
+                hass.bus.async_fire(st["event"]["event_type"], st["event"].get("data", {}),
+                                    context=input_ctx)
+            elif "result" in st:
+                fut = futures[st["result"]]
+                if not fut.done():
+                    if st.get("ok", True):
+                        fut.set_result(st.get("response"))
+                    else:
+                        kind = st.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            elif "reload" in st:
+                with patch("homeassistant.config.async_hass_config_yaml",
+                           AsyncMock(return_value={"script": copy.deepcopy(st["reload"])})):
+                    await hass.services.async_call("script", "reload", blocking=True)
+            await _settle()
+            per_step.append(snapshot())
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+        for t in tasks:
+            if not t.done():
+                t.cancel()
+        await _settle()
+    
+        unsupported, lean = lean_run(sc)
+        assert not unsupported, f"HALean rejected {unsupported}; mark the scenario differential: false"
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = []
+        for label, ha, en in zip(labels, per_step, lean):
+            en = {k: v for k, v in en.items() if k != "logs"}
+            # outside calls that end in the same step are separate tasks: the
+            # order they finish in is asyncio scheduling, which is not modelled
+            for obs in (ha, en):
+                obs["call_done"] = sorted(obs["call_done"], key=lambda c: c[0])
+            if ha != en:
+                diffs.append(f"{label}\n    HA:     {ha}\n    HALean: {en}")
+>       assert not diffs, "HA and HALean disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and HALean disagree:
+E           step at=4
+E             HA:     {'call_service': [], 'fire_event': [['script_started', {'name': 'many', 'entity_id': 'script.many'}]], 'call_done': [[4, True, None]], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': None, 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['on', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 2, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [['test', 'many', {'n': 3}]], 'fire_event': [['script_started', {'entity_id': 'script.many', 'name': 'many'}]], 'call_done': [], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': None, 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['on', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 3, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=5
+E             HA:     {'call_service': [], 'fire_event': [], 'call_done': [[3, True, None]], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': None, 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['on', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 1, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [], 'fire_event': [], 'call_done': [[3, True, None]], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': None, 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['on', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 2, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=5
+E             HA:     {'call_service': [], 'fire_event': [], 'call_done': [[2, True, None]], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': None, 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [], 'fire_event': [], 'call_done': [[2, True, None]], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': None, 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['on', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 1, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=6
+E             HA:     {'call_service': [['test', 'line', {'n': 1}]], 'fire_event': [['script_started', {'name': 'line', 'entity_id': 'script.line'}]], 'call_done': [], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 1, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [['test', 'line', {'n': 1}]], 'fire_event': [['script_started', {'entity_id': 'script.line', 'name': 'line'}]], 'call_done': [], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 1, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['on', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 1, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=6
+E             HA:     {'call_service': [], 'fire_event': [['script_started', {'name': 'line', 'entity_id': 'script.line'}]], 'call_done': [], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 2, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [], 'fire_event': [['script_started', {'entity_id': 'script.line', 'name': 'line'}]], 'call_done': [], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 2, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['on', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 1, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=7
+E             HA:     {'call_service': [['test', 'line', {'n': 2}]], 'fire_event': [], 'call_done': [[5, True, None]], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 1, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [], 'fire_event': [], 'call_done': [[4, True, None]], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 2, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=8
+E             HA:     {'call_service': [], 'fire_event': [], 'call_done': [[6, True, None]], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [['test', 'line', {'n': 2}]], 'fire_event': [], 'call_done': [[5, True, None]], 'states': {'script.again': ['off', {'last_triggered': None, 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 1, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=9
+E             HA:     {'call_service': [['test', 'again', {'n': 1}]], 'fire_event': [['script_started', {'name': 'again', 'entity_id': 'script.again'}]], 'call_done': [], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:29+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [['test', 'again', {'n': 1}]], 'fire_event': [['script_started', {'entity_id': 'script.again', 'name': 'again'}]], 'call_done': [], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:29+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 1, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=10
+E             HA:     {'call_service': [['test', 'again', {'n': 2}]], 'fire_event': [['script_started', {'name': 'again', 'entity_id': 'script.again'}]], 'call_done': [[7, False, 'cancelled']], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:30+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [['test', 'again', {'n': 2}]], 'fire_event': [['script_started', {'entity_id': 'script.again', 'name': 'again'}]], 'call_done': [[7, False, 'cancelled']], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:30+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 1, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=11
+E             HA:     {'call_service': [], 'fire_event': [], 'call_done': [], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:30+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [], 'fire_event': [], 'call_done': [], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:30+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 1, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=12
+E             HA:     {'call_service': [['test', 'again', {'n': 3}]], 'fire_event': [['script_started', {'name': 'again', 'entity_id': 'script.again'}]], 'call_done': [[8, True, None]], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:32+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [['test', 'again', {'n': 3}]], 'fire_event': [['script_started', {'entity_id': 'script.again', 'name': 'again'}]], 'call_done': [[8, False, 'cancelled']], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:32+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 1, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=13
+E             HA:     {'call_service': [], 'fire_event': [], 'call_done': [], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:32+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [], 'fire_event': [], 'call_done': [], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:32+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 1, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=16
+E             HA:     {'call_service': [['test', 'again_done', {'n': 3}]], 'fire_event': [], 'call_done': [], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:32+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [], 'fire_event': [], 'call_done': [], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:32+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 1, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E           step at=17
+E             HA:     {'call_service': [], 'fire_event': [], 'call_done': [[9, True, None]], 'states': {'script.again': ['off', {'last_triggered': '2023-11-14T22:13:32+00:00', 'mode': 'restart', 'current': 0, 'friendly_name': 'again'}], 'script.line': ['off', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 0, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E             HALean: {'call_service': [], 'fire_event': [], 'call_done': [], 'states': {'script.again': ['on', {'last_triggered': '2023-11-14T22:13:32+00:00', 'mode': 'restart', 'current': 1, 'friendly_name': 'again'}], 'script.line': ['on', {'last_triggered': '2023-11-14T22:13:26+00:00', 'mode': 'queued', 'current': 1, 'max': 10, 'friendly_name': 'line'}], 'script.many': ['off', {'last_triggered': '2023-11-14T22:13:24+00:00', 'mode': 'parallel', 'current': 0, 'max': 2, 'friendly_name': 'many'}], 'script.one': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}
+E       assert not ["step at=4\n    HA:     {'call_service': [], 'fire_event': [['script_started', {'name': 'many', 'entity_id': 'script....off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'one'}]}}", ...]
+
+/home/user/halean/tests/differential/test_scripts.py:240: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded script from homeassistant.components.script
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.setup:Setting up script
+INFO:homeassistant.helpers.entity_registry:Registered new script.script entity: script.one
+INFO:homeassistant.helpers.entity_registry:Registered new script.script entity: script.many
+INFO:homeassistant.helpers.entity_registry:Registered new script.script entity: script.line
+INFO:homeassistant.helpers.entity_registry:Registered new script.script entity: script.again
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.script.one:one: Running script sequence
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:homeassistant.components.script.one:one: Already running
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.script.one:one: Stop script sequence: done
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.script.many:many: Running script sequence
+INFO:homeassistant.components.script.many:many: Running script sequence
+WARNING:homeassistant.components.script.many:many: Maximum number of runs exceeded
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.script.line:line: Running script sequence
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.script.line:line: Running script sequence
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.script.again:again: Running script sequence
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.script.again:again: Restarting
+INFO:homeassistant.components.script.again:again: Running script sequence
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.script.again:again: Restarting
+INFO:homeassistant.components.script.again:again: Running script sequence
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded script from homeassistant.components.script
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.setup:setup.py:393 Setting up script
+INFO     homeassistant.helpers.entity_registry:entity_registry.py:1715 Registered new script.script entity: script.one
+INFO     homeassistant.helpers.entity_registry:entity_registry.py:1715 Registered new script.script entity: script.many
+INFO     homeassistant.helpers.entity_registry:entity_registry.py:1715 Registered new script.script entity: script.line
+INFO     homeassistant.helpers.entity_registry:entity_registry.py:1715 Registered new script.script entity: script.again
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.script.one:script.py:2301 one: Running script sequence
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  homeassistant.components.script.one:script.py:2301 one: Already running
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.script.one:script.py:2301 one: Stop script sequence: done
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.script.many:script.py:2301 many: Running script sequence
+INFO     homeassistant.components.script.many:script.py:2301 many: Running script sequence
+WARNING  homeassistant.components.script.many:script.py:2301 many: Maximum number of runs exceeded
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.script.line:script.py:2301 line: Running script sequence
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.script.line:script.py:2301 line: Running script sequence
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.script.again:script.py:2301 again: Running script sequence
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.script.again:script.py:2301 again: Restarting
+INFO     homeassistant.components.script.again:script.py:2301 again: Running script sequence
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.script.again:script.py:2301 again: Restarting
+INFO     homeassistant.components.script.again:script.py:2301 again: Running script sequence
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-57' coro=<test_script_scenario() running at /home/user/halean/tests/differential/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+=========================== short test summary info ============================
+FAILED tests/differential/test_scripts.py::test_script_scenario[modes] - Asse...
+1 failed, 9 passed, 1 skipped in 4.71s
+exit=1

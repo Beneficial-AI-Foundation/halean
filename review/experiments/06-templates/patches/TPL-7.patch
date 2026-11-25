@@ -1,0 +1,49 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 93a3b3b..547509a 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -1658,9 +1658,41 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+     | v => throw s!"bad operand type for abs(): '{typeName v}'"
+   | "sum" => do
+     if (arg 0 "attribute").isSome then throw "sum(attribute=...) is not supported by HALean"
+-    let mut acc := (arg 1 "start").getD (.int 0)
+-    for x in ← iterV ctx v do acc ← arith "+" acc x
+-    pure acc
++    -- CPython's `sum`: C-long ints first; once the result is a float, Neumaier's
++    -- compensated summation over floats and ints; `PyNumber_Add` from the first other item on
++    let start := (arg 1 "start").getD (.int 0)
++    if let .str _ := start then throw "TypeError: sum() can't sum strings [use ''.join(seq) instead]"
++    let inLong (i : Int) : Bool := -(2 : Int) ^ 63 ≤ i && i < (2 : Int) ^ 63
++    let flush (acc : Value) (c : Float) : Value := match acc with
++      | .float f => if c != 0 && Float.isFinite' c then .float (f + c) else acc
++      | a => a
++    let mut acc := start
++    let mut comp : Float := 0
++    -- 0: int fast path, 1: float (compensated), 2: generic
++    let mut mode : Nat := match start with | .int i => (if inLong i then 0 else 2) | .float _ => 1 | _ => 2
++    for x in ← iterV ctx v do
++      let asInt : Option Int := match x with | .int i => some i | .bool b => some (if b then 1 else 0) | _ => none
++      match mode, acc, x, asInt with
++      | 0, .int s, _, some i =>
++        acc := .int (s + i)
++        if !(inLong i && inLong (s + i)) then mode := 2
++      | 0, _, _, _ =>
++        acc ← arith "+" acc x
++        mode := match acc with | .float _ => 1 | _ => 2
++      | 1, .float f, .float y, _ =>
++        let t := f + y
++        comp := comp + (if f.abs ≥ y.abs then (f - t) + y else (y - t) + f)
++        acc := .float t
++      | 1, .float f, _, some i =>
++        if inLong i then acc := .float (f + intToFloat i)
++        else
++          acc ← arith "+" (flush acc comp) x
++          mode := 2
++      | 1, _, _, _ =>
++        acc ← arith "+" (flush acc comp) x
++        mode := 2
++      | _, _, _, _ => acc ← arith "+" acc x
++    pure (if mode == 1 then flush acc comp else acc)
+   | "as_timestamp" | "as_datetime" | "as_local" | "timestamp_local" | "timestamp_utc"
+   | "timestamp_custom" | "today_at"
+   | "as_timedelta" | "relative_time" | "time_since" | "time_until" | "timedelta_string" =>

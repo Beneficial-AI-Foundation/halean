@@ -1,0 +1,101 @@
+description: random scenario seed=101 index=96
+scripts:
+  s0:
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+  s1:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+  s2:
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+    - delay: 1
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - action: test.m
+        data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      else:
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+      - action: test.m
+        data:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+        response_variable: r
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+steps:
+- at: 1
+  call: s0
+  data:
+    v: 0
+- at: 2
+  call: s2
+  data:
+    v: 2
+- at: 3
+  call: s0
+  data:
+    v: 3
+  return_response: true
+- at: 5
+  result: 0
+  ok: false
+  error_kind: ha_error
+- at: 8
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+- at: 8
+  call: s0
+  data:
+    v: 4
+- at: 9
+  call: s1
+  data:
+    v: 1
+  return_response: true
+- at: 11
+  call: s2
+  return_response: true
+- at: 11

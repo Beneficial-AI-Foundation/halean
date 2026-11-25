@@ -1,0 +1,46 @@
+diff --git a/HALean/Automation/Config.lean b/HALean/Automation/Config.lean
+index 5fb958c..ba89002 100644
+--- a/HALean/Automation/Config.lean
++++ b/HALean/Automation/Config.lean
+@@ -709,6 +709,14 @@ def webhookMethods (v : Json) : D (List String) := do
+     throw s!"contains duplicate items: {(ms.filter fun m => ms.count m > 1).eraseDups} for dictionary value @ data['allowed_methods']"
+   pure ms
+ 
++/-- `_base_trigger_list_flatten`: an item whose only key is `triggers` is replaced by that list. -/
++def flattenTriggers (ts : List Json) : List Json :=
++  ts.flatMap fun t => match t with
++    | .obj kvs => match kvs.toList, field? t "triggers" with
++      | [_], some sub => ensureList sub
++      | _, _ => [t]
++    | _ => [t]
++
+ /-- `tvals`: the static trigger_variables, when the trigger attaches with
+ them (an automation's triggers, not `wait_for_trigger`). -/
+ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
+@@ -1140,7 +1148,7 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
+     return wrap (.waitTemplate (← compileTemplate src nm) (← timeout? j nm) (← continueOnTimeout? j))
+   if let some w := field? j "wait_for_trigger" then
+     -- trigger templates see the run's variables (and `trigger`)
+-    let trigs ← (ensureList w).zipIdx.mapM fun (t, i) => decodeTrigger i t nm
++    let trigs ← (flattenTriggers (ensureList w)).zipIdx.mapM fun (t, i) => decodeTrigger i t nm
+     return wrap (.waitForTrigger (trigs.filterMap id) (← timeout? j nm) (← continueOnTimeout? j))
+   if let some vs := field? j "variables" then
+     return wrap (.variables (← (← orderedMapping "variables" vs).mapM fun (k, v) => do pure (k, ← decodeComplex v nm)))
+@@ -1255,7 +1263,7 @@ def decodeAutomation (j : Json) (listNo : Nat := 0) (entityId : Option String :=
+   -- automation's entity id is known), and every variable the automation
+   -- defines (anywhere, including `variables` actions)
+   -- (and the variables triggers define)
+-  let trigVarNames := (ensureList (pick "triggers" "trigger")).flatMap fun t =>
++  let trigVarNames := (flattenTriggers (ensureList (pick "triggers" "trigger"))).flatMap fun t =>
+     match field? t "variables" with
+     | some (.obj kvs) => kvs.toList.map (·.1)
+     | some (.arr xs) => xs.toList.filterMap fun x => match x with
+@@ -1266,7 +1274,7 @@ def decodeAutomation (j : Json) (listNo : Nat := 0) (entityId : Option String :=
+     ++ merged.map (·.1) ++ trigVarNames ++ actionVariableNames (pick "actions" "action")
+   let mvars ← merged.mapM fun (k, v) => do pure (k, ← decodeComplex v nm)
+   let tnm := tvals.map (·.1)
+-  let trigs ← ((ensureList (pick "triggers" "trigger")).zipIdx).mapM fun (t, i) => decodeTrigger i t tnm (some tvals)
++  let trigs ← ((flattenTriggers (ensureList (pick "triggers" "trigger"))).zipIdx).mapM fun (t, i) => decodeTrigger i t tnm (some tvals)
+   let conds ← (ensureList (pick "conditions" "condition")).mapM (decodeCondition · nm)
+   let acts ← (ensureList (pick "actions" "action")).mapM (decodeAction · nm)
+   let mode ← match str? j "mode" with

@@ -256,3 +256,19 @@
       data: {entity_id: input_text.a, value: "-"}
     - call: input_text.set_value
       data: {entity_id: input_text.a, value: "_"}
+- name: hw_pat_dollar_star_no_initial
+  # without a value HA adds the entity (the pattern is compiled at the first write of a value)
+  steps:
+    - setup: {input_text: {a: {pattern: "a$*"}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "a"}
+- name: hw_pat_brace_at_start_no_initial
+  steps:
+    - setup: {input_text: {a: {pattern: "{2}"}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "{2}"}
+- name: hw_pat_class_escape_range_no_initial
+  steps:
+    - setup: {input_text: {a: {pattern: "[\\d-z]"}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "5"}

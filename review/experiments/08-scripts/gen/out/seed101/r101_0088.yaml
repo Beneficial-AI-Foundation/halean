@@ -1,0 +1,122 @@
+description: random scenario seed=101 index=88
+scripts:
+  s0:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s4
+    - action: script.toggle
+      target:
+        entity_id: script.s1
+  s1:
+    alias: Script 1 A
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s3
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+  s2:
+    alias: Script 2 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+        - script.s3
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+  s3:
+    icon: mdi:script
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - stop: bad
+      error: true
+    - action: script.toggle
+      target:
+        entity_id: script.s4
+  s4:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s4.1
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+    - action: test.m
+      data:
+        id: s4.2
+        v: '{{ v | default(0) }}'
+steps:
+- at: 2
+- at: 3
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    variables:
+      v: 3
+- at: 4
+  call: s4
+  data:
+    v: 4
+- at: 5
+  result: 0
+  ok: false
+  error_kind: ha_error
+- at: 7
+  result: 1
+  response:
+    n: 1
+- at: 7
+  call: s0
+- at: 10
+  call: s3
+  return_response: true
+- at: 11
+  call: s2

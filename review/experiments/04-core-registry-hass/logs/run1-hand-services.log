@@ -1,0 +1,466 @@
+.F.FFF..................................FF.                              [100%]
+=================================== FAILURES ===================================
+___________________ test_services[s_brace_domain_not_found] ____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f298ceaba10>
+engine = <function engine.<locals>.ask at 0x7f298d019430>
+case = {'name': 's_brace_domain_not_found', 'ops': [{'blocking': True, 'domain': '{service}', 'op': 'call', 'service': 'x'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+                assert op.get("domain", "x").lower() not in baseline
+    
+                fired.clear()
+                records.records.clear()
+                try:
+                    result = await run_ha(hass, op, baseline)
+                    ha: dict = {"ok": True, "result": result}
+                except Exception as err:  # noqa: BLE001
+                    ha = {"ok": False, "error": error_dict(err)}
+                await hass.async_block_till_done()
+                ha["events"] = [
+                    {"event_type": e.event_type, "data": _fresh(repr(e.data)),
+                     "time_fired": round(e.time_fired_timestamp * 1000),
+                     "context": {"id": _fresh(e.context.id), "user_id": e.context.user_id,
+                                 "parent_id": e.context.parent_id}}
+                    for e in fired]
+                ha["logs"] = [_log_dict(r) for r in records.records]
+>               assert lean == ha, f"op {i}: {op}\n  HA:     {ha}\n  HALean: {lean}"
+E               AssertionError: op 0: {'op': 'call', 'domain': '{service}', 'service': 'x', 'blocking': True}
+E                   HA:     {'ok': False, 'error': {'exception': 'ServiceNotFound', 'error_kind': 'ha_error', 'message': 'Action {service}.x not found', 'translation_domain': 'homeassistant', 'translation_key': 'service_not_found', 'translation_placeholders': {'domain': '{service}', 'service': 'x'}}, 'events': [], 'logs': []}
+E                   HALean: {'error': {'error_kind': 'ha_error', 'exception': 'ServiceNotFound', 'message': 'Action x.x not found', 'translation_domain': 'homeassistant', 'translation_key': 'service_not_found', 'translation_placeholders': {'domain': '{service}', 'service': 'x'}}, 'events': [], 'logs': [], 'ok': False}
+E               assert {'error': {'e..., 'ok': False} == {'error': {'e..., 'ok': False}
+E                 
+E                 Omitting 3 identical items, use -vv to show
+E                 Differing items:
+E                 {'error': {'error_kind': 'ha_error', 'exception': 'ServiceNotFound', 'message': 'Action x.x not found', 'translation_domain': 'homeassistant', ...}} != {'error': {'error_kind': 'ha_error', 'exception': 'ServiceNotFound', 'message': 'Action {service}.x not found', 'translation_domain': 'homeassistant', ...}}
+E                 Use -v to get more diff
+
+harness/test_services.py:222: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+------------------------------ Captured log setup ------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+______________ test_services[s_brace_service_in_domain_uppercase] ______________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f298d032e90>
+engine = <function engine.<locals>.ask at 0x7f298d019430>
+case = {'name': 's_brace_service_in_domain_uppercase', 'ops': [{'blocking': True, 'domain': 'X{SERVICE}', 'op': 'call', 'service': 'Y'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+                assert op.get("domain", "x").lower() not in baseline
+    
+                fired.clear()
+                records.records.clear()
+                try:
+                    result = await run_ha(hass, op, baseline)
+                    ha: dict = {"ok": True, "result": result}
+                except Exception as err:  # noqa: BLE001
+                    ha = {"ok": False, "error": error_dict(err)}
+                await hass.async_block_till_done()
+                ha["events"] = [
+                    {"event_type": e.event_type, "data": _fresh(repr(e.data)),
+                     "time_fired": round(e.time_fired_timestamp * 1000),
+                     "context": {"id": _fresh(e.context.id), "user_id": e.context.user_id,
+                                 "parent_id": e.context.parent_id}}
+                    for e in fired]
+                ha["logs"] = [_log_dict(r) for r in records.records]
+>               assert lean == ha, f"op {i}: {op}\n  HA:     {ha}\n  HALean: {lean}"
+E               AssertionError: op 0: {'op': 'call', 'domain': 'X{SERVICE}', 'service': 'Y', 'blocking': True}
+E                   HA:     {'ok': False, 'error': {'exception': 'ServiceNotFound', 'error_kind': 'ha_error', 'message': 'Action x{service}.y not found', 'translation_domain': 'homeassistant', 'translation_key': 'service_not_found', 'translation_placeholders': {'domain': 'x{service}', 'service': 'y'}}, 'events': [], 'logs': []}
+E                   HALean: {'error': {'error_kind': 'ha_error', 'exception': 'ServiceNotFound', 'message': 'Action xy.y not found', 'translation_domain': 'homeassistant', 'translation_key': 'service_not_found', 'translation_placeholders': {'domain': 'x{service}', 'service': 'y'}}, 'events': [], 'logs': [], 'ok': False}
+E               assert {'error': {'e..., 'ok': False} == {'error': {'e..., 'ok': False}
+E                 
+E                 Omitting 3 identical items, use -vv to show
+E                 Differing items:
+E                 {'error': {'error_kind': 'ha_error', 'exception': 'ServiceNotFound', 'message': 'Action xy.y not found', 'translation_domain': 'homeassistant', ...}} != {'error': {'error_kind': 'ha_error', 'exception': 'ServiceNotFound', 'message': 'Action x{service}.y not found', 'translation_domain': 'homeassistant', ...}}
+E                 Use -v to get more diff
+
+harness/test_services.py:222: AssertionError
+________________________ test_services[s_ctx_empty_id] _________________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f298b3223f0>
+engine = <function engine.<locals>.ask at 0x7f298d019430>
+case = {'name': 's_ctx_empty_id', 'ops': [{'domain': 'test_a', 'handler': {'echo': True}, 'op': 'register', 'service': 'echo', ...}, {'blocking': True, 'context': {'id': ''}, 'domain': 'test_a', 'op': 'call', ...}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+                assert op.get("domain", "x").lower() not in baseline
+    
+                fired.clear()
+                records.records.clear()
+                try:
+                    result = await run_ha(hass, op, baseline)
+                    ha: dict = {"ok": True, "result": result}
+                except Exception as err:  # noqa: BLE001
+                    ha = {"ok": False, "error": error_dict(err)}
+                await hass.async_block_till_done()
+                ha["events"] = [
+                    {"event_type": e.event_type, "data": _fresh(repr(e.data)),
+                     "time_fired": round(e.time_fired_timestamp * 1000),
+                     "context": {"id": _fresh(e.context.id), "user_id": e.context.user_id,
+                                 "parent_id": e.context.parent_id}}
+                    for e in fired]
+                ha["logs"] = [_log_dict(r) for r in records.records]
+>               assert lean == ha, f"op {i}: {op}\n  HA:     {ha}\n  HALean: {lean}"
+E               AssertionError: op 1: {'op': 'call', 'domain': 'test_a', 'service': 'echo', 'blocking': True, 'return_response': True, 'context': {'id': ''}}
+E                   HA:     {'ok': True, 'result': "{'domain': 'test_a', 'service': 'echo', 'data': {}, 'return_response': True, 'context_id': 'new'}", 'events': [{'event_type': 'call_service', 'data': "{'domain': 'test_a', 'service': 'echo', 'service_data': {}}", 'time_fired': 1795192246000, 'context': {'id': 'new', 'user_id': None, 'parent_id': None}}], 'logs': []}
+E                   HALean: {'events': [{'context': {'id': '', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'test_a', 'service': 'echo', 'service_data': {}}", 'event_type': 'call_service', 'time_fired': 1795192246000}], 'logs': [], 'ok': True, 'result': "{'domain': 'test_a', 'service': 'echo', 'data': {}, 'return_response': True, 'context_id': ''}"}
+E               assert {'events': [{...ext_id': ''}"} == {'events': [{..._id': 'new'}"}
+E                 
+E                 Omitting 2 identical items, use -vv to show
+E                 Differing items:
+E                 {'events': [{'context': {'id': '', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'test_a', 'service': 'echo', 'service_data': {}}", 'event_type': 'call_service', 'time_fired': 1795192246000}]} != {'events': [{'context': {'id': 'new', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'test_a', 'service': 'echo', 'service_data': {}}", 'event_type': 'call_service', 'time_fired': 1795192246000}]}
+E                 {'result': "{'domain': 'test_a', 'service': 'echo', 'data': {}, 'return_response': True, 'context_id': '...
+E                 
+E                 ...Full output truncated (2 lines hidden), use '-vv' to show
+
+harness/test_services.py:222: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-35' coro=<test_services() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_services.py:214> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-35' coro=<test_services() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_services.py:214> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+_____________ test_services[s_ctx_empty_id_nonblocking_error_log] ______________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f298b3616e0>
+engine = <function engine.<locals>.ask at 0x7f298d019430>
+case = {'name': 's_ctx_empty_id_nonblocking_error_log', 'ops': [{'domain': 'test_a', 'handler': {'message': 'boom', 'raise': ...'bad'}, {'context': {'id': '', 'parent_id': 'p', 'user_id': 'u'}, 'domain': 'test_a', 'op': 'call', 'service': 'bad'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+                assert op.get("domain", "x").lower() not in baseline
+    
+                fired.clear()
+                records.records.clear()
+                try:
+                    result = await run_ha(hass, op, baseline)
+                    ha: dict = {"ok": True, "result": result}
+                except Exception as err:  # noqa: BLE001
+                    ha = {"ok": False, "error": error_dict(err)}
+                await hass.async_block_till_done()
+                ha["events"] = [
+                    {"event_type": e.event_type, "data": _fresh(repr(e.data)),
+                     "time_fired": round(e.time_fired_timestamp * 1000),
+                     "context": {"id": _fresh(e.context.id), "user_id": e.context.user_id,
+                                 "parent_id": e.context.parent_id}}
+                    for e in fired]
+                ha["logs"] = [_log_dict(r) for r in records.records]
+>               assert lean == ha, f"op {i}: {op}\n  HA:     {ha}\n  HALean: {lean}"
+E               AssertionError: op 1: {'op': 'call', 'domain': 'test_a', 'service': 'bad', 'context': {'id': '', 'user_id': 'u', 'parent_id': 'p'}}
+E                   HA:     {'ok': True, 'result': 'None', 'events': [{'event_type': 'call_service', 'data': "{'domain': 'test_a', 'service': 'bad', 'service_data': {}}", 'time_fired': 1795192246000, 'context': {'id': 'new', 'user_id': 'u', 'parent_id': 'p'}}], 'logs': [{'level': 'error', 'message': 'Error executing service: <ServiceCall test_a.bad (c:new)>', 'exception': 'ValueError: boom'}]}
+E                   HALean: {'events': [{'context': {'id': '', 'parent_id': 'p', 'user_id': 'u'}, 'data': "{'domain': 'test_a', 'service': 'bad', 'service_data': {}}", 'event_type': 'call_service', 'time_fired': 1795192246000}], 'logs': [{'exception': 'ValueError: boom', 'level': 'error', 'message': 'Error executing service: <ServiceCall test_a.bad (c:)>'}], 'ok': True, 'result': 'None'}
+E               assert {'events': [{...sult': 'None'} == {'events': [{...sult': 'None'}
+E                 
+E                 Omitting 2 identical items, use -vv to show
+E                 Differing items:
+E                 {'logs': [{'exception': 'ValueError: boom', 'level': 'error', 'message': 'Error executing service: <ServiceCall test_a.bad (c:)>'}]} != {'logs': [{'exception': 'ValueError: boom', 'level': 'error', 'message': 'Error executing service: <ServiceCall test_a.bad (c:new)>'}]}
+E                 {'events': [{'context': {'id': '', 'parent_id': 'p', 'user_id': 'u'}, 'data': "{'domain': 'test_a', 'service': 'bad', 'service_data': {}}", 'event_type': 'call_service', 'time_fired': 1795192246000}]} != {'events': [{'context': {'id': 'new', 'par...
+E                 
+E                 ...Full output truncated (2 lines hidden), use '-vv' to show
+
+harness/test_services.py:222: AssertionError
+----------------------------- Captured stderr call -----------------------------
+ERROR:homeassistant.core:Error executing service: <ServiceCall test_a.bad (c:01M89Q6J4BG0DFJC2E394RVC98)>
+Traceback (most recent call last):
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 2983, in _run_service_call_catch_exceptions
+    await coro_or_task
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 3006, in _execute_service
+    return await target(service_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/review/experiments/04-core-registry-hass/harness/test_services.py", line 69, in handler
+    raise EXCEPTIONS[spec["raise"]](spec.get("message", ""))
+ValueError: boom
+WARNING:asyncio:Executing <Task pending name='Task-43' coro=<test_services() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_services.py:214> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+ERROR    homeassistant.core:core.py:2993 Error executing service: <ServiceCall test_a.bad (c:01M89Q6J4BG0DFJC2E394RVC98)>
+Traceback (most recent call last):
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 2983, in _run_service_call_catch_exceptions
+    await coro_or_task
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 3006, in _execute_service
+    return await target(service_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/review/experiments/04-core-registry-hass/harness/test_services.py", line 69, in handler
+    raise EXCEPTIONS[spec["raise"]](spec.get("message", ""))
+ValueError: boom
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-43' coro=<test_services() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_services.py:214> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+_____________ test_services[s_handler_spec_with_raise_and_return] ______________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f298a8d9450>
+engine = <function engine.<locals>.ask at 0x7f298d019430>
+case = {'name': 's_handler_spec_with_raise_and_return', 'ops': [{'domain': 'test_a', 'handler': {'message': 'v', 'raise': 'Va...egister', 'service': 'both', ...}, {'blocking': True, 'domain': 'test_a', 'op': 'call', 'return_response': True, ...}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+                assert op.get("domain", "x").lower() not in baseline
+    
+                fired.clear()
+                records.records.clear()
+                try:
+                    result = await run_ha(hass, op, baseline)
+                    ha: dict = {"ok": True, "result": result}
+                except Exception as err:  # noqa: BLE001
+                    ha = {"ok": False, "error": error_dict(err)}
+                await hass.async_block_till_done()
+                ha["events"] = [
+                    {"event_type": e.event_type, "data": _fresh(repr(e.data)),
+                     "time_fired": round(e.time_fired_timestamp * 1000),
+                     "context": {"id": _fresh(e.context.id), "user_id": e.context.user_id,
+                                 "parent_id": e.context.parent_id}}
+                    for e in fired]
+                ha["logs"] = [_log_dict(r) for r in records.records]
+>               assert lean == ha, f"op {i}: {op}\n  HA:     {ha}\n  HALean: {lean}"
+E               AssertionError: op 1: {'op': 'call', 'domain': 'test_a', 'service': 'both', 'blocking': True, 'return_response': True}
+E                   HA:     {'ok': False, 'error': {'exception': 'ValueError', 'error_kind': 'other', 'message': 'v'}, 'events': [{'event_type': 'call_service', 'data': "{'domain': 'test_a', 'service': 'both', 'service_data': {}}", 'time_fired': 1795192246000, 'context': {'id': 'new', 'user_id': None, 'parent_id': None}}], 'logs': []}
+E                   HALean: {'events': [{'context': {'id': 'new', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'test_a', 'service': 'both', 'service_data': {}}", 'event_type': 'call_service', 'time_fired': 1795192246000}], 'logs': [], 'ok': True, 'result': "{'a': 1}"}
+E               assert {'events': [{...': "{'a': 1}"} == {'error': {'e..., 'ok': False}
+E                 
+E                 Omitting 2 identical items, use -vv to show
+E                 Differing items:
+E                 {'ok': True} != {'ok': False}
+E                 Left contains 1 more item:
+E                 {'result': "{'a': 1}"}
+E                 Right contains 1 more item:
+E                 {'error': {'error_kind': 'other', 'exception': 'ValueError', 'message': 'v'}}
+E                 Use -v to get more diff
+
+harness/test_services.py:222: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-323' coro=<test_services() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_services.py:214> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-323' coro=<test_services() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_services.py:214> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+______________ test_services[s_handler_spec_with_echo_and_return] ______________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f298a8da8f0>
+engine = <function engine.<locals>.ask at 0x7f298d019430>
+case = {'name': 's_handler_spec_with_echo_and_return', 'ops': [{'domain': 'test_a', 'handler': {'echo': True, 'return': {'a':...egister', 'service': 'both', ...}, {'blocking': True, 'domain': 'test_a', 'op': 'call', 'return_response': True, ...}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+                assert op.get("domain", "x").lower() not in baseline
+    
+                fired.clear()
+                records.records.clear()
+                try:
+                    result = await run_ha(hass, op, baseline)
+                    ha: dict = {"ok": True, "result": result}
+                except Exception as err:  # noqa: BLE001
+                    ha = {"ok": False, "error": error_dict(err)}
+                await hass.async_block_till_done()
+                ha["events"] = [
+                    {"event_type": e.event_type, "data": _fresh(repr(e.data)),
+                     "time_fired": round(e.time_fired_timestamp * 1000),
+                     "context": {"id": _fresh(e.context.id), "user_id": e.context.user_id,
+                                 "parent_id": e.context.parent_id}}
+                    for e in fired]
+                ha["logs"] = [_log_dict(r) for r in records.records]
+>               assert lean == ha, f"op {i}: {op}\n  HA:     {ha}\n  HALean: {lean}"
+E               AssertionError: op 1: {'op': 'call', 'domain': 'test_a', 'service': 'both', 'blocking': True, 'return_response': True}
+E                   HA:     {'ok': True, 'result': "{'domain': 'test_a', 'service': 'both', 'data': {}, 'return_response': True, 'context_id': 'new'}", 'events': [{'event_type': 'call_service', 'data': "{'domain': 'test_a', 'service': 'both', 'service_data': {}}", 'time_fired': 1795192246000, 'context': {'id': 'new', 'user_id': None, 'parent_id': None}}], 'logs': []}
+E                   HALean: {'events': [{'context': {'id': 'new', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'test_a', 'service': 'both', 'service_data': {}}", 'event_type': 'call_service', 'time_fired': 1795192246000}], 'logs': [], 'ok': True, 'result': "{'a': 1}"}
+E               assert {'events': [{...': "{'a': 1}"} == {'events': [{..._id': 'new'}"}
+E                 
+E                 Omitting 3 identical items, use -vv to show
+E                 Differing items:
+E                 {'result': "{'a': 1}"} != {'result': "{'domain': 'test_a', 'service': 'both', 'data': {}, 'return_response': True, 'context_id': 'new'}"}
+E                 Use -v to get more diff
+
+harness/test_services.py:222: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-331' coro=<test_services() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_services.py:214> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-331' coro=<test_services() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_services.py:214> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+=========================== short test summary info ============================
+FAILED harness/test_services.py::test_services[s_brace_domain_not_found] - As...
+FAILED harness/test_services.py::test_services[s_brace_service_in_domain_uppercase]
+FAILED harness/test_services.py::test_services[s_ctx_empty_id] - AssertionErr...
+FAILED harness/test_services.py::test_services[s_ctx_empty_id_nonblocking_error_log]
+FAILED harness/test_services.py::test_services[s_handler_spec_with_raise_and_return]
+FAILED harness/test_services.py::test_services[s_handler_spec_with_echo_and_return]
+6 failed, 37 passed in 1.78s

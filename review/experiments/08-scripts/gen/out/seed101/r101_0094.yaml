@@ -1,0 +1,373 @@
+description: random scenario seed=101 index=94
+scripts:
+  s0:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+    - delay: 2
+  s1:
+    alias: Script 1 A
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - event: mark
+        event_data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+          r: '{{ r | default(''undef'') }}'
+      - action: test.m
+        data:
+          id: s1.4
+          v: '{{ v | default(0) }}'
+      else:
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s2
+    - action: test.m
+      data:
+        id: s1.5
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+    - delay: 3
+  s2:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - delay: 3
+steps:
+- at: 1
+  call: s1
+  data:
+    v: 4
+- at: 2
+  result: 0
+  ok: false
+  error_kind: other
+- at: 4
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 5
+  call: s2
+  data:
+    v: 1
+- at: 6
+  reload:
+    s0:
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+      - event: mark
+        event_data:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+      - delay: 2
+    s1:
+      alias: Script 1 A
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - event: mark
+          event_data:
+            id: s1.3
+            v: '{{ v | default(0) }}'
+            r: '{{ r | default(''undef'') }}'
+        - action: test.m
+          data:
+            id: s1.4
+            v: '{{ v | default(0) }}'
+        else:
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s2
+      - action: test.m
+        data:
+          id: s1.5
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+      - delay: 3
+    s2:
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.6
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s0'') }}'
+          cur: '{{ state_attr(''script.s0'', ''current'') }}'
+      - event: mark
+        event_data:
+          id: s2.7
+          v: '{{ v | default(0) }}'
+          r: '{{ r | default(''undef'') }}'
+- at: 7
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+- at: 10
+  result: 1
+  ok: false
+  error_kind: invalid
+- at: 11
+  result: 2
+  response:
+    n: 2
+- at: 12
+  call: turn_off
+  data:
+    entity_id: all
+- at: 13
+  call: s0
+- at: 16
+  result: 3
+  ok: false
+  error_kind: ha_error
+- at: 16
+  call: s0
+- at: 19
+  reload:
+    s0:
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+      - event: mark
+        event_data:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+      - delay: 2
+    s1:
+      alias: Script 1 A
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - event: mark
+          event_data:
+            id: s1.3
+            v: '{{ v | default(0) }}'
+            r: '{{ r | default(''undef'') }}'
+        - action: test.m
+          data:
+            id: s1.4
+            v: '{{ v | default(0) }}'
+        else:
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s2
+      - action: test.m
+        data:
+          id: s1.5
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+      - delay: 3
+    s2:
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+- at: 20
+  reload:
+    s0:
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+    s1:
+      alias: Script 1 A
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - event: mark
+          event_data:
+            id: s1.3
+            v: '{{ v | default(0) }}'
+            r: '{{ r | default(''undef'') }}'
+        - action: test.m
+          data:
+            id: s1.4
+            v: '{{ v | default(0) }}'
+        else:
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s2
+      - action: test.m
+        data:
+          id: s1.5
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+      - delay: 3
+    s2:
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+- at: 23
+  reload:
+    s0:
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      alias: Reloaded s0
+    s1:
+      alias: Script 1 A
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - event: mark
+          event_data:
+            id: s1.3
+            v: '{{ v | default(0) }}'
+            r: '{{ r | default(''undef'') }}'
+        - action: test.m
+          data:
+            id: s1.4
+            v: '{{ v | default(0) }}'
+        else:
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s2
+      - action: test.m
+        data:
+          id: s1.5
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+      - delay: 3
+    s2:
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+      - action: script.turn_off
+        target:
+          entity_id: script.s0

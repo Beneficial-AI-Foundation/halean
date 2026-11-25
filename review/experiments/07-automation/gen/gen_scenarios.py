@@ -1,7 +1,7 @@
 #!/opt/havenv/bin/python
 """Seeded random scenario generator for the automation engine (review area 07).
 
-    gen_scenarios.py --seed N --count K --out DIR [--engine PATH]
+    gen_scenarios.py --seed N --count K --out DIR [--engine PATH] [--profile default|modes]
 
 Writes K scenarios `r<seed>_<i>.yaml` in the shipped format (automations, states,
 steps). Each scenario has 1-3 random automations from the subset README.md lists
@@ -24,7 +24,9 @@ compare them (see FINDINGS.md, "Notes on the harness"):
     in the same second is the heap order of the event loop),
   * time patterns that match the second the scenario starts at (AUT-9),
   * `wait.remaining` after a wait was woken (documented in README.md),
-  * templated service names (the harness registers only static names).
+  * templated service names (the harness registers only static names),
+  * a `set` step that changes nothing (HA sends no state_changed; the shipped driver does),
+  * the same entity twice in one trigger (AUT-5, covered by hand-written cases).
 """
 from __future__ import annotations
 
@@ -52,8 +54,9 @@ T0_SEC = 20  # T0 is 22:13:20 UTC
 
 
 class Gen:
-    def __init__(self, rnd: random.Random):
+    def __init__(self, rnd: random.Random, profile: str = "default"):
         self.r = rnd
+        self.profile = profile  # "modes": few entities, several triggers each, mostly non-single modes
         self.marker = 0
         self.time_trigger_used = False
         self.varn = 0
@@ -66,6 +69,8 @@ class Gen:
         return self.r.random() < p
 
     def entity(self):
+        if self.profile == "modes":
+            return self.pick(["sensor.s1", "light.l1", "light.l1"])
         return self.pick(SENSORS + LIGHTS + BOOLS)
 
     def values_for(self, eid):
@@ -108,13 +113,15 @@ class Gen:
 
     def trigger(self, in_wait=False):
         kinds = ["state", "state", "numeric_state", "template", "event", "event"]
-        if not in_wait and not self.time_trigger_used:
+        if self.profile == "modes":
+            kinds = ["state", "state", "state", "template", "event"]
+        elif not in_wait and not self.time_trigger_used:
             kinds += ["time_pattern", "time"]
         k = self.pick(kinds)
         t: dict = {"trigger": k}
         if k == "state":
             eid = self.entity()
-            t["entity_id"] = eid if self.chance(0.8) else [eid, self.entity()]
+            t["entity_id"] = eid if self.chance(0.8) else list(dict.fromkeys([eid, self.entity()]))
             vals = self.values_for(eid)
             for key in self.r.sample(["from", "to"], k=self.pick([0, 1, 1, 2])):
                 neg = self.chance(0.25)
@@ -172,7 +179,7 @@ class Gen:
             if self.chance(0.15):
                 c["for"] = self.pick([2, "00:00:03", {"seconds": 1}])
             if self.chance(0.1):
-                c = {"condition": "state", "entity_id": [eid, self.entity()], "state": "on", "match": "any"}
+                c = {"condition": "state", "entity_id": list(dict.fromkeys([eid, self.entity()])), "state": "on", "match": "any"}
         elif k == "numeric_state":
             c = {"condition": "numeric_state", "entity_id": self.pick(SENSORS)}
             if self.chance(0.6):
@@ -318,7 +325,8 @@ class Gen:
     def automation(self, i):
         self.varn = 0
         a: dict = {"alias": f"a{i}", "id": f"id{i}"}
-        mode = self.pick(["single", "single", "restart", "queued", "parallel"])
+        mode = self.pick(["single", "single", "restart", "queued", "parallel"] if self.profile != "modes"
+                         else ["restart", "restart", "restart", "queued", "parallel", "single"])
         if mode != "single":
             a["mode"] = mode
             if mode in ("queued", "parallel") and self.chance(0.5):
@@ -326,7 +334,7 @@ class Gen:
         if self.chance(0.25):
             a["variables"] = {"v1": self.pick([0, "{{ states('sensor.s2') }}", "{{ trigger.platform }}"])}
             self.varn = 1
-        a["triggers"] = [self.trigger() for _ in range(self.pick([1, 1, 2, 3]))]
+        a["triggers"] = [self.trigger() for _ in range(self.pick([1, 1, 2, 3] if self.profile != "modes" else [2, 2, 3]))]
         if self.chance(0.4):
             a["conditions"] = self.conditions()
         a["actions"] = self.sequence(0)
@@ -350,6 +358,7 @@ class Gen:
                 if self.chance(0.3):
                     s["attributes"] = {"lvl": self.pick([1, 2, 3])}
                 states.append(s)
+        self.current = {x["entity_id"]: (x["state"], x.get("attributes", {})) for x in states}
         return {"automations": autos, "states": states, "steps": []}
 
     def input_step(self, at, open_calls):
@@ -358,11 +367,18 @@ class Gen:
             kinds += ["result"] * 5
         k = self.pick(kinds)
         if k == "set":
-            eid = self.entity()
-            st = {"at": at, "set": [eid, self.pick(self.values_for(eid))]}
-            if self.chance(0.3):
-                st["attributes"] = {"lvl": self.pick([1, 2, 3])}
-            return st
+            # never a no-op set: HA sends no state_changed for it, but tests/run_scenarios.py
+            # `build` does (AUT-26), which would hide everything else
+            for _ in range(20):
+                eid = self.entity()
+                st = {"at": at, "set": [eid, self.pick(self.values_for(eid))]}
+                if self.chance(0.3):
+                    st["attributes"] = {"lvl": self.pick([1, 2, 3])}
+                new = (st["set"][1], st.get("attributes", {}))
+                if self.current.get(eid) != new:
+                    self.current[eid] = new
+                    return st
+            return {"at": at, "send": {"type": "event", "event_type": "tick"}}
         if k == "event":
             msg = {"type": "event", "event_type": self.pick(EVENTS)}
             if self.chance(0.5):
@@ -415,12 +431,13 @@ def main() -> int:
     ap.add_argument("--count", type=int, default=300)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--engine", type=Path, default=REPO / ".lake/build/bin/halean-automation")
+    ap.add_argument("--profile", choices=["default", "modes"], default="default")
     args = ap.parse_args()
     run_scenarios.ENGINE = args.engine
     args.out.mkdir(parents=True, exist_ok=True)
     rnd = random.Random(args.seed)
     for i in range(args.count):
-        g = Gen(random.Random(rnd.getrandbits(64)))
+        g = Gen(random.Random(rnd.getrandbits(64)), args.profile)
         sc = g.scenario()
         at = 0
         eng = EngineSession(args.engine)

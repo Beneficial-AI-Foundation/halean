@@ -1,0 +1,239 @@
+description: random scenario seed=101 index=58
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+  s2:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - delay: 1
+  s3:
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+    - delay: 1
+  s4:
+    alias: Script 4 A
+    icon: mdi:script
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s4.3
+        v: '{{ v | default(0) }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - action: test.m
+      data:
+        id: s4.4
+        v: '{{ v | default(0) }}'
+    - variables:
+        out:
+          id: s4.5
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+steps:
+- at: 1
+- at: 4
+  call: s2
+- at: 5
+  call: s0
+  return_response: true
+- at: 6
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+    - script.s3
+- at: 7
+  call: s3
+  data:
+    v: 0
+  return_response: true
+- at: 7
+  call: turn_on
+  data:
+    entity_id:
+    - script.s4
+    variables:
+      v: 2
+- at: 7
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+    - script.s4
+- at: 8
+  reload:
+    s0:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+    s2:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 3
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - delay: 1
+    s4:
+      alias: Script 4 A
+      icon: mdi:script
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s4.3
+          v: '{{ v | default(0) }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - action: test.m
+        data:
+          id: s4.4
+          v: '{{ v | default(0) }}'
+      - variables:
+          out:
+            id: s4.5
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+- at: 8
+  reload:
+    s0:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+    s2:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 1
+    s4:
+      alias: Script 4 A
+      icon: mdi:script
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s4.3
+          v: '{{ v | default(0) }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - action: test.m
+        data:
+          id: s4.4
+          v: '{{ v | default(0) }}'
+      - variables:
+          out:
+            id: s4.5
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+- at: 11
+  call: turn_off
+  data:
+    entity_id: script.s0
+- at: 14
+  result: 0
+  response:
+    n: 0
+- at: 15
+  call: s0
+  data:
+    v: 3
+- at: 15

@@ -1,0 +1,15 @@
+description: >
+  toggle of two scripts. The first turns itself off (the stop is still pending when HA gets to the
+  second); the second toggles the first: HA still sees it on and turns it off, it does not start it again.
+scripts:
+  selfoff:
+    sequence:
+      - action: script.turn_off
+        target: {entity_id: script.selfoff}
+  second:
+    sequence:
+      - action: script.toggle
+        target: {entity_id: script.selfoff}
+steps:
+  - {at: 1, call: toggle, data: {entity_id: [script.selfoff, script.second]}}
+  - {at: 2}

@@ -1,0 +1,14 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 855272d..b63a855 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -1219,7 +1219,8 @@ partial def eval (ctx : Ctx) (e : Expr) : R Value := do
+     | some (_, v) => pure v
+     | none =>
+       if n == "states" then pure .allStates
+-      else if GLOBALS.contains n then pure (.func n none)
++      -- `timestamp_local` / `_utc` / `_custom` are filters only: as names they are undefined
++      else if GLOBALS.contains n && !n.startsWith "timestamp_" then pure (.func n none)
+       else pure (.undef s!"'{n}'")
+   | .list xs => return .list (← xs.mapM (eval ctx))
+   | .tuple xs => return .tuple (← xs.mapM (eval ctx))

@@ -68,5 +68,5 @@ async def test_record(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engin
                 verdict = "pass" if T._typed(lean) == T._typed(ha) else "diff"
             bad += verdict != "pass"
             out.write(json.dumps({"case": case["name"], "i": i, "op": op, "ha": ha, "lean": lean,
-                                  "verdict": verdict}, ensure_ascii=False, default=str) + "\n")
+                                  "verdict": verdict}, default=str) + "\n")
     assert bad == 0, f"{bad} operation(s) not 'pass'"

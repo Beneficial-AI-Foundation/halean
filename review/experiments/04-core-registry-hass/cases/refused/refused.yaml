@@ -3621,3 +3621,22 @@
     return_response: true
     data: {a: 1}
     target: []
+- name: refused_two_failed_tasks_in_one_block_till_done
+  manual: true
+  ops:
+  - op: listen
+    id: x1
+    event_type: two
+    async: true
+    react:
+    - {sleep: 0}
+    - {raise: ValueError, message: one}
+  - op: listen
+    id: x2
+    event_type: two
+    async: true
+    react:
+    - {sleep: 0}
+    - {raise: ValueError, message: two}
+  - {op: fire, event_type: two}
+  - {op: block_till_done}

@@ -1,0 +1,141 @@
+description: random scenario seed=101 index=16
+scripts:
+  s0:
+    alias: Script 0 B
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - stop: bad
+      error: true
+    - stop: bad
+      error: true
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s1:
+    alias: Script 1 B
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+  s2:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+    - variables:
+        out:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+steps:
+- at: 1
+  call: s1
+  data:
+    v: 4
+  return_response: true
+- at: 4
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s0
+- at: 5
+  reload:
+    s0:
+      alias: Reloaded s0
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - stop: bad
+        error: true
+      - stop: bad
+        error: true
+      - event: mark
+        event_data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s1:
+      alias: Script 1 B
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s2
+      - event: mark
+        event_data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+    s2:
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+      - variables:
+          out:
+            id: s2.4
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+- at: 6
+  call: s0
+  data:
+    v: 1
+- at: 6
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    variables:
+      v: 3
+- at: 7
+  result: 0
+  response:
+    n: 0
+- at: 9
+  call: s2
+- at: 11
+  call: s0

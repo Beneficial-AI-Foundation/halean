@@ -1,0 +1,282 @@
+# timer: durations, state machine, events, ticks around finishes_at, restore.
+# The clock starts at 16:30:45.123456 UTC.
+- name: hw_t_idle_noops
+  steps:
+    - setup: {timer: {t: {duration: 10}}}
+    - call: timer.pause
+      data: {entity_id: timer.t}
+    - call: timer.cancel
+      data: {entity_id: timer.t}
+    - call: timer.finish
+      data: {entity_id: timer.t}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: 1}
+- name: hw_t_tick_boundaries
+  steps:
+    - setup: {timer: {a: {duration: "0:00:05"}, b: {duration: 5}}}
+    - call: timer.start
+      data: {entity_id: timer.a, duration: 5.123456}
+    - call: timer.start
+      data: {entity_id: timer.b, duration: 5.123457}
+    - advance: 4.999999
+    - advance: 0.000001
+    - advance: 0.000001
+- name: hw_t_tick_before_whole_second
+  steps:
+    - setup: {timer: {a: {duration: 5}}}
+    - call: timer.start
+      data: {entity_id: timer.a}
+    - advance: 4.876543
+    - advance: 0.000001
+    - advance: 3
+- name: hw_t_durations_over_24h
+  steps:
+    - setup: {timer: {a: {duration: "25:00:00"}, b: {duration: {days: 2, hours: 3, minutes: 4, seconds: 5, milliseconds: 6}}, c: {duration: 360000}, d: {duration: "100:59:59.999999"}, e: {duration: {weeks: 1}}}}
+    - call: timer.start
+      data: {entity_id: timer.b}
+    - advance: 86400
+    - call: timer.pause
+      data: {entity_id: timer.b}
+- name: hw_t_duration_negative_forms
+  steps:
+    - setup: {timer: {a: {duration: -5}, b: {duration: "-0:00:00.5"}, c: {duration: {seconds: -3600}}, d: {duration: -0.0}, e: {duration: "-25:00:00"}}}
+    - call: timer.start
+      data: {entity_id: timer.b}
+    - call: timer.start
+      data: {entity_id: timer.e}
+    - call: timer.cancel
+      data: {entity_id: timer.e}
+- name: hw_t_duration_string_forms
+  steps:
+    - setup: {timer: {a: {duration: "5"}}}
+- name: hw_t_duration_string_forms2
+  steps:
+    - setup: {timer: {a: {duration: "0:5"}, b: {duration: "00:00:61"}, c: {duration: "1:61:00"}, d: {duration: " 0:00:07 "}}}
+- name: hw_t_duration_bad_dict
+  steps:
+    - setup: {timer: {a: {duration: {}}}}
+- name: hw_t_duration_bad_dict_key
+  steps:
+    - setup: {timer: {a: {duration: {secs: 5}}}}
+- name: hw_t_duration_bool
+  steps:
+    - setup: {timer: {a: {duration: true}}}
+- name: hw_t_duration_null
+  steps:
+    - setup: {timer: {a: {duration: null}}}
+- name: hw_t_duration_dict_strings
+  steps:
+    - setup: {timer: {a: {duration: {seconds: "5", minutes: 1.5}}}}
+- name: hw_t_start_duration_forms
+  steps:
+    - setup: {timer: {t: {duration: 10}}}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: "0:00:03"}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: "00:03"}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: 0}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: "0:00:00"}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: null}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: {minutes: 0}}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: true}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: 0.9999996}
+    - advance: 1
+- name: hw_t_restart_keeps_remaining
+  steps:
+    - setup: {timer: {t: {duration: 30}}}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: 20}
+    - advance: 5
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - advance: 5
+    - call: timer.pause
+      data: {entity_id: timer.t}
+    - advance: 5
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - advance: 14
+    - advance: 1
+    - call: timer.start
+      data: {entity_id: timer.t}
+- name: hw_t_change_matrix
+  steps:
+    - setup: {timer: {t: {duration: 60}}}
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: 1}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: 0}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: -61}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: -60}
+    - advance: 0
+    - call: timer.change
+      data: {entity_id: timer.t, duration: 5}
+- name: hw_t_change_to_zero_then_more
+  steps:
+    - setup: {timer: {t: {duration: 60}}}
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - advance: 10
+    - call: timer.change
+      data: {entity_id: timer.t, duration: -30}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: 40}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: 41}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: "-0:00:20.5"}
+    - call: timer.pause
+      data: {entity_id: timer.t}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: 1}
+    - call: timer.finish
+      data: {entity_id: timer.t}
+- name: hw_t_finish_paused_and_active
+  steps:
+    - setup: {timer: {t: {duration: 60, restore: true, name: "", icon: "mdi:t"}}}
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - advance: 7.5
+    - call: timer.finish
+      data: {entity_id: timer.t}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: 2.5}
+    - advance: 1
+    - call: timer.pause
+      data: {entity_id: timer.t}
+    - advance: 100
+    - call: timer.finish
+      data: {entity_id: timer.t}
+    - advance: 100
+- name: hw_t_pause_fractional_remaining
+  steps:
+    - setup: {timer: {t: {}}}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: 10.75}
+    - advance: 3
+    - call: timer.pause
+      data: {entity_id: timer.t}
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - advance: 7
+    - advance: 1
+- name: hw_t_zero_duration_start
+  steps:
+    - setup: {timer: {t: null}}
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - call: timer.pause
+      data: {entity_id: timer.t}
+- name: hw_t_two_finish_same_tick
+  steps:
+    - setup: {timer: {a: {duration: 5}, b: {duration: 3}, c: {duration: 4}}}
+    - call: timer.start
+      data: {entity_id: timer.a}
+    - call: timer.start
+      data: {entity_id: timer.c}
+    - call: timer.start
+      data: {entity_id: timer.b}
+    - advance: 10
+- name: hw_t_far_future
+  steps:
+    - setup: {timer: {t: {duration: {days: 3000000}}}}
+    - call: timer.start
+      data: {entity_id: timer.t}
+- name: hw_t_far_future_change
+  steps:
+    - setup: {timer: {t: {duration: 10}}}
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: {days: -800000}}
+- name: hw_t_huge_duration_config
+  steps:
+    - setup: {timer: {t: {duration: {days: 999999999}}}}
+- name: hw_t_too_huge_duration_config
+  steps:
+    - setup: {timer: {t: {duration: {days: 1000000000}}}}
+- name: hw_t_restore_idle_attrs
+  steps:
+    - setup: {timer: {a: {restore: true, duration: 5}, b: {restore: true}, c: {restore: true}}}
+      restore:
+        - [timer.a, "idle", {last_transition: 5, duration: "0:10:00"}]
+        - [timer.b, "idle", {}]
+        - [timer.c, "idle", {last_transition: [x]}]
+    - call: timer.start
+      data: {entity_id: timer.a}
+- name: hw_t_restore_unknown_state
+  steps:
+    - setup: {timer: {a: {restore: true}}}
+      restore: [[timer.a, "unavailable", {}]]
+- name: hw_t_restore_active_refused
+  steps:
+    - setup: {timer: {a: {restore: true}}}
+      restore: [[timer.a, "active", {duration: "0:00:10", finishes_at: "2026-11-20T16:31:00+00:00", last_transition: started}]]
+- name: hw_t_service_schema
+  steps:
+    - setup: {timer: {t: {duration: 5}}}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: [5]}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: {seconds: 5, foo: 1}}
+    - call: timer.cancel
+      data: {entity_id: timer.t, duration: 5}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: "abc"}
+    - call: timer.start
+      data: {duration: 5}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: "1:2:3:4"}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: {days: 1000000000}}
+- name: hw_t_start_nan
+  steps:
+    - setup: {timer: {t: {duration: 5}}}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: "nan"}
+- name: hw_t_start_big_float
+  steps:
+    - setup: {timer: {t: {duration: 5}}}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: 1e300}
+- name: hw_t_rounding_microseconds
+  steps:
+    - setup: {timer: {t: {duration: 5}}}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: 0.0000005}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: 0.0000015}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: 1.0000025}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: 2.675}
+    - advance: 5
+- name: hw_t_far_future_then_cancel
+  # the OverflowError leaves the entity object "active" (no write): cancel then fires an event
+  steps:
+    - setup: {timer: {t: {duration: {days: 3000000}}}}
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - call: timer.pause
+      data: {entity_id: timer.t}
+    - call: timer.cancel
+      data: {entity_id: timer.t}
+- name: hw_t_far_past_start
+  steps:
+    - setup: {timer: {t: {duration: 5}}}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: {days: -800000}}
+    - call: timer.finish
+      data: {entity_id: timer.t}

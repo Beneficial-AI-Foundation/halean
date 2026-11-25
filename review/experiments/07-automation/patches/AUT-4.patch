@@ -1,0 +1,18 @@
+diff --git a/HALean/Automation/Config.lean b/HALean/Automation/Config.lean
+index 23f8d66..aa20fa6 100644
+--- a/HALean/Automation/Config.lean
++++ b/HALean/Automation/Config.lean
+@@ -259,7 +259,12 @@ def entityIds (j : Json) : D (List String) :=
+   | some v => do
+     -- `entity_id: "a.b, c.d"` is accepted by cv.entity_ids
+     let xs ← strList v
+-    pure (xs.flatMap fun s => (s.splitOn ",").map String.trim |>.filter (· ≠ ""))
++    let ids := (xs.flatMap fun s => (s.splitOn ",").map String.trim |>.filter (· ≠ "")).map String.toLower
++    for e in ids do
++      -- `entity_id_or_uuid`: a valid entity id, or 32 lower-case hex digits
++      let isUuid := e.length == 32 && e.all fun c => c.isDigit || ('a' ≤ c && c ≤ 'f')
++      if !Template.validEntityId e && !isUuid then throw s!"Entity ID {e} is an invalid entity ID"
++    pure ids
+   | none => throw "missing entity_id"
+ 
+ 

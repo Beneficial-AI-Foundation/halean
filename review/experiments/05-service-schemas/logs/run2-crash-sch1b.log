@@ -1,0 +1,85 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+____________ test_services[hw_sch1_time_period_zero_huge_exponent] _____________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4595f838c0>
+engine = <function engine.<locals>.ask at 0x7f45972150c0>
+case = {'name': 'hw_sch1_time_period_zero_huge_exponent', 'ops': [{'domain': 'hw', 'handler': {'echo': True}, 'op': 'register...': 't', 'value': {...}}]}, ...}, {'blocking': True, 'data': {'t': '0e9999999999'}, 'domain': 'hw', 'op': 'call', ...}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+        failures: list = []
+        schema_of: dict = {}
+        counts: dict = {}
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+>               lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test_services.py:209: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test_services.py:164: in ask
+    return json.loads(proc.stdout.readline())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x7f459fa1fa10>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/json/decoder.py:363: JSONDecodeError
+---------------------------- Captured stderr setup -----------------------------
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+------------------------------ Captured log setup ------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+----------------------------- Captured stderr call -----------------------------
+INTERNAL PANIC: Nat.pow exponent is too big
+WARNING:asyncio:Executing <Task finished name='Task-11' coro=<test_services() done, defined at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:179> exception=JSONDecodeError('Expecting value: line 1 column 1 (char 0)') created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task finished name='Task-11' coro=<test_services() done, defined at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:179> exception=JSONDecodeError('Expecting value: line 1 column 1 (char 0)') created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+=========================== short test summary info ============================
+FAILED test_services.py::test_services[hw_sch1_time_period_zero_huge_exponent]
+1 failed, 1 passed in 0.86s

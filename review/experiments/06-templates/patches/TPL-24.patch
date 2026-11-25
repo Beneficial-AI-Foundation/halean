@@ -1,0 +1,19 @@
+diff --git a/HALean/Template/Time.lean b/HALean/Template/Time.lean
+index 901fc3f..d6df9fb 100644
+--- a/HALean/Template/Time.lean
++++ b/HALean/Template/Time.lean
+@@ -166,12 +166,12 @@ partial def strftime (us : Int) (off : Option Int) (fmt : String) : Except Strin
+           | 'S' => pure (num pad c.second 2)
+           | 'p' => pure (if c.hour < 12 then "AM" else "PM")
+           | 'y' => pure (num pad (Int.fmod c.year 100).toNat 2)
+-          | 'Y' => pure (toString c.year)
++          | 'Y' => pure (padYear c.year)
+           | 'f' => pure (pad0 c.micro 6)
+           | 'w' => pure (toString ((wd + 1) % 7))
+           | 'u' => pure (toString (wd + 1))
+           | 'z' => pure (match off with | some o => offsetStr o false | none => "")
+-          | 'F' => pure (toString c.year ++ "-" ++ pad0 c.month 2 ++ "-" ++ pad0 c.day 2)
++          | 'F' => pure (padYear c.year ++ "-" ++ pad0 c.month 2 ++ "-" ++ pad0 c.day 2)
+           | 'T' => pure (pad0 c.hour 2 ++ ":" ++ pad0 c.minute 2 ++ ":" ++ pad0 c.second 2)
+           | 'R' => pure (pad0 c.hour 2 ++ ":" ++ pad0 c.minute 2)
+           | 'D' => pure (pad0 c.month 2 ++ "/" ++ pad0 c.day 2 ++ "/" ++ pad0 (Int.fmod c.year 100).toNat 2)

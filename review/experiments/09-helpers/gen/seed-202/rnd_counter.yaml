@@ -1,0 +1,3518 @@
+- name: rnd_counter_s202_0
+  steps:
+  - setup:
+      counter:
+        a:
+          initial: -3
+          maximum: -3
+          restore: null
+          name: null
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 99
+  - call: counter.set_value
+    data: {}
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+- name: rnd_counter_s202_1
+  steps:
+  - setup:
+      counter:
+        a:
+          step: true
+        b: null
+  - call: counter.set_value
+    data:
+      entity_id: none
+      value: 12
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: '5'
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.b
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: '+4'
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.a
+      - counter.b
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 9223372036854775808
+  - call: counter.decrement
+    data:
+      entity_id: counter.missing
+- name: rnd_counter_s202_2
+  steps:
+  - setup:
+      counter:
+        c:
+          step: true
+          icon: 5
+          bogus: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -1000000000000000000000000000000
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 2.9
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: '1_0'
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: 0
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 12
+  - call: counter.set_value
+    data:
+      entity_id: null
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.decrement
+    data:
+      entity_id: none
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -9223372036854775809
+- name: rnd_counter_s202_3
+  steps:
+  - setup:
+      counter:
+        long_name:
+          initial: 1000000
+          step: 2.5
+          maximum: -3
+    restore:
+    - - counter.long_name
+      - '-100'
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: -9223372036854775809
+  - call: counter.increment
+    data:
+      entity_id: all
+  - call: counter.increment
+    data:
+      entity_id: counter.missing
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.reset
+    data:
+      entity_id: []
+  - call: counter.reset
+    data:
+      entity_id: all
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+      bogus: 1
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 9223372036854775808
+  - call: counter.increment
+    data:
+      entity_id: []
+- name: rnd_counter_s202_4
+  steps:
+  - setup:
+      counter:
+        b:
+          initial: 3
+        z9_q:
+          restore: true
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.reset
+    data:
+      entity_id: counter.b
+  - call: counter.reset
+    data:
+      entity_id: counter.b
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id:
+      - counter.b
+      value: '5'
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: -1
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.b
+      - counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: -10
+- name: rnd_counter_s202_5
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          initial: 2
+          minimum: null
+        a:
+          initial: 2
+          step: 0
+          maximum: 5
+          icon: nocolon
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 2147483648
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: none
+  - call: counter.decrement
+    data:
+      entity_id: counter.missing
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+- name: rnd_counter_s202_6
+  steps:
+  - setup:
+      counter:
+        c:
+          initial: '-0'
+          step: 1
+          maximum: 20
+          restore: false
+    restore:
+    - - counter.c
+      - ' 12 '
+      - initial: 3
+        step: 9
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: '3'
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 10
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -2147483648
+- name: rnd_counter_s202_7
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          step: 2
+          minimum: 2.5
+          name: x_y
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.nosuch
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: null
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+- name: rnd_counter_s202_8
+  steps:
+  - setup:
+      counter:
+        x1:
+          step: '2'
+          icon: mdi:timer-outline
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 2
+  - call: counter.reset
+    data:
+      entity_id: all
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: -10
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: nan
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: -100
+- name: rnd_counter_s202_9
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          initial: 9223372036854775808
+          restore: null
+          name: null
+  - call: counter.set_value
+    data:
+      entity_id: not an id
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 1000000
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: -9223372036854775809
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data: {}
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: ' '
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: all
+- name: rnd_counter_s202_10
+  steps:
+  - setup:
+      counter:
+        c:
+          step: 2.5
+          maximum: 7.9
+          restore: true
+          icon: nocolon
+        z9_q:
+          initial: 100
+          maximum: 5
+    restore:
+    - - counter.z9_q
+      - '-7'
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: 1000.0
+  - call: counter.set_value
+    data:
+      entity_id: not an id
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: null
+  - call: counter.nosuch
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: '3'
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 3
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: all
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+- name: rnd_counter_s202_11
+  steps:
+  - setup:
+      counter:
+        c: {}
+        x1:
+          step: '2'
+          minimum: 3
+          restore: 'no'
+    restore:
+    - - counter.c
+      - '1_000'
+      - initial: 3
+        step: 9
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -1
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.c
+      - counter.x1
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.c
+      - counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: -12
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+- name: rnd_counter_s202_12
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          initial: -2147483648
+          icon: x:y
+        c:
+          initial: ' 7 '
+          minimum: 3
+  - call: counter.set_value
+    data:
+      entity_id: not an id
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+- name: rnd_counter_s202_13
+  steps:
+  - setup:
+      counter:
+        a:
+          initial: 100
+          step: 10
+          restore: x
+          icon: 5
+    restore:
+    - - counter.a
+      - '-7'
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      bogus: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 2
+  - call: counter.decrement
+    data:
+      entity_id: all
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.increment
+    data:
+      entity_id: COUNTER.A
+- name: rnd_counter_s202_14
+  steps:
+  - setup:
+      counter:
+        x1:
+          initial: 100
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      bogus: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data: {}
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: []
+  - call: counter.decrement
+    data:
+      entity_id: COUNTER.X1
+  - call: counter.set_value
+    data:
+      entity_id: null
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+      bogus: 1
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 9223372036854775808
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 12
+  - call: counter.decrement
+    data:
+      entity_id: counter.missing
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: COUNTER.X1
+      value:
+      - 1
+- name: rnd_counter_s202_15
+  steps:
+  - setup:
+      counter:
+        c:
+          initial: -12
+          minimum: -100
+          maximum: 0
+          icon: 5
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: none
+      value: -3
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value:
+      - 1
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 5
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 10
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 7
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: COUNTER.C
+  - call: counter.set_value
+    data:
+      entity_id: null
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+- name: rnd_counter_s202_16
+  steps:
+  - setup:
+      counter:
+        c:
+          step: null
+          maximum: 7.9
+  - call: counter.set_value
+    data:
+      entity_id: null
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: '5 '
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: all
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 7
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+- name: rnd_counter_s202_17
+  steps:
+  - setup:
+      counter:
+        b:
+          minimum: null
+        long_name:
+          initial: 10
+          step: true
+          minimum: -5
+          restore: 1
+    restore:
+    - - counter.b
+      - ' 12 '
+      - initial: 3
+        step: 9
+    - - counter.long_name
+      - '1_000'
+      - initial: 3
+        step: 9
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.decrement
+    data:
+      entity_id: counter.b
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.missing
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.decrement
+    data:
+      entity_id: COUNTER.LONG_NAME
+- name: rnd_counter_s202_18
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          initial: '5 '
+          maximum: -3
+    restore:
+    - - counter.z9_q
+      - '-7'
+      - initial: 3
+        step: 9
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: '5 '
+  - call: counter.increment
+    data:
+      entity_id: COUNTER.Z9_Q
+- name: rnd_counter_s202_19
+  steps:
+  - setup:
+      counter:
+        a:
+          step: 5
+          minimum: 3
+          restore: false
+        x1: null
+    restore:
+    - - counter.x1
+      - '100'
+      - initial: 3
+        step: 9
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 3
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+- name: rnd_counter_s202_20
+  steps:
+  - setup:
+      counter:
+        b:
+          step: 100
+          restore: 'no'
+        long_name:
+          step: null
+          minimum: x
+          icon: 5
+          bogus: 1
+    restore:
+    - - counter.b
+      - '-7'
+      - initial: 3
+        step: 9
+    - - counter.long_name
+      - ' 12 '
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 12
+  - call: counter.increment
+    data:
+      entity_id: none
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: -3
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 1000000000000000000000000000000
+  - call: counter.reset
+    data:
+      entity_id: none
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 3
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: 1000000
+- name: rnd_counter_s202_21
+  steps:
+  - setup:
+      counter:
+        x1:
+          initial: '+4'
+          step: 2
+          minimum: '1'
+          maximum: 10
+          restore: x
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 0
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.x1
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+- name: rnd_counter_s202_22
+  steps:
+  - setup:
+      counter:
+        b: {}
+        c:
+          step: 1
+          maximum: null
+    restore:
+    - - counter.b
+      - '007'
+      - initial: 3
+        step: 9
+    - - counter.c
+      - '-7'
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 10
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 10
+  - call: counter.set_value
+    data:
+      entity_id: none
+      value: 1000000
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.b
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 2
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: 1000000
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+  - call: counter.decrement
+    data:
+      entity_id: counter.b
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+- name: rnd_counter_s202_23
+  steps:
+  - setup:
+      counter:
+        a:
+          initial: -2
+          restore: 0
+        b:
+          initial: abc
+          step: 3
+          minimum: 0
+  - call: counter.decrement
+    data:
+      entity_id: counter.b
+  - call: counter.set_value
+    data: {}
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 100
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.a
+      - counter.b
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 3
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.reset
+    data:
+      entity_id: counter.b
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+- name: rnd_counter_s202_24
+  steps:
+  - setup:
+      counter:
+        long_name:
+          initial: 1000000
+          minimum: -5
+          maximum: 0
+    restore:
+    - - counter.long_name
+      - '1_000'
+      - initial: 3
+        step: 9
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 1.0e+22
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: -1
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 2147483648
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+- name: rnd_counter_s202_25
+  steps:
+  - setup:
+      counter:
+        a: null
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value:
+      - 1
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 7
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      bogus: 1
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 5
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 7
+  - call: counter.set_value
+    data:
+      entity_id: COUNTER.A
+      value: 1000000000000000000000000000000
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 99
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.a
+- name: rnd_counter_s202_26
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          step: 2.5
+        b:
+          step: 3
+          restore: false
+          icon: x:y
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 2147483648
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: -1000000
+  - call: counter.nosuch
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: -5
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: 1000000000000000000000000000000
+- name: rnd_counter_s202_27
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          initial: abc
+          step: 5
+          maximum: x
+        long_name:
+          initial: 2
+    restore:
+    - - counter.z9_q
+      - '1_000'
+      - initial: 3
+        step: 9
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+      bogus: 1
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: -3
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: abc
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 12
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+- name: rnd_counter_s202_28
+  steps:
+  - setup:
+      counter:
+        x1:
+          minimum: 2.5
+          restore: 1
+        z9_q:
+          initial: -7
+          restore: x
+          name: ''
+    restore:
+    - - counter.x1
+      - ' 12 '
+      - initial: 3
+        step: 9
+  - call: counter.nosuch
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: -9223372036854775809
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.x1
+      - counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+- name: rnd_counter_s202_29
+  steps:
+  - setup:
+      counter:
+        c:
+          step: true
+          minimum: -100
+          name: A b
+        z9_q: {}
+  - call: counter.increment
+    data:
+      entity_id: COUNTER.Z9_Q
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      bogus: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: '5 '
+  - call: counter.increment
+    data:
+      entity_id: COUNTER.C
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: none
+      value: 1
+  - call: counter.set_value
+    data:
+      entity_id: COUNTER.Z9_Q
+      value: 2
+- name: rnd_counter_s202_30
+  steps:
+  - setup:
+      counter:
+        c:
+          initial: '5'
+          maximum: 7.9
+          restore: x
+          icon: mdi:timer-outline
+        x1:
+          step: '2'
+          restore: false
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 3
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 10
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -3
+  - call: counter.set_value
+    data:
+      entity_id: COUNTER.X1
+      value: -9223372036854775809
+  - call: counter.increment
+    data:
+      entity_id: COUNTER.C
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: '+4'
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.c
+      - counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+- name: rnd_counter_s202_31
+  steps:
+  - setup:
+      counter:
+        b:
+          initial: -1000000
+          minimum: -5
+        z9_q:
+          minimum: 2.5
+    restore:
+    - - counter.z9_q
+      - ' 12 '
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: -3
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      bogus: 1
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.b
+      - counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 2147483648
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: inf
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: -3
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 5
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: true
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.reset
+    data:
+      entity_id:
+      - counter.b
+      - counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      bogus: 1
+- name: rnd_counter_s202_32
+  steps:
+  - setup:
+      counter:
+        x1:
+          initial: 2147483648
+          step: 1
+        c:
+          initial: '-2'
+          step: 100
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: ' '
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: '0005'
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: null
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: not an id
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.reset
+    data:
+      entity_id:
+      - counter.x1
+      - counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: -3
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+- name: rnd_counter_s202_33
+  steps:
+  - setup:
+      counter:
+        a:
+          initial: -3
+          step: '2'
+          maximum: '9'
+          restore: null
+        b:
+          step: 100
+    restore:
+    - - counter.b
+      - '007'
+      - initial: 3
+        step: 9
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: -1
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+- name: rnd_counter_s202_34
+  steps:
+  - setup:
+      counter:
+        a:
+          step: 2.5
+          maximum: 20
+        b:
+          restore: 'yes'
+    restore:
+    - - counter.b
+      - '42'
+      - initial: 3
+        step: 9
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.a
+      - counter.b
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 2
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+      bogus: 1
+  - call: counter.increment
+    data:
+      entity_id: COUNTER.B
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.a
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: counter.reset
+    data:
+      entity_id: COUNTER.B
+- name: rnd_counter_s202_35
+  steps:
+  - setup:
+      counter:
+        c:
+          initial: -3
+          step: -1
+          maximum: 7.9
+          restore: 'no'
+        x1: null
+    restore:
+    - - counter.c
+      - '99999999999999999999'
+      - initial: 3
+        step: 9
+    - - counter.x1
+      - '42'
+      - initial: 3
+        step: 9
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+  - call: counter.reset
+    data:
+      entity_id:
+      - counter.c
+      - counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: all
+  - call: counter.nosuch
+    data:
+      entity_id: counter.c
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.c
+      - counter.x1
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 9223372036854775808
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+- name: rnd_counter_s202_36
+  steps:
+  - setup:
+      counter:
+        long_name:
+          initial: -3
+          restore: 0
+        a: null
+    restore:
+    - - counter.a
+      - '99999999999999999999'
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 1
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 3
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: -9223372036854775808
+  - call: counter.reset
+    data:
+      entity_id:
+      - counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.reset
+    data:
+      entity_id: all
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 2
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 1
+- name: rnd_counter_s202_37
+  steps:
+  - setup:
+      counter:
+        z9_q: null
+    restore:
+    - - counter.z9_q
+      - ' 12 '
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: COUNTER.Z9_Q
+      value: 2
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: 2
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+- name: rnd_counter_s202_38
+  steps:
+  - setup:
+      counter:
+        a:
+          step: x
+          minimum: -100
+          restore: x
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: counter.nosuch
+    data:
+      entity_id: counter.a
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+  - call: counter.reset
+    data:
+      entity_id: none
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: counter.increment
+    data:
+      entity_id: null
+- name: rnd_counter_s202_39
+  steps:
+  - setup:
+      counter:
+        c:
+          initial: 9223372036854775808
+          step: 5
+          minimum: null
+          restore: false
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -1000000
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 2
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -1000000
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -10
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+- name: rnd_counter_s202_40
+  steps:
+  - setup:
+      counter:
+        c:
+          initial: -2
+          step: 100
+        long_name:
+          step: 2.5
+    restore:
+    - - counter.long_name
+      - '007'
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 1000000000000000000000000000000
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: -9223372036854775809
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: none
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 2
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: -7
+  - call: counter.set_value
+    data:
+      entity_id:
+      - counter.long_name
+      value: 2.9
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: '3'
+- name: rnd_counter_s202_41
+  steps:
+  - setup:
+      counter:
+        c:
+          initial: true
+          step: 100
+          name: ''
+        a:
+          initial: 1
+          step: 0
+          minimum: 2.5
+          icon: mdi:timer-outline
+    restore:
+    - - counter.c
+      - ' 12 '
+      - initial: 3
+        step: 9
+    - - counter.a
+      - '0'
+      - initial: 3
+        step: 9
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.c
+      - counter.a
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: '0x1f'
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 1000000
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      bogus: 1
+- name: rnd_counter_s202_42
+  steps:
+  - setup:
+      counter:
+        b:
+          initial: 2
+          step: -1
+          minimum: 2.5
+          maximum: 7.9
+        z9_q:
+          initial: -1
+          step: null
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.b
+  - call: counter.reset
+    data:
+      entity_id: counter.b
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.nosuch
+    data:
+      entity_id: counter.b
+- name: rnd_counter_s202_43
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          initial: 7
+          step: null
+          minimum: '1'
+          maximum: x
+          restore: true
+        b:
+          initial: -10
+          restore: 1
+    restore:
+    - - counter.z9_q
+      - '-7'
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 3
+  - call: counter.increment
+    data:
+      entity_id: null
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.increment
+    data:
+      entity_id: all
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: -1
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id:
+      - counter.b
+      value: 100
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: counter.b
+  - call: counter.set_value
+    data:
+      entity_id: null
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: 12
+- name: rnd_counter_s202_44
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          step: 0
+          minimum: null
+          maximum: -3
+          restore: 'yes'
+        a: {}
+    restore:
+    - - counter.z9_q
+      - '007'
+      - initial: 3
+        step: 9
+    - - counter.a
+      - '42'
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 2
+  - call: counter.reset
+    data:
+      entity_id:
+      - counter.z9_q
+      - counter.a
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 5
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: inf
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: -1
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: -1
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: -9223372036854775809
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: -1
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 2
+- name: rnd_counter_s202_45
+  steps:
+  - setup:
+      counter:
+        long_name:
+          step: 2
+          minimum: -100
+        z9_q:
+          step: 10
+          maximum: x
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.reset
+    data:
+      entity_id:
+      - counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 1
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: '-2'
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+- name: rnd_counter_s202_46
+  steps:
+  - setup:
+      counter:
+        a: null
+        long_name:
+          step: 3
+          minimum: -5
+          maximum: 100
+          icon: mdi:a
+    restore:
+    - - counter.long_name
+      - '99999999999999999999'
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data: {}
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      bogus: 1
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+- name: rnd_counter_s202_47
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          initial: 3
+          maximum: 10
+          restore: false
+        long_name:
+          maximum: 10
+          icon: mdi:timer-outline
+    restore:
+    - - counter.z9_q
+      - '-100'
+      - initial: 3
+        step: 9
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.z9_q
+      - counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: -10
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+- name: rnd_counter_s202_48
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          initial: 2147483648
+        c:
+          initial: 7
+          step: 3
+          minimum: null
+    restore:
+    - - counter.z9_q
+      - '-100'
+      - initial: 3
+        step: 9
+  - call: counter.increment
+    data:
+      entity_id: COUNTER.C
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 1
+  - call: counter.set_value
+    data:
+      entity_id: []
+      value: 2
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.z9_q
+      - counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value:
+      - 1
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 99
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: none
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+- name: rnd_counter_s202_49
+  steps:
+  - setup:
+      counter:
+        b:
+          initial: 5
+          maximum: null
+    restore:
+    - - counter.b
+      - '5'
+      - initial: 3
+        step: 9
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.decrement
+    data:
+      entity_id: counter.b
+  - call: counter.reset
+    data:
+      entity_id: all
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 5
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 1000000
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 1
+  - call: counter.decrement
+    data:
+      entity_id: all
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.set_value
+    data:
+      entity_id: null
+  - call: counter.set_value
+    data: {}
+  - call: counter.nosuch
+    data:
+      entity_id: counter.b
+- name: rnd_counter_s202_50
+  steps:
+  - setup:
+      counter:
+        b:
+          step: 1
+          restore: 0
+    restore:
+    - - counter.b
+      - '42'
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.reset
+    data:
+      entity_id: counter.b
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 3
+- name: rnd_counter_s202_51
+  steps:
+  - setup:
+      counter:
+        long_name: null
+    restore:
+    - - counter.long_name
+      - '0'
+      - initial: 3
+        step: 9
+  - call: counter.increment
+    data: {}
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: counter.reset
+    data:
+      entity_id: counter.missing
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 5
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data: {}
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: -7
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.nosuch
+    data:
+      entity_id: counter.long_name
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+- name: rnd_counter_s202_52
+  steps:
+  - setup:
+      counter:
+        x1:
+          initial: 7
+          step: null
+          icon: x:y
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: ''
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: []
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 100
+- name: rnd_counter_s202_53
+  steps:
+  - setup:
+      counter:
+        b:
+          initial: -2
+          step: 7
+          restore: 0
+          name: x_y
+        z9_q:
+          restore: 'no'
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 7
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 12
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 9223372036854775808
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.missing
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 9223372036854775809
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 1
+- name: rnd_counter_s202_54
+  steps:
+  - setup:
+      counter:
+        a:
+          minimum: -5
+    restore:
+    - - counter.a
+      - '1_000'
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 2
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 2
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: '-0'
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 12
+  - call: counter.increment
+    data:
+      entity_id: all
+- name: rnd_counter_s202_55
+  steps:
+  - setup:
+      counter:
+        long_name:
+          step: 5
+          minimum: -100
+          restore: x
+        c:
+          step: 10
+          minimum: '1'
+          maximum: 10
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: null
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 1000000
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: none
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: -12
+  - call: counter.increment
+    data:
+      entity_id: []
+- name: rnd_counter_s202_56
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          maximum: 0
+          restore: x
+          icon: x:y
+        x1:
+          initial: 0
+          minimum: 3
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: -1
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 9223372036854775808
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 3
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+- name: rnd_counter_s202_57
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          restore: 'no'
+          name: null
+        long_name: {}
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id:
+      - counter.long_name
+      value: 1000.0
+  - call: counter.set_value
+    data: {}
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.z9_q
+      - counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+      bogus: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: inf
+- name: rnd_counter_s202_58
+  steps:
+  - setup:
+      counter:
+        x1:
+          step: 5
+          minimum: -5
+          maximum: 5
+    restore:
+    - - counter.x1
+      - '99999999999999999999'
+      - initial: 3
+        step: 9
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.nosuch
+    data:
+      entity_id: counter.x1
+- name: rnd_counter_s202_59
+  steps:
+  - setup:
+      counter:
+        long_name:
+          maximum: null
+          restore: true
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 1000.0
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: -3
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: true
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 10
+- name: rnd_counter_s202_60
+  steps:
+  - setup:
+      counter:
+        c:
+          maximum: x
+        x1:
+          initial: -10
+          step: 2
+          minimum: x
+          maximum: 0
+          restore: false
+    restore:
+    - - counter.x1
+      - '1_000'
+      - initial: 3
+        step: 9
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id:
+      - counter.c
+      value: 7
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -1
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: false
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 3
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: none
+      value: 1
+- name: rnd_counter_s202_61
+  steps:
+  - setup:
+      counter:
+        c:
+          maximum: x
+          name: null
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 7
+  - call: counter.set_value
+    data:
+      entity_id: not an id
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      bogus: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+      bogus: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 2147483648
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+- name: rnd_counter_s202_62
+  steps:
+  - setup:
+      counter:
+        b:
+          initial: -1
+          step: 0
+          maximum: null
+          icon: x:y
+        c:
+          restore: false
+    restore:
+    - - counter.b
+      - '1_000'
+      - initial: 3
+        step: 9
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: -1
+  - call: counter.set_value
+    data:
+      entity_id: not an id
+  - call: counter.nosuch
+    data:
+      entity_id: counter.b
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 1000000000000000000000000000000
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: nan
+- name: rnd_counter_s202_63
+  steps:
+  - setup:
+      counter:
+        c:
+          initial: 2
+          step: 0
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 10
+  - call: counter.increment
+    data:
+      entity_id: counter.missing
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.decrement
+    data:
+      entity_id: COUNTER.C
+  - call: counter.reset
+    data:
+      entity_id: []
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+- name: rnd_counter_s202_64
+  steps:
+  - setup:
+      counter:
+        x1:
+          initial: ' '
+          step: 5
+          maximum: 10
+        z9_q:
+          maximum: '9'
+          icon: mdi:timer-outline
+    restore:
+    - - counter.x1
+      - '99999999999999999999'
+      - initial: 3
+        step: 9
+  - call: counter.set_value
+    data:
+      entity_id: null
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: -3
+  - call: counter.decrement
+    data:
+      entity_id: COUNTER.Z9_Q
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 2147483648
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 7
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+- name: rnd_counter_s202_65
+  steps:
+  - setup:
+      counter:
+        x1:
+          minimum: 10
+        long_name:
+          initial: 0
+          maximum: 7.9
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: '-2'
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id:
+      - counter.long_name
+      value: -2
+  - call: counter.set_value
+    data:
+      entity_id: COUNTER.LONG_NAME
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 2.9
+  - call: counter.increment
+    data:
+      entity_id: counter.missing
+- name: rnd_counter_s202_66
+  steps:
+  - setup:
+      counter:
+        a:
+          initial: -9223372036854775809
+          step: 0
+          minimum: x
+          maximum: null
+          restore: 1
+          name: null
+        long_name:
+          minimum: null
+          maximum: null
+          icon: x:y
+          bogus: 1
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 9223372036854775808
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.a
+      - counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: counter.set_value
+    data:
+      entity_id: []
+      value: '0005'
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 5
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 1
+  - call: counter.set_value
+    data:
+      entity_id: not an id
+  - call: counter.set_value
+    data: {}
+  - call: counter.reset
+    data:
+      entity_id:
+      - counter.a
+      - counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: all
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 5
+- name: rnd_counter_s202_67
+  steps:
+  - setup:
+      counter:
+        x1:
+          step: 10
+          restore: true
+        z9_q:
+          minimum: 2.5
+          icon: mdi:a
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: '5'
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.set_value
+    data:
+      entity_id: COUNTER.Z9_Q
+      value: -3
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.x1
+      - counter.z9_q
+- name: rnd_counter_s202_68
+  steps:
+  - setup:
+      counter:
+        z9_q:
+          initial: 9223372036854775808
+          step: 2
+          maximum: -3
+          name: Name
+          icon: 5
+        a:
+          initial: false
+          step: true
+    restore:
+    - - counter.z9_q
+      - '007'
+      - initial: 3
+        step: 9
+  - call: counter.reset
+    data:
+      entity_id:
+      - counter.z9_q
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+  - call: counter.reset
+    data:
+      entity_id: COUNTER.Z9_Q
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.z9_q
+      - counter.a
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 1000000
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 1000000000000000000000000000000
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: 12
+- name: rnd_counter_s202_69
+  steps:
+  - setup:
+      counter:
+        c:
+          initial: 100
+          step: 5
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.c
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.reset
+    data:
+      entity_id:
+      - counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: '0x1f'
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data: {}
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: none
+      value: -9223372036854775809
+- name: rnd_counter_s202_70
+  steps:
+  - setup:
+      counter:
+        c:
+          step: 100
+          minimum: 10
+          maximum: 5
+          bogus: 1
+        x1:
+          initial: 2147483648
+          step: 2
+          minimum: 10
+          maximum: '9'
+          icon: nocolon
+    restore:
+    - - counter.x1
+      - '-7'
+      - initial: 3
+        step: 9
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: -2
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.x1
+  - call: counter.set_value
+    data:
+      entity_id:
+      - counter.x1
+      value: -10
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.c
+      - counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: '1_0'
+  - call: counter.decrement
+    data:
+      entity_id: all
+  - call: counter.set_value
+    data:
+      entity_id: []
+      value: '+4'
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+- name: rnd_counter_s202_71
+  steps:
+  - setup:
+      counter:
+        long_name:
+          step: 0
+          name: Name
+        x1:
+          minimum: x
+          restore: 0
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: null
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.long_name
+      - counter.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+- name: rnd_counter_s202_72
+  steps:
+  - setup:
+      counter:
+        x1:
+          step: 0
+          maximum: '9'
+        long_name:
+          minimum: 10
+          icon: x:y
+  - call: counter.reset
+    data:
+      entity_id:
+      - counter.x1
+      - counter.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.x1
+      - counter.long_name
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.x1
+      - counter.long_name
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.x1
+      - counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: -1
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.long_name
+      value: 99
+- name: rnd_counter_s202_73
+  steps:
+  - setup:
+      counter:
+        long_name:
+          initial: -3
+        c:
+          initial: -1
+          step: 2.5
+          maximum: 20
+          restore: false
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -5
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -9223372036854775809
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.set_value
+    data:
+      entity_id: null
+- name: rnd_counter_s202_74
+  steps:
+  - setup:
+      counter:
+        a:
+          step: x
+          minimum: -100
+          maximum: -3
+          restore: 'yes'
+          icon: x:y
+          bogus: 1
+        c:
+          initial: -1
+          restore: 1
+    restore:
+    - - counter.a
+      - ' 12 '
+      - initial: 3
+        step: 9
+    - - counter.c
+      - '-7'
+      - initial: 3
+        step: 9
+  - call: counter.increment
+    data:
+      entity_id: COUNTER.C
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -1
+  - call: counter.increment
+    data:
+      entity_id: []
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.reset
+    data:
+      entity_id: all
+- name: rnd_counter_s202_75
+  steps:
+  - setup:
+      counter:
+        c:
+          maximum: '9'
+          icon: x:y
+          bogus: 1
+        long_name:
+          maximum: 0
+          restore: 0
+    restore:
+    - - counter.c
+      - '1_000'
+      - initial: 3
+        step: 9
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -3
+  - call: counter.increment
+    data:
+      entity_id:
+      - counter.c
+      - counter.long_name
+- name: rnd_counter_s202_76
+  steps:
+  - setup:
+      counter:
+        x1:
+          minimum: 3
+    restore:
+    - - counter.x1
+      - '1_000'
+      - initial: 3
+        step: 9
+  - call: counter.increment
+    data:
+      entity_id: []
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: -5
+  - call: counter.set_value
+    data: {}
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value:
+      - 1
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.reset
+    data:
+      entity_id: none
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: COUNTER.X1
+      value: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: -9223372036854775808
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: -3
+- name: rnd_counter_s202_77
+  steps:
+  - setup:
+      counter:
+        a:
+          initial: 12
+          minimum: -100
+          maximum: 7.9
+          restore: true
+        z9_q:
+          restore: 0
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 9223372036854775809
+  - call: counter.increment
+    data:
+      entity_id: all
+  - call: counter.set_value
+    data:
+      entity_id: counter.z9_q
+      value: '1_0'
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: -1
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 3
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+- name: rnd_counter_s202_78
+  steps:
+  - setup:
+      counter:
+        c:
+          initial: 0
+          step: true
+          minimum: 2.5
+          restore: false
+          icon: 5
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 2
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: -9223372036854775808
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 1
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -1000000
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+- name: rnd_counter_s202_79
+  steps:
+  - setup:
+      counter:
+        x1:
+          initial: -9223372036854775808
+          step: 3
+          icon: mdi:a
+        c:
+          step: 1
+          restore: 1
+    restore:
+    - - counter.x1
+      - '100'
+      - initial: 3
+        step: 9
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: -9223372036854775809
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 12
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.missing
+      value: '0005'
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.reset
+    data:
+      entity_id: COUNTER.C
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 2
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.x1
+      - counter.c

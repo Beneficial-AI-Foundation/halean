@@ -1,0 +1,139 @@
+description: random scenario seed=101 index=9
+scripts:
+  s0:
+    alias: Script 0 B
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - action: script.s4
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+  s1:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s4
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s2:
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - repeat:
+        count: 2
+        sequence:
+        - action: script.s1
+          data:
+            v: '{{ v | default(0) + 1 }}'
+        - action: test.m
+          data:
+            id: s2.4
+            v: '{{ v | default(0) }}'
+          response_variable: r
+  s3:
+    alias: Script 3 B
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - parallel:
+      - sequence:
+        - delay: 3
+      - sequence:
+        - action: script.toggle
+          target:
+            entity_id: script.s4
+        - delay: 1
+  s4:
+    alias: Script 4 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s4.5
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s4.6
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+    - delay: 1
+steps:
+- at: 1
+  call: turn_off
+  data:
+    entity_id:
+    - script.s3
+    - script.s4
+- at: 4
+  call: s1
+  return_response: true
+- at: 6
+  call: turn_off
+  data:
+    entity_id: script.s1
+- at: 7
+  result: 0
+  ok: false
+  error_kind: ha_error
+- at: 8
+  call: s0
+  return_response: true
+- at: 9
+  call: turn_off
+  data:
+    entity_id: all
+- at: 10
+  call: turn_on
+  data:
+    entity_id:
+    - script.s4
+    - script.s2
+- at: 11
+  call: turn_off
+  data:
+    entity_id: script.s3
+- at: 12
+  call: turn_off
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 12
+  call: turn_off
+  data:
+    entity_id: all

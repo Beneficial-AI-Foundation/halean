@@ -1,0 +1,4387 @@
+- name: rnd_input_select_s202_0
+  steps:
+  - setup:
+      input_select:
+        a:
+          name: x_y
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_first
+    data:
+      entity_id: []
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+      cycle: 0
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: null
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+      bogus: 1
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: 0
+- name: rnd_input_select_s202_1
+  steps:
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - unknown
+          - b, c
+          - A
+          - null
+    restore:
+    - - input_select.long_name
+      - b, c
+      - {}
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: a b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: ' '
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: a
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - '1'
+  - call: input_select.set_options
+    data:
+      entity_id: none
+      options:
+      - c
+      - None
+      - unknown
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: 0
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - é
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: '1'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: é
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: b
+- name: rnd_input_select_s202_2
+  steps:
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - A
+          - a b
+          initial: A
+          name: N
+    restore:
+    - - input_select.long_name
+      - ''
+      - {}
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.missing
+      cycle: false
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: true
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: 'True'
+  - call: input_select.select_first
+    data:
+      entity_id:
+      - input_select.long_name
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.missing
+      cycle: 1
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: a
+- name: rnd_input_select_s202_3
+  steps:
+  - setup:
+      input_select:
+        x1:
+          options:
+          - é
+          - ' '
+          - ' '
+    restore:
+    - - input_select.x1
+      - '1'
+      - {}
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: unknown
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - it's
+      - é
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.x1
+      option: a
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: b, c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - a
+- name: rnd_input_select_s202_4
+  steps:
+  - setup:
+      input_select:
+        b:
+          options:
+          - a b
+          icon: x:y
+    restore:
+    - - input_select.b
+      - a
+      - {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - '1'
+      - A
+      - d
+      - b, c
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: a
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: b, c
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.b
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - '1'
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - é
+      - '1'
+      - a b
+  - call: input_select.select_option
+    data: {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - A
+      - é
+  - call: input_select.select_next
+    data: {}
+- name: rnd_input_select_s202_5
+  steps:
+  - setup:
+      input_select:
+        b:
+          bogus: 1
+  - call: input_select.select_next
+    data:
+      entity_id: not an id
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.b
+      options:
+      - ''
+      - a b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_option
+    data:
+      entity_id: not an id
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: a b
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.missing
+      cycle: 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options: []
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - unknown
+      - None
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: None
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+- name: rnd_input_select_s202_6
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - 1
+          - None
+          - 2.5
+          - d
+        a:
+          options:
+          - unknown
+          - b, c
+          bogus: 1
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: 1
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: null
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option:
+      - a
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - unknown
+      - true
+      - 1
+      - ''
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+- name: rnd_input_select_s202_7
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - ''
+          - None
+          - 'True'
+          initial: ''
+          icon: 5
+    restore:
+    - - input_select.c
+      - ''
+      - {}
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.missing
+  - call: input_select.select_next
+    data: {}
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: é
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+      cycle: 0
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - b
+      - ''
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: c
+  - call: input_select.select_previous
+    data:
+      entity_id: []
+      cycle: null
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+      bogus: 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - é
+      - b
+      - b, c
+      - None
+      - a b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: ' '
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - 'True'
+      - b
+- name: rnd_input_select_s202_8
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - é
+          - 'True'
+          - d
+          - b, c
+          - None
+          initial: None
+          name: Name
+        c:
+          options:
+          - b
+          - ''
+    restore:
+    - - input_select.c
+      - ''
+      - {}
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_next
+    data:
+      entity_id: INPUT_SELECT.C
+      cycle: false
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.c
+      option: a
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - b
+      - A
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+      cycle: true
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+      cycle: false
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+- name: rnd_input_select_s202_9
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - A
+          - é
+          - ''
+          initial: A
+          name: x_y
+          icon: mdi:a
+          bogus: 1
+    restore:
+    - - input_select.c
+      - b, c
+      - {}
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - ''
+      - é
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - b
+      - unknown
+      - é
+      - c
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_previous
+    data:
+      entity_id: INPUT_SELECT.C
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - c
+      - 'True'
+      - 1
+      - it's
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: 2.5
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - d
+      - 1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: true
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - A
+      - 'True'
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - 1
+- name: rnd_input_select_s202_10
+  steps:
+  - setup:
+      input_select:
+        x1:
+          options:
+          - 'True'
+          icon: 5
+          bogus: 1
+        a:
+          options:
+          - true
+          - ' '
+          icon: nocolon
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: é
+  - call: input_select.select_last
+    data:
+      entity_id: none
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+      cycle: false
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: ''
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: 'yes'
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: null
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+      cycle: 'yes'
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - true
+      - a b
+  - call: input_select.select_next
+    data:
+      entity_id:
+      - input_select.a
+      cycle: true
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: a
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.missing
+      cycle: null
+- name: rnd_input_select_s202_11
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - 1
+          - '1'
+          name: null
+        x1:
+          options:
+          - b, c
+          - None
+          icon: x:y
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: '1'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: None
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - 1
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: unknown
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options: null
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: true
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.x1
+      cycle: null
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: a
+- name: rnd_input_select_s202_12
+  steps:
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - c
+          - ''
+          - '1'
+          name: null
+    restore:
+    - - input_select.long_name
+      - unavailable
+      - {}
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: ''
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: 'True'
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - 2.5
+      - a b
+      - true
+  - call: input_select.set_options
+    data:
+      entity_id: []
+      options:
+      - None
+      - é
+      - a b
+      - a b
+  - call: input_select.set_options
+    data:
+      entity_id: INPUT_SELECT.LONG_NAME
+      options:
+      - c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - ' '
+      - it's
+  - call: input_select.select_previous
+    data:
+      entity_id: INPUT_SELECT.LONG_NAME
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - a
+      - é
+      - a b
+- name: rnd_input_select_s202_13
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - ''
+    restore:
+    - - input_select.c
+      - c
+      - {}
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+      cycle: 'yes'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: unknown
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: d
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+      cycle: false
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+      cycle: false
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+      cycle: 'yes'
+- name: rnd_input_select_s202_14
+  steps:
+  - setup:
+      input_select:
+        b:
+          options:
+          - A
+          name: A b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: '1'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: unknown
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - A
+      - true
+      - a
+      - d
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: a b
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - b
+      - 2.5
+      - d
+      - b, c
+      - '1'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: é
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+      cycle: 0
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option:
+        a: 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - unknown
+      - 1
+      - true
+      - a
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option:
+        a: 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - d
+      - it's
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options: []
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+      cycle: null
+- name: rnd_input_select_s202_15
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - ''
+          - c
+          name: A b
+        b:
+          options:
+          - é
+          - true
+          - a
+          - ' '
+    restore:
+    - - input_select.b
+      - '1'
+      - {}
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: a
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option:
+        a: 1
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - a b
+      - it's
+      - a
+      - a
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - 1
+      - a
+      - ''
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.missing
+      cycle: 0
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - it's
+      - ' '
+      - a b
+      - A
+  - call: input_select.select_option
+    data:
+      entity_id: not an id
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+- name: rnd_input_select_s202_16
+  steps:
+  - setup:
+      input_select:
+        b:
+          options:
+          - é
+          - 1
+          - b, c
+          - ''
+          - k: 1
+    restore:
+    - - input_select.b
+      - b
+      - {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options: single
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.b
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.b
+      options: null
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+      cycle: false
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - ''
+      - k: 1
+  - call: input_select.select_option
+    data:
+      entity_id: not an id
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+      bogus: 1
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+      cycle: false
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+- name: rnd_input_select_s202_17
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - it's
+    restore:
+    - - input_select.c
+      - it's
+      - {}
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - it's
+      - true
+      - b, c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: 1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: b, c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - 1
+      - true
+      - a b
+      - c
+      - ' '
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+      cycle: 'yes'
+  - call: input_select.select_next
+    data:
+      entity_id: []
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: 2.5
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+      cycle: true
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+- name: rnd_input_select_s202_18
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - é
+          - 2.5
+          - c
+          - ''
+          name: A b
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+      cycle: true
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: b, c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - None
+      - b
+      - d
+      - ' '
+      - c
+  - call: input_select.select_next
+    data:
+      entity_id:
+      - input_select.z9_q
+- name: rnd_input_select_s202_19
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - b
+          - é
+          - é
+          icon: x:y
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: 1
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.set_options
+    data:
+      entity_id: INPUT_SELECT.C
+      options:
+      - 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - 1
+      - a
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+      cycle: 1
+  - call: input_select.select_option
+    data:
+      entity_id: INPUT_SELECT.C
+      option: é
+  - call: input_select.set_options
+    data:
+      entity_id: none
+      options:
+      - unknown
+      - b, c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: '1'
+- name: rnd_input_select_s202_20
+  steps:
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - '1'
+          - a
+          - é
+        a:
+          options:
+          - a
+          initial: a
+    restore:
+    - - input_select.long_name
+      - unavailable
+      - {}
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+      cycle: false
+  - call: input_select.set_options
+    data:
+      entity_id: none
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+      cycle: 1
+  - call: input_select.set_options
+    data:
+      entity_id: []
+      options:
+      - None
+      - true
+      - ''
+      - unknown
+- name: rnd_input_select_s202_21
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - None
+          icon: mdi:timer-outline
+    restore:
+    - - input_select.c
+      - A
+      - {}
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+      cycle: true
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options: []
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option:
+      - a
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.c
+      option: 'True'
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options: single
+  - call: input_select.select_option
+    data: {}
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: '1'
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+- name: rnd_input_select_s202_22
+  steps:
+  - setup:
+      input_select:
+        b:
+          options:
+          - a b
+          - 1
+          initial: é
+        long_name:
+          options:
+          - b, c
+          - A
+          name: x_y
+    restore:
+    - - input_select.b
+      - 'True'
+      - {}
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: '1'
+  - call: input_select.select_previous
+    data:
+      entity_id: INPUT_SELECT.LONG_NAME
+      cycle: false
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+      cycle: false
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: 0
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: é
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+      cycle: false
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.long_name
+      cycle: true
+- name: rnd_input_select_s202_23
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - b, c
+          - 2.5
+          - c
+          initial: 2.5
+          icon: x:y
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: it's
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - b, c
+      - it's
+      - d
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+      cycle: 1
+  - call: input_select.select_last
+    data:
+      entity_id: INPUT_SELECT.C
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - 1
+      - ''
+      - true
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - ' '
+      - unknown
+      - k: 1
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - é
+      - '1'
+      - b
+      - b, c
+- name: rnd_input_select_s202_24
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - b
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - a
+      - ' '
+      - A
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+      cycle: 1
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: true
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.z9_q
+      options:
+      - a b
+      - ''
+      - 'True'
+      - b, c
+      - it's
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.z9_q
+      cycle: null
+- name: rnd_input_select_s202_25
+  steps:
+  - setup:
+      input_select:
+        b:
+          options:
+          - None
+          - a b
+          - '1'
+          - b
+          - '1'
+        long_name:
+          options:
+          - None
+          - b
+          - c
+          - a
+          initial: c
+  - call: input_select.select_previous
+    data:
+      entity_id: []
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - ''
+      - unknown
+  - call: input_select.select_next
+    data:
+      entity_id: null
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: false
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+      cycle: 'yes'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: None
+- name: rnd_input_select_s202_26
+  steps:
+  - setup:
+      input_select:
+        x1:
+          options:
+          - ''
+    restore:
+    - - input_select.x1
+      - c
+      - {}
+  - call: input_select.select_option
+    data:
+      entity_id: not an id
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.x1
+      cycle: null
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options: single
+  - call: input_select.select_option
+    data:
+      entity_id: null
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - None
+      - 1
+      - unknown
+      - A
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+      cycle: false
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.x1
+- name: rnd_input_select_s202_27
+  steps:
+  - setup:
+      input_select:
+        x1:
+          options:
+          - true
+          - unknown
+          - 'True'
+          - 'True'
+          initial: 'True'
+    restore:
+    - - input_select.x1
+      - unknown
+      - {}
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.x1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - b, c
+      - c
+      - unknown
+      - A
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: ''
+  - call: input_select.select_next
+    data:
+      entity_id: INPUT_SELECT.X1
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: 2.5
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.x1
+      cycle: 1
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+      cycle: 'yes'
+  - call: input_select.set_options
+    data:
+      entity_id: none
+      options:
+      - c
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: a b
+- name: rnd_input_select_s202_28
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - '1'
+          - c
+    restore:
+    - - input_select.a
+      - '1'
+      - {}
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.a
+      option: true
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: true
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - 1
+      - b
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.a
+  - call: input_select.set_options
+    data:
+      entity_id: []
+      options:
+      - d
+      - A
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: 'True'
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+      cycle: false
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.a
+      option: 'True'
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - 'True'
+      - a b
+      - A
+      - d
+  - call: input_select.select_last
+    data:
+      entity_id: none
+- name: rnd_input_select_s202_29
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - None
+          - ' '
+          - é
+          - b, c
+        z9_q:
+          options:
+          - None
+          - '1'
+          - d
+          - b, c
+          - A
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.c
+      options:
+      - é
+      - d
+      - it's
+      - unknown
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - ''
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.missing
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - 2.5
+      - ' '
+      - unknown
+      - a b
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - 'True'
+      - c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - d
+      - true
+- name: rnd_input_select_s202_30
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - ''
+          - unknown
+          - d
+          name: N
+        a:
+          options:
+          - A
+          - true
+          - c
+          - a b
+    restore:
+    - - input_select.a
+      - unavailable
+      - {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - '1'
+      - b
+  - call: input_select.select_previous
+    data:
+      entity_id: INPUT_SELECT.A
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.a
+- name: rnd_input_select_s202_31
+  steps:
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - 1
+          - c
+          name: Name
+          icon: x:y
+    restore:
+    - - input_select.long_name
+      - a b
+      - {}
+  - call: input_select.select_option
+    data:
+      entity_id: null
+  - call: input_select.select_option
+    data:
+      entity_id: null
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - 2.5
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: 1
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: false
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: 1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: b, c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_next
+    data:
+      entity_id: not an id
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.missing
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: 'yes'
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: 1
+- name: rnd_input_select_s202_32
+  steps:
+  - setup:
+      input_select:
+        x1:
+          options:
+          - '1'
+        z9_q:
+          options:
+          - é
+          - a b
+          - a
+          - c
+          icon: 5
+    restore:
+    - - input_select.x1
+      - unavailable
+      - {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - a
+      - 1
+      - 'True'
+      - ''
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: A
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.x1
+      bogus: 1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: 2.5
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - ' '
+      - b, c
+      - é
+      - c
+      - '1'
+- name: rnd_input_select_s202_33
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - '1'
+          - b
+          - ''
+          initial: '1'
+          name: x_y
+        long_name:
+          options:
+          - true
+          - b
+          - '1'
+          name: null
+          icon: nocolon
+    restore:
+    - - input_select.c
+      - unknown
+      - {}
+    - - input_select.long_name
+      - None
+      - {}
+  - call: input_select.select_option
+    data:
+      entity_id: none
+      option: b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: true
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - ''
+      - true
+  - call: input_select.select_previous
+    data:
+      entity_id:
+      - input_select.long_name
+      cycle: 'yes'
+  - call: input_select.select_next
+    data: {}
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: 'True'
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - ''
+      - 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - '1'
+      - it's
+      - ''
+  - call: input_select.select_option
+    data: {}
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - A
+      - '1'
+      - None
+      - a b
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.c
+- name: rnd_input_select_s202_34
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - true
+          - A
+          - a b
+          name: 42
+        c:
+          options:
+          - unknown
+          - it's
+          - d
+          - b
+          initial: it's
+          icon: 5
+    restore:
+    - - input_select.z9_q
+      - é
+      - {}
+  - call: input_select.select_option
+    data:
+      entity_id: none
+      option: ' '
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: b
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.c
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: b, c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: None
+  - call: input_select.select_option
+    data:
+      entity_id: none
+      option: ''
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: a
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - ' '
+      - true
+      - unknown
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: 2.5
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options: []
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+- name: rnd_input_select_s202_35
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - a
+          - ''
+          - c
+          initial: c
+        z9_q:
+          options: single
+          icon: 5
+    restore:
+    - - input_select.z9_q
+      - a
+      - {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - it's
+      - unknown
+      - 'True'
+      - é
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.missing
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: 0
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - None
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.z9_q
+      cycle: true
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: b
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.z9_q
+      cycle: 0
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+      cycle: 1
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: 1
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+      cycle: false
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.z9_q
+- name: rnd_input_select_s202_36
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - 'True'
+          - b
+          - '1'
+          - 1
+          - d
+    restore:
+    - - input_select.a
+      - 'True'
+      - {}
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: false
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options: single
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: 'True'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: None
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - a b
+      - None
+- name: rnd_input_select_s202_37
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - '1'
+          initial: '1'
+        z9_q:
+          options: null
+  - call: input_select.select_first
+    data:
+      entity_id:
+      - input_select.z9_q
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: '1'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: d
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_option
+    data:
+      entity_id: INPUT_SELECT.A
+      option: it's
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+- name: rnd_input_select_s202_38
+  steps:
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - 1
+          - None
+          - 'True'
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - true
+      - A
+      - a
+      - a
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: ''
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: b, c
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: 1
+  - call: input_select.select_next
+    data:
+      entity_id:
+      - input_select.long_name
+  - call: input_select.select_next
+    data:
+      entity_id: []
+      cycle: 'yes'
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: 0
+- name: rnd_input_select_s202_39
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - true
+          - 1
+          - b
+          - a
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: 1
+  - call: input_select.select_option
+    data:
+      entity_id: none
+      option: 'True'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: b, c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - ''
+      - ' '
+      - - n
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - a b
+      - it's
+      - 1
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: null
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+- name: rnd_input_select_s202_40
+  steps:
+  - setup:
+      input_select:
+        b:
+          options:
+          - b
+          - true
+          - '1'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: '1'
+  - call: input_select.select_next
+    data: {}
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_previous
+    data:
+      entity_id: INPUT_SELECT.B
+      cycle: 0
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: 'True'
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.missing
+      cycle: false
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - '1'
+      - ' '
+  - call: input_select.select_last
+    data:
+      entity_id:
+      - input_select.b
+  - call: input_select.select_option
+    data: {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options: []
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - 'True'
+      - a
+      - A
+      - é
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+      cycle: false
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: d
+  - call: input_select.select_previous
+    data:
+      entity_id: none
+- name: rnd_input_select_s202_41
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - a
+          - 1
+          - true
+          - ''
+          initial: ''
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - unknown
+      - b
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+      cycle: 0
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: None
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.missing
+      cycle: false
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - ' '
+      - it's
+      - b, c
+      - 1
+      - true
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.c
+      options:
+      - '1'
+      - a b
+      - true
+      - 2.5
+- name: rnd_input_select_s202_42
+  steps:
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - it's
+          - c
+          - true
+          - 2.5
+          - k: 1
+          initial: true
+        z9_q:
+          options:
+          - d
+          - b, c
+          - b, c
+          - 1
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+      cycle: true
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.long_name
+      cycle: true
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: ' '
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: unknown
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - é
+      - A
+      - - n
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - b, c
+      - ' '
+      - 'True'
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - é
+      - unknown
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: a b
+  - call: input_select.select_next
+    data:
+      entity_id: not an id
+  - call: input_select.select_next
+    data:
+      entity_id: not an id
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.z9_q
+      cycle: 'yes'
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.long_name
+      cycle: 0
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+      cycle: null
+- name: rnd_input_select_s202_43
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - é
+          - 2.5
+          - b, c
+          - a b
+          bogus: 1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: None
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: a b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: A
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+      cycle: 'yes'
+  - call: input_select.select_previous
+    data:
+      entity_id: INPUT_SELECT.C
+      cycle: 1
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - true
+      - None
+      - c
+      - é
+  - call: input_select.select_previous
+    data:
+      entity_id: INPUT_SELECT.C
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - unknown
+      - 'True'
+      - it's
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options: []
+- name: rnd_input_select_s202_44
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - b
+          - it's
+          - None
+          - a
+          - c
+          name: 42
+    restore:
+    - - input_select.z9_q
+      - d
+      - {}
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - c
+      - 1
+      - b
+  - call: input_select.select_option
+    data:
+      entity_id: none
+      option: 1
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: a b
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: c
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.z9_q
+      cycle: true
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+- name: rnd_input_select_s202_45
+  steps:
+  - setup:
+      input_select:
+        x1:
+          options:
+          - 1
+          initial: 1
+          icon: mdi:a
+        b:
+          options:
+          - '1'
+          - true
+          initial: '1'
+          icon: x:y
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: b, c
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.x1
+      cycle: 0
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+      cycle: false
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.x1
+      cycle: false
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: é
+  - call: input_select.select_next
+    data: {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - A
+      - c
+      - true
+      - '1'
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.x1
+      option: ''
+- name: rnd_input_select_s202_46
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - c
+          - 1
+          - é
+          - a b
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - d
+      - b, c
+      - true
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - d
+      - - n
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - true
+      - it's
+      - d
+      - unknown
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: it's
+- name: rnd_input_select_s202_47
+  steps:
+  - setup:
+      input_select:
+        long_name:
+          initial: a b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: unknown
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - it's
+      - true
+      - ''
+      - é
+      - ' '
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: None
+  - call: input_select.select_option
+    data:
+      entity_id: not an id
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.long_name
+      cycle: false
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.long_name
+      cycle: null
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.long_name
+- name: rnd_input_select_s202_48
+  steps:
+  - setup:
+      input_select:
+        b:
+          options: 7
+  - call: input_select.nosuch
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: it's
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_last
+    data:
+      entity_id:
+      - input_select.b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.missing
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.b
+- name: rnd_input_select_s202_49
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - A
+          initial: A
+    restore:
+    - - input_select.a
+      - d
+      - {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - b
+      - A
+  - call: input_select.select_first
+    data:
+      entity_id: INPUT_SELECT.A
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.a
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - a b
+      - ' '
+      - b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_option
+    data:
+      entity_id: none
+      option: true
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - A
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: 1
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: 1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: None
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.missing
+- name: rnd_input_select_s202_50
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - '1'
+          - true
+    restore:
+    - - input_select.c
+      - '1'
+      - {}
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+      cycle: false
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: d
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.missing
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.missing
+  - call: input_select.select_option
+    data: {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - é
+  - call: input_select.select_last
+    data:
+      entity_id: INPUT_SELECT.C
+  - call: input_select.select_previous
+    data:
+      entity_id: none
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+      cycle: false
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+      cycle: true
+  - call: input_select.select_option
+    data: {}
+- name: rnd_input_select_s202_51
+  steps:
+  - setup:
+      input_select:
+        x1:
+          options:
+          - ' '
+          - b, c
+          initial: b, c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options: null
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.x1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - A
+      - 'True'
+      - b, c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - ''
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: a b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: ' '
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - d
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+      cycle: 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - A
+      - b, c
+      - 2.5
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.x1
+      cycle: false
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: it's
+- name: rnd_input_select_s202_52
+  steps:
+  - setup:
+      input_select:
+        a:
+          options: []
+    restore:
+    - - input_select.a
+      - ''
+      - {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - c
+      - b, c
+      - '1'
+  - call: input_select.select_option
+    data:
+      entity_id: not an id
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.missing
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: b, c
+- name: rnd_input_select_s202_53
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - ''
+        c:
+          options:
+          - a
+          - b, c
+          - ' '
+          - A
+          bogus: 1
+    restore:
+    - - input_select.a
+      - unavailable
+      - {}
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.missing
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - é
+      - true
+      - b
+      - A
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: false
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_last
+    data:
+      entity_id:
+      - input_select.a
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - 'True'
+      - unknown
+      - A
+  - call: input_select.select_next
+    data:
+      entity_id: not an id
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: true
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - 'True'
+- name: rnd_input_select_s202_54
+  steps:
+  - setup:
+      input_select:
+        long_name:
+          initial: '1'
+          icon: 5
+        z9_q:
+          options: single
+          initial: A
+          name: 42
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: true
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - c
+      - ''
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.z9_q
+      cycle: false
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.missing
+      cycle: 'yes'
+  - call: input_select.set_options
+    data:
+      entity_id: INPUT_SELECT.LONG_NAME
+      options:
+      - true
+  - call: input_select.select_next
+    data:
+      entity_id: []
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: b
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - c
+      - it's
+      - b, c
+      - None
+      - é
+  - call: input_select.select_option
+    data:
+      entity_id: null
+- name: rnd_input_select_s202_55
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - d
+          - a b
+          - 2.5
+          - ''
+          - '1'
+        long_name:
+          options:
+          - b
+          - unknown
+          - é
+          - A
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: true
+  - call: input_select.select_previous
+    data:
+      entity_id: none
+      cycle: true
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+      bogus: 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - 'True'
+- name: rnd_input_select_s202_56
+  steps:
+  - setup:
+      input_select:
+        b:
+          options:
+          - 1
+          - A
+          - é
+          initial: 1
+    restore:
+    - - input_select.b
+      - a
+      - {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - é
+      - c
+      - 1
+      - None
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: b, c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - A
+      - None
+      - 2.5
+      - ''
+      - ' '
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.b
+  - call: input_select.set_options
+    data:
+      entity_id: none
+      options:
+      - A
+      - a b
+      - c
+      - d
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+      cycle: 'yes'
+  - call: input_select.select_first
+    data:
+      entity_id:
+      - input_select.b
+  - call: input_select.select_next
+    data:
+      entity_id: not an id
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: null
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: b, c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options: []
+- name: rnd_input_select_s202_57
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - unknown
+          - ' '
+          - é
+          - None
+          - '1'
+        b:
+          options:
+          - é
+          - a b
+          - A
+    restore:
+    - - input_select.a
+      - d
+      - {}
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+      cycle: false
+  - call: input_select.select_next
+    data:
+      entity_id: none
+      cycle: false
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: it's
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.b
+- name: rnd_input_select_s202_58
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - b, c
+          - é
+          - 'True'
+          - 2.5
+          icon: 5
+        c:
+          options:
+          - b
+          - ''
+          - true
+          icon: x:y
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - true
+      - a
+      - A
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: false
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: ' '
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - '1'
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - ' '
+      - 'True'
+      - ''
+- name: rnd_input_select_s202_59
+  steps:
+  - setup:
+      input_select:
+        c: {}
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: '1'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: it's
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: None
+  - call: input_select.select_option
+    data:
+      entity_id: not an id
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: '1'
+- name: rnd_input_select_s202_60
+  steps:
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - true
+          - unknown
+          - '1'
+          - a
+        z9_q:
+          options:
+          - true
+          - c
+          - it's
+          name: 42
+    restore:
+    - - input_select.z9_q
+      - é
+      - {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - ' '
+      - 'True'
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.long_name
+      options:
+      - ' '
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - A
+      - it's
+      - ' '
+      - ' '
+      - a
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+      cycle: 1
+  - call: input_select.select_option
+    data:
+      entity_id: not an id
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - b, c
+      - c
+      - it's
+      - a b
+- name: rnd_input_select_s202_61
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - None
+          - unknown
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+      cycle: 0
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: unknown
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_first
+    data:
+      entity_id:
+      - input_select.z9_q
+  - call: input_select.set_options
+    data:
+      entity_id: none
+- name: rnd_input_select_s202_62
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - b
+          - d
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+      cycle: 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - a b
+      - true
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_option
+    data:
+      entity_id: not an id
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: A
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.z9_q
+      cycle: true
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - 2.5
+      - 1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: '1'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: é
+- name: rnd_input_select_s202_63
+  steps:
+  - setup:
+      input_select:
+        b:
+          options:
+          - é
+          - it's
+        x1:
+          options:
+          - it's
+          initial: it's
+    restore:
+    - - input_select.x1
+      - a
+      - {}
+  - call: input_select.select_next
+    data:
+      entity_id: null
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: ''
+  - call: input_select.set_options
+    data:
+      entity_id: INPUT_SELECT.X1
+      options:
+      - a b
+      - b, c
+      - ''
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - d
+      - ' '
+      - 1
+      - ''
+      - c
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+      cycle: 0
+- name: rnd_input_select_s202_64
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - ' '
+          - ''
+          - 'True'
+        a:
+          options:
+          - true
+          - b
+          - 2.5
+          - c
+          name: x_y
+    restore:
+    - - input_select.c
+      - unknown
+      - {}
+  - call: input_select.select_option
+    data:
+      entity_id: INPUT_SELECT.A
+      option: d
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      bogus: 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - '1'
+      - None
+  - call: input_select.select_option
+    data:
+      entity_id: null
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - a b
+  - call: input_select.select_next
+    data:
+      entity_id:
+      - input_select.a
+      cycle: 'yes'
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_previous
+    data:
+      entity_id: INPUT_SELECT.A
+  - call: input_select.set_options
+    data:
+      entity_id: INPUT_SELECT.A
+      options:
+      - 1
+      - d
+- name: rnd_input_select_s202_65
+  steps:
+  - setup:
+      input_select:
+        x1:
+          options: null
+          initial: ''
+          icon: mdi:a
+  - call: input_select.select_option
+    data:
+      entity_id: not an id
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: b, c
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.x1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - A
+      - 'True'
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: 'True'
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - 1
+      - 2.5
+      - 2.5
+      - unknown
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.x1
+      bogus: 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - 1
+      - 2.5
+      - ' '
+      - unknown
+- name: rnd_input_select_s202_66
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - b
+          - unknown
+          initial: 'True'
+          icon: mdi:timer-outline
+        b:
+          options:
+          - c
+          - true
+          - A
+          - ''
+    restore:
+    - - input_select.b
+      - 'True'
+      - {}
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+      cycle: false
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: a
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - ''
+      - None
+      - b, c
+      - d
+  - call: input_select.select_previous
+    data:
+      entity_id:
+      - input_select.b
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+      cycle: null
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.c
+      option: 1
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+- name: rnd_input_select_s202_67
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - é
+          - a b
+          - b, c
+          - ' '
+          initial: é
+        z9_q:
+          options:
+          - '1'
+          - true
+          initial: '1'
+    restore:
+    - - input_select.a
+      - ' '
+      - {}
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.z9_q
+      cycle: true
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: ''
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - it's
+      - 'True'
+  - call: input_select.select_first
+    data:
+      entity_id:
+      - input_select.a
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option:
+      - a
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+      cycle: null
+- name: rnd_input_select_s202_68
+  steps:
+  - setup:
+      input_select:
+        b:
+          initial: A
+          name: A b
+    restore:
+    - - input_select.b
+      - it's
+      - {}
+  - call: input_select.select_previous
+    data:
+      entity_id:
+      - input_select.b
+      cycle: 'yes'
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+      cycle: 0
+  - call: input_select.select_next
+    data:
+      entity_id: null
+  - call: input_select.select_next
+    data:
+      entity_id: null
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - it's
+      - a
+  - call: input_select.select_next
+    data:
+      entity_id: []
+      cycle: false
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: é
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+      cycle: 0
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: A
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+      cycle: 0
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+      cycle: 0
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: 2.5
+- name: rnd_input_select_s202_69
+  steps:
+  - setup:
+      input_select:
+        x1:
+          options:
+          - b
+          - d
+          - a
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - 2.5
+      - 1
+      - A
+      - it's
+  - call: input_select.select_next
+    data:
+      entity_id: INPUT_SELECT.X1
+      cycle: null
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options: 7
+  - call: input_select.select_option
+    data:
+      entity_id: none
+      option: c
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.missing
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - a
+      - ' '
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - ''
+      - c
+      - 2.5
+      - a b
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+      cycle: null
+- name: rnd_input_select_s202_70
+  steps:
+  - setup:
+      input_select:
+        x1:
+          options:
+          - 2.5
+          - it's
+          name: x_y
+        a:
+          options:
+          - a
+    restore:
+    - - input_select.x1
+      - 'True'
+      - {}
+  - call: input_select.set_options
+    data:
+      entity_id: INPUT_SELECT.A
+      options:
+      - '1'
+      - 2.5
+      - é
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: it's
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: é
+  - call: input_select.set_options
+    data:
+      entity_id: []
+      options:
+      - a b
+      - it's
+      - A
+      - b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: true
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.x1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options: null
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.x1
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.x1
+      options:
+      - A
+      - it's
+      - a b
+      - b
+      - é
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.x1
+- name: rnd_input_select_s202_71
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - ''
+          - c
+          name: 42
+        long_name:
+          options:
+          - a b
+          - d
+          - 'True'
+          - ' '
+          - b, c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: unknown
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - 'True'
+      - a
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+      cycle: 1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: ' '
+- name: rnd_input_select_s202_72
+  steps:
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - '1'
+          - a b
+          - ' '
+        x1:
+          options:
+          - A
+          - None
+          - 'True'
+          - 2.5
+          - ''
+          initial: 2.5
+    restore:
+    - - input_select.x1
+      - None
+      - {}
+  - call: input_select.select_first
+    data:
+      entity_id: none
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - unknown
+      - b
+      - k: 1
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - d
+      - A
+      - 'True'
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - a
+      - a b
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - b
+      - a
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: 2.5
+- name: rnd_input_select_s202_73
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - b
+          initial: b, c
+          icon: mdi:a
+    restore:
+    - - input_select.a
+      - '2.5'
+      - {}
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - ' '
+      - it's
+      - '1'
+      - A
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - a
+      - '1'
+      - ''
+  - call: input_select.select_previous
+    data:
+      entity_id: []
+      cycle: true
+  - call: input_select.select_previous
+    data:
+      entity_id: INPUT_SELECT.A
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.missing
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+      cycle: 1
+  - call: input_select.select_option
+    data:
+      entity_id: INPUT_SELECT.A
+      option: unknown
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.missing
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: d
+- name: rnd_input_select_s202_74
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - b
+          bogus: 1
+        long_name:
+          options:
+          - A
+          - it's
+          - None
+          - - n
+          name: x_y
+    restore:
+    - - input_select.c
+      - a
+      - {}
+    - - input_select.long_name
+      - ''
+      - {}
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: 'yes'
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - it's
+      - 1
+      - a
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: A
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - é
+      - A
+      - 2.5
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: a
+- name: rnd_input_select_s202_75
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - ''
+          - it's
+          initial: ''
+          name: x_y
+          icon: mdi:a
+    restore:
+    - - input_select.z9_q
+      - None
+      - {}
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option:
+        a: 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - a b
+      - a
+      - 1
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+      cycle: 1
+  - call: input_select.select_previous
+    data:
+      entity_id: none
+      cycle: null
+- name: rnd_input_select_s202_76
+  steps:
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - 'True'
+          icon: mdi:a
+        c:
+          options:
+          - '1'
+          - None
+          - c
+          - true
+          initial: c
+    restore:
+    - - input_select.long_name
+      - '2.5'
+      - {}
+    - - input_select.c
+      - '1'
+      - {}
+  - call: input_select.select_last
+    data:
+      entity_id:
+      - input_select.c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: ''
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: None
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.long_name
+      cycle: false
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: a
+- name: rnd_input_select_s202_77
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - b, c
+          - b
+          - a
+          - unknown
+        c:
+          options:
+          - unknown
+          - true
+          - ''
+          - a
+          initial: unknown
+          name: A b
+    restore:
+    - - input_select.a
+      - d
+      - {}
+    - - input_select.c
+      - unknown
+      - {}
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_previous
+    data:
+      entity_id:
+      - input_select.a
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - b, c
+      - a
+      - 1
+      - ' '
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - b, c
+      - 2.5
+      - A
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.a
+      options:
+      - a b
+      - 1
+      - ' '
+      - ''
+      - 2.5
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - ' '
+      - b
+      - 1
+      - é
+  - call: input_select.set_options
+    data:
+      entity_id: none
+      options:
+      - d
+      - 'True'
+      - it's
+      - a
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.c
+      option: d
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.missing
+      option: d
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.a
+      option: b, c
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+      cycle: null
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.missing
+      options:
+      - 2.5
+      - '1'
+      - 1
+      - '1'
+- name: rnd_input_select_s202_78
+  steps:
+  - setup:
+      input_select:
+        b:
+          options:
+          - ''
+          - a b
+          - k: 1
+        x1:
+          options:
+          - None
+          initial: None
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options: []
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.x1
+      option: 2.5
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: b
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - d
+      - None
+      - b
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.x1
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.b
+      options:
+      - None
+      - a
+      - b, c
+      - unknown
+      - 2.5
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.x1
+      cycle: 0
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - it's
+      - d
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - é
+      - c
+      - 'True'
+- name: rnd_input_select_s202_79
+  steps:
+  - setup:
+      input_select:
+        c:
+          options:
+          - b
+          - a b
+          - a
+          initial: unknown
+          name: Name
+        z9_q:
+          options:
+          - d
+          - 'True'
+          - it's
+          icon: nocolon
+    restore:
+    - - input_select.z9_q
+      - 'True'
+      - {}
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+      cycle: 0
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.c
+      option: ''
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: ' '
+  - call: input_select.select_next
+    data:
+      entity_id: []
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.c
+      option: 'True'
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.c
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.z9_q
+      option: ' '
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - A
+      - é
+  - call: input_select.select_next
+    data:
+      entity_id: null
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.z9_q

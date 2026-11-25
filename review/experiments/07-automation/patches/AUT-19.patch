@@ -1,0 +1,34 @@
+diff --git a/HALean/Automation/Config.lean b/HALean/Automation/Config.lean
+index 6912d6f..5fb958c 100644
+--- a/HALean/Automation/Config.lean
++++ b/HALean/Automation/Config.lean
+@@ -792,15 +792,23 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
+         | none => pure none
+         | some (.str "*") => pure (some .any)
+         | some (.str s) =>
++          -- `TimePattern.__call__`: `int(value[1:])` / `int(value)`
+           if s.startsWith "/" then
+-            match (s.dropS 1).toNat? with
+-            | some n => if n == 0 || n > mx then throw s!"bad {k}" else pure (some (.every n))
++            match Template.parseIntStr (s.dropS 1) with
++            | some n => if n ≤ 0 || n > mx then throw s!"bad {k}" else pure (some (.every n.toNat))
+             | none => throw s!"bad {k}"
+-          else match s.toNat? with
+-            | some n => if n > mx then throw s!"bad {k}" else pure (some (.exact n))
++          else match Template.parseIntStr s with
++            | some n => if n < 0 || n > mx then throw s!"bad {k}" else pure (some (.exact n.toNat))
+             | none => throw s!"bad {k}"
+-        | some (.num n) => match n.mantissa.toNat with
+-          | m => if n.exponent == 0 && m ≤ mx then pure (some (.exact m)) else throw s!"bad {k}"
++        | some v@(.num _) =>
++          let i? : Option Int := match Template.Value.ofJson v with
++            | .int i => some i
++            | .float f => Template.floatToInt? f
++            | _ => none
++          match i? with
++          | some n => if n < 0 || n > mx then throw s!"bad {k}" else pure (some (.exact n.toNat))
++          | none => throw s!"bad {k}"
++        | some (.bool b) => pure (some (.exact (if b then 1 else 0)))
+         | some _ => throw s!"bad {k}"
+       let h ← pat "hours" 23
+       let m ← pat "minutes" 59

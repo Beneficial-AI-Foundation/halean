@@ -140,10 +140,57 @@ class Gen:
         return cfg
 
 
+def _edges(actions, direct: set, fresh: set) -> None:
+    """Call edges of a sequence: direct calls, and turn_on / toggle (which start with a fresh stack)."""
+    for a in actions if isinstance(actions, list) else [actions]:
+        if not isinstance(a, dict):
+            continue
+        svc = a.get("action", "")
+        if svc in ("script.turn_on", "script.toggle"):
+            ids = a["target"]["entity_id"]
+            fresh.update(e.split(".")[1] for e in ([ids] if isinstance(ids, str) else ids))
+        elif svc.startswith("script.") and svc != "script.turn_off":
+            direct.add(svc.split(".")[1])
+        for k in ("then", "else", "sequence", "parallel"):
+            if k in a:
+                _edges(a[k], direct, fresh)
+        if "repeat" in a:
+            _edges(a["repeat"]["sequence"], direct, fresh)
+
+
+def loops(scripts: dict) -> bool:
+    """Whether a turn_on / toggle edge lies on a cycle of calls. Such scripts
+    can start each other forever (each turn_on has a fresh script stack, so
+    HA's recursion guard does not apply); both sides then only stop at an
+    arbitrary bound, and the scenario compares nothing."""
+    direct: dict[str, set] = {}
+    fresh: dict[str, set] = {}
+    for name, cfg in scripts.items():
+        direct[name], fresh[name] = set(), set()
+        _edges(cfg["sequence"], direct[name], fresh[name])
+    for src, targets in fresh.items():
+        for t in targets:
+            if t == src:
+                return True
+            seen, todo = set(), [t]
+            while todo:
+                n = todo.pop()
+                if n == src:
+                    return True
+                if n in seen or n not in scripts:
+                    continue
+                seen.add(n)
+                todo.extend(direct[n] | fresh[n])
+    return False
+
+
 def scenario(seed: int, idx: int) -> dict:
     rng = random.Random(f"{seed}/{idx}")
-    g = Gen(rng)
-    scripts = {name: g.script(i) for i, name in enumerate(g.names)}
+    while True:
+        g = Gen(rng)
+        scripts = {name: g.script(i) for i, name in enumerate(g.names)}
+        if not loops(scripts):
+            break
     sc: dict = {"description": f"random scenario seed={seed} index={idx}", "scripts": scripts, "steps": []}
     at = 0
     resolved: set[int] = set()
@@ -201,6 +248,8 @@ def scenario(seed: int, idx: int) -> dict:
             else:
                 i = g.names.index(name)
                 new[name]["sequence"] = g.seq(i, 0, 1, 3)
+                if loops(new):
+                    new[name]["sequence"] = [{"event": "mark", "event_data": {"id": g.mark(name)}}]
             st["reload"] = new
             current = new
         # else: a tick

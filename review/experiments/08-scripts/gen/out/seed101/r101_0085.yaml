@@ -1,0 +1,149 @@
+description: random scenario seed=101 index=85
+scripts:
+  s0:
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - action: test.m
+      data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - event: mark
+      event_data:
+        id: s0.3
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s1'') }}'
+        cur: '{{ state_attr(''script.s1'', ''current'') }}'
+  s1:
+    alias: Script 1 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.4
+        v: '{{ v | default(0) }}'
+      response_variable: r
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+steps:
+- at: 3
+  reload:
+    s0:
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s2
+        data:
+          variables:
+            v: '{{ v | default(0) + 10 }}'
+      - event: mark
+        event_data:
+          id: s0.6
+          v: '{{ v | default(0) }}'
+      - event: mark
+        event_data:
+          id: s0.7
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s0'') }}'
+          cur: '{{ state_attr(''script.s0'', ''current'') }}'
+    s1:
+      alias: Script 1 A
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s1.4
+          v: '{{ v | default(0) }}'
+        response_variable: r
+    s2:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+          r: '{{ r | default(''undef'') }}'
+- at: 3
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s0
+- at: 6
+  call: s2
+  data:
+    v: 1
+- at: 8
+  call: s1
+- at: 10
+  result: 0
+  response:
+    n: 0
+- at: 10
+- at: 10
+  call: s1
+- at: 11
+  call: s1
+  data:
+    v: 1
+- at: 12
+  result: 1
+  response:
+    n: 1
+- at: 15
+  call: s1
+- at: 18
+  call: s2
+  data:
+    v: 0
+  return_response: true
+- at: 20
+  call: s0
+  data:
+    v: 4
+- at: 21
+  call: s0
+  return_response: true
+- at: 21
+  call: toggle
+  data:
+    entity_id:
+    - script.s1

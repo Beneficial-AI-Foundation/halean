@@ -1,0 +1,123 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 29f3875..b6c7bc3 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -490,6 +490,19 @@ def containsV (ctx : Ctx) (c x : Value) : R Bool := do
+     | _ => pure false
+   | c => do pure ((← iterV ctx c).any (pyEq · x))
+ 
++/-- `bool(x)` during a render: `states` and `states.<domain>` have `__len__`, which also
++records the lifecycle listener. -/
++def truthyR (ctx : Ctx) (v : Value) : R Bool :=
++  match v with
++  | .domain _ | .allStates => do pure ((← lenV ctx v) != 0)
++  | v => pure (truthy v)
++
++/-- A value only its truth is asked of (`iif`). -/
++def boolProxy (ctx : Ctx) (v : Value) : R Value :=
++  match v with
++  | .domain _ | .allStates => do pure (.bool (← truthyR ctx v))
++  | v => pure v
++
+ /-! ## Dates and times (`helpers/template/extensions/datetime.py`, `util/dt.py`) -/
+ 
+ def Ctx.nowDT (ctx : Ctx) : Value := .datetime (ctx.now.utc * 1000) (some ctx.now.tzOffsetSec)
+@@ -1335,19 +1348,19 @@ partial def eval (ctx : Ctx) (e : Expr) : R Value := do
+   | .and a b =>
+     let x ← eval ctx a
+     if let .opaque w := x then throw s!"{w} values are not supported by HALean"
+-    if truthy x then eval ctx b else pure x
++    if ← truthyR ctx x then eval ctx b else pure x
+   | .or a b =>
+     let x ← eval ctx a
+     if let .opaque w := x then throw s!"{w} values are not supported by HALean"
+-    if truthy x then pure x else eval ctx b
++    if ← truthyR ctx x then pure x else eval ctx b
+   | .not a =>
+     let x ← eval ctx a
+     if let .opaque w := x then throw s!"{w} values are not supported by HALean"
+-    pure (.bool (!truthy x))
++    pure (.bool (!(← truthyR ctx x)))
+   | .cond c a b =>
+     let cv ← eval ctx c
+     if let .opaque w := cv then throw s!"{w} values are not supported by HALean"
+-    if truthy cv then eval ctx a
++    if ← truthyR ctx cv then eval ctx a
+     else match b with
+       | some b => eval ctx b
+       | none => pure (.undef "the inline if-expression on the else branch")
+@@ -1399,7 +1412,7 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
+       pure (.bool (← isNumber ((a.get 0 "value").getD .none)))
+     | "iif", _ => do
+       a.check n ["value", "if_true", "if_false", "if_none"]
+-      pure (iif ((a.get 0 "value").getD .none) (a.get 1 "if_true") (a.get 2 "if_false") (a.get 3 "if_none"))
++      pure (iif (← boolProxy ctx ((a.get 0 "value").getD .none)) (a.get 1 "if_true") (a.get 2 "if_false") (a.get 3 "if_none"))
+     | "namespace", _ => do
+       if !a.pos.isEmpty then throw "namespace() with positional arguments is not supported by HALean"
+       let s ← get
+@@ -1614,7 +1627,7 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+   | "int" => forgivingInt v (arg 0 "default") (arg 1 "base")
+   | "bool" => forgivingBool v (arg 0 "default")
+   | "is_number" => pure (.bool (← isNumber v))
+-  | "iif" => pure (iif v (arg 0 "if_true") (arg 1 "if_false") (arg 2 "if_none"))
++  | "iif" => pure (iif (← boolProxy ctx v) (arg 0 "if_true") (arg 1 "if_false") (arg 2 "if_none"))
+   | "has_value" => pure (.bool (← hasValue ctx v))
+   | "state_attr" => stateAttrFn ctx v ((arg 0 "name").getD .none)
+   | "states" => callV ctx .allStates { pos := v :: a.pos, kw := a.kw }
+@@ -1624,7 +1637,10 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+     let boolean := truthy ((arg 1 "boolean").getD (.bool false))
+     match v with
+     | .undef _ => pure dflt
+-    | v => if boolean && !truthy v then pure dflt else pure v
++    | v =>
++      if boolean then do
++        if !(← truthyR ctx v) then pure dflt else pure v
++      else pure v
+   | "lower" => do let s ← strOf v; asciiOnly "lower" s; pure (.str s.toLower)
+   | "upper" => do let s ← strOf v; asciiOnly "upper" s; pure (.str s.toUpper)
+   | "capitalize" => do let s ← strOf v; asciiOnly "capitalize" s; pure (.str (pyCapitalize s))
+@@ -1727,7 +1743,7 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+     | .str s => pure (.str (String.ofList s.toList.reverse))
+     | v => pure (.gen "list_reverseiterator" (← iterV ctx v).reverse)
+   | "map" =>
+-    let items ← iterV ctx v
++    let items ← if ← truthyR ctx v then iterV ctx v else pure []
+     match a.pos, (a.kw.find? (·.1 == "attribute")) with
+     | [], some (_, attr) =>
+       let dflt := (a.kw.find? (·.1 == "default")).map (·.2)
+@@ -1739,7 +1755,7 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+       pure (.gen "generator" out)
+     | _, _ => throw "map needs a filter name or attribute="
+   | "select" | "reject" =>
+-    let items ← iterV ctx v
++    let items ← if ← truthyR ctx v then iterV ctx v else pure []
+     let keep ← items.filterM fun x => do
+       let r ← match a.pos with
+         | [] => pure (truthy x)
+@@ -1748,7 +1764,7 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+       pure (if n == "select" then r else !r)
+     pure (.gen "generator" keep)
+   | "selectattr" | "rejectattr" =>
+-    let items ← iterV ctx v
++    let items ← if ← truthyR ctx v then iterV ctx v else pure []
+     let some attr := a.pos.head? | throw s!"{n} needs an attribute"
+     let keep ← items.filterM fun x => do
+       let val ← attrGet ctx x attr
+@@ -1848,7 +1864,7 @@ partial def renderNodes (ctx : Ctx) (nodes : List Node) : R (Ctx × Signal) := d
+       for (c, body) in branches do
+         let cv ← eval ctx c
+         if let .opaque w := cv then throw s!"{w} values are not supported by HALean"
+-        if truthy cv then
++        if ← truthyR ctx cv then
+           let (ctx', sig) ← renderNodes ctx body
+           ctx := ctx'
+           if sig != .normal then return (ctx, sig)
+@@ -1879,7 +1895,7 @@ partial def renderNodes (ctx : Ctx) (nodes : List Node) : R (Ctx × Signal) := d
+         match flt with
+         | none => kept := kept.push (x, b)
+         | some f =>
+-          if truthy (← eval { ctx with vars := b ++ ctx.vars } f) then kept := kept.push (x, b)
++          if ← truthyR ctx (← eval { ctx with vars := b ++ ctx.vars } f) then kept := kept.push (x, b)
+       let len := kept.size
+       -- Jinja runs the `else` block unless some iteration reached the end of the body
+       -- (the compiled loop clears its flag there, which `break` and `continue` skip)

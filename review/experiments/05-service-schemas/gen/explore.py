@@ -81,7 +81,11 @@ if __name__ == "__main__":
                     spec = op.get("schema"); schema = make_schema(spec); first = True
                 elif op["op"] == "call":
                     d = dict(op.get("data") or {}); d.update(op.get("target") or {})
-                    ha = ha_validate(schema, d); le = lean_validate(eng, spec, d, reg=first); first = False
+                    ha = ha_validate(schema, d)
+                    try:
+                        le = lean_validate(eng, spec, d, reg=first); first = False
+                    except RuntimeError:
+                        le = ("ENGINE DIED",); eng = Engine(); first = True
                     n += 1
                     if ha != le:
                         bad += 1

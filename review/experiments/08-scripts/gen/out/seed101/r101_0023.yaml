@@ -1,0 +1,166 @@
+description: random scenario seed=101 index=23
+scripts:
+  s0:
+    alias: Script 0 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s1'') }}'
+        cur: '{{ state_attr(''script.s1'', ''current'') }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+steps:
+- at: 1
+  call: s2
+- at: 2
+  reload:
+    s0:
+      alias: Reloaded s0
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s1'') }}'
+          cur: '{{ state_attr(''script.s1'', ''current'') }}'
+      - action: script.turn_off
+        target:
+          entity_id: script.s1
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s1
+      - event: mark
+        event_data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+          r: '{{ r | default(''undef'') }}'
+    s2:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+- at: 3
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+- at: 5
+  call: turn_off
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 7
+  call: s0
+  data:
+    v: 0
+  return_response: true
+- at: 8
+  call: s1
+  data:
+    v: 0
+  return_response: true
+- at: 11
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s0
+- at: 12
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    variables:
+      v: 3
+- at: 13
+  call: s2
+- at: 13
+  call: s0
+  data:
+    v: 3
+- at: 16
+  call: s1
+  data:
+    v: 4
+- at: 18
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+    variables:
+      v: 2
+- at: 19
+- at: 20
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+    variables:
+      v: 3
+- at: 23
+  call: s1
+  data:
+    v: 0
+- at: 24
+  call: turn_off
+  data:
+    entity_id:
+    - script.s1
+    - script.s0

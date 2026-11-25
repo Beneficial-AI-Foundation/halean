@@ -1,0 +1,22 @@
+diff --git a/HALean/Automation/Condition.lean b/HALean/Automation/Condition.lean
+index 9c704d1..18dbf91 100644
+--- a/HALean/Automation/Condition.lean
++++ b/HALean/Automation/Condition.lean
+@@ -160,7 +160,7 @@ def resolveBound (env : CondEnv) (which : String) : Bound → Except String (Opt
+   | .entity e => do
+     let some be := env.states.get? e | throw s!"unknown '{which}' entity {e}"
+     if be.state == STATE_UNAVAILABLE || be.state == STATE_UNKNOWN then return none
+-    match parsePyFloatStr be.state with
++    match Template.parseFloatStr be.state with
+     | some f => return some f
+     | none => throw s!"the '{which}' entity {e} state '{be.state}' cannot be processed as a number"
+ 
+@@ -188,7 +188,7 @@ def numericStateOf (env : CondEnv) (ent : EntityState) (below above : Option Bou
+         | some a => (ent.attr? a).getD .null
+       if value == .null || value == .str STATE_UNAVAILABLE || value == .str STATE_UNKNOWN then
+         return false
+-      let some fv := pyFloat? value
++      let some fv := pyFloatV (Template.Value.ofJson value)
+         | throw s!"entity {ent.entityId} state '{value.compress}' cannot be processed as a number"
+       pure fv
+     | some (t, vars) => do

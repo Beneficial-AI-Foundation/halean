@@ -1,0 +1,55 @@
+diff --git a/HALean/Automation/Engine.lean b/HALean/Automation/Engine.lean
+index 42e1b94..1404a97 100644
+--- a/HALean/Automation/Engine.lean
++++ b/HALean/Automation/Engine.lean
+@@ -1399,7 +1399,9 @@ def onStateChanged (eid : String) (old new : Option EntityState) : EM Unit := do
+     for t in trigs do
+       if !(← getE).listening o then break
+       match t.kind with
+-      | .state .. => onStateTrigger o t eid old new
++      | .state eids .. =>
++        -- `async_track_state_change_event` adds the listener once per entry of `entity_id`
++        for _ in eids.filter (· == eid) do onStateTrigger o t eid old new
+       | .numericState .. => onNumericTrigger o t eid old new
+       | .template .. => onTemplateTrigger o t eid old new
+       | .zone .. => onZoneTrigger o t eid old new
+@@ -1439,11 +1441,13 @@ def onEvent (ty : String) (data : Json) : EM Unit := do
+       if !(← getE).listening o then break
+       match t.kind with
+       | .event types want =>
+-        if types.contains ty && eventDataMatches want data then
+-          fire o {
+-            id := t.id, idx := t.idx, platform := "event",
+-            description := s!"event '{ty}'",
+-            value := triggerValue t "event" [("event", ev), ("description", .str s!"event '{ty}'")] }
++        if eventDataMatches want data then
++          -- one `bus.async_listen` per entry of `event_type`
++          for _ in types.filter (· == ty) do
++            fire o {
++              id := t.id, idx := t.idx, platform := "event",
++              description := s!"event '{ty}'",
++              value := triggerValue t "event" [("event", ev), ("description", .str s!"event '{ty}'")] }
+       | .haStart =>
+         -- `homeassistant/triggers/homeassistant.py`: `async_listen_once`
+         let e ← getE
+@@ -1611,12 +1615,14 @@ def fireTimeTriggers (sec : Nat) (tz : Int) : EM Unit := do
+       | .time ats _ wd =>
+         let dayOk := (wd.map (·.contains inst.weekday)).getD true
+         let nowV : Template.Value := .datetime (sec * 1000000 + TIME_CHANGE_MICROSECOND) (some tz)
+-        if ats.contains tod && dayOk then
+-          fire o {
+-            id := t.id, idx := t.idx, platform := "time",
+-            description := "time",
+-            value := triggerValue t "time" [("now", nowV),
+-              ("description", .str "time"), ("entity_id", .none)] }
++        if dayOk then
++          -- one `async_track_time_change` listener per entry of `at`
++          for _ in ats.filter (· == tod) do
++            fire o {
++              id := t.id, idx := t.idx, platform := "time",
++              description := "time",
++              value := triggerValue t "time" [("now", nowV),
++                ("description", .str "time"), ("entity_id", .none)] }
+         -- entities with only a time: `async_track_time_change` at that second
+         for ((o', idx, eid, _), sc) in (← getE).timeEnt do
+           if o' == o && idx == t.idx && sc == .daily tod && dayOk then

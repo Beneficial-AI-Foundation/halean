@@ -1,0 +1,100 @@
+diff --git a/HALean/Template/Syntax.lean b/HALean/Template/Syntax.lean
+index d01c752..a2637a3 100644
+--- a/HALean/Template/Syntax.lean
++++ b/HALean/Template/Syntax.lean
+@@ -144,6 +144,17 @@ def unescape (cs : List Char) : P String := do
+     | c :: rest, acc => go rest (acc.push c)
+   go cs ""
+ 
++/-- The longest prefix matching `(_?d)*` for the digit class `isD`. -/
++def radixRun (isD : Char → Bool) : List Char → List Char
++  | '_' :: d :: rest => if isD d then '_' :: d :: radixRun isD rest else []
++  | d :: rest => if isD d then d :: radixRun isD rest else []
++  | [] => []
++
++/-- The longest prefix matching `\\d(_?\\d)*`. -/
++def numRun : List Char → List Char
++  | d :: rest => if d.isDigit then d :: radixRun Char.isDigit rest else []
++  | [] => []
++
+ /-- Lex one `{{ }}` / `{% %}` body. Returns tokens and the rest after the
+ closing delimiter, plus whether it ended with `-` (strip following space). -/
+ partial def lexBlock (closer : Char) (cs : List Char) (acc : Array Tok) :
+@@ -162,35 +173,57 @@ partial def lexBlock (closer : Char) (cs : List Char) (acc : Array Tok) :
+     else if isNameStart c then
+       let name := (c :: rest).takeWhile isNameChar
+       lexBlock closer ((c :: rest).drop name.length) (acc.push (.name (String.ofList name)))
+-    else if c.isDigit || (c == '.' && (rest.headD ' ').isDigit) then
+-      -- jinja: integer `\d(\d|_\d)*`, float with `.` and/or exponent
+-      let isNum (x : Char) := x.isDigit || x == '_'
+-      let ip := (c :: rest).takeWhile isNum
++    else if c.isDigit then
++      -- jinja2.lexer: `float_re` = `(?<!\\.)(\\d+_)*\\d+((\\.(\\d+_)*\\d+)?e[+\\-]?(\\d+_)*\\d+|\\.(\\d+_)*\\d+)`
++      -- is tried before `integer_re` (`0b…`, `0o…`, `0x…`, `[1-9](_?\\d)*`, `0(_?0)*`)
++      let afterDot := match acc.back? with | some (.op ".") => true | _ => false
++      let ip := numRun (c :: rest)
+       let r1 := (c :: rest).drop ip.length
+-      let (fp, r2, isF) := match r1 with
+-        | '.' :: d :: r => if d.isDigit then
+-            let f := (d :: r).takeWhile isNum
+-            ('.' :: f, (d :: r).drop f.length, true)
+-          else ([], r1, false)
+-        | _ => ([], r1, false)
+-      let (ep, r3, isE) := match r2 with
++      let frac : Option (List Char × List Char) := match r1 with
++        | '.' :: r => let f := numRun r; if f.isEmpty then none else some ('.' :: f, r.drop f.length)
++        | _ => none
++      let (fp, r2) := frac.getD ([], r1)
++      let expo : Option (List Char × List Char) := match r2 with
+         | e :: r => if e == 'e' || e == 'E' then
+             let (sg, r') := match r with
+               | '+' :: r' => (['+'], r')
+               | '-' :: r' => (['-'], r')
+               | _ => ([], r)
+-            let ds := r'.takeWhile isNum
+-            if ds.isEmpty then ([], r2, false) else (e :: sg ++ ds, r'.drop ds.length, true)
+-          else ([], r2, false)
+-        | [] => ([], r2, false)
+-      let txt := String.ofList (ip ++ fp ++ ep)
+-      if isF || isE then
++            let ds := numRun r'
++            if ds.isEmpty then none else some (e :: sg ++ ds, r'.drop ds.length)
++          else none
++        | [] => none
++      if !afterDot && (frac.isSome || expo.isSome) then
++        let (ep, r3) := expo.getD ([], r2)
++        let txt := String.ofList (ip ++ fp ++ ep)
+         match parseFloatStr txt with
+         | some f => lexBlock closer r3 (acc.push (.float f))
+         | none => throw s!"invalid number {txt}"
+-      else match parseIntStr txt with
+-        | some i => lexBlock closer r3 (acc.push (.int i))
+-        | none => throw s!"invalid number {txt}"
++      else
++        let dv (d : Char) : Nat := if d.isDigit then d.toNat - 48 else d.toLower.toNat - 87
++        let radix : Option (Nat × (Char → Bool)) := match c, rest with
++          | '0', x :: _ =>
++            if x == 'x' || x == 'X' then some (16, fun d => d.isDigit || ('a' ≤ d.toLower && d.toLower ≤ 'f'))
++            else if x == 'o' || x == 'O' then some (8, fun d => '0' ≤ d && d ≤ '7')
++            else if x == 'b' || x == 'B' then some (2, fun d => d == '0' || d == '1')
++            else none
++          | _, _ => none
++        match radix with
++        | some (base, isD) =>
++          let ds := radixRun isD (rest.drop 1)
++          if ds.isEmpty then throw "invalid number"
++          else
++            let v := (ds.filter (· != '_')).foldl (fun n d => n * base + dv d) 0
++            lexBlock closer ((rest.drop 1).drop ds.length) (acc.push (.int v))
++        | none =>
++          let txt := String.ofList ip
++          let digits := ip.filter (· != '_')
++          -- `007`: Jinja lexes `00` and `7` as two tokens, which no expression accepts
++          if digits.length > 1 && digits.head? == some '0' && !digits.all (· == '0') then
++            throw s!"invalid number {txt}"
++          else match parseIntStr txt with
++            | some i => lexBlock closer r1 (acc.push (.int i))
++            | none => throw s!"invalid number {txt}"
+     else if c == '\'' || c == '"' then
+       let rec str (xs : List Char) (body : Array Char) : P (List Char × List Char) :=
+         match xs with

@@ -11,3 +11,18 @@ index acf6959..a0ad3bb 100644
    | v => throw (.raise "TypeError" s!"'{typeName v}' object is not iterable")
  
  /-- `cv.entity_ids` (`_entity_ids(value, allow_uuid=False)`): a string is split
+diff --git a/HALean/Core/ConfigValidationSpec.lean b/HALean/Core/ConfigValidationSpec.lean
+index c325063..63296df 100644
+--- a/HALean/Core/ConfigValidationSpec.lean
++++ b/HALean/Core/ConfigValidationSpec.lean
+@@ -224,8 +224,8 @@ theorem pyIter_dict (kvs : List (Value × Value)) : pyIter (.dict kvs) = .ok (kv
+ /-- Iterating anything else is a `TypeError`, not an `Invalid`: it escapes
+ the schema. -/
+ theorem pyIter_error (v : Value) (e : VErr) (h : pyIter v = .error e) :
+-    e = .raise "TypeError" s!"'{typeName v}' object is not iterable" := by
+-  cases v <;> first | (cases h; rfl) | cases h
++    ∃ t : String, e = .raise "TypeError" s!"'{t}' object is not iterable" := by
++  cases v <;> first | (cases h; exact ⟨_, rfl⟩) | (cases h; exact ⟨"datetime.timedelta", rfl⟩) | cases h
+ 
+ /-- `iter(5)`: `'int' object is not iterable`. -/
+ theorem pyIter_int (i : Int) :

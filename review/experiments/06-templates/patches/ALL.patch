@@ -1,0 +1,781 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 2d9c544..b6c7bc3 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -277,9 +277,15 @@ def stateAttr (s : EntityState) (collectIt : Bool) (a : String) : R Value := do
+   | a => if STATE_OPAQUE.contains a then pure (.opaque s!"state.{a}")
+          else pure (.undef s!"'TemplateState object' has no attribute '{a}'")
+ 
++/-- `StateMachine.get`: the id as given, then `entity_id.lower()` (ASCII ids). -/
++def statesGetCI (ctx : Ctx) (eid : String) : Option EntityState :=
++  match ctx.states.get? eid with
++  | some s => some s
++  | none => if eid.all (fun (c : Char) => c.toNat < 128) then ctx.states.get? eid.toLower else none
++
+ /-- `_get_state_if_valid` -/
+ def stateIfValid (ctx : Ctx) (eid : String) : R Value :=
+-  match ctx.states.get? eid with
++  match statesGetCI ctx eid with
+   | some s => pure (.state s true)
+   | none =>
+     if validEntityId eid then do collect eid; pure .none
+@@ -450,19 +456,53 @@ def lenV (ctx : Ctx) (v : Value) : R Int :=
+   | .pyobj "MultiDictProxy" _ => throw "len() of a MultiDictProxy is not supported by HALean"
+   | v => throw s!"object of type '{typeName v}' has no len()"
+ 
++/-- Python's `hash()` succeeds (`none`), raises `TypeError` (`some msg`), or
++HALean cannot tell what a set does with the value (an error). -/
++partial def hashCheck (v : Value) : R Unit :=
++  match v with
++  | .none | .undef _ | .bool _ | .int _ | .str _ | .datetime .. | .timedelta _ | .range .. => pure ()
++  | .float f => if f.isNaN then throw "NaN in a set is not supported by HALean (identity semantics)" else pure ()
++  | .tuple xs => xs.forM hashCheck
++  | .list _ | .dict _ | .state .. => throw s!"TypeError: unhashable type: '{typeName v}'"
++  | v => throw s!"hashing a {typeName v} is not supported by HALean"
++
++/-- A `dict` display: a later key equal to an earlier one replaces its value (the first
++key object stays); an unhashable key is a `TypeError`. -/
++def mkDict (kvs : List (Value × Value)) : R Value := do
++  let mut out : Array (Value × Value) := #[]
++  for (k, v) in kvs do
++    hashCheck k
++    match out.findIdx? (fun (k', _) => pyEq k' k) with
++    | some i => out := out.modify i fun (k', _) => (k', v)
++    | none => out := out.push (k, v)
++  pure (.dict out.toList)
++
+ /-- Python `x in c` -/
+ def containsV (ctx : Ctx) (c x : Value) : R Bool := do
+   match c with
+   | .str s => match x with
+     | .str t => pure ((s.splitOn t).length > 1 || t.isEmpty)
+     | _ => throw s!"'in <string>' requires string as left operand, not {typeName x}"
+-  | .dict kvs => pure ((lookupKV kvs x).isSome)
++  | .dict kvs => do hashCheck x; pure ((lookupKV kvs x).isSome)
+   | .undef _ => pure false
+   | .pyobj "MultiDictProxy" fs => match x with
+     | .str k => pure (fs.any (·.1 == k))
+     | _ => pure false
+   | c => do pure ((← iterV ctx c).any (pyEq · x))
+ 
++/-- `bool(x)` during a render: `states` and `states.<domain>` have `__len__`, which also
++records the lifecycle listener. -/
++def truthyR (ctx : Ctx) (v : Value) : R Bool :=
++  match v with
++  | .domain _ | .allStates => do pure ((← lenV ctx v) != 0)
++  | v => pure (truthy v)
++
++/-- A value only its truth is asked of (`iif`). -/
++def boolProxy (ctx : Ctx) (v : Value) : R Value :=
++  match v with
++  | .domain _ | .allStates => do pure (.bool (← truthyR ctx v))
++  | v => pure v
++
+ /-! ## Dates and times (`helpers/template/extensions/datetime.py`, `util/dt.py`) -/
+ 
+ def Ctx.nowDT (ctx : Ctx) : Value := .datetime (ctx.now.utc * 1000) (some ctx.now.tzOffsetSec)
+@@ -563,6 +603,8 @@ def parseDatetime (str : String) : R (Option Value) := do
+       | _ => none
+   let some off := off | unsupported
+   let c : Civil := { year := y, month := mo, day := d, hour := h, minute := mi, second := sec, micro }
++  -- ciso8601 reads `24:00[:00]` as midnight of the next day
++  if h == 24 then throw s!"parsing '{str}' as a date/time is not supported by HALean"
+   -- `datetime(**kws)` raises ValueError, which every caller catches
+   if c.valid.isSome then return none
+   let wall := fromCivil c
+@@ -587,7 +629,13 @@ def fracOf (n : Num) : Bool × Nat × Nat :=
+ 
+ /-- Exact floor of a/b for finite floats (Python's float `//` and `%`). -/
+ def floatFloorDivMod (a b : Float) : Float × Float :=
+-  if !Float.isFinite' a || !Float.isFinite' b then (Float.floor (a / b), a - b * Float.floor (a / b)) else
++  -- CPython's `float_divmod`: `fmod` of an infinite or NaN dividend is NaN; with an infinite
++  -- divisor `fmod(a, b) = a`, then the sign fix-up (`mod += b`, `div -= 1`)
++  if a.isNaN || b.isNaN || a.isInf then (0.0 / 0.0, 0.0 / 0.0)
++  else if b.isInf then
++    (if a == 0 then (a / b, if b < 0 then -0.0 else 0.0)
++     else if (a < 0) == (b < 0) then (a / b, a)
++     else (-1.0, b)) else
+   let (na, pa, qa) := floatFrac a
+   let (nb, pb, qb) := floatFrac b
+   -- a/b = (±pa*qb) / (±pb*qa)
+@@ -675,7 +723,9 @@ def arith (op : String) (a b : Value) : R Value := do
+   | "*", .i p, .i q => return .int (p * q)
+   | "/", .i p, .i q =>
+     if q == 0 then throw "ZeroDivisionError: division by zero"
+-    return .float (ratToFloat ((p < 0) != (q < 0)) p.natAbs q.natAbs)
++    let r := ratToFloat ((p < 0) != (q < 0)) p.natAbs q.natAbs
++    if r.isInf then throw "OverflowError: integer division result too large for a float"
++    return .float r
+   | "//", .i p, .i q =>
+     if q == 0 then throw "ZeroDivisionError: integer division or modulo by zero"
+     return .int (Int.fdiv p q)
+@@ -687,10 +737,16 @@ def arith (op : String) (a b : Value) : R Value := do
+       if q > 100000 then throw "exponent too large for HALean" else return .int (p ^ q.toNat)
+     else
+       if p == 0 then throw "ZeroDivisionError: 0.0 cannot be raised to a negative power"
++      if (intToFloat p).isInf then throw "OverflowError: int too large to convert to float"
+       return .float (Float.pow (intToFloat p) (intToFloat q))
+   | _, _, _ =>
+-  let p := x.toFloat
+-  let q := y.toFloat
++  let conv (n : Num) : R Float :=
++    let f := n.toFloat
++    match n with
++    | .i _ => if f.isInf then throw "OverflowError: int too large to convert to float" else pure f
++    | .f _ => pure f
++  let p ← conv x
++  let q ← conv y
+   match op with
+   | "+" => return .float (p + q)
+   | "-" => return .float (p - q)
+@@ -703,7 +759,10 @@ def arith (op : String) (a b : Value) : R Value := do
+   | "**" =>
+     if p == 0 && q < 0 then throw "ZeroDivisionError: 0.0 cannot be raised to a negative power"
+     if p < 0 && Float.floor q != q then throw "complex results are not supported by HALean"
+-    return .float (Float.pow p q)
++    let r := Float.pow p q
++    if r.isInf && Float.isFinite' p && Float.isFinite' q then
++      throw "OverflowError: (34, 'Numerical result out of range')"
++    return .float r
+   | _ => tyErr
+ 
+ def cmpOp (ctx : Ctx) (op : String) (a b : Value) : R Bool := do
+@@ -777,7 +836,7 @@ def pySplit (s : String) (sep : Option String) (maxsplit : Int) : R (List String
+     let mut rest := s.toList.dropWhile isPyWs
+     while !rest.isEmpty do
+       if maxsplit ≥ 0 && out.size == maxsplit.toNat then
+-        out := out.push (pyStrip (String.ofList rest) none false true); rest := []; cur := ""; break
++        out := out.push (String.ofList rest); rest := []; cur := ""; break
+       match rest with
+       | c :: r =>
+         if isPyWs c then
+@@ -826,11 +885,20 @@ def needStr (fn : String) (v : Value) : R String :=
+   | .str s => pure s
+   | v => throw s!"{fn} expects a string, got {typeName v}"
+ 
++/-- An entity id handed to `hass.states.get`: anything but a `str` fails there
++(`entity_id.lower()`; an Undefined raises on the attribute access). -/
++def entityIdArg (v : Value) : R Unit :=
++  match v with
++  | .str _ => pure ()
++  | .undef _ => undefErr v
++  | v => throw s!"AttributeError: '{typeName v}' object has no attribute 'lower'"
++
+ /-- `is_state` -/
+ def isState (ctx : Ctx) (eid state : Value) : R Bool := do
++  entityIdArg eid
+   let .str e := eid | return false
+-  collect e
+-  let some s := ctx.states.get? e | return false
++  let some s := statesGetCI ctx e | do collect e; return false
++  collect s.entityId
+   return pyEq (.str s.state) state ||
+     (match state with
+      | .list xs => xs.any (pyEq (.str s.state))
+@@ -838,20 +906,21 @@ def isState (ctx : Ctx) (eid state : Value) : R Bool := do
+ 
+ /-- `state_attr` -/
+ def stateAttrFn (ctx : Ctx) (eid name : Value) : R Value := do
++  entityIdArg eid
+   let .str e := eid | return .none
+-  collect e
++  let some s := statesGetCI ctx e | do collect e; return .none
++  collect s.entityId
+   let .str n := name | return .none
+-  let some s := ctx.states.get? e | return .none
+   return (s.attr? n).map Value.ofJson |>.getD .none
+ 
+ /-- `has_value` -/
+ def hasValue (ctx : Ctx) (eid : Value) : R Bool := do
++  entityIdArg eid
+   match eid with
+   | .str e =>
+-    collect e
+-    match ctx.states.get? e with
+-    | some s => pure (s.state != STATE_UNAVAILABLE && s.state != STATE_UNKNOWN)
+-    | none => pure false
++    match statesGetCI ctx e with
++    | some s => do collect s.entityId; pure (s.state != STATE_UNAVAILABLE && s.state != STATE_UNKNOWN)
++    | none => do collect e; pure false
+   | _ => pure false
+ 
+ /-- `forgiving_float` -/
+@@ -904,6 +973,7 @@ def forgivingRound (v : Value) (precision method dflt : Option Value) : R Value
+     | none => noDefault "round" v
+   let some f ← toFloat? v | fail
+   -- `multiplier = float(10**precision)`
++  if prec > 308 then throw "OverflowError: int too large to convert to float"
+   let mult : Float := if prec ≥ 0 then intToFloat (10 ^ prec.toNat) else ratToFloat false 1 (10 ^ (-prec).toNat)
+   let res? : Option Float := match meth with
+     | "ceil" => (ceilF (f * mult)).map fun i => intToFloat i / mult
+@@ -1030,16 +1100,6 @@ def minOrMax (ctx : Ctx) (isMax : Bool) (items : List Value) (caseSensitive : Bo
+       if ← liftExcept (if isMax then pyLt bk k else pyLt k bk) then best := some (k, x)
+   pure ((best.map (·.2)).getD .none)
+ 
+-/-- Python's `hash()` succeeds (`none`), raises `TypeError` (`some msg`), or
+-HALean cannot tell what a set does with the value (an error). -/
+-partial def hashCheck (v : Value) : R Unit :=
+-  match v with
+-  | .none | .undef _ | .bool _ | .int _ | .str _ | .datetime .. | .timedelta _ | .range .. => pure ()
+-  | .float f => if f.isNaN then throw "NaN in a set is not supported by HALean (identity semantics)" else pure ()
+-  | .tuple xs => xs.forM hashCheck
+-  | .list _ | .dict _ | .state .. => throw s!"TypeError: unhashable type: '{typeName v}'"
+-  | v => throw s!"hashing a {typeName v} is not supported by HALean"
+-
+ /-- `jinja2.filters.sync_do_unique`: items whose key was not seen yet (a set
+ membership test: hash + `==`), as a generator. -/
+ def doUnique (ctx : Ctx) (items : List Value) (caseSensitive : Bool) (attr : Value) : R Value := do
+@@ -1219,11 +1279,12 @@ partial def eval (ctx : Ctx) (e : Expr) : R Value := do
+     | some (_, v) => pure v
+     | none =>
+       if n == "states" then pure .allStates
+-      else if GLOBALS.contains n then pure (.func n none)
++      -- `timestamp_local` / `_utc` / `_custom` are filters only: as names they are undefined
++      else if GLOBALS.contains n && !n.startsWith "timestamp_" then pure (.func n none)
+       else pure (.undef s!"'{n}'")
+   | .list xs => return .list (← xs.mapM (eval ctx))
+   | .tuple xs => return .tuple (← xs.mapM (eval ctx))
+-  | .dict kvs => return .dict (← kvs.mapM fun (k, v) => do pure (← eval ctx k, ← eval ctx v))
++  | .dict kvs => mkDict (← kvs.mapM fun (k, v) => do pure (← eval ctx k, ← eval ctx v))
+   | .getattr x a => getattrV ctx (← eval ctx x) a
+   | .getitem x k => getitemV ctx (← eval ctx x) (← eval ctx k)
+   | .slice x a b c =>
+@@ -1287,19 +1348,19 @@ partial def eval (ctx : Ctx) (e : Expr) : R Value := do
+   | .and a b =>
+     let x ← eval ctx a
+     if let .opaque w := x then throw s!"{w} values are not supported by HALean"
+-    if truthy x then eval ctx b else pure x
++    if ← truthyR ctx x then eval ctx b else pure x
+   | .or a b =>
+     let x ← eval ctx a
+     if let .opaque w := x then throw s!"{w} values are not supported by HALean"
+-    if truthy x then pure x else eval ctx b
++    if ← truthyR ctx x then pure x else eval ctx b
+   | .not a =>
+     let x ← eval ctx a
+     if let .opaque w := x then throw s!"{w} values are not supported by HALean"
+-    pure (.bool (!truthy x))
++    pure (.bool (!(← truthyR ctx x)))
+   | .cond c a b =>
+     let cv ← eval ctx c
+     if let .opaque w := cv then throw s!"{w} values are not supported by HALean"
+-    if truthy cv then eval ctx a
++    if ← truthyR ctx cv then eval ctx a
+     else match b with
+       | some b => eval ctx b
+       | none => pure (.undef "the inline if-expression on the else branch")
+@@ -1313,10 +1374,9 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
+     if a.pos.length > 1 || !a.kw.isEmpty then
+       throw "states() with rounded/with_unit is not supported by HALean"
+     let some (.str e) := a.get 0 "entity_id" | throw "states() needs an entity id"
+-    collect e
+-    match ctx.states.get? e with
+-    | some s => pure (.str s.state)
+-    | none => pure (.str STATE_UNKNOWN)
++    match statesGetCI ctx e with
++    | some s => do collect s.entityId; pure (.str s.state)
++    | none => do collect e; pure (.str STATE_UNKNOWN)
+   | .func n self =>
+     match n, self with
+     | "is_state", _ => do
+@@ -1327,10 +1387,11 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
+       stateAttrFn ctx ((a.get 0 "entity_id").getD .none) ((a.get 1 "name").getD .none)
+     | "is_state_attr", _ => do
+       a.check n ["entity_id", "name", "value"]
++      entityIdArg ((a.get 0 "entity_id").getD .none)
+       let .str e := (a.get 0 "entity_id").getD .none | return .bool false
+-      collect e
++      let some s := statesGetCI ctx e | do collect e; return .bool false
++      collect s.entityId
+       let .str nm := (a.get 1 "name").getD .none | return .bool false
+-      let some s := ctx.states.get? e | return .bool false
+       match s.attr? nm with
+       | none => return .bool false
+       | some j => return .bool (pyEq (Value.ofJson j) ((a.get 2 "value").getD .none))
+@@ -1351,7 +1412,7 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
+       pure (.bool (← isNumber ((a.get 0 "value").getD .none)))
+     | "iif", _ => do
+       a.check n ["value", "if_true", "if_false", "if_none"]
+-      pure (iif ((a.get 0 "value").getD .none) (a.get 1 "if_true") (a.get 2 "if_false") (a.get 3 "if_none"))
++      pure (iif (← boolProxy ctx ((a.get 0 "value").getD .none)) (a.get 1 "if_true") (a.get 2 "if_false") (a.get 3 "if_none"))
+     | "namespace", _ => do
+       if !a.pos.isEmpty then throw "namespace() with positional arguments is not supported by HALean"
+       let s ← get
+@@ -1398,6 +1459,8 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
+               | .int i => some (intToFloat i) | .bool b => some (if b then 1.0 else 0.0)
+               | .float f => some f | _ => none)
+           | _ => none
++        -- `fromtimestamp(nan)` is a ValueError: HA goes on to `parse_datetime`
++        let viaFloat := viaFloat.bind fun f => if f.isNaN then none else some f
+         match viaFloat with
+         | some f => match utcFromTimestamp (.float f) with
+           | some d => pure d
+@@ -1434,7 +1497,7 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
+           let .datetime us off := d | pure d
+           if n == "timestamp_local" then pure (.str (isoformat us off))
+           else
+-            let fmt ← strOf ((a.get 1 "date_format").getD (.str "%Y-%m-%d"))
++            let fmt ← strOf ((a.get 1 "date_format").getD (.str "%Y-%m-%d %H:%M:%S"))
+             match strftime us off fmt with
+             | .ok r => pure (.str r)
+             | .error e => throw e
+@@ -1564,7 +1627,7 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+   | "int" => forgivingInt v (arg 0 "default") (arg 1 "base")
+   | "bool" => forgivingBool v (arg 0 "default")
+   | "is_number" => pure (.bool (← isNumber v))
+-  | "iif" => pure (iif v (arg 0 "if_true") (arg 1 "if_false") (arg 2 "if_none"))
++  | "iif" => pure (iif (← boolProxy ctx v) (arg 0 "if_true") (arg 1 "if_false") (arg 2 "if_none"))
+   | "has_value" => pure (.bool (← hasValue ctx v))
+   | "state_attr" => stateAttrFn ctx v ((arg 0 "name").getD .none)
+   | "states" => callV ctx .allStates { pos := v :: a.pos, kw := a.kw }
+@@ -1574,7 +1637,10 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+     let boolean := truthy ((arg 1 "boolean").getD (.bool false))
+     match v with
+     | .undef _ => pure dflt
+-    | v => if boolean && !truthy v then pure dflt else pure v
++    | v =>
++      if boolean then do
++        if !(← truthyR ctx v) then pure dflt else pure v
++      else pure v
+   | "lower" => do let s ← strOf v; asciiOnly "lower" s; pure (.str s.toLower)
+   | "upper" => do let s ← strOf v; asciiOnly "upper" s; pure (.str s.toUpper)
+   | "capitalize" => do let s ← strOf v; asciiOnly "capitalize" s; pure (.str (pyCapitalize s))
+@@ -1584,7 +1650,7 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+        let mut out := ""
+        let mut start := true
+        for c in s.toList do
+-         if c.isWhitespace || "-([{<".contains c then out := out.push c; start := true
++         if pyIsSpace c || "-([{<".contains c then out := out.push c; start := true
+          else if start then out := out.push c.toUpper; start := false
+          else out := out.push c.toLower
+        pure (.str out)
+@@ -1610,11 +1676,9 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+     | _ => pure (.int (← lenV ctx v))
+   | "first" =>
+     match v with
+-    | .undef _ => undefErr v
+     | _ => pure ((← iterV ctx v).head?.getD (.undef "No first item, sequence was empty."))
+   | "last" =>
+     match v with
+-    | .undef _ => undefErr v
+     | .dict _ => throw "last on a dict is not supported by HALean"
+     | .gen k _ => throw s!"'{k}' object is not reversible"
+     | _ => pure ((← iterV ctx v).getLast?.getD (.undef "No last item, sequence was empty."))
+@@ -1635,9 +1699,41 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+     | v => throw s!"bad operand type for abs(): '{typeName v}'"
+   | "sum" => do
+     if (arg 0 "attribute").isSome then throw "sum(attribute=...) is not supported by HALean"
+-    let mut acc := (arg 1 "start").getD (.int 0)
+-    for x in ← iterV ctx v do acc ← arith "+" acc x
+-    pure acc
++    -- CPython's `sum`: C-long ints first; once the result is a float, Neumaier's
++    -- compensated summation over floats and ints; `PyNumber_Add` from the first other item on
++    let start := (arg 1 "start").getD (.int 0)
++    if let .str _ := start then throw "TypeError: sum() can't sum strings [use ''.join(seq) instead]"
++    let inLong (i : Int) : Bool := -(2 : Int) ^ 63 ≤ i && i < (2 : Int) ^ 63
++    let flush (acc : Value) (c : Float) : Value := match acc with
++      | .float f => if c != 0 && Float.isFinite' c then .float (f + c) else acc
++      | a => a
++    let mut acc := start
++    let mut comp : Float := 0
++    -- 0: int fast path, 1: float (compensated), 2: generic
++    let mut mode : Nat := match start with | .int i => (if inLong i then 0 else 2) | .float _ => 1 | _ => 2
++    for x in ← iterV ctx v do
++      let asInt : Option Int := match x with | .int i => some i | .bool b => some (if b then 1 else 0) | _ => none
++      match mode, acc, x, asInt with
++      | 0, .int s, _, some i =>
++        acc := .int (s + i)
++        if !(inLong i && inLong (s + i)) then mode := 2
++      | 0, _, _, _ =>
++        acc ← arith "+" acc x
++        mode := match acc with | .float _ => 1 | _ => 2
++      | 1, .float f, .float y, _ =>
++        let t := f + y
++        comp := comp + (if f.abs ≥ y.abs then (f - t) + y else (y - t) + f)
++        acc := .float t
++      | 1, .float f, _, some i =>
++        if inLong i then acc := .float (f + intToFloat i)
++        else
++          acc ← arith "+" (flush acc comp) x
++          mode := 2
++      | 1, _, _, _ =>
++        acc ← arith "+" (flush acc comp) x
++        mode := 2
++      | _, _, _, _ => acc ← arith "+" acc x
++    pure (if mode == 1 then flush acc comp else acc)
+   | "as_timestamp" | "as_datetime" | "as_local" | "timestamp_local" | "timestamp_utc"
+   | "timestamp_custom" | "today_at"
+   | "as_timedelta" | "relative_time" | "time_since" | "time_until" | "timedelta_string" =>
+@@ -1645,10 +1741,9 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+   | "reverse" =>
+     match v with
+     | .str s => pure (.str (String.ofList s.toList.reverse))
+-    | .undef _ => undefErr v
+     | v => pure (.gen "list_reverseiterator" (← iterV ctx v).reverse)
+   | "map" =>
+-    let items ← iterV ctx v
++    let items ← if ← truthyR ctx v then iterV ctx v else pure []
+     match a.pos, (a.kw.find? (·.1 == "attribute")) with
+     | [], some (_, attr) =>
+       let dflt := (a.kw.find? (·.1 == "default")).map (·.2)
+@@ -1660,7 +1755,7 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+       pure (.gen "generator" out)
+     | _, _ => throw "map needs a filter name or attribute="
+   | "select" | "reject" =>
+-    let items ← iterV ctx v
++    let items ← if ← truthyR ctx v then iterV ctx v else pure []
+     let keep ← items.filterM fun x => do
+       let r ← match a.pos with
+         | [] => pure (truthy x)
+@@ -1669,7 +1764,7 @@ partial def applyFilter (ctx : Ctx) (n : String) (v : Value) (a : Args) : R Valu
+       pure (if n == "select" then r else !r)
+     pure (.gen "generator" keep)
+   | "selectattr" | "rejectattr" =>
+-    let items ← iterV ctx v
++    let items ← if ← truthyR ctx v then iterV ctx v else pure []
+     let some attr := a.pos.head? | throw s!"{n} needs an attribute"
+     let keep ← items.filterM fun x => do
+       let val ← attrGet ctx x attr
+@@ -1709,8 +1804,16 @@ partial def applyTest (ctx : Ctx) (n : String) (v : Value) (args : List Value) :
+   | "integer" => pure (match v with | .int _ => true | _ => false)
+   | "float" => pure (match v with | .float _ => true | _ => false)
+   | "mapping" => pure (match v with | .dict _ => true | _ => false)
+-  | "sequence" => pure (match v with | .list _ | .tuple _ | .str _ | .dict _ => true | _ => false)
+-  | "iterable" => pure (match v with | .list _ | .tuple _ | .str _ | .dict _ | .undef _ => true | _ => false)
++  -- `test_sequence`: `len(value)` and `value.__getitem__` both work
++  | "sequence" => match v with
++    | .list _ | .tuple _ | .str _ | .dict _ | .range .. | .undef _ => pure true
++    | .domain _ | .allStates => do let _ ← lenV ctx v; pure true
++    | _ => pure false
++  -- `test_iterable`: `iter(value)` works
++  | "iterable" => match v with
++    | .list _ | .tuple _ | .str _ | .dict _ | .undef _ | .range .. | .gen .. => pure true
++    | .domain _ | .allStates => do let _ ← iterV ctx v; pure true
++    | _ => pure false
+   | "true" => pure (match v with | .bool true => true | _ => false)
+   | "false" => pure (match v with | .bool false => true | _ => false)
+   | "eq" | "equalto" | "==" => cmpOp ctx "==" v a0
+@@ -1761,7 +1864,7 @@ partial def renderNodes (ctx : Ctx) (nodes : List Node) : R (Ctx × Signal) := d
+       for (c, body) in branches do
+         let cv ← eval ctx c
+         if let .opaque w := cv then throw s!"{w} values are not supported by HALean"
+-        if truthy cv then
++        if ← truthyR ctx cv then
+           let (ctx', sig) ← renderNodes ctx body
+           ctx := ctx'
+           if sig != .normal then return (ctx, sig)
+@@ -1792,8 +1895,11 @@ partial def renderNodes (ctx : Ctx) (nodes : List Node) : R (Ctx × Signal) := d
+         match flt with
+         | none => kept := kept.push (x, b)
+         | some f =>
+-          if truthy (← eval { ctx with vars := b ++ ctx.vars } f) then kept := kept.push (x, b)
++          if ← truthyR ctx (← eval { ctx with vars := b ++ ctx.vars } f) then kept := kept.push (x, b)
+       let len := kept.size
++      -- Jinja runs the `else` block unless some iteration reached the end of the body
++      -- (the compiled loop clears its flag there, which `break` and `continue` skip)
++      let mut completed := false
+       for h : i in [0:len] do
+         tick
+         let (_, b) := kept[i]
+@@ -1807,7 +1913,8 @@ partial def renderNodes (ctx : Ctx) (nodes : List Node) : R (Ctx × Signal) := d
+         -- each iteration starts from the outer scope (Jinja's loop scoping)
+         let (_, sig) ← renderNodes { ctx with vars := b ++ ("loop", loop) :: ctx.vars } body
+         if sig == .brk then break
+-      if len == 0 then
++        if sig == .normal then completed := true
++      if !completed then
+         let (_, sig) ← renderNodes ctx el
+         if sig != .normal then return (ctx, sig)
+   return (ctx, .normal)
+@@ -1962,7 +2069,8 @@ partial def litLex (cs : List Char) (depth : Nat) (acc : Array LTok) : Option (L
+       else
+         -- decimal int: no leading zeros unless all zeros
+         let d := w.replace "_" ""
+-        if d.length > 1 && d.startsWith "0" && !d.all (· == '0') then none
++        if d.length > 4300 then none  -- SyntaxError: exceeds the int/str conversion limit
++        else if d.length > 1 && d.startsWith "0" && !d.all (· == '0') then none
+         else match parseIntStr w with
+           | some i => litLex rest' depth (acc.push (.num (.int i)))
+           | none => none
+@@ -2004,6 +2112,20 @@ where
+     let s ← if raw then some (String.ofList raw') else (unescape raw').toOption
+     return (s, r)
+ 
++/-- Whether Python can hash the literal (a dict key or a set element). -/
++partial def litHashable : Value → Bool
++  | .list _ | .dict _ => false
++  | .tuple xs => xs.all litHashable
++  | _ => true
++
++/-- A dict literal: a later equal key replaces the value of the first; an unhashable key is a `TypeError`. -/
++def litDict (kvs : List (Value × Value)) : Option Value :=
++  if kvs.all (fun (k, _) => litHashable k) then
++    some (.dict (kvs.foldl (fun (out : List (Value × Value)) (k, v) =>
++      if out.any (fun (k', _) => pyEq k' k) then out.map (fun (k', v') => if pyEq k' k then (k', v) else (k', v'))
++      else out ++ [(k, v)]) []))
++  else none
++
+ mutual
+ /-- Parse a token list as one literal. -/
+ partial def litParse (ts : List LTok) : Option (Value × List LTok) := do
+@@ -2019,14 +2141,6 @@ partial def litParse (ts : List LTok) : Option (Value × List LTok) := do
+         | _, _ => none
+       complexTail v' r
+     | .cplx :: r => some (.opaque "complex", r)
+-    | .op '-' :: _ | .op '+' :: _ => do
+-      -- `--1` is UnaryOp(UnaryOp(1)): literal_eval allows nested unary on numbers
+-      let (v, r) ← litParse rest
+-      match v, neg with
+-      | .int i, true => some (.int (-i), r)
+-      | .float f, true => some (.float (-f), r)
+-      | .int _, false | .float _, false => some (v, r)
+-      | _, _ => none
+     | _ => none
+   | .num v :: r => complexTail v r
+   | .cplx :: r => some (.opaque "complex", r)
+@@ -2068,14 +2182,14 @@ partial def litParse (ts : List LTok) : Option (Value × List LTok) := do
+           kvs (acc.push (k, v)) r3
+         | _ => none
+       let (rest, r4) ← kvs #[(k, v)] r3
+-      some (.dict rest, r4)
++      (litDict rest).map (·, r4)
+     | _ => do
+       -- a set: HALean hands it on as a list
+       let (xs, r2) ← match r1 with
+         | .op '}' :: r => some ([], r)
+         | .op ',' :: r => litItems r '}' #[]
+         | _ => none
+-      some (Value.list (k :: xs), r2)
++      if (k :: xs).all litHashable then some (Value.list (k :: xs), r2) else none
+   | _ => none
+ where
+   complexTail (v : Value) (r : List LTok) : Option (Value × List LTok) :=
+@@ -2135,6 +2249,7 @@ def parseResult (r : String) : Value :=
+   let fast : Option Value :=
+     if isNumericStr r then
+       if r.contains '.' then (parseFloatStr r).map Value.float
++      else if (r.toList.filter Char.isDigit).length > 4300 then none  -- `int()` raises ValueError
+       else (parseIntStr r).map Value.int
+     else none
+   match fast with
+diff --git a/HALean/Template/Syntax.lean b/HALean/Template/Syntax.lean
+index 2f47876..11c8204 100644
+--- a/HALean/Template/Syntax.lean
++++ b/HALean/Template/Syntax.lean
+@@ -89,6 +89,18 @@ abbrev P := Except String
+ def isNameStart (c : Char) : Bool := c.isAlpha || c == '_'
+ def isNameChar (c : Char) : Bool := c.isAlphanum || c == '_'
+ 
++def hexVal (c : Char) : Option Nat :=
++  if c.isDigit then some (c.toNat - '0'.toNat)
++  else if 'a' ≤ c.toLower && c.toLower ≤ 'f' then some (c.toLower.toNat - 'a'.toNat + 10)
++  else none
++
++/-- `\uXXXX` / `\UXXXXXXXX`: the code point; surrogates and values past U+10FFFF are refused. -/
++def codePoint (hs : List Char) : P Char := do
++  let some v := hs.foldlM (fun (a : Nat) h => (hexVal h).map (a * 16 + ·)) 0
++    | throw "invalid \\u escape in string literal"
++  if v ≥ 0x110000 || (0xD800 ≤ v && v ≤ 0xDFFF) then throw "unsupported \\u escape in string literal"
++  pure (Char.ofNat v)
++
+ /-- Python string-literal escapes, as Jinja's lexer unescapes them. -/
+ def unescape (cs : List Char) : P String := do
+   let rec go : List Char → String → P String
+@@ -117,10 +129,32 @@ def unescape (cs : List Char) : P String := do
+           | some a, some b => go rest' (acc.push (Char.ofNat (a * 16 + b)))
+           | _, _ => throw "invalid \\x escape in string literal"
+         | _ => throw "invalid \\x escape in string literal"
+-      | other => go rest (acc.push '\\' |>.push other)  -- unknown escapes are kept
++      | 'u' => match rest with
++        | a :: b :: c1 :: d :: rest' => do go rest' (acc.push (← codePoint [a, b, c1, d]))
++        | _ => throw "truncated \\uXXXX escape in string literal"
++      | 'U' => match rest with
++        | a :: b :: c1 :: d :: e :: f :: g :: h :: rest' =>
++          do go rest' (acc.push (← codePoint [a, b, c1, d, e, f, g, h]))
++        | _ => throw "truncated \\UXXXXXXXX escape in string literal"
++      | 'N' => throw "\\N{...} escapes are not supported by HALean"
++      | other =>
++        -- `\1`..`\7` start an octal escape, which is not translated: refuse it
++        if '1' ≤ other && other ≤ '7' then throw "octal escapes are not supported by HALean"
++        else go rest (acc.push '\\' |>.push other)  -- unknown escapes are kept
+     | c :: rest, acc => go rest (acc.push c)
+   go cs ""
+ 
++/-- The longest prefix matching `(_?d)*` for the digit class `isD`. -/
++def radixRun (isD : Char → Bool) : List Char → List Char
++  | '_' :: d :: rest => if isD d then '_' :: d :: radixRun isD rest else []
++  | d :: rest => if isD d then d :: radixRun isD rest else []
++  | [] => []
++
++/-- The longest prefix matching `\\d(_?\\d)*`. -/
++def numRun : List Char → List Char
++  | d :: rest => if d.isDigit then d :: radixRun Char.isDigit rest else []
++  | [] => []
++
+ /-- Lex one `{{ }}` / `{% %}` body. Returns tokens and the rest after the
+ closing delimiter, plus whether it ended with `-` (strip following space). -/
+ partial def lexBlock (closer : Char) (cs : List Char) (acc : Array Tok) :
+@@ -139,35 +173,57 @@ partial def lexBlock (closer : Char) (cs : List Char) (acc : Array Tok) :
+     else if isNameStart c then
+       let name := (c :: rest).takeWhile isNameChar
+       lexBlock closer ((c :: rest).drop name.length) (acc.push (.name (String.ofList name)))
+-    else if c.isDigit || (c == '.' && (rest.headD ' ').isDigit) then
+-      -- jinja: integer `\d(\d|_\d)*`, float with `.` and/or exponent
+-      let isNum (x : Char) := x.isDigit || x == '_'
+-      let ip := (c :: rest).takeWhile isNum
++    else if c.isDigit then
++      -- jinja2.lexer: `float_re` = `(?<!\\.)(\\d+_)*\\d+((\\.(\\d+_)*\\d+)?e[+\\-]?(\\d+_)*\\d+|\\.(\\d+_)*\\d+)`
++      -- is tried before `integer_re` (`0b…`, `0o…`, `0x…`, `[1-9](_?\\d)*`, `0(_?0)*`)
++      let afterDot := match acc.back? with | some (.op ".") => true | _ => false
++      let ip := numRun (c :: rest)
+       let r1 := (c :: rest).drop ip.length
+-      let (fp, r2, isF) := match r1 with
+-        | '.' :: d :: r => if d.isDigit then
+-            let f := (d :: r).takeWhile isNum
+-            ('.' :: f, (d :: r).drop f.length, true)
+-          else ([], r1, false)
+-        | _ => ([], r1, false)
+-      let (ep, r3, isE) := match r2 with
++      let frac : Option (List Char × List Char) := match r1 with
++        | '.' :: r => let f := numRun r; if f.isEmpty then none else some ('.' :: f, r.drop f.length)
++        | _ => none
++      let (fp, r2) := frac.getD ([], r1)
++      let expo : Option (List Char × List Char) := match r2 with
+         | e :: r => if e == 'e' || e == 'E' then
+             let (sg, r') := match r with
+               | '+' :: r' => (['+'], r')
+               | '-' :: r' => (['-'], r')
+               | _ => ([], r)
+-            let ds := r'.takeWhile isNum
+-            if ds.isEmpty then ([], r2, false) else (e :: sg ++ ds, r'.drop ds.length, true)
+-          else ([], r2, false)
+-        | [] => ([], r2, false)
+-      let txt := String.ofList (ip ++ fp ++ ep)
+-      if isF || isE then
++            let ds := numRun r'
++            if ds.isEmpty then none else some (e :: sg ++ ds, r'.drop ds.length)
++          else none
++        | [] => none
++      if !afterDot && (frac.isSome || expo.isSome) then
++        let (ep, r3) := expo.getD ([], r2)
++        let txt := String.ofList (ip ++ fp ++ ep)
+         match parseFloatStr txt with
+         | some f => lexBlock closer r3 (acc.push (.float f))
+         | none => throw s!"invalid number {txt}"
+-      else match parseIntStr txt with
+-        | some i => lexBlock closer r3 (acc.push (.int i))
+-        | none => throw s!"invalid number {txt}"
++      else
++        let dv (d : Char) : Nat := if d.isDigit then d.toNat - 48 else d.toLower.toNat - 87
++        let radix : Option (Nat × (Char → Bool)) := match c, rest with
++          | '0', x :: _ =>
++            if x == 'x' || x == 'X' then some (16, fun d => d.isDigit || ('a' ≤ d.toLower && d.toLower ≤ 'f'))
++            else if x == 'o' || x == 'O' then some (8, fun d => '0' ≤ d && d ≤ '7')
++            else if x == 'b' || x == 'B' then some (2, fun d => d == '0' || d == '1')
++            else none
++          | _, _ => none
++        match radix with
++        | some (base, isD) =>
++          let ds := radixRun isD (rest.drop 1)
++          if ds.isEmpty then throw "invalid number"
++          else
++            let v := (ds.filter (· != '_')).foldl (fun n d => n * base + dv d) 0
++            lexBlock closer ((rest.drop 1).drop ds.length) (acc.push (.int v))
++        | none =>
++          let txt := String.ofList ip
++          let digits := ip.filter (· != '_')
++          -- `007`: Jinja lexes `00` and `7` as two tokens, which no expression accepts
++          if digits.length > 1 && digits.head? == some '0' && !digits.all (· == '0') then
++            throw s!"invalid number {txt}"
++          else match parseIntStr txt with
++            | some i => lexBlock closer r1 (acc.push (.int i))
++            | none => throw s!"invalid number {txt}"
+     else if c == '\'' || c == '"' then
+       let rec str (xs : List Char) (body : Array Char) : P (List Char × List Char) :=
+         match xs with
+@@ -502,15 +558,33 @@ inductive Stmt where
+   | brkS | contS
+   deriving Inhabited
+ 
++/-- An assignment target: `true`, `false`, `none` are constants ("can't assign to 'const'"). -/
++def targetName : PS String := do
++  let n ← expectName
++  if ["true", "false", "none", "True", "False", "None"].contains n then throw "can't assign to 'const'"
++  pure n
++
+ def parseTargets : PS (List String) := do
+-  let mut ts := #[← expectName]
+-  while ← isOp "," do advance; ts := ts.push (← expectName)
++  let mut ts := #[← targetName]
++  while ← isOp "," do advance; ts := ts.push (← targetName)
+   return ts.toList
+ 
++/-- `parse_tuple(with_condexpr=False)`: the test of `if` / `elif`. -/
++def parseTestTuple : PS Expr := do
++  let e ← parseExpr (withCond := false)
++  if !(← isOp ",") then return e
++  let mut xs := #[e]
++  while ← isOp "," do
++    advance
++    match ← peek with
++    | none => break
++    | _ => xs := xs.push (← parseExpr (withCond := false))
++  return .tuple xs.toList
++
+ def parseStmt (toks : List Tok) : P Stmt := do
+   match toks with
+-  | .name "if" :: rest => return .ifS (← runExpr parseTuple rest)
+-  | .name "elif" :: rest => return .elifS (← runExpr parseTuple rest)
++  | .name "if" :: rest => return .ifS (← runExpr parseTestTuple rest)
++  | .name "elif" :: rest => return .elifS (← runExpr parseTestTuple rest)
+   | [.name "else"] => return .elseS
+   | [.name "endif"] => return .endifS
+   | [.name "endfor"] => return .endforS
+diff --git a/HALean/Template/Time.lean b/HALean/Template/Time.lean
+index 901fc3f..d6df9fb 100644
+--- a/HALean/Template/Time.lean
++++ b/HALean/Template/Time.lean
+@@ -166,12 +166,12 @@ partial def strftime (us : Int) (off : Option Int) (fmt : String) : Except Strin
+           | 'S' => pure (num pad c.second 2)
+           | 'p' => pure (if c.hour < 12 then "AM" else "PM")
+           | 'y' => pure (num pad (Int.fmod c.year 100).toNat 2)
+-          | 'Y' => pure (toString c.year)
++          | 'Y' => pure (padYear c.year)
+           | 'f' => pure (pad0 c.micro 6)
+           | 'w' => pure (toString ((wd + 1) % 7))
+           | 'u' => pure (toString (wd + 1))
+           | 'z' => pure (match off with | some o => offsetStr o false | none => "")
+-          | 'F' => pure (toString c.year ++ "-" ++ pad0 c.month 2 ++ "-" ++ pad0 c.day 2)
++          | 'F' => pure (padYear c.year ++ "-" ++ pad0 c.month 2 ++ "-" ++ pad0 c.day 2)
+           | 'T' => pure (pad0 c.hour 2 ++ ":" ++ pad0 c.minute 2 ++ ":" ++ pad0 c.second 2)
+           | 'R' => pure (pad0 c.hour 2 ++ ":" ++ pad0 c.minute 2)
+           | 'D' => pure (pad0 c.month 2 ++ "/" ++ pad0 c.day 2 ++ "/" ++ pad0 (Int.fmod c.year 100).toNat 2)
+diff --git a/HALean/Template/Value.lean b/HALean/Template/Value.lean
+index 2ef5b08..6d8e78f 100644
+--- a/HALean/Template/Value.lean
++++ b/HALean/Template/Value.lean
+@@ -186,6 +186,8 @@ def parseFloatStr (s : String) : Option Float := do
+       some (if eneg then -(ed.toNat! : Int) else ed.toNat!)
+   let m := (ip ++ fp).toNat!
+   let exp : Int := e - fp.length
++  -- more than 400 decimal digits before the point: infinity, without computing the power
++  if m != 0 && exp + (natDigits m : Int) > 400 then return (if neg then -1.0 / 0.0 else 1.0 / 0.0)
+   if exp ≥ 0 then return ratToFloat neg (m * 10 ^ exp.toNat) 1
+   -- huge negative exponents underflow to zero anyway; cap the work
+   if exp < -400 && m < 10 ^ 400 then return (if neg then -0.0 else 0.0)
+@@ -238,9 +240,13 @@ def pyStr : Value → Except String String
+ /-- `repr(x)` -/
+ def pyRepr : Value → Except String String
+   | .none => pure "None"
+-  | .undef _ => pure ""
++  | .undef _ => pure "Undefined"
+   | .bool b => pure (boolStr b)
+-  | .int i => pure (toString i)
++  | .int i =>
++    -- CPython's `sys.int_info.default_max_str_digits`
++    if i.natAbs ≥ 10 ^ 4300 then
++      throw "ValueError: Exceeds the limit (4300 digits) for integer string conversion"
++    else pure (toString i)
+   | .float f => pure (floatRepr f)
+   | .str s => pure (strRepr s)
+   | .list xs => do pure ("[" ++ ", ".intercalate (← reprList xs) ++ "]")

@@ -1,0 +1,168 @@
+description: random scenario seed=101 index=28
+scripts:
+  s0:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+    - parallel:
+      - sequence:
+        - condition: template
+          value_template: '{{ v | default(0) < 2 }}'
+      - sequence:
+        - action: script.s2
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          response_variable: r
+  s1:
+    icon: mdi:script
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - delay: 1
+  s2:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - event: mark
+      event_data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+steps:
+- at: 1
+  call: s2
+  data:
+    v: 2
+  return_response: true
+- at: 3
+  reload:
+    s0:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - event: mark
+        event_data:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+      - parallel:
+        - sequence:
+          - condition: template
+            value_template: '{{ v | default(0) < 2 }}'
+        - sequence:
+          - action: script.s2
+            data:
+              v: '{{ v | default(0) + 1 }}'
+            response_variable: r
+    s1:
+      icon: mdi:script
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: test.m
+        data:
+          id: s1.5
+          v: '{{ v | default(0) }}'
+    s2:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - action: test.m
+        data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - event: mark
+        event_data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+- at: 6
+  result: 0
+  response:
+    n: 0
+- at: 7
+  call: s1
+  data:
+    v: 0
+- at: 7
+  call: s0
+  return_response: true
+- at: 10
+  call: s2
+  data:
+    v: 2
+- at: 13
+  result: 1
+  response:
+    n: 1
+- at: 14
+  call: s0
+  data:
+    v: 1
+- at: 15
+  result: 2
+  response:
+    n: 2
+- at: 16
+  call: s2
+  return_response: true

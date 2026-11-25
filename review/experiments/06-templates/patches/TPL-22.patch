@@ -1,0 +1,13 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 4f681d7..855272d 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -1434,7 +1434,7 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
+           let .datetime us off := d | pure d
+           if n == "timestamp_local" then pure (.str (isoformat us off))
+           else
+-            let fmt ← strOf ((a.get 1 "date_format").getD (.str "%Y-%m-%d"))
++            let fmt ← strOf ((a.get 1 "date_format").getD (.str "%Y-%m-%d %H:%M:%S"))
+             match strftime us off fmt with
+             | .ok r => pure (.str r)
+             | .error e => throw e

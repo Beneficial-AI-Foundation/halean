@@ -1,0 +1,13 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 93bb40d..1d39fe4 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -590,6 +590,8 @@ def parseDatetime (str : String) : R (Option Value) := do
+       | _ => none
+   let some off := off | unsupported
+   let c : Civil := { year := y, month := mo, day := d, hour := h, minute := mi, second := sec, micro }
++  -- ciso8601 reads `24:00[:00]` as midnight of the next day
++  if h == 24 then throw s!"parsing '{str}' as a date/time is not supported by HALean"
+   -- `datetime(**kws)` raises ValueError, which every caller catches
+   if c.valid.isSome then return none
+   let wall := fromCivil c

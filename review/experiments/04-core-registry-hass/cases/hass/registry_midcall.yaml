@@ -196,3 +196,32 @@
     - {op: listen, id: ap, event_type: pong, async: true, react_times: 2, react: [{call: {id: a_again, domain: test, service: ping, blocking: true}}, {sleep: 0}, {call: {id: a_again2, domain: test, service: ping}}]}
     - {op: listen, id: m, event_type: "*"}
     - {op: call, domain: test, service: ping, blocking: true, context: {id: c0}}
+
+- name: h_once_listener_unsubbed_by_earlier_listener
+  # the one-time listener is still in the dispatch snapshot: it removes itself again (logged) and runs
+  ops:
+    - {op: listen, id: first, event_type: go, react: [{unsub: o}]}
+    - {op: listen_once, id: o, event_type: go, react: [{fire: {event_type: o_ran}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go}
+    - {op: fire, event_type: go}
+    - {op: listeners}
+
+- name: h_async_once_listener_unsubbed_by_async_listener
+  manual: true
+  ops:
+    - {op: listen, id: first, event_type: go, async: true, react: [{unsub: o}, {sleep: 0}, {unsub: o}, {fire: {event_type: first_end}}]}
+    - {op: listen_once, id: o, event_type: go, async: true, react: [{sleep: 0}, {fire: {event_type: o_ran}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go}
+    - {op: block_till_done}
+
+- name: h_handler_fire_order_inside_and_outside_dispatch
+  ops:
+    - {op: register, domain: test, service: burst, handler: {do: [{fire: {event_type: b1}}, {fire: {event_type: b2}}, {set: {entity_id: sensor.b, state: "1"}}, {fire: {event_type: b3}}]}}
+    - {op: listen, id: on_b1, event_type: b1, react: [{fire: {event_type: b1_child}}, {call: {id: nested, domain: test, service: leaf}}]}
+    - {op: register, domain: test, service: leaf, handler: {do: [{fire: {event_type: leaf_ev}}]}}
+    - {op: listen, id: trigger, event_type: go, react: [{call: {id: in_dispatch, domain: test, service: burst, blocking: true}}, {fire: {event_type: trigger_end}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: call, domain: test, service: burst, blocking: true}
+    - {op: fire, event_type: go}

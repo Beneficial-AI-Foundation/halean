@@ -1,0 +1,215 @@
+description: random scenario seed=101 index=72
+scripts:
+  s0:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+  s1:
+    alias: Script 1 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - event: mark
+      event_data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - action: test.m
+      data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: script.s4
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - event: mark
+      event_data:
+        id: s2.6
+        v: '{{ v | default(0) }}'
+  s3:
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s3.7
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s0'') }}'
+        cur: '{{ state_attr(''script.s0'', ''current'') }}'
+    - event: mark
+      event_data:
+        id: s3.8
+        v: '{{ v | default(0) }}'
+  s4:
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s4.9
+        v: '{{ v | default(0) }}'
+    - delay: 2
+    - event: mark
+      event_data:
+        id: s4.10
+        v: '{{ v | default(0) }}'
+steps:
+- at: 1
+  call: s4
+  data:
+    v: 1
+  return_response: true
+- at: 2
+  call: s1
+  data:
+    v: 3
+  return_response: true
+- at: 5
+  call: s3
+  data:
+    v: 3
+- at: 6
+  call: s0
+  data:
+    v: 0
+  return_response: true
+- at: 6
+  call: turn_off
+  data:
+    entity_id: script.s3
+- at: 9
+  call: s4
+  return_response: true
+- at: 11
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+- at: 14
+  reload:
+    s0:
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+    s1:
+      alias: Script 1 A
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+          r: '{{ r | default(''undef'') }}'
+      - event: mark
+        event_data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+          r: '{{ r | default(''undef'') }}'
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s2:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.11
+          v: '{{ v | default(0) }}'
+          r: '{{ r | default(''undef'') }}'
+      - stop: bad
+        error: true
+    s3:
+      mode: parallel
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s3.7
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s0'') }}'
+          cur: '{{ state_attr(''script.s0'', ''current'') }}'
+      - event: mark
+        event_data:
+          id: s3.8
+          v: '{{ v | default(0) }}'
+    s4:
+      icon: mdi:script
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - event: mark
+        event_data:
+          id: s4.9
+          v: '{{ v | default(0) }}'
+      - delay: 2
+      - event: mark
+        event_data:
+          id: s4.10
+          v: '{{ v | default(0) }}'
+- at: 17
+  call: s1
+- at: 20
+  call: turn_off
+  data:
+    entity_id: script.s0
+- at: 23
+  call: turn_off
+  data:
+    entity_id: script.s1

@@ -1,13 +1,15 @@
-# weekday filter: T0 is a Tuesday (UTC)
+# weekday filter: T0 is a Tuesday (UTC); one second per automation (HA's order within a second is not defined)
 automations:
   - alias: wd_tue
     triggers: [{trigger: time, at: "22:13:22", weekday: tue}]
     actions: [{event: m_wd_tue}]
   - alias: wd_wed
-    triggers: [{trigger: time, at: "22:13:22", weekday: [wed, thu]}]
+    triggers: [{trigger: time, at: "22:13:23", weekday: [wed, thu]}]
     actions: [{event: m_wd_wed}]
   - alias: wd_list
-    triggers: [{trigger: time, at: "22:13:22", weekday: [mon, tue]}]
+    triggers: [{trigger: time, at: "22:13:24", weekday: [mon, tue]}]
     actions: [{event: m_wd_list}]
 steps:
+  - {at: 2, send: {type: event, event_type: tick}}
   - {at: 3, send: {type: event, event_type: tick}}
+  - {at: 4, send: {type: event, event_type: tick}}

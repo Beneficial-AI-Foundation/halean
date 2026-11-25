@@ -1,0 +1,10 @@
+# Not comparable through the harness (FINDINGS.md, "Reading findings without a reproducer").
+# HA: the second async_setup_component of a domain whose first setup failed returns False
+# again; the harness asserts `ok == ha["ok"]` before it compares with HALean and stops there.
+# halean-helpers sets the domain up at the second step.
+- name: artefact_setup_retry_after_error
+  steps:
+    - setup: {counter: {a: {step: -1}}}
+    - setup: {counter: {a: {step: 1}}}
+    - call: counter.increment
+      data: {entity_id: counter.a}

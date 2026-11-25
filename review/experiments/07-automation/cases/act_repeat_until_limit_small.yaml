@@ -1,0 +1,14 @@
+# an `until` loop that ends by its own condition after 40 rounds (the 10,000 limit itself cannot
+# be compared: the harness lets HA's loop advance only 50 `sleep(0)` rounds per step)
+automations:
+  - alias: loop40
+    variables: {n: 0}
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - repeat:
+          until: "{{ repeat.index >= 40 }}"
+          sequence: [{variables: {n: "{{ n + 1 }}"}}]
+      - {event: m_done, event_data: {n: "{{ n }}"}}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: event, event_type: tick}}

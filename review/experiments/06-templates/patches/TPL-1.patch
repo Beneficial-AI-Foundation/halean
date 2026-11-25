@@ -1,0 +1,43 @@
+diff --git a/HALean/Template/Syntax.lean b/HALean/Template/Syntax.lean
+index 2f47876..d01c752 100644
+--- a/HALean/Template/Syntax.lean
++++ b/HALean/Template/Syntax.lean
+@@ -89,6 +89,18 @@ abbrev P := Except String
+ def isNameStart (c : Char) : Bool := c.isAlpha || c == '_'
+ def isNameChar (c : Char) : Bool := c.isAlphanum || c == '_'
+ 
++def hexVal (c : Char) : Option Nat :=
++  if c.isDigit then some (c.toNat - '0'.toNat)
++  else if 'a' ≤ c.toLower && c.toLower ≤ 'f' then some (c.toLower.toNat - 'a'.toNat + 10)
++  else none
++
++/-- `\uXXXX` / `\UXXXXXXXX`: the code point; surrogates and values past U+10FFFF are refused. -/
++def codePoint (hs : List Char) : P Char := do
++  let some v := hs.foldlM (fun (a : Nat) h => (hexVal h).map (a * 16 + ·)) 0
++    | throw "invalid \\u escape in string literal"
++  if v ≥ 0x110000 || (0xD800 ≤ v && v ≤ 0xDFFF) then throw "unsupported \\u escape in string literal"
++  pure (Char.ofNat v)
++
+ /-- Python string-literal escapes, as Jinja's lexer unescapes them. -/
+ def unescape (cs : List Char) : P String := do
+   let rec go : List Char → String → P String
+@@ -117,7 +129,18 @@ def unescape (cs : List Char) : P String := do
+           | some a, some b => go rest' (acc.push (Char.ofNat (a * 16 + b)))
+           | _, _ => throw "invalid \\x escape in string literal"
+         | _ => throw "invalid \\x escape in string literal"
+-      | other => go rest (acc.push '\\' |>.push other)  -- unknown escapes are kept
++      | 'u' => match rest with
++        | a :: b :: c1 :: d :: rest' => do go rest' (acc.push (← codePoint [a, b, c1, d]))
++        | _ => throw "truncated \\uXXXX escape in string literal"
++      | 'U' => match rest with
++        | a :: b :: c1 :: d :: e :: f :: g :: h :: rest' =>
++          do go rest' (acc.push (← codePoint [a, b, c1, d, e, f, g, h]))
++        | _ => throw "truncated \\UXXXXXXXX escape in string literal"
++      | 'N' => throw "\\N{...} escapes are not supported by HALean"
++      | other =>
++        -- `\1`..`\7` start an octal escape, which is not translated: refuse it
++        if '1' ≤ other && other ≤ '7' then throw "octal escapes are not supported by HALean"
++        else go rest (acc.push '\\' |>.push other)  -- unknown escapes are kept
+     | c :: rest, acc => go rest (acc.push c)
+   go cs ""
+ 

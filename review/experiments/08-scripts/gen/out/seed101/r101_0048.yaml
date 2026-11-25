@@ -1,0 +1,113 @@
+description: random scenario seed=101 index=48
+scripts:
+  s0:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s0.3
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+    - event: mark
+      event_data:
+        id: s0.4
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s0'') }}'
+        cur: '{{ state_attr(''script.s0'', ''current'') }}'
+  s1:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.5
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s1.6
+        v: '{{ v | default(0) }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s2:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - action: script.turn_off
+        target:
+          entity_id: script.s1
+    - delay: 1
+  s3:
+    icon: mdi:script
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+steps:
+- at: 1
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+- at: 1
+  call: s3
+- at: 1
+  result: 0
+  response:
+    n: 0
+- at: 2
+  call: turn_on
+  data:
+    entity_id:
+    - script.s3
+- at: 5
+  call: s0
+  return_response: true
+- at: 5
+- at: 5
+  call: s2
+  data:
+    v: 2
+- at: 7
+  result: 1
+  response:
+    n: 1
+- at: 9
+  result: 2
+  response:
+    n: 2
+- at: 9
+  call: toggle
+  data:
+    entity_id:
+    - script.s2

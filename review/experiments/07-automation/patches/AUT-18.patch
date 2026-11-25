@@ -1,0 +1,18 @@
+diff --git a/HALean/Automation/Config.lean b/HALean/Automation/Config.lean
+index 5fb003a..6912d6f 100644
+--- a/HALean/Automation/Config.lean
++++ b/HALean/Automation/Config.lean
+@@ -1094,7 +1094,12 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
+     if let some c := field? r "until" then return wrap (.repeatUntil (← conds c) body)
+     if let some items := field? r "for_each" then return wrap (.repeatEach (← decodeComplex items nm) body)
+     throw "repeat needs count, for_each, while or until"
+-  if let some s := str? j "stop" then
++  if has j "stop" then
++    -- `probatio.Any(None, cv.string)`
++    let s ← match field? j "stop" with
++      | some (.str s) => pure s
++      | some .null | none => pure ""
++      | some v => cvStringOf "stop" v
+     let err ← cvBooleanKey j "error" false
+     let rv ← responseVariable? j
+     -- `_stop_action_check_error_response`

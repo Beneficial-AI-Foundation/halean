@@ -226,7 +226,7 @@ class Gen:
     def action(self, r: int, coroutine: bool, depth: int):
         rng = self.rng
         x = rng.random()
-        if x < 0.24:
+        if x < 0.20:
             f = self.fire(r, True)
             return {"fire": f} if f else None
         if x < 0.40:
@@ -317,6 +317,13 @@ class Gen:
         rng = self.rng
         manual = rng.random() < 0.5
         ops: list[dict] = [{"op": "listen", "id": "m", "event_type": "*"}]
+        # most cases start with the services registered and a few listeners, so
+        # that scripted calls reach handlers and events reach scripts
+        for svc in SERVICES:
+            if rng.random() < 0.85:
+                ops.append({"op": "register", **self.register(svc)})
+        for _ in range(rng.randint(1, 3)):
+            ops.append({"op": "listen", **self.listen(rng.choice(EVENTS + ["state_changed", "call_service"]))})
         now = NOW
         for _ in range(rng.randint(6, 16)):
             o = self.op(manual)

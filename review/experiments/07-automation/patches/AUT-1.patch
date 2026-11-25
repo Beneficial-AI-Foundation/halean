@@ -1,0 +1,39 @@
+diff --git a/HALean/Automation/Engine.lean b/HALean/Automation/Engine.lean
+index 82637a7..e46db66 100644
+--- a/HALean/Automation/Engine.lean
++++ b/HALean/Automation/Engine.lean
+@@ -222,6 +222,9 @@ structure Engine where
+   /-- The MQTT client's `_retained_topics`: per subscription (owner, trigger
+   idx), the topics it already got a retained message on. -/
+   mqttRetained : List ((Owner × Nat) × List String) := []
++  /-- `restart` runs whose `started_action` (`automation_triggered`) is still to come:
++  `Script.async_run` awaits the old runs' stop first, which takes a loop iteration. -/
++  deferredTriggered : List (Nat × Cmd) := []
+   deriving Inhabited
+ 
+ /-- A webhook request as `_handle_webhook` sees it (`aiohttp.web.Request`):
+@@ -1003,6 +1006,13 @@ def triggerAutomation (ai : Nat) (tv : TriggerVars) : EM Unit := do
+   if decision == .restart then
+     -- "first add the new run and then stop any other runs"
+     for old in existing do e := removeRun e old.id
++    -- `await self.async_stop(update_state=False, spare=run)`: the old runs stop in the next
++    -- loop iteration; only then `started_action()` fires and the new run starts (unless a
++    -- later trigger of the same event restarted it before it ran a step)
++    setE { e with woken := e.woken ++ [run.id],
++                  deferredTriggered := e.deferredTriggered ++
++                    [(run.id, Cmd.automationTriggered a.id a.alias tv.description)] }
++    return
+   setE e
+   emit [.automationTriggered a.id a.alias tv.description]
+   if wait == .ready then drive run
+@@ -1041,6 +1051,10 @@ def resumeWokenF : Nat → EM Unit
+     if ws.isEmpty then return
+     setE { (← getE) with woken := [] }
+     for rid in ws do
++      let e ← getE
++      if let some (_, c) := e.deferredTriggered.find? (·.1 == rid) then
++        setE { e with deferredTriggered := e.deferredTriggered.filter (·.1 != rid) }
++        emit [c]
+       setE (cleanupWait (← getE) rid)
+       if let some r := (← getE).runs.find? (·.id == rid) then
+         if r.wait == .ready then drive r

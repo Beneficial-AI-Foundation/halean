@@ -1,0 +1,107 @@
+description: random scenario seed=101 index=22
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s1:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - delay: 1
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+  s2:
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+steps:
+- at: 1
+- at: 2
+  call: s0
+  data:
+    v: 1
+- at: 2
+  call: s1
+  data:
+    v: 2
+- at: 3
+  call: s0
+- at: 6
+  call: s0
+  data:
+    v: 4
+  return_response: true
+- at: 8
+  call: s2
+  data:
+    v: 3
+- at: 8
+  call: s0
+  data:
+    v: 4
+- at: 10
+  call: s0
+  data:
+    v: 3
+  return_response: true
+- at: 11
+  call: s1
+  data:
+    v: 3
+  return_response: true
+- at: 14
+  call: s1
+  data:
+    v: 3
+- at: 15
+  call: s1
+  data:
+    v: 4
+- at: 16
+- at: 17
+  call: s2
+  data:
+    v: 1
+  return_response: true
+- at: 19
+  call: s1
+  data:
+    v: 2

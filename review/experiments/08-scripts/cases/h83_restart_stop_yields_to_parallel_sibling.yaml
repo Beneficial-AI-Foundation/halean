@@ -1,0 +1,18 @@
+description: >
+  A parallel step: branch one turns on a restart script that is already running (so it is stopped
+  first), branch two calls a service. HA's restart awaits the stop, so branch two's call comes first.
+scripts:
+  r:
+    mode: restart
+    sequence:
+      - action: test.r
+  p:
+    sequence:
+      - parallel:
+          - action: script.turn_on
+            target: {entity_id: script.r}
+          - action: test.p
+steps:
+  - {at: 1, call: turn_on, data: {entity_id: script.r}}
+  - {at: 2, call: p}
+  - {at: 3}

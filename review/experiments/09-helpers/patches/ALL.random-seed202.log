@@ -1,0 +1,144 @@
+........................................................................ [  8%]
+........................................................................ [ 17%]
+........................................................................ [ 26%]
+..................................................................F..... [ 35%]
+........................................................................ [ 44%]
+........................................................................ [ 53%]
+........................................................................ [ 62%]
+........................................................................ [ 71%]
+........................................................................ [ 80%]
+........................................................................ [ 88%]
+........................................................................ [ 97%]
+..................                                                       [100%]
+=================================== FAILURES ===================================
+____________________ test_helpers[rnd_input_select_s202_42] ____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2be9d541e0>
+engine = <function engine.<locals>.ask at 0x7f2becf449e0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f2bec0b5860>
+case = {'name': 'rnd_input_select_s202_42', 'steps': [{'setup': {'input_select': {'long_name': {'initial': True, 'options': [..., {'call': 'input_select.set_options', 'data': {'entity_id': 'input_select.z9_q', 'options': ['é', 'A', ['n']]}}, ...]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+            assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+    
+            ha: dict = {}
+            if "setup" in step:
+                if step.get("restore"):
+                    mock_restore_cache(hass, [State(e, s, a) for e, s, a in step["restore"]])
+                module = importlib.import_module(f"homeassistant.components.{domain}")
+                try:
+                    module.CONFIG_SCHEMA({domain: cfg})
+                    ha["ok"] = True
+                except probatio.Invalid as err:
+                    ha["ok"] = False
+                    ha["error"] = str(err)
+                caplog.clear()  # what that validation logged is logged again by the setup
+                ok = await async_setup_component(hass, domain, {domain: cfg})
+                await hass.async_block_till_done()
+                assert ok == ha["ok"], f"{where}\nasync_setup_component returned {ok}"
+            elif "call" in step:
+                try:
+                    await hass.services.async_call(domain, service, data, blocking=True)
+                    ha["error"] = None
+                except Exception as err:  # noqa: BLE001
+                    ha["error"] = {"type": type(err).__name__, "message": str(err)}
+                # a timer that ends now (zero duration) has its callback in the
+                # loop's ready queue: let the loop run it, as it would at once
+                for _ in range(5):
+                    await asyncio.sleep(0)
+                await hass.async_block_till_done()
+            else:
+                freezer.move_to(now)
+                async_fire_time_changed_exact(hass, now)
+                await hass.async_block_till_done()
+    
+            ha["outs"] = list(outs)
+            ha["logs"] = warnings()
+            ha["states"] = _states(hass)
+            lean["states"] = sorted(lean["states"])
+            lean["logs"] = [l for l in lean["logs"] if l[0] == "warning"]
+            if sort_outs:
+                ha["outs"] = sorted(ha["outs"])
+                lean["outs"] = sorted(lean["outs"])
+            if "expect_error" in step:  # documents the upstream behaviour the step is about
+                assert ha.get("error") == step["expect_error"], f"{where}\nHA: {ha.get('error')}"
+>           assert lean == ha, f"{where}\nHA:     {ha}\nHALean: {lean}"
+E           AssertionError: step 0: {'setup': {'input_select': {'long_name': {'options': ["it's", 'c', True, 2.5, {'k': 1}], 'initial': True}, 'z9_q': {'options': ['d', 'b, c', 'b, c', 1]}}}}
+E             HA:     {'ok': False, 'error': "value should be a string at 'input_select.long_name.options[4]'", 'outs': [], 'logs': [['warning', "Input select '<unnamed>' with options ['d', 'b, c', 'b, c', '1'] had duplicated options, the duplicates have been removed"], ['warning', "Input select '<unnamed>' with options ['d', 'b, c', 'b, c', '1'] had duplicated options, the duplicates have been removed"]], 'states': []}
+E             HALean: {'error': "value should be a string at 'input_select.long_name.options[4]'", 'logs': [], 'ok': False, 'outs': [], 'states': []}
+E           assert {'error': "va...uts': [], ...} == {'error': "va...uts': [], ...}
+E             
+E             Omitting 4 identical items, use -vv to show
+E             Differing items:
+E             {'logs': []} != {'logs': [['warning', "Input select '<unnamed>' with options ['d', 'b, c', 'b, c', '1'] had duplicated options, the du...select '<unnamed>' with options ['d', 'b, c', 'b, c', '1'] had duplicated options, the duplicates have been removed"]]}
+E             Use -v to get more diff
+
+harness/test_helpers.py:208: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:homeassistant.components.input_select:Input select '<unnamed>' with options ['d', 'b, c', 'b, c', '1'] had duplicated options, the duplicates have been removed
+WARNING:homeassistant.components.input_select:Input select '<unnamed>' with options ['d', 'b, c', 'b, c', '1'] had duplicated options, the duplicates have been removed
+WARNING:homeassistant.components.input_select:Input select '<unnamed>' with options ['d', 'b, c', 'b, c', '1'] had duplicated options, the duplicates have been removed
+WARNING:homeassistant.components.input_select:Input select '<unnamed>' with options ['d', 'b, c', 'b, c', '1'] had duplicated options, the duplicates have been removed
+ERROR:homeassistant.config:Invalid config for 'input_select': value should be a string 'input_select->long_name->options->4', got {'k': 1}, please check the docs at https://www.home-assistant.io/integrations/input_select
+ERROR:homeassistant.setup:Setup failed for 'input_select': Invalid config.
+------------------------------ Captured log call -------------------------------
+WARNING  homeassistant.components.input_select:__init__.py:74 Input select '<unnamed>' with options ['d', 'b, c', 'b, c', '1'] had duplicated options, the duplicates have been removed
+WARNING  homeassistant.components.input_select:__init__.py:74 Input select '<unnamed>' with options ['d', 'b, c', 'b, c', '1'] had duplicated options, the duplicates have been removed
+WARNING  homeassistant.components.input_select:__init__.py:74 Input select '<unnamed>' with options ['d', 'b, c', 'b, c', '1'] had duplicated options, the duplicates have been removed
+WARNING  homeassistant.components.input_select:__init__.py:74 Input select '<unnamed>' with options ['d', 'b, c', 'b, c', '1'] had duplicated options, the duplicates have been removed
+ERROR    homeassistant.config:config.py:979 Invalid config for 'input_select': value should be a string 'input_select->long_name->options->4', got {'k': 1}, please check the docs at https://www.home-assistant.io/integrations/input_select
+ERROR    homeassistant.setup:setup.py:276 Setup failed for 'input_select': Invalid config.
+=========================== short test summary info ============================
+FAILED harness/test_helpers.py::test_helpers[rnd_input_select_s202_42] - Asse...
+1 failed, 809 passed in 90.86s (0:01:30)

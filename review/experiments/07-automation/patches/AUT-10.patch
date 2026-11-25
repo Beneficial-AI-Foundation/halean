@@ -1,0 +1,15 @@
+diff --git a/HALean/Automation/Config.lean b/HALean/Automation/Config.lean
+index c5aa41d..0ff71b7 100644
+--- a/HALean/Automation/Config.lean
++++ b/HALean/Automation/Config.lean
+@@ -1283,7 +1283,9 @@ def decodeAutomation (j : Json) (listNo : Nat := 0) (entityId : Option String :=
+     | some v => match maxRunsOf v with
+       | .ok n => pure n
+       | .error m => throw m
+-  return { id, alias, triggers := trigs.filterMap (fun x => x), conditions := conds,
++  -- `initial_state: false`: the automation starts turned off, its triggers are not attached
++  let initialOn ← cvBooleanKey j "initial_state" true
++  return { id, alias, triggers := if initialOn then trigs.filterMap (fun x => x) else [], conditions := conds,
+            actions := acts.filterMap (fun x => x), mode, maxRuns,
+            variables := mvars, triggerVars := tvals, entityId, uniqueId := str? j "id" }
+ 

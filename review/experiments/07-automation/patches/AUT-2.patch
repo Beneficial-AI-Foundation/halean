@@ -1,0 +1,22 @@
+diff --git a/HALean/Automation/Config.lean b/HALean/Automation/Config.lean
+index 68882b4..5fece19 100644
+--- a/HALean/Automation/Config.lean
++++ b/HALean/Automation/Config.lean
+@@ -543,12 +543,15 @@ partial def decodeCondition (j : Json) (nm : List String := TEMPLATE_VARS) : D C
+   | other => throw s!"condition '{other}' is not supported"
+ 
+ def stateMatch (j : Json) (pos neg : String) : StateMatch :=
++  -- `if parameter is None or parameter == MATCH_ALL: return lambda _: not invert`
++  let mk (v : Json) (invert : Bool) : StateMatch :=
++    if v == .str "*" then { invert } else { values := some (ensureList v), invert }
+   match field? j pos with
+   | some .null | none =>
+     match field? j neg with
+     | some .null | none => {}
+-    | some v => { values := some (ensureList v), invert := true }
+-  | some v => { values := some (ensureList v) }
++    | some v => mk v true
++  | some v => mk v false
+ 
+ /-- `render_complex` of a JSON value: every template string (keys too) is
+ replaced by what `render` gives it. -/

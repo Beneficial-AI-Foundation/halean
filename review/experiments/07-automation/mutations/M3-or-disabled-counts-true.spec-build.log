@@ -1,0 +1,124 @@
+✔ [40/61] Built HALean.Automation.Condition (1.5s)
+✖ [42/61] Building HALean.Automation.ConditionSpec (4.6s)
+trace: .> LEAN_PATH=/tmp/claude-0/halean-copies/07-automation-m/.lake/build/lib/lean /opt/lean/lean-4.36.0-linux/bin/lean /tmp/claude-0/halean-copies/07-automation-m/HALean/Automation/ConditionSpec.lean -o /tmp/claude-0/halean-copies/07-automation-m/.lake/build/lib/lean/HALean/Automation/ConditionSpec.olean -i /tmp/claude-0/halean-copies/07-automation-m/.lake/build/lib/lean/HALean/Automation/ConditionSpec.ilean -c /tmp/claude-0/halean-copies/07-automation-m/.lake/build/ir/HALean/Automation/ConditionSpec.c --setup /tmp/claude-0/halean-copies/07-automation-m/.lake/build/ir/HALean/Automation/ConditionSpec.setup.json --json
+error: HALean/Automation/ConditionSpec.lean:705:6: too many variable names provided
+error: HALean/Automation/ConditionSpec.lean:706:10: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  evalOr env cs ?errs = CondResult.ok (some true)
+in the target expression
+  CondResult.ok (some true) = CondResult.ok (some true) ↔
+    ∃ c_1, c_1 ∈ c :: cs ∧ evalCond env c_1 = CondResult.ok (some true)
+
+case h_2
+env : CondEnv
+c : Condition
+cs : List Condition
+ih :
+  ∀ (errs : List String),
+    evalOr env cs errs = CondResult.ok (some true) ↔ ∃ c, c ∈ cs ∧ evalCond env c = CondResult.ok (some true)
+errs : List String
+hn : CondResult
+h : evalCond env c = CondResult.ok none
+⊢ CondResult.ok (some true) = CondResult.ok (some true) ↔
+    ∃ c_1, c_1 ∈ c :: cs ∧ evalCond env c_1 = CondResult.ok (some true)
+error: HALean/Automation/ConditionSpec.lean:713:4: unsolved goals
+case h_3
+env : CondEnv
+c : Condition
+cs : List Condition
+ih :
+  ∀ (errs : List String),
+    evalOr env cs errs = CondResult.ok (some true) ↔ ∃ c, c ∈ cs ∧ evalCond env c = CondResult.ok (some true)
+errs : List String
+x✝¹ : CondResult
+r✝ : Option Bool
+x✝ : r✝ = some true → False
+e : r✝ = none → False
+h : evalCond env c = CondResult.ok r✝
+⊢ r✝ = some true → ∃ c, c ∈ cs ∧ evalCond env c = CondResult.ok (some true)
+error: HALean/Automation/ConditionSpec.lean:701:17: unsolved goals
+case h_4
+env : CondEnv
+c : Condition
+cs : List Condition
+ih :
+  ∀ (errs : List String),
+    evalOr env cs errs = CondResult.ok (some true) ↔ ∃ c, c ∈ cs ∧ evalCond env c = CondResult.ok (some true)
+errs : List String
+x✝ : CondResult
+e✝ : String
+heq✝ : evalCond env c = CondResult.err e✝
+⊢ evalOr env cs (errs ++ [e✝]) = CondResult.ok (some true) ↔
+    ∃ c_1, c_1 ∈ c :: cs ∧ evalCond env c_1 = CondResult.ok (some true)
+error: HALean/Automation/ConditionSpec.lean:728:6: too many variable names provided
+error: HALean/Automation/ConditionSpec.lean:729:10: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  evalOr env cs ?errs = CondResult.ok (some false)
+in the target expression
+  CondResult.ok (some true) = CondResult.ok (some false) ↔
+    errs = [] ∧ ∀ (c_1 : Condition), c_1 ∈ c :: cs → ∃ r, evalCond env c_1 = CondResult.ok r ∧ r ≠ some true
+
+case h_2
+env : CondEnv
+c : Condition
+cs : List Condition
+ih :
+  ∀ (errs : List String),
+    evalOr env cs errs = CondResult.ok (some false) ↔
+      errs = [] ∧ ∀ (c : Condition), c ∈ cs → ∃ r, evalCond env c = CondResult.ok r ∧ r ≠ some true
+errs : List String
+hn : CondResult
+h : evalCond env c = CondResult.ok none
+⊢ CondResult.ok (some true) = CondResult.ok (some false) ↔
+    errs = [] ∧ ∀ (c_1 : Condition), c_1 ∈ c :: cs → ∃ r, evalCond env c_1 = CondResult.ok r ∧ r ≠ some true
+error: HALean/Automation/ConditionSpec.lean:735:4: unsolved goals
+case h_3
+env : CondEnv
+c : Condition
+cs : List Condition
+ih :
+  ∀ (errs : List String),
+    evalOr env cs errs = CondResult.ok (some false) ↔
+      errs = [] ∧ ∀ (c : Condition), c ∈ cs → ∃ r, evalCond env c = CondResult.ok r ∧ r ≠ some true
+errs : List String
+x✝¹ : CondResult
+r✝ : Option Bool
+x✝ : r✝ = some true → False
+e : r✝ = none → False
+h : evalCond env c = CondResult.ok r✝
+⊢ errs = [] → (∀ (c : Condition), c ∈ cs → ∃ r, evalCond env c = CondResult.ok r ∧ ¬r = some true) → ¬r✝ = some true
+error: HALean/Automation/ConditionSpec.lean:724:17: unsolved goals
+case h_4
+env : CondEnv
+c : Condition
+cs : List Condition
+ih :
+  ∀ (errs : List String),
+    evalOr env cs errs = CondResult.ok (some false) ↔
+      errs = [] ∧ ∀ (c : Condition), c ∈ cs → ∃ r, evalCond env c = CondResult.ok r ∧ r ≠ some true
+errs : List String
+x✝ : CondResult
+e✝ : String
+heq✝ : evalCond env c = CondResult.err e✝
+⊢ evalOr env cs (errs ++ [e✝]) = CondResult.ok (some false) ↔
+    errs = [] ∧ ∀ (c_1 : Condition), c_1 ∈ c :: cs → ∃ r, evalCond env c_1 = CondResult.ok r ∧ r ≠ some true
+error: HALean/Automation/ConditionSpec.lean:764:13: unsolved goals
+case cons.ok.none
+env : CondEnv
+c : Condition
+cs : List Condition
+ih : ∀ (errs : List String), evalNot env cs errs = (evalOr env cs errs).negate
+errs : List String
+h : evalCond env c = CondResult.ok none
+⊢ (evalOr env cs errs).negate = (CondResult.ok (some true)).negate
+✔ [44/61] Built HALean.Automation.Script (5.0s)
+✔ [46/61] Built HALean.Script.Entity (3.3s)
+✔ [48/61] Built HALean.Automation.ScriptSpec (9.4s)
+✔ [50/61] Built HALean.Automation.Engine (10s)
+✔ [52/61] Built HALean.Automation.EngineSpec2 (4.5s)
+✔ [54/61] Built HALean.Automation.EngineSpec4 (5.1s)
+✔ [56/61] Built HALean.Automation.EngineSpec (5.7s)
+✔ [58/61] Built HALean.Automation.EngineSpec3 (13s)
+✔ [60/61] Built HALean.Automation.EngineBound (21s)
+Some required targets logged failures:
+- HALean.Automation.ConditionSpec
+error: build failed
+M3-or-disabled-counts-true spec build exit=1

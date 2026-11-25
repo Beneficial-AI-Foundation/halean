@@ -1,11 +1,11 @@
-FFFF                                                                     [100%]
+FF.FF                                                                    [100%]
 =================================== FAILURES ===================================
 _____________________ test_helpers[hw_pat_brace_at_start] ______________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f606ff4acf0>
-engine = <function engine.<locals>.ask at 0x7f607018cbf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f606ee1b4d0>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fd2363d6cf0>
+engine = <function engine.<locals>.ask at 0x7fd2365f4bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7fd2352a34d0>
 case = {'name': 'hw_pat_brace_at_start', 'steps': [{'setup': {'input_text': {'a': {'initial': '{2}', 'pattern': '{2}'}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -72,9 +72,9 @@ INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassist
 _____________________ test_helpers[hw_pat_brace_after_bar] _____________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f6070099bd0>
-engine = <function engine.<locals>.ask at 0x7f607018cbf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f607009b250>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fd23653de50>
+engine = <function engine.<locals>.ask at 0x7fd2365f4bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7fd23653f250>
 case = {'name': 'hw_pat_brace_after_bar', 'steps': [{'setup': {'input_text': {'a': {'initial': 'a', 'pattern': 'a|{2}'}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -134,77 +134,12 @@ E             HALean rejected it: the pattern 'a|{2}' is outside the modelled re
 E           assert 'unsupported' not in {'unsupported': "the pattern 'a|{2}' is outside the modelled regex subset (nothing to repeat)"}
 
 harness/test_helpers.py:165: AssertionError
-_______________ test_helpers[hw_pat_brace_literal_after_repeat] ________________
-
-hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f6070098e10>
-engine = <function engine.<locals>.ask at 0x7f607018cbf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f606e367110>
-case = {'name': 'hw_pat_brace_literal_after_repeat', 'steps': [{'setup': {'input_text': {'a': {'initial': 'aa{x', 'pattern': 'a{2}{x'}}}}]}
-
-    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
-    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
-                           case: dict) -> None:
-        await hass.config.async_set_time_zone("UTC")
-        now = T0
-        freezer.move_to(now)
-        assert "unsupported" not in engine({"op": "reset"})
-        outs: list = []
-    
-        @callback
-        def listener(event: Event) -> None:
-            if event.event_type == EVENT_STATE_CHANGED:
-                new = event.data["new_state"]
-                if new is not None and _is_helper(new.entity_id):
-                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
-            elif event.event_type.startswith("timer."):
-                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
-    
-        hass.bus.async_listen(MATCH_ALL, listener)
-        caplog.set_level(logging.WARNING)
-    
-        def warnings() -> list:
-            return [["warning", r.getMessage()] for r in caplog.records
-                    if r.levelno == logging.WARNING
-                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
-    
-        for i, step in enumerate(case["steps"]):
-            where = f"step {i}: {step}"
-            outs.clear()
-            caplog.clear()
-            sort_outs = False
-            if "setup" in step:
-                ((domain, cfg),) = step["setup"].items()
-                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
-                       "restore": step.get("restore", [])}
-            elif "call" in step:
-                domain, service = step["call"].split(".", 1)
-                data = step.get("data", {})
-                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
-                eids = data.get("entity_id")
-                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
-            elif "advance" in step:
-                now = now + timedelta(seconds=step["advance"])
-                msg = {"op": "tick", "now": _us(now)}
-            else:
-                raise ValueError(f"unknown step {step}")
-    
-            lean = engine(msg)
-            if step.get("unsupported"):
-                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
-                break
->           assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
-E           AssertionError: step 0: {'setup': {'input_text': {'a': {'pattern': 'a{2}{x', 'initial': 'aa{x'}}}}
-E             HALean rejected it: the pattern 'a{2}{x' is outside the modelled regex subset (a repeat after a repeat is not supported)
-E           assert 'unsupported' not in {'unsupported': "the pattern 'a{2}{x' is outside the modelled regex subset (a repeat after a repeat is not supported)"}
-
-harness/test_helpers.py:165: AssertionError
 __________________ test_helpers[hw_pat_brace_forms_at_start] ___________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f606e3c3230>
-engine = <function engine.<locals>.ask at 0x7f607018cbf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f606e3c3490>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fd23481bbb0>
+engine = <function engine.<locals>.ask at 0x7fd2365f4bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7fd23481be10>
 case = {'name': 'hw_pat_brace_forms_at_start', 'steps': [{'setup': {'input_text': {'a': {'initial': '{,3}', 'pattern': '{,3}'... 'pattern': '({1,2})'}, 'c': {'initial': '{2}', 'pattern': '^{2}'}, 'd': {'initial': '{x}', 'pattern': '{x}'}, ...}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -264,9 +199,74 @@ E             HALean rejected it: the pattern '{,3}' is outside the modelled reg
 E           assert 'unsupported' not in {'unsupported': "the pattern '{,3}' is outside the modelled regex subset (nothing to repeat)"}
 
 harness/test_helpers.py:165: AssertionError
+________________ test_helpers[hw_pat_brace_at_start_no_initial] ________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fd2365aa3f0>
+engine = <function engine.<locals>.ask at 0x7fd2365f4bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7fd23471e780>
+case = {'name': 'hw_pat_brace_at_start_no_initial', 'steps': [{'setup': {'input_text': {'a': {'pattern': '{2}'}}}}, {'call': 'input_text.set_value', 'data': {'entity_id': 'input_text.a', 'value': '{2}'}}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+>           assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E           AssertionError: step 0: {'setup': {'input_text': {'a': {'pattern': '{2}'}}}}
+E             HALean rejected it: the pattern '{2}' is outside the modelled regex subset (nothing to repeat)
+E           assert 'unsupported' not in {'unsupported': "the pattern '{2}' is outside the modelled regex subset (nothing to repeat)"}
+
+harness/test_helpers.py:165: AssertionError
 =========================== short test summary info ============================
 FAILED harness/test_helpers.py::test_helpers[hw_pat_brace_at_start] - Asserti...
 FAILED harness/test_helpers.py::test_helpers[hw_pat_brace_after_bar] - Assert...
-FAILED harness/test_helpers.py::test_helpers[hw_pat_brace_literal_after_repeat]
 FAILED harness/test_helpers.py::test_helpers[hw_pat_brace_forms_at_start] - A...
-4 failed, 184 deselected in 1.35s
+FAILED harness/test_helpers.py::test_helpers[hw_pat_brace_at_start_no_initial]
+4 failed, 1 passed, 208 deselected in 1.25s

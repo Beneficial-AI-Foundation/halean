@@ -2,45 +2,21 @@ ERROR:homeassistant.helpers.template:Template variable error: 'int object' has n
 ERROR:homeassistant.helpers.template:Template variable error: 'homeassistant.util.read_only_dict.ReadOnlyDict object' has no attribute 'startswith' when rendering '{% for i0 in [none, (10000000000000000000000000 | round(1, 'ceil'))] %}{% if loop.last %}.{% endif %}{{ i0 }}{{ (states.group.g.attributes.startswith('Hello World')) }},{% endfor %}{{ {'c': ('1_000' | length), 1: dict(a=(as_timestamp('é', none) | iif(today_at(), utcnow())))} }}'
 ERROR:homeassistant.helpers.template:Template variable error: 'homeassistant.util.read_only_dict.ReadOnlyDict object' has no attribute 'startswith' when rendering '{% for i0 in [none, (10000000000000000000000000 | round(1, 'ceil'))] %}{% if loop.last %}.{% endif %}{{ i0 }}{{ (states.group.g.attributes.startswith('Hello World')) }},{% endfor %}{{ {'c': ('1_000' | length), 1: dict(a=(as_timestamp('é', none) | iif(today_at(), utcnow())))} }}'
 BATCH cases=3000 accepts=5 info=50 refuses_render=86 same=2815 silent=44
-1 passed, 9 warnings in 12.27s
-logs/run1-random-seed101.jsonl: cases=3000 failing=185 unclassified=9
+1 passed, 9 warnings in 8.17s
+logs/run1-random-seed101.jsonl: cases=3000 failing=185 unclassified=0
   TPL-2      10  dict keys: no dedup, no hash check
-  TPL-4      40  bool() of states / states.<domain>
+  TPL-4      43  bool() of states objects; `if value:` guard of map/select
   TPL-6       5  case-insensitive entity id lookup
   TPL-9      21  Undefined inside a printed container
   TPL-12      5  for-else after break/continue
   TPL-25      7  zone database / DST (documented)
+  TPL-27      2  attribute / variable key order (documented)
+  TPL-37      1  uncaught HA errors treated as 'use default'
   TPL-38      3  Jinja compile-time constant folding
   TPL-40     11  Python methods / attributes / operators not modelled
   TPL-41     18  argument forms not modelled
   TPL-42      4  datetime methods and strftime directives not modelled
   TPL-43      1  date strings only ciso8601 parses
   TPL-44     50  printing objects
+  TPL-45      3  HA gives Undefined/default, HALean raises
   TPL-46      1  documented render errors (non-ASCII case mapping)
-  UNCLASSIFIED r101_177 [refuses_render] "{% set v0 = states.switch.c.attributes %}{% set ns = namespace(t=[]) %}{% for n in (as_datetime('2026-13-01 00:00:00') | select('odd') | list) %}{% set ns.t = n"
-      HA: {'ok': True, 'type': 'list', 'repr': '[]'}
-    Lean: {'error': "'NoneType' object is not iterable", 'ok': False}
-  UNCLASSIFIED r101_418 [silent] '{{ 1000000000000000000 }}{{ trigger }}'
-      HA: {'ok': True, 'type': 'str', 'repr': '"1000000000000000000{\'platform\': \'state\', \'id\': \'0\', \'xs\': []}"'}
-    Lean: {'ok': True, 'repr': '"1000000000000000000{\'id\': \'0\', \'platform\': \'state\', \'xs\': []}"', 'type': 'str'}
-  UNCLASSIFIED r101_583 [refuses_render] "{{ (3[:2]) }}text {{ ([{'a': 60, 'b': '0.50'}, {'a': 0, 'b': 'on'}, {'a': 2.675, 'b': '-7'}] | map(attribute='c', default=0) | list) }}{{- '' }}"
-      HA: {'ok': True, 'type': 'str', 'repr': "'text [0, 0, 0]'"}
-    Lean: {'error': 'slicing int is not supported by HALean', 'ok': False}
-  UNCLASSIFIED r101_762 [silent] "{% set v0 = {'a': 1} %}{% for i1 in [is_state_attr('switch.c', 'friendly_name', {}), (timedelta(seconds=1.5, hours=59, weeks=45) * 2), (10, 10000000000000000000"
-      HA: {'ok': True, 'type': 'str', 'repr': '"->False{\'platform\': \'state\', \'id\': \'0\', \'xs\': []} False>634 days, 22:00:03{\'platform\': \'state\', \'id\': \'0\', \'xs\': []} 634 days, 22:00:03>(10, 1
-    Lean: {'ok': True, 'repr': '"->False{\'id\': \'0\', \'platform\': \'state\', \'xs\': []} False>634 days, 22:00:03{\'id\': \'0\', \'platform\': \'state\', \'xs\': []} 634 days, 22:00:03>(10, 1000000000000000
-  UNCLASSIFIED r101_1092 [refuses_render] "{% set v0 = (not states.sensor.b.name) %}{% set v1 = v0 %}{{ (-2 * 255) }}{{ ((expand('sensor.b', 'sensor.b') | map(attribute='entity_id') | list) + (v0 | selec"
-      HA: {'ok': True, 'type': 'str', 'repr': '"-510[\'sensor.b\']"'}
-    Lean: {'error': "'bool' object is not iterable", 'ok': False}
-  UNCLASSIFIED r101_1172 [refuses_render] '{{ (7[1:]) }}'
-      HA: {'ok': True, 'type': 'str', 'repr': "''"}
-    Lean: {'error': 'slicing int is not supported by HALean', 'ok': False}
-  UNCLASSIFIED r101_1781 [accepts] "{{ ((1000000000000000000 | timestamp_utc(default=none)) | replace('A-b c', 'Hello World', 1)) }}"
-      HA: {'ok': False, 'error': 'OSError: [Errno 75] Value too large for defined data type'}
-    Lean: {'info': {'all_states': False, 'all_states_lifecycle': False, 'domains': [], 'domains_lifecycle': [], 'entities': []}, 'ok': True, 'repr': 'None', 'type': 'NoneType'}
-  UNCLASSIFIED r101_2256 [refuses_render] "{% set ns = namespace(t=0) %}{% for n in (false | map('bool', none) | list) %}{% set ns.t = ns.t + n %}{% endfor %}{{ ns.t }}{% for i0 in (([3, 1.5, 2] | map('i"
-      HA: {'ok': True, 'type': 'str', 'repr': "'031.2'"}
-    Lean: {'error': "'bool' object is not iterable", 'ok': False}
-  UNCLASSIFIED r101_2379 [refuses_render] "{# c #}{{ ({'a': 1}[5:]) }} {{ (states | selectattr('domain', 'eq', 'light') | map(attribute='entity_id') | list) }}"
-      HA: {'ok': True, 'type': 'list', 'repr': "['light.b']"}
-    Lean: {'error': 'slicing dict is not supported by HALean', 'ok': False}

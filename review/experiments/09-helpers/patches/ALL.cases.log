@@ -1,13 +1,13 @@
-....................F.............................................F..... [ 36%]
-....................FFF...............................FFFF..FFF.F....... [ 73%]
-.....FFF.....F........................F.....F.......                     [100%]
+....................F...............F................................... [ 33%]
+........F.........................FFF...............................FFFF [ 67%]
+..FFF.F............FFF.FFF....F........................F.....F.......    [100%]
 =================================== FAILURES ===================================
 ___________________ test_helpers[hw_c_restore_arabic_digits] ___________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44df5639d0>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44df561950>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4137c079d0>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4137c05b30>
 case = {'name': 'hw_c_restore_arabic_digits', 'steps': [{'restore': [['counter.a', '٤٢', {}]], 'setup': {'counter': {'a': {}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -67,12 +67,127 @@ E             HALean rejected it: counter.a: the last state is not an integer (i
 E           assert 'unsupported' not in {'unsupported': 'counter.a: the last state is not an integer (int() raises ValueError)'}
 
 harness/test_helpers.py:165: AssertionError
+_____________________ test_helpers[hw_x_nbsp_option_repr] ______________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f41371ce5d0>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f41373bf460>
+case = {'name': 'hw_x_nbsp_option_repr', 'steps': [{'setup': {'input_select': {'a': {'options': [...]}}}}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+            assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+    
+            ha: dict = {}
+            if "setup" in step:
+                if step.get("restore"):
+                    mock_restore_cache(hass, [State(e, s, a) for e, s, a in step["restore"]])
+                module = importlib.import_module(f"homeassistant.components.{domain}")
+                try:
+                    module.CONFIG_SCHEMA({domain: cfg})
+                    ha["ok"] = True
+                except probatio.Invalid as err:
+                    ha["ok"] = False
+                    ha["error"] = str(err)
+                caplog.clear()  # what that validation logged is logged again by the setup
+                ok = await async_setup_component(hass, domain, {domain: cfg})
+                await hass.async_block_till_done()
+                assert ok == ha["ok"], f"{where}\nasync_setup_component returned {ok}"
+            elif "call" in step:
+                try:
+                    await hass.services.async_call(domain, service, data, blocking=True)
+                    ha["error"] = None
+                except Exception as err:  # noqa: BLE001
+                    ha["error"] = {"type": type(err).__name__, "message": str(err)}
+                # a timer that ends now (zero duration) has its callback in the
+                # loop's ready queue: let the loop run it, as it would at once
+                for _ in range(5):
+                    await asyncio.sleep(0)
+                await hass.async_block_till_done()
+            else:
+                freezer.move_to(now)
+                async_fire_time_changed_exact(hass, now)
+                await hass.async_block_till_done()
+    
+            ha["outs"] = list(outs)
+            ha["logs"] = warnings()
+            ha["states"] = _states(hass)
+            lean["states"] = sorted(lean["states"])
+            lean["logs"] = [l for l in lean["logs"] if l[0] == "warning"]
+            if sort_outs:
+                ha["outs"] = sorted(ha["outs"])
+                lean["outs"] = sorted(lean["outs"])
+            if "expect_error" in step:  # documents the upstream behaviour the step is about
+                assert ha.get("error") == step["expect_error"], f"{where}\nHA: {ha.get('error')}"
+>           assert lean == ha, f"{where}\nHA:     {ha}\nHALean: {lean}"
+E           AssertionError: step 0: {'setup': {'input_select': {'a': {'options': ['a\xa0b']}}}}
+E             HA:     {'ok': True, 'outs': [['state_changed', 'input_select.a', 'a\xa0b', "{'options': ['a\\xa0b'], 'editable': False}"]], 'logs': [], 'states': [['input_select.a', 'a\xa0b', "{'options': ['a\\xa0b'], 'editable': False}"]]}
+E             HALean: {'logs': [], 'ok': True, 'outs': [['state_changed', 'input_select.a', 'a\xa0b', "{'options': ['a\xa0b'], 'editable': False}"]], 'states': [['input_select.a', 'a\xa0b', "{'options': ['a\xa0b'], 'editable': False}"]]}
+E           assert {'logs': [], ...e': False}"]]} == {'logs': [], ...e': False}"]]}
+E             
+E             Omitting 2 identical items, use -vv to show
+E             Differing items:
+E             {'states': [['input_select.a', 'a\xa0b', "{'options': ['a\xa0b'], 'editable': False}"]]} != {'states': [['input_select.a', 'a\xa0b', "{'options': ['a\\xa0b'], 'editable': False}"]]}
+E             {'outs': [['state_changed', 'input_select.a', 'a\xa0b', "{'options': ['a\xa0b'], 'editable': False}"]]} != {'outs': [['state_changed', 'input_select.a', 'a\xa0b', "{'options': ['a\\xa0b'], 'editable': False}"]]}
+E             Use -v to get more diff
+
+harness/test_helpers.py:208: AssertionError
 ______________________ test_helpers[hw_in_restore_forms] _______________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de8d0fa0>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de91dbe0>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f41371057c0>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f41371d38c0>
 case = {'name': 'hw_in_restore_forms', 'steps': [{'restore': [['input_number.a', '42', {}], ['input_number.b', ' 4.2e1 ', {}]...{'max': 100, 'min': 0}, 'b': {'max': 100, 'min': 0}, 'c': {'max': 100, 'min': 0}, 'd': {'max': 100, 'min': 0}, ...}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -135,9 +250,9 @@ harness/test_helpers.py:165: AssertionError
 __________ test_helpers[hw_is_dup_warning_with_invalid_sibling_icon] ___________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de632fd0>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de7c7380>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4137106850>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4137261c50>
 case = {'name': 'hw_is_dup_warning_with_invalid_sibling_icon', 'steps': [{'setup': {'input_select': {'c': {'options': [...]}, 'l': {'icon': 5, 'options': [...]}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -259,9 +374,9 @@ ERROR    homeassistant.setup:setup.py:276 Setup failed for 'input_select': Inval
 ________ test_helpers[hw_is_dup_warning_with_invalid_sibling_extra_key] ________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de7e8f00>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44dea13ee0>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f41373a9630>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f41371d15c0>
 case = {'name': 'hw_is_dup_warning_with_invalid_sibling_extra_key', 'steps': [{'setup': {'input_select': {'x': {'options': [...]}, 'y': {'bogus': 1, 'options': [...]}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -383,9 +498,9 @@ ERROR    homeassistant.setup:setup.py:276 Setup failed for 'input_select': Inval
 __________ test_helpers[hw_is_dup_warning_with_invalid_sibling_first] __________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de81d4f0>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44dea734d0>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4137090460>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136faa430>
 case = {'name': 'hw_is_dup_warning_with_invalid_sibling_first', 'steps': [{'setup': {'input_select': {'l': {'initial': 'q', 'options': [...]}, 'z': {'options': [...]}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -507,9 +622,9 @@ ERROR    homeassistant.setup:setup.py:276 Setup failed for 'input_select': Inval
 _______________________ test_helpers[hw_pat_dollar_star] _______________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de467a70>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44dec52270>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f413719af80>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4137008c90>
 case = {'name': 'hw_pat_dollar_star', 'steps': [{'setup': {'input_text': {'a': {'initial': 'a', 'pattern': 'a$*'}, 'b': {'initial': 'ok'}}}}, {'call': 'input_text.set_value', 'data': {'entity_id': 'input_text.a', 'value': 'a'}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -572,9 +687,9 @@ harness/test_helpers.py:165: AssertionError
 ___________________ test_helpers[hw_pat_class_escape_range] ____________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de422d00>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44dea64670>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4136c68d70>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136fa9e10>
 case = {'name': 'hw_pat_class_escape_range', 'steps': [{'setup': {'input_text': {'a': {'initial': '1', 'pattern': '[\\d-z]+'}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -637,9 +752,9 @@ harness/test_helpers.py:165: AssertionError
 _____________________ test_helpers[hw_pat_brace_at_start] ______________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de466170>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de793770>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4136c6a7b0>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f41372e3930>
 case = {'name': 'hw_pat_brace_at_start', 'steps': [{'setup': {'input_text': {'a': {'initial': '{2}', 'pattern': '{2}'}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -702,9 +817,9 @@ harness/test_helpers.py:165: AssertionError
 _____________________ test_helpers[hw_pat_brace_after_bar] _____________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de4222b0>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de792200>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4136c901e0>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136ce41a0>
 case = {'name': 'hw_pat_brace_after_bar', 'steps': [{'setup': {'input_text': {'a': {'initial': 'a', 'pattern': 'a|{2}'}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -767,9 +882,9 @@ harness/test_helpers.py:165: AssertionError
 ____________________ test_helpers[hw_pat_nonascii_initial] _____________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de7eb930>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de792b30>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4137d6de50>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136c6cc20>
 case = {'name': 'hw_pat_nonascii_initial', 'steps': [{'setup': {'input_text': {'a': {'initial': 'été', 'pattern': '\\w+$'}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -829,12 +944,16 @@ E             HALean rejected it: input_text.a: matching non-ASCII text against 
 E           assert 'unsupported' not in {'unsupported': 'input_text.a: matching non-ASCII text against \\d, \\w or \\s is not modelled'}
 
 harness/test_helpers.py:165: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+WARNING:asyncio:Executing <Task finished name='Task-1492' coro=<_wrap_asyncgen_fixture.<locals>._asyncgen_fixture_wrapper.<locals>.setup() done, defined at /opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:402> result=<HomeAssistant RUNNING> created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 0.164 seconds
+------------------------------ Captured log setup ------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task finished name='Task-1492' coro=<_wrap_asyncgen_fixture.<locals>._asyncgen_fixture_wrapper.<locals>.setup() done, defined at /opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:402> result=<HomeAssistant RUNNING> created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 0.164 seconds
 ____________________ test_helpers[hw_pat_nonascii_restore] _____________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de67bb60>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44dea765f0>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4136cc3930>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136c6f2a0>
 case = {'name': 'hw_pat_nonascii_restore', 'steps': [{'restore': [['input_text.a', 'été', {}]], 'setup': {'input_text': {'a': {'pattern': '\\w+$'}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -897,9 +1016,9 @@ harness/test_helpers.py:165: AssertionError
 _________________ test_helpers[hw_pat_nonascii_digit_initial] __________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de7b05f0>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de89d160>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4136b04460>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136c6ca60>
 case = {'name': 'hw_pat_nonascii_digit_initial', 'steps': [{'setup': {'input_text': {'a': {'initial': '١٢', 'pattern': '\\d+$'}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -962,9 +1081,9 @@ harness/test_helpers.py:165: AssertionError
 _______________ test_helpers[hw_pat_brace_literal_after_repeat] ________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de5535c0>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de8b01a0>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4136c6bac0>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136c57930>
 case = {'name': 'hw_pat_brace_literal_after_repeat', 'steps': [{'setup': {'input_text': {'a': {'initial': 'aa{x', 'pattern': 'a{2}{x'}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -1027,9 +1146,9 @@ harness/test_helpers.py:165: AssertionError
 ___________________ test_helpers[hw_pat_dollar_quantifiers] ____________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44dea81c70>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de50b000>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4137c2b3e0>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136e656a0>
 case = {'name': 'hw_pat_dollar_quantifiers', 'steps': [{'setup': {'input_text': {'a': {'initial': 'a', 'pattern': 'a$+'}, 'b'...a', 'pattern': 'a$?'}, 'c': {'initial': 'a', 'pattern': 'a${2}'}, 'd': {'initial': 'a', 'pattern': 'a$|b${x'}, ...}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -1092,9 +1211,9 @@ harness/test_helpers.py:165: AssertionError
 __________________ test_helpers[hw_pat_brace_forms_at_start] ___________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44deabf2f0>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de880d00>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4145913520>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136dac4b0>
 case = {'name': 'hw_pat_brace_forms_at_start', 'steps': [{'setup': {'input_text': {'a': {'initial': '{,3}', 'pattern': '{,3}'... 'pattern': '({1,2})'}, 'c': {'initial': '{2}', 'pattern': '^{2}'}, 'd': {'initial': '{x}', 'pattern': '{x}'}, ...}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -1157,9 +1276,9 @@ harness/test_helpers.py:165: AssertionError
 __________________ test_helpers[hw_pat_class_escape_dash_end] __________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de9e1fe0>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de8839a0>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f41371b83c0>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136c564a0>
 case = {'name': 'hw_pat_class_escape_dash_end', 'steps': [{'setup': {'input_text': {'a': {'initial': '1-2', 'pattern': '[\\d-]+$'}, 'b': {'initial': 'a', 'pattern': '[\\w-.]+$'}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -1219,12 +1338,207 @@ E             HALean rejected it: the pattern '[\\w-.]+$' is outside the modelle
 E           assert 'unsupported' not in {'unsupported': "the pattern '[\\\\w-.]+$' is outside the modelled regex subset (bad character range)"}
 
 harness/test_helpers.py:165: AssertionError
+_________________ test_helpers[hw_pat_dollar_star_no_initial] __________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f41371e63f0>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136f7d940>
+case = {'name': 'hw_pat_dollar_star_no_initial', 'steps': [{'setup': {'input_text': {'a': {'pattern': 'a$*'}}}}, {'call': 'input_text.set_value', 'data': {'entity_id': 'input_text.a', 'value': 'a'}}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+>           assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E           AssertionError: step 0: {'setup': {'input_text': {'a': {'pattern': 'a$*'}}}}
+E             HALean rejected it: the pattern 'a$*' is outside the modelled regex subset (nothing to repeat)
+E           assert 'unsupported' not in {'unsupported': "the pattern 'a$*' is outside the modelled regex subset (nothing to repeat)"}
+
+harness/test_helpers.py:165: AssertionError
+________________ test_helpers[hw_pat_brace_at_start_no_initial] ________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4136b07cf0>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136f7cf30>
+case = {'name': 'hw_pat_brace_at_start_no_initial', 'steps': [{'setup': {'input_text': {'a': {'pattern': '{2}'}}}}, {'call': 'input_text.set_value', 'data': {'entity_id': 'input_text.a', 'value': '{2}'}}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+>           assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E           AssertionError: step 0: {'setup': {'input_text': {'a': {'pattern': '{2}'}}}}
+E             HALean rejected it: the pattern '{2}' is outside the modelled regex subset (nothing to repeat)
+E           assert 'unsupported' not in {'unsupported': "the pattern '{2}' is outside the modelled regex subset (nothing to repeat)"}
+
+harness/test_helpers.py:165: AssertionError
+______________ test_helpers[hw_pat_class_escape_range_no_initial] ______________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4136ead270>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136faa510>
+case = {'name': 'hw_pat_class_escape_range_no_initial', 'steps': [{'setup': {'input_text': {'a': {'pattern': '[\\d-z]'}}}}, {'call': 'input_text.set_value', 'data': {'entity_id': 'input_text.a', 'value': '5'}}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+>           assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E           AssertionError: step 0: {'setup': {'input_text': {'a': {'pattern': '[\\d-z]'}}}}
+E             HALean rejected it: the pattern '[\\d-z]' is outside the modelled regex subset (bad character range)
+E           assert 'unsupported' not in {'unsupported': "the pattern '[\\\\d-z]' is outside the modelled regex subset (bad character range)"}
+
+harness/test_helpers.py:165: AssertionError
 ________________________ test_helpers[hw_m_setup_twice] ________________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44dea436b0>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de50a3c0>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f41370ae8f0>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4136dac520>
 case = {'name': 'hw_m_setup_twice', 'steps': [{'setup': {'counter': {'a': {'initial': 1}}}}, {'setup': {'counter': {'b': {'initial': 2}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -1287,9 +1601,9 @@ harness/test_helpers.py:165: AssertionError
 ___________________ test_helpers[hw_t_two_finish_same_tick] ____________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de8d2670>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de50aac0>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f41373a98b0>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f4145a5be70>
 case = {'name': 'hw_t_two_finish_same_tick', 'steps': [{'setup': {'timer': {'a': {'duration': 5}, 'b': {'duration': 3}, 'c': ...start', 'data': {'entity_id': 'timer.c'}}, {'call': 'timer.start', 'data': {'entity_id': 'timer.b'}}, {'advance': 10}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -1399,15 +1713,15 @@ E             Use -v to get more diff
 
 harness/test_helpers.py:208: AssertionError
 ----------------------------- Captured stderr call -----------------------------
-WARNING:asyncio:Executing <Task pending name='Task-1909' coro=<test_helpers() running at /home/user/halean/review/experiments/09-helpers/harness/test_helpers.py:196> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 10.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2074' coro=<test_helpers() running at /home/user/halean/review/experiments/09-helpers/harness/test_helpers.py:196> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 10.000 seconds
 ------------------------------ Captured log call -------------------------------
-WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1909' coro=<test_helpers() running at /home/user/halean/review/experiments/09-helpers/harness/test_helpers.py:196> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 10.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2074' coro=<test_helpers() running at /home/user/halean/review/experiments/09-helpers/harness/test_helpers.py:196> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 10.000 seconds
 ___________________ test_helpers[hw_t_restore_unknown_state] ___________________
 
 hass = <HomeAssistant RUNNING>
-freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f44de93c230>
-engine = <function engine.<locals>.ask at 0x7f44e9408bf0>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x7f44de7907c0>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f4136fc6c60>
+engine = <function engine.<locals>.ask at 0x7f4145b40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f41372f1cc0>
 case = {'name': 'hw_t_restore_unknown_state', 'steps': [{'restore': [['timer.a', 'unavailable', {}]], 'setup': {'timer': {'a': {'restore': True}}}}]}
 
     @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -1475,6 +1789,7 @@ test_helpers.py::test_helpers[hw_pat_classes]
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 =========================== short test summary info ============================
 FAILED harness/test_helpers.py::test_helpers[hw_c_restore_arabic_digits] - As...
+FAILED harness/test_helpers.py::test_helpers[hw_x_nbsp_option_repr] - Asserti...
 FAILED harness/test_helpers.py::test_helpers[hw_in_restore_forms] - Assertion...
 FAILED harness/test_helpers.py::test_helpers[hw_is_dup_warning_with_invalid_sibling_icon]
 FAILED harness/test_helpers.py::test_helpers[hw_is_dup_warning_with_invalid_sibling_extra_key]
@@ -1490,7 +1805,10 @@ FAILED harness/test_helpers.py::test_helpers[hw_pat_brace_literal_after_repeat]
 FAILED harness/test_helpers.py::test_helpers[hw_pat_dollar_quantifiers] - Ass...
 FAILED harness/test_helpers.py::test_helpers[hw_pat_brace_forms_at_start] - A...
 FAILED harness/test_helpers.py::test_helpers[hw_pat_class_escape_dash_end] - ...
+FAILED harness/test_helpers.py::test_helpers[hw_pat_dollar_star_no_initial]
+FAILED harness/test_helpers.py::test_helpers[hw_pat_brace_at_start_no_initial]
+FAILED harness/test_helpers.py::test_helpers[hw_pat_class_escape_range_no_initial]
 FAILED harness/test_helpers.py::test_helpers[hw_m_setup_twice] - AssertionErr...
 FAILED harness/test_helpers.py::test_helpers[hw_t_two_finish_same_tick] - Ass...
 FAILED harness/test_helpers.py::test_helpers[hw_t_restore_unknown_state] - As...
-19 failed, 177 passed, 1 warning in 20.58s
+23 failed, 190 passed, 1 warning in 20.17s

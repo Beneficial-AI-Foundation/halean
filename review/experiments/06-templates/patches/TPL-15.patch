@@ -1,0 +1,23 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 547509a..159518a 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -1764,8 +1764,16 @@ partial def applyTest (ctx : Ctx) (n : String) (v : Value) (args : List Value) :
+   | "integer" => pure (match v with | .int _ => true | _ => false)
+   | "float" => pure (match v with | .float _ => true | _ => false)
+   | "mapping" => pure (match v with | .dict _ => true | _ => false)
+-  | "sequence" => pure (match v with | .list _ | .tuple _ | .str _ | .dict _ => true | _ => false)
+-  | "iterable" => pure (match v with | .list _ | .tuple _ | .str _ | .dict _ | .undef _ => true | _ => false)
++  -- `test_sequence`: `len(value)` and `value.__getitem__` both work
++  | "sequence" => match v with
++    | .list _ | .tuple _ | .str _ | .dict _ | .range .. | .undef _ => pure true
++    | .domain _ | .allStates => do let _ ← lenV ctx v; pure true
++    | _ => pure false
++  -- `test_iterable`: `iter(value)` works
++  | "iterable" => match v with
++    | .list _ | .tuple _ | .str _ | .dict _ | .undef _ | .range .. | .gen .. => pure true
++    | .domain _ | .allStates => do let _ ← iterV ctx v; pure true
++    | _ => pure false
+   | "true" => pure (match v with | .bool true => true | _ => false)
+   | "false" => pure (match v with | .bool false => true | _ => false)
+   | "eq" | "equalto" | "==" => cmpOp ctx "==" v a0

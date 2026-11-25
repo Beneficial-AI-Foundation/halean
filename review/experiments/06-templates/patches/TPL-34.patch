@@ -1,0 +1,46 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 5e9c669..b7c8ff1 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -832,8 +832,17 @@ def needStr (fn : String) (v : Value) : R String :=
+   | .str s => pure s
+   | v => throw s!"{fn} expects a string, got {typeName v}"
+ 
++/-- An entity id handed to `hass.states.get`: anything but a `str` fails there
++(`entity_id.lower()`; an Undefined raises on the attribute access). -/
++def entityIdArg (v : Value) : R Unit :=
++  match v with
++  | .str _ => pure ()
++  | .undef _ => undefErr v
++  | v => throw s!"AttributeError: '{typeName v}' object has no attribute 'lower'"
++
+ /-- `is_state` -/
+ def isState (ctx : Ctx) (eid state : Value) : R Bool := do
++  entityIdArg eid
+   let .str e := eid | return false
+   let some s := statesGetCI ctx e | do collect e; return false
+   collect s.entityId
+@@ -844,6 +853,7 @@ def isState (ctx : Ctx) (eid state : Value) : R Bool := do
+ 
+ /-- `state_attr` -/
+ def stateAttrFn (ctx : Ctx) (eid name : Value) : R Value := do
++  entityIdArg eid
+   let .str e := eid | return .none
+   let some s := statesGetCI ctx e | do collect e; return .none
+   collect s.entityId
+@@ -852,6 +862,7 @@ def stateAttrFn (ctx : Ctx) (eid name : Value) : R Value := do
+ 
+ /-- `has_value` -/
+ def hasValue (ctx : Ctx) (eid : Value) : R Bool := do
++  entityIdArg eid
+   match eid with
+   | .str e =>
+     match statesGetCI ctx e with
+@@ -1332,6 +1343,7 @@ partial def callV (ctx : Ctx) (f : Value) (a : Args) : R Value := do
+       stateAttrFn ctx ((a.get 0 "entity_id").getD .none) ((a.get 1 "name").getD .none)
+     | "is_state_attr", _ => do
+       a.check n ["entity_id", "name", "value"]
++      entityIdArg ((a.get 0 "entity_id").getD .none)
+       let .str e := (a.get 0 "entity_id").getD .none | return .bool false
+       let some s := statesGetCI ctx e | do collect e; return .bool false
+       collect s.entityId

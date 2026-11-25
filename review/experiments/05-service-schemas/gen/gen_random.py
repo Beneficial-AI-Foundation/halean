@@ -15,7 +15,7 @@ non-string dict keys, lone surrogates.
 Spec text is printable ASCII only (the decoder refuses anything else).
 
 With --data above 50 a case crosses probatio's CompilePolicy.AUTO threshold
-(the schema switches to generated code after 50 validations, README line 645).
+(the schema switches to generated code after 50 validations, README lines 648-652).
 """
 from __future__ import annotations
 

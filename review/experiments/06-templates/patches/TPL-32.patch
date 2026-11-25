@@ -1,0 +1,89 @@
+diff --git a/HALean/Template/Render.lean b/HALean/Template/Render.lean
+index 1d39fe4..2b109f4 100644
+--- a/HALean/Template/Render.lean
++++ b/HALean/Template/Render.lean
+@@ -710,7 +710,9 @@ def arith (op : String) (a b : Value) : R Value := do
+   | "*", .i p, .i q => return .int (p * q)
+   | "/", .i p, .i q =>
+     if q == 0 then throw "ZeroDivisionError: division by zero"
+-    return .float (ratToFloat ((p < 0) != (q < 0)) p.natAbs q.natAbs)
++    let r := ratToFloat ((p < 0) != (q < 0)) p.natAbs q.natAbs
++    if r.isInf then throw "OverflowError: integer division result too large for a float"
++    return .float r
+   | "//", .i p, .i q =>
+     if q == 0 then throw "ZeroDivisionError: integer division or modulo by zero"
+     return .int (Int.fdiv p q)
+@@ -722,10 +724,16 @@ def arith (op : String) (a b : Value) : R Value := do
+       if q > 100000 then throw "exponent too large for HALean" else return .int (p ^ q.toNat)
+     else
+       if p == 0 then throw "ZeroDivisionError: 0.0 cannot be raised to a negative power"
++      if (intToFloat p).isInf then throw "OverflowError: int too large to convert to float"
+       return .float (Float.pow (intToFloat p) (intToFloat q))
+   | _, _, _ =>
+-  let p := x.toFloat
+-  let q := y.toFloat
++  let conv (n : Num) : R Float :=
++    let f := n.toFloat
++    match n with
++    | .i _ => if f.isInf then throw "OverflowError: int too large to convert to float" else pure f
++    | .f _ => pure f
++  let p ← conv x
++  let q ← conv y
+   match op with
+   | "+" => return .float (p + q)
+   | "-" => return .float (p - q)
+@@ -738,7 +746,10 @@ def arith (op : String) (a b : Value) : R Value := do
+   | "**" =>
+     if p == 0 && q < 0 then throw "ZeroDivisionError: 0.0 cannot be raised to a negative power"
+     if p < 0 && Float.floor q != q then throw "complex results are not supported by HALean"
+-    return .float (Float.pow p q)
++    let r := Float.pow p q
++    if r.isInf && Float.isFinite' p && Float.isFinite' q then
++      throw "OverflowError: (34, 'Numerical result out of range')"
++    return .float r
+   | _ => tyErr
+ 
+ def cmpOp (ctx : Ctx) (op : String) (a b : Value) : R Bool := do
+@@ -949,6 +960,7 @@ def forgivingRound (v : Value) (precision method dflt : Option Value) : R Value
+     | none => noDefault "round" v
+   let some f ← toFloat? v | fail
+   -- `multiplier = float(10**precision)`
++  if prec > 308 then throw "OverflowError: int too large to convert to float"
+   let mult : Float := if prec ≥ 0 then intToFloat (10 ^ prec.toNat) else ratToFloat false 1 (10 ^ (-prec).toNat)
+   let res? : Option Float := match meth with
+     | "ceil" => (ceilF (f * mult)).map fun i => intToFloat i / mult
+@@ -2042,7 +2054,8 @@ partial def litLex (cs : List Char) (depth : Nat) (acc : Array LTok) : Option (L
+       else
+         -- decimal int: no leading zeros unless all zeros
+         let d := w.replace "_" ""
+-        if d.length > 1 && d.startsWith "0" && !d.all (· == '0') then none
++        if d.length > 4300 then none  -- SyntaxError: exceeds the int/str conversion limit
++        else if d.length > 1 && d.startsWith "0" && !d.all (· == '0') then none
+         else match parseIntStr w with
+           | some i => litLex rest' depth (acc.push (.num (.int i)))
+           | none => none
+@@ -2221,6 +2234,7 @@ def parseResult (r : String) : Value :=
+   let fast : Option Value :=
+     if isNumericStr r then
+       if r.contains '.' then (parseFloatStr r).map Value.float
++      else if (r.toList.filter Char.isDigit).length > 4300 then none  -- `int()` raises ValueError
+       else (parseIntStr r).map Value.int
+     else none
+   match fast with
+diff --git a/HALean/Template/Value.lean b/HALean/Template/Value.lean
+index 98a1d2c..6d8e78f 100644
+--- a/HALean/Template/Value.lean
++++ b/HALean/Template/Value.lean
+@@ -242,7 +242,11 @@ def pyRepr : Value → Except String String
+   | .none => pure "None"
+   | .undef _ => pure "Undefined"
+   | .bool b => pure (boolStr b)
+-  | .int i => pure (toString i)
++  | .int i =>
++    -- CPython's `sys.int_info.default_max_str_digits`
++    if i.natAbs ≥ 10 ^ 4300 then
++      throw "ValueError: Exceeds the limit (4300 digits) for integer string conversion"
++    else pure (toString i)
+   | .float f => pure (floatRepr f)
+   | .str s => pure (strRepr s)
+   | .list xs => do pure ("[" ++ ", ".intercalate (← reprList xs) ++ "]")
