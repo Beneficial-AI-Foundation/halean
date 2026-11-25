@@ -1,0 +1,117 @@
+# `webhook` trigger (components/webhook/trigger.py, webhook/__init__.py):
+# a JSON body (any "json" in the Content-Type) is `trigger.json` (an empty
+# body is {}; invalid JSON is an error and nothing runs), otherwise the form
+# fields are `trigger.data`; the query is `trigger.query` (both multidicts:
+# a key reads its first value); `allowed_methods` (HEAD is answered quietly)
+# and `local_only` of the trigger that registered the webhook first count for
+# every trigger with that id; templated ids with the static
+# trigger_variables; requests to unknown ids are ignored; a webhook in a
+# `wait_for_trigger` is registered only while the run waits.
+automations:
+  - id: json_hook
+    triggers: [{trigger: webhook, webhook_id: hook_json, allowed_methods: [POST], local_only: false, id: j}]
+    actions:
+      - event: saw_json
+        event_data:
+          p: "{{ trigger.platform }} {{ trigger.webhook_id }} {{ trigger.description }}"
+          i: "{{ trigger.id }} {{ trigger.idx }} {{ trigger.alias }}"
+          x: "{{ trigger.json.x if trigger.json is mapping else trigger.json[1] }}"
+          n: "{{ trigger.json | length }}"
+          q: "{{ trigger.query.q }}"
+          hasq: "{{ 'q' in trigger.query }}"
+  - id: form_hook
+    triggers: [{trigger: webhook, webhook_id: hook_form}]
+    actions:
+      - event: saw_form
+        event_data:
+          name: "{{ trigger.data.name }}"
+          first: "{{ trigger.data['a'] }}"
+          has: "{{ 'name' in trigger.data }}"
+          missing: "{{ trigger.data.missing is defined }}"
+          any: "{{ 'fields' if trigger.data else 'empty' }}"
+          json: "{{ trigger.json is defined }}"
+  - id: get_hook
+    triggers: [{trigger: webhook, webhook_id: hook_get, allowed_methods: [get, Head], local_only: false}]
+    actions:
+      - event: saw_get
+        event_data: {q: "{{ trigger.query.q }}", any: "{{ 'fields' if trigger.data else 'empty' }}"}
+  - id: shared_first          # registers `shared`: POST/PUT, local only
+    triggers: [{trigger: webhook, webhook_id: shared}]
+    actions: [{event: saw_shared_first}]
+  - id: shared_second         # its own allowed_methods / local_only do not count
+    triggers: [{trigger: webhook, webhook_id: shared, allowed_methods: GET, local_only: false}]
+    actions: [{event: saw_shared_second}]
+  - id: templated
+    trigger_variables: {name: abc}
+    triggers: [{trigger: webhook, webhook_id: "hook_{{ name }}", local_only: false}]
+    actions: [{event: saw_templated, event_data: {id: "{{ trigger.webhook_id }}"}}]
+  - id: waiter
+    triggers: [{trigger: event, event_type: start_wait}]
+    actions:
+      - wait_for_trigger: [{trigger: webhook, webhook_id: wait_hook, local_only: false}]
+      - event: wait_done
+        event_data: {w: "{{ wait.trigger.platform }} {{ wait.trigger.json.k }}"}
+  - id: bad_method            # HA rejects the config
+    triggers: [{trigger: webhook, webhook_id: bad, allowed_methods: [DELETE]}]
+    actions: [{event: never_bad}]
+  - id: bad_local
+    triggers: [{trigger: webhook, webhook_id: bad, local_only: "yes"}]
+    actions: [{event: never_bad}]
+expect_init:
+  - {type: unsupported, id: bad_method}
+  - {type: unsupported, id: bad_local}
+steps:
+  - {at: 1, send: {type: webhook, webhook_id: hook_json, method: POST, headers: {Content-Type: application/json},
+                   body: '{"x": 5, "y": [1, 2]}', query: "q=hi&q=again"},
+     expect: [{type: automation_triggered, id: json_hook},
+              {type: fire_event, event_type: saw_json,
+               data: {p: webhook hook_json webhook, i: j 0 None, x: 5, n: 2, q: hi, hasq: true}}]}
+  - {at: 2, send: {type: webhook, webhook_id: hook_json, method: POST, headers: {Content-Type: text/json; charset=utf-8},
+                   body: '[0, "second"]', local: false},
+     expect: [{type: automation_triggered, id: json_hook},
+              {type: fire_event, event_type: saw_json, data: {x: second, n: 2, q: "", hasq: false}}]}
+  - {at: 3, send: {type: webhook, webhook_id: hook_json, method: POST, headers: {Content-Type: application/json}, body: ''},
+     expect: [{type: automation_triggered, id: json_hook}, {type: fire_event, event_type: saw_json, data: {n: 0}}]}
+  - {at: 4, send: {type: webhook, webhook_id: hook_json, method: POST, headers: {Content-Type: application/json}, body: '{oops'},
+     expect: []}
+  - {at: 5, send: {type: webhook, webhook_id: hook_json, method: PUT, headers: {Content-Type: application/json}, body: '{}'},
+     expect: []}
+  - {at: 6, send: {type: webhook, webhook_id: hook_json, method: HEAD}, expect: []}
+  - {at: 7, send: {type: webhook, webhook_id: hook_form, method: POST,
+                   headers: {Content-Type: application/x-www-form-urlencoded}, body: "name=ann+b&a=1&a=2&e%C3%A9=%C3%BC"},
+     expect: [{type: automation_triggered, id: form_hook},
+              {type: fire_event, event_type: saw_form,
+               data: {name: ann b, first: 1, has: true, missing: false, any: fields, json: false}}]}
+  - {at: 8, send: {type: webhook, webhook_id: hook_form, method: PUT, headers: {Content-Type: text/plain}, body: "name=x"},
+     expect: [{type: automation_triggered, id: form_hook},
+              {type: fire_event, event_type: saw_form, data: {name: "", has: false, any: empty}}]}
+  - {at: 8.5, send: {type: webhook, webhook_id: hook_form, method: POST, headers: {Content-Type: Application/JSON},
+                     body: '{"name": "x"}'},     # "json" is matched case-sensitively: a form, and not one
+     expect: [{type: automation_triggered, id: form_hook},
+              {type: fire_event, event_type: saw_form, data: {name: "", has: false, any: empty, json: false}}]}
+  - {at: 9, send: {type: webhook, webhook_id: hook_form, method: POST,
+                   headers: {Content-Type: application/x-www-form-urlencoded}, body: "name=x", local: false},
+     expect: []}
+  - {at: 10, send: {type: webhook, webhook_id: hook_get, method: GET, query: "q=1&r",
+                    headers: {Content-Type: application/x-www-form-urlencoded}, body: "a=1"},
+     expect: [{type: automation_triggered, id: get_hook}, {type: fire_event, event_type: saw_get, data: {q: 1, any: empty}}]}
+  - {at: 11, send: {type: webhook, webhook_id: hook_get, method: HEAD},
+     expect: [{type: automation_triggered, id: get_hook}, {type: fire_event, event_type: saw_get}]}
+  - {at: 12, send: {type: webhook, webhook_id: hook_get, method: POST}, expect: []}
+  - {at: 13, send: {type: webhook, webhook_id: shared, method: PUT, headers: {Content-Type: application/json}, body: '{}'},
+     expect: [{type: automation_triggered, id: shared_first}, {type: fire_event, event_type: saw_shared_first},
+              {type: automation_triggered, id: shared_second}, {type: fire_event, event_type: saw_shared_second}]}
+  - {at: 14, send: {type: webhook, webhook_id: shared, method: GET}, expect: []}
+  - {at: 15, send: {type: webhook, webhook_id: shared, method: POST, headers: {Content-Type: application/json}, body: '{}', local: false},
+     expect: []}
+  - {at: 16, send: {type: webhook, webhook_id: hook_abc, method: POST, headers: {Content-Type: application/json}, body: '{}'},
+     expect: [{type: automation_triggered, id: templated}, {type: fire_event, event_type: saw_templated, data: {id: hook_abc}}]}
+  - {at: 17, send: {type: webhook, webhook_id: nobody, method: POST, headers: {Content-Type: application/json}, body: '{}'},
+     expect: []}
+  - {at: 18, send: {type: webhook, webhook_id: wait_hook, method: POST, headers: {Content-Type: application/json}, body: '{"k": 1}'},
+     expect: []}
+  - {at: 19, send: {type: event, event_type: start_wait}, expect: [{type: automation_triggered, id: waiter}]}
+  - {at: 20, send: {type: webhook, webhook_id: wait_hook, method: POST, headers: {Content-Type: application/json}, body: '{"k": 2}', local: false},
+     expect: [{type: fire_event, event_type: wait_done, data: {w: webhook 2}}]}
+  - {at: 21, send: {type: webhook, webhook_id: wait_hook, method: POST, headers: {Content-Type: application/json}, body: '{"k": 3}'},
+     expect: []}

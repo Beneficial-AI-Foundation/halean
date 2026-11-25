@@ -1,0 +1,117 @@
+# `mqtt` trigger (components/mqtt/trigger.py): topic filters with `+` and
+# `#` (paho's matcher: wildcards at the first level skip `$` topics), the
+# subscription order (exact topics before wildcard filters), `payload`
+# (rendered when the trigger attaches; a number or boolean is its Python
+# text; an empty payload never matches), `value_template` (sees `value` and
+# `value_json`; a render error matches nothing), `trigger.*` with
+# `payload_json` only for JSON payloads, retained messages (once per
+# subscription and topic), templated topic and payload with the static
+# trigger_variables, and a `wait_for_trigger` on a topic.
+automations:
+  - id: wild_first              # attached first, but wildcard: runs after `exact`
+    triggers: [{trigger: mqtt, topic: "home/#"}]
+    actions:
+      - event: saw_wild
+        event_data: {t: "{{ trigger.topic }}"}
+  - id: exact
+    triggers: [{trigger: mqtt, topic: home/door, id: door}]
+    actions:
+      - event: saw_exact
+        event_data:
+          p: "{{ trigger.platform }}"
+          t: "{{ trigger.topic }}"
+          pl: "{{ trigger.payload }}"
+          q: "{{ trigger.qos }}"
+          d: "{{ trigger.description }}"
+          i: "{{ trigger.id }} {{ trigger.idx }} {{ trigger.alias }}"
+          j: "{{ trigger.payload_json if trigger.payload_json is defined else 'no json' }}"
+  - id: plus
+    triggers: [{trigger: mqtt, topic: "+/+/state", payload: "on"}]
+    actions:
+      - event: saw_plus
+        event_data: {t: "{{ trigger.topic }}"}
+  - id: sys
+    triggers: [{trigger: mqtt, topic: "$SYS/#"}]
+    actions: [{event: saw_sys, event_data: {t: "{{ trigger.topic }}"}}]
+  - id: value_tpl
+    triggers:
+      - {trigger: mqtt, topic: sensor/json, payload: "21", value_template: "{{ value_json.temp }}"}
+    actions: [{event: saw_temp, event_data: {pl: "{{ trigger.payload }}"}}]
+  - id: value_tpl_static        # a static value template: every message "matches"
+    triggers: [{trigger: mqtt, topic: sensor/static, payload: "yes", value_template: " yes "}]
+    actions: [{event: saw_static}]
+  - id: bool_payload            # `payload: true` is the template "True"
+    triggers: [{trigger: mqtt, topic: sensor/bool, payload: true, qos: 1}]
+    actions: [{event: saw_bool}]
+  - id: empty_payload           # "" is falsy: never matches
+    triggers: [{trigger: mqtt, topic: sensor/empty, payload: ""}]
+    actions: [{event: never_empty}]
+  - id: templated
+    trigger_variables: {room: kitchen, want: "go"}
+    triggers: [{trigger: mqtt, topic: "{{ room }}/cmd", payload: "{{ want ~ 'go' }}"}]
+    actions: [{event: saw_templated, event_data: {t: "{{ trigger.topic }}"}}]
+  - id: retained
+    triggers: [{trigger: mqtt, topic: "ret/+"}]
+    actions: [{event: saw_retained, event_data: {t: "{{ trigger.topic }}", pl: "{{ trigger.payload }}"}}]
+  - id: waits
+    triggers: [{trigger: event, event_type: start_wait}]
+    actions:
+      - wait_for_trigger: [{trigger: mqtt, topic: wait/topic, payload: "done"}]
+        timeout: 10
+      - event: wait_done
+        event_data: {w: "{{ wait.trigger.platform }} {{ wait.trigger.payload }} {{ wait.completed }}"}
+  - id: bad_plus                # invalid filter: HA rejects the config
+    triggers: [{trigger: mqtt, topic: "home/do+r"}]
+    actions: [{event: never_bad}]
+  - id: bad_hash
+    triggers: [{trigger: mqtt, topic: "home#"}]
+    actions: [{event: never_bad}]
+expect_init:
+  - {type: unsupported, id: bad_plus}
+  - {type: unsupported, id: bad_hash}
+steps:
+  - {at: 1, send: {type: mqtt, topic: home/door, payload: "open", qos: 1},
+     expect: [{type: automation_triggered, id: exact},
+              {type: fire_event, event_type: saw_exact,
+               data: {p: mqtt, t: home/door, pl: open, q: 1, d: mqtt topic home/door, i: door 0 None, j: no json}},
+              {type: automation_triggered, id: wild_first},
+              {type: fire_event, event_type: saw_wild, data: {t: home/door}}]}
+  - {at: 2, send: {type: mqtt, topic: home/door, payload: '{"a": [1, 2.5]}'},
+     expect: [{type: automation_triggered, id: exact},
+              {type: fire_event, event_type: saw_exact},
+              {type: automation_triggered, id: wild_first},
+              {type: fire_event, event_type: saw_wild}]}
+  - {at: 3, send: {type: mqtt, topic: home/hall/state, payload: "on"},
+     expect: [{type: automation_triggered, id: wild_first}, {type: fire_event, event_type: saw_wild},
+              {type: automation_triggered, id: plus}, {type: fire_event, event_type: saw_plus}]}
+  - {at: 4, send: {type: mqtt, topic: home/hall/state, payload: "off"},
+     expect: [{type: automation_triggered, id: wild_first}, {type: fire_event, event_type: saw_wild}]}
+  - {at: 5, send: {type: mqtt, topic: home, payload: "x"},       # `home/#` matches `home`
+     expect: [{type: automation_triggered, id: wild_first}, {type: fire_event, event_type: saw_wild}]}
+  - {at: 6, send: {type: mqtt, topic: "$SYS/x/state", payload: "on"},   # `+` skips `$SYS`
+     expect: [{type: automation_triggered, id: sys}, {type: fire_event, event_type: saw_sys}]}
+  - {at: 7, send: {type: mqtt, topic: sensor/json, payload: '{"temp": 21}'},
+     expect: [{type: automation_triggered, id: value_tpl}, {type: fire_event, event_type: saw_temp}]}
+  - {at: 8, send: {type: mqtt, topic: sensor/json, payload: '{"temp": 22}'}, expect: []}
+  - {at: 9, send: {type: mqtt, topic: sensor/json, payload: 'not json'}, expect: []}
+  - {at: 10, send: {type: mqtt, topic: sensor/static, payload: 'anything'},
+     expect: [{type: automation_triggered, id: value_tpl_static}, {type: fire_event, event_type: saw_static}]}
+  - {at: 11, send: {type: mqtt, topic: sensor/bool, payload: 'true'}, expect: []}
+  - {at: 12, send: {type: mqtt, topic: sensor/bool, payload: 'True'},
+     expect: [{type: automation_triggered, id: bool_payload}, {type: fire_event, event_type: saw_bool}]}
+  - {at: 13, send: {type: mqtt, topic: sensor/empty, payload: ''}, expect: []}
+  - {at: 14, send: {type: mqtt, topic: kitchen/cmd, payload: 'gogo'},
+     expect: [{type: automation_triggered, id: templated}, {type: fire_event, event_type: saw_templated}]}
+  - {at: 15, send: {type: mqtt, topic: kitchen/cmd, payload: 'go'}, expect: []}
+  - {at: 16, send: {type: mqtt, topic: ret/a, payload: '1', retain: true},
+     expect: [{type: automation_triggered, id: retained}, {type: fire_event, event_type: saw_retained, data: {t: ret/a, pl: 1}}]}
+  - {at: 17, send: {type: mqtt, topic: ret/a, payload: '2', retain: true}, expect: []}
+  - {at: 18, send: {type: mqtt, topic: ret/b, payload: '3', retain: true},
+     expect: [{type: automation_triggered, id: retained}, {type: fire_event, event_type: saw_retained, data: {t: ret/b, pl: 3}}]}
+  - {at: 19, send: {type: mqtt, topic: ret/a, payload: '4'},
+     expect: [{type: automation_triggered, id: retained}, {type: fire_event, event_type: saw_retained, data: {t: ret/a, pl: 4}}]}
+  - {at: 20, send: {type: event, event_type: start_wait}, expect: [{type: automation_triggered, id: waits}]}
+  - {at: 21, send: {type: mqtt, topic: wait/topic, payload: 'nope'}, expect: []}
+  - {at: 22, send: {type: mqtt, topic: wait/topic, payload: 'done'},
+     expect: [{type: fire_event, event_type: wait_done, data: {w: mqtt done True}}]}
+  - {at: 23, send: {type: mqtt, topic: wait/topic, payload: 'done'}, expect: []}

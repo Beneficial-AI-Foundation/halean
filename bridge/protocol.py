@@ -58,3 +58,55 @@ def protocol_scripts(scripts: dict | None) -> list:
             _order_actions(cfg.get("sequence"))
         out.append([key, cfg])
     return out
+
+
+_POST_METHODS = {"PATCH", "POST", "PUT", "TRACE", "DELETE"}
+
+
+def _content_type(raw: str | None) -> tuple[str, dict]:
+    """aiohttp's `parse_content_type` (`HeaderParser(EnsureOctetStream,
+    policy=HTTP)`): the lower-cased media type, `application/octet-stream`
+    when missing or malformed, and the parameters."""
+    if raw is None:
+        return "application/octet-stream", {}
+    from email.message import EmailMessage
+    from email.parser import HeaderParser
+    from email.policy import HTTP
+
+    class _EnsureOctetStream(EmailMessage):
+        def get_content_type(self) -> str:
+            ctype = self.get("content-type", "").lower().partition(";")[0].strip()
+            return ctype if ctype.count("/") == 1 else "application/octet-stream"
+
+    msg = HeaderParser(_EnsureOctetStream, policy=HTTP).parsestr(f"Content-Type: {raw}")
+    return msg.get_content_type(), dict(msg.get_params(())[1:])
+
+
+def webhook_input(webhook_id: str, method: str = "POST", headers: dict | None = None,
+                  body: str = "", query: str = "", local: bool = True) -> dict:
+    """A request to /api/webhook/<webhook_id> as the engine's `webhook` input:
+    what `_handle_webhook` reads from aiohttp's `Request` (`text()`, `post()`,
+    `query`), computed the way aiohttp does for a body sent as UTF-8.
+
+    `query` is split with `urllib.parse.parse_qsl` (yarl's parser agrees on
+    ordinary query strings). Multipart bodies are not supported."""
+    from urllib.parse import parse_qsl
+
+    hdrs = {k.lower(): v for k, v in (headers or {}).items()}
+    raw_ct = hdrs.get("content-type")
+    ctype, params = _content_type(raw_ct)
+    charset = params.get("charset") or "utf-8"
+    raw = body.encode("utf-8")
+    data: list = []
+    # `Request.post()`
+    if method in _POST_METHODS and ctype in ("", "application/x-www-form-urlencoded",
+                                             "multipart/form-data"):
+        if ctype == "multipart/form-data":
+            raise NotImplementedError("multipart webhook bodies are not supported")
+        if raw:
+            text = raw.rstrip().decode(charset)
+            data = [list(p) for p in parse_qsl(text, keep_blank_values=True, encoding=charset)]
+    return {"type": "webhook", "webhook_id": webhook_id, "method": method,
+            "content_type": raw_ct, "body": raw.decode(charset),  # `Request.text()`
+            "data": data, "query": [list(p) for p in parse_qsl(query, keep_blank_values=True)],
+            "local": local}

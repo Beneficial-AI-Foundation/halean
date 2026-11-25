@@ -1,0 +1,62 @@
+# Edges of the `mqtt` trigger: `+` matches an empty level, `#` alone skips
+# `$` topics; a retained message that does not match the payload still
+# counts as received for its subscription; `payload_json` reads integers
+# beyond 64 bits as floats (orjson); a value template's output is stripped;
+# the payload template sees `value` (None) unless a trigger variable of that
+# name wins; `qos` and `encoding` forms HA accepts; exact topics before
+# the `#` filter.
+automations:
+  - id: all
+    triggers: [{trigger: mqtt, topic: "#", qos: "2", encoding: UTF-8}]
+    actions: [{event: saw_all, event_data: {t: "{{ trigger.topic }}"}}]
+  - id: empty_level
+    triggers: [{trigger: mqtt, topic: "a/+/b", qos: 1.9}]
+    actions: [{event: saw_empty_level, event_data: {t: "{{ trigger.topic }}"}}]
+  - id: retained_on
+    triggers: [{trigger: mqtt, topic: "r/+", payload: "on"}]
+    actions: [{event: saw_retained_on, event_data: {t: "{{ trigger.topic }}"}}]
+  - id: big
+    triggers: [{trigger: mqtt, topic: big/n}]
+    actions:
+      - event: saw_big
+        event_data: {n: "{{ trigger.payload_json.n }}", s: "{{ trigger.payload_json.s }}", ty: "{{ trigger.payload_json.n is float }}"}
+  - id: strip
+    triggers: [{trigger: mqtt, topic: s/x, payload: "ok", value_template: "  {{ value | lower }}  "}]
+    actions: [{event: saw_strip}]
+  - id: value_none
+    triggers: [{trigger: mqtt, topic: v/x, payload: "{{ value }}"}]
+    actions: [{event: saw_value_none}]
+  - id: value_var
+    trigger_variables: {value: given}
+    triggers: [{trigger: mqtt, topic: v/y, payload: "{{ value }}"}]
+    actions: [{event: saw_value_var}]
+  - id: unicode
+    triggers: [{trigger: mqtt, topic: "küche/+"}]
+    actions: [{event: saw_unicode, event_data: {t: "{{ trigger.topic }}"}}]
+steps:
+  - {at: 1, send: {type: mqtt, topic: "$SYS/x", payload: "1"}, expect: []}
+  - {at: 2, send: {type: mqtt, topic: "a//b", payload: "1"},
+     expect: [{type: automation_triggered, id: all}, {type: fire_event, event_type: saw_all},
+              {type: automation_triggered, id: empty_level}, {type: fire_event, event_type: saw_empty_level}]}
+  - {at: 3, send: {type: mqtt, topic: "r/a", payload: "off", retain: true},
+     expect: [{type: automation_triggered, id: all}, {type: fire_event, event_type: saw_all}]}
+  - {at: 4, send: {type: mqtt, topic: "r/a", payload: "on", retain: true}, expect: []}
+  - {at: 5, send: {type: mqtt, topic: "r/a", payload: "on"},
+     expect: [{type: automation_triggered, id: all}, {type: fire_event, event_type: saw_all},
+              {type: automation_triggered, id: retained_on}, {type: fire_event, event_type: saw_retained_on}]}
+  - {at: 6, send: {type: mqtt, topic: big/n, payload: '{"n": 18446744073709551616, "s": 18446744073709551615}'},
+     expect: [{type: automation_triggered, id: big},
+              {type: fire_event, event_type: saw_big, data: {n: "1.8446744073709552e+19", s: 18446744073709551615, ty: true}},
+              {type: automation_triggered, id: all}, {type: fire_event, event_type: saw_all}]}
+  - {at: 7, send: {type: mqtt, topic: s/x, payload: "OK"},
+     expect: [{type: automation_triggered, id: strip}, {type: fire_event, event_type: saw_strip},
+              {type: automation_triggered, id: all}, {type: fire_event, event_type: saw_all}]}
+  - {at: 8, send: {type: mqtt, topic: v/x, payload: "None"},
+     expect: [{type: automation_triggered, id: value_none}, {type: fire_event, event_type: saw_value_none},
+              {type: automation_triggered, id: all}, {type: fire_event, event_type: saw_all}]}
+  - {at: 9, send: {type: mqtt, topic: v/y, payload: "given"},
+     expect: [{type: automation_triggered, id: value_var}, {type: fire_event, event_type: saw_value_var},
+              {type: automation_triggered, id: all}, {type: fire_event, event_type: saw_all}]}
+  - {at: 10, send: {type: mqtt, topic: "küche/licht", payload: "x"},
+     expect: [{type: automation_triggered, id: all}, {type: fire_event, event_type: saw_all},
+              {type: automation_triggered, id: unicode}, {type: fire_event, event_type: saw_unicode}]}

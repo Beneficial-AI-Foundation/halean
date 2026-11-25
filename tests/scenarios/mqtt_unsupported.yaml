@@ -1,0 +1,42 @@
+# `mqtt` triggers the engine refuses: HA rejects the config (an invalid
+# filter, qos), fails the attach (a templated topic that renders to an
+# invalid filter), or behaves in a way HALean does not model (other payload
+# encodings, a payload that becomes `bytes`, templates whose variables are
+# only known while a run runs, a payload template that reads states).
+differential: false
+differential_reason: "checks only that the engine refuses these automations"
+automations:
+  - {id: latin1, triggers: [{trigger: mqtt, topic: a, encoding: latin-1}], actions: []}
+  - {id: raw_bytes, triggers: [{trigger: mqtt, topic: a, encoding: ""}], actions: []}
+  - {id: bytes_payload, triggers: [{trigger: mqtt, topic: a, payload: "b'on'"}], actions: []}
+  - {id: qos3, triggers: [{trigger: mqtt, topic: a, qos: 3}], actions: []}
+  - {id: no_topic, triggers: [{trigger: mqtt}], actions: []}
+  - {id: hash_mid, triggers: [{trigger: mqtt, topic: "a/#/b"}], actions: []}
+  - {id: control, triggers: [{trigger: mqtt, topic: "a\tb"}], actions: []}
+  - id: tpl_invalid
+    trigger_variables: {x: "a#"}
+    triggers: [{trigger: mqtt, topic: "{{ x }}"}]
+    actions: []
+  - id: payload_states
+    triggers: [{trigger: mqtt, topic: a, payload: "{{ states('sensor.x') }}"}]
+    actions: []
+  - id: wait_topic
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{wait_for_trigger: [{trigger: mqtt, topic: "{{ 'a' }}"}]}]
+  - id: wait_payload
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{wait_for_trigger: [{trigger: mqtt, topic: a, payload: "{{ 'x' }}"}]}]
+expect_init:
+  - {type: unsupported, id: latin1}
+  - {type: unsupported, id: raw_bytes}
+  - {type: unsupported, id: bytes_payload}
+  - {type: unsupported, id: qos3}
+  - {type: unsupported, id: no_topic}
+  - {type: unsupported, id: hash_mid}
+  - {type: unsupported, id: control}
+  - {type: unsupported, id: tpl_invalid}
+  - {type: unsupported, id: payload_states}
+  - {type: unsupported, id: wait_topic}
+  - {type: unsupported, id: wait_payload}
+steps:
+  - {at: 1, send: {type: mqtt, topic: a, payload: "on"}, expect: []}

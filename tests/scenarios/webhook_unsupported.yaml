@@ -1,0 +1,23 @@
+# `webhook` triggers the engine refuses: configs HA rejects (duplicate or
+# unknown methods, a missing id) and templated ids it cannot render at load
+# (in a `wait_for_trigger`, or reading states).
+differential: false
+differential_reason: "checks only that the engine refuses these automations"
+automations:
+  - {id: dup_methods, triggers: [{trigger: webhook, webhook_id: a, allowed_methods: [post, POST]}], actions: []}
+  - {id: num_method, triggers: [{trigger: webhook, webhook_id: a, allowed_methods: 1}], actions: []}
+  - {id: no_id, triggers: [{trigger: webhook}], actions: []}
+  - id: id_states
+    triggers: [{trigger: webhook, webhook_id: "{{ states('sensor.x') }}"}]
+    actions: []
+  - id: wait_id
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{wait_for_trigger: [{trigger: webhook, webhook_id: "{{ 'a' }}"}]}]
+expect_init:
+  - {type: unsupported, id: dup_methods}
+  - {type: unsupported, id: num_method}
+  - {type: unsupported, id: no_id}
+  - {type: unsupported, id: id_states}
+  - {type: unsupported, id: wait_id}
+steps:
+  - {at: 1, send: {type: webhook, webhook_id: a, method: POST}, expect: []}

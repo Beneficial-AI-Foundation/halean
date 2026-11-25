@@ -26,7 +26,10 @@ import pytest
 import voluptuous as vol
 import yaml
 from freezegun.api import FrozenDateTimeFactory
-from pytest_homeassistant_custom_component.common import async_fire_time_changed
+from pytest_homeassistant_custom_component.common import (
+    async_fire_mqtt_message,
+    async_fire_time_changed,
+)
 
 from homeassistant.const import MATCH_ALL
 from homeassistant.core import Context, HomeAssistant, ServiceCall, SupportsResponse, callback
@@ -109,8 +112,57 @@ def expected_lingering_timers() -> bool:
     return True
 
 
-@pytest.mark.parametrize("path", SCENARIOS, ids=[p.stem for p in SCENARIOS])
+def _inputs(path: Path) -> set[str]:
+    """The inputs a scenario sends that need more of HA than the bus."""
+    sc = yaml.safe_load(path.read_text())
+    return {st["send"]["type"] for st in sc["steps"] if "send" in st} & {"mqtt", "webhook"}
+
+
+PLAIN = [p for p in SCENARIOS if not _inputs(p)]
+MQTT = [p for p in SCENARIOS if "mqtt" in _inputs(p)]
+WEBHOOK = [p for p in SCENARIOS if "webhook" in _inputs(p)]
+
+
+@pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
 async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+    await _run(hass, freezer, path)
+
+
+@pytest.mark.parametrize("path", MQTT, ids=[p.stem for p in MQTT])
+async def test_scenario_mqtt(hass: HomeAssistant, freezer: FrozenDateTimeFactory,
+                             mqtt_mock, path: Path) -> None:
+    """MQTT messages go through HA's MQTT client (`async_fire_mqtt_message`)."""
+    await _run(hass, freezer, path)
+
+
+@pytest.mark.parametrize("path", WEBHOOK, ids=[p.stem for p in WEBHOOK])
+async def test_scenario_webhook(hass: HomeAssistant, freezer: FrozenDateTimeFactory,
+                                hass_client_no_auth, path: Path) -> None:
+    """Webhook requests are HTTP requests to HA's `/api/webhook/<id>`."""
+    assert await async_setup_component(hass, "webhook", {})
+    await _run(hass, freezer, path, client=await hass_client_no_auth())
+
+
+async def _send_webhook(hass: HomeAssistant, client, msg: dict) -> None:
+    """The raw request; `local: false` makes HA see a non-local address."""
+    from unittest.mock import patch
+
+    from homeassistant.components import webhook
+
+    url = f"/api/webhook/{msg['webhook_id']}"
+    if msg.get("query"):
+        url += f"?{msg['query']}"
+    local = msg.get("local", True)
+    with patch.object(webhook.network_util, "is_local", wraps=None,
+                      side_effect=lambda ip: local):
+        resp = await client.request(msg.get("method", "POST"), url,
+                                    headers=msg.get("headers") or {},
+                                    data=msg.get("body", "").encode("utf-8"))
+        await resp.read()
+
+
+async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+               client=None) -> None:
     sc = yaml.safe_load(path.read_text())
     if not sc.get("differential", True):
         pytest.skip(sc.get("differential_reason", "engine-only scenario"))
@@ -183,6 +235,11 @@ async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, pat
             msg = st["send"]
             if msg["type"] == "event":
                 hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+            elif msg["type"] == "mqtt":
+                async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                        msg.get("qos", 0), msg.get("retain", False))
+            elif msg["type"] == "webhook":
+                await _send_webhook(hass, client, msg)
             elif msg["type"] == "service_result":
                 fut = futures[msg["call_id"]]
                 if fut.done():

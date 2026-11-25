@@ -25,7 +25,7 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bridge"))
-from protocol import protocol_automations  # noqa: E402
+from protocol import protocol_automations, webhook_input  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE = ROOT / ".lake" / "build" / "bin" / "halean-automation"
@@ -78,6 +78,10 @@ def build(sc: dict) -> tuple[list[dict], list, list[bool]]:
             new = state(eid, val, attrs, changed)
             msg = {"type": "state_changed", "entity_id": eid, "old_state": old, "new_state": new}
             current[eid] = new
+        elif st["send"]["type"] == "webhook":
+            # the raw request (method, headers, body, query string), as the
+            # shell turns it into the engine's input
+            msg = webhook_input(**{k: v for k, v in st["send"].items() if k != "type"})
         else:
             msg = dict(st["send"])
         msg.update(now=now, tz=tz)
