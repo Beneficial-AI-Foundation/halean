@@ -258,6 +258,21 @@ entries:
     compared by Python ==, nested mappings as a schema (eventDataMatches); a list in nested event_data and
     the context filter are rejected (events carry no context in the protocol)'
   hash: 87152f92fcbc896a
+- python: components/homeassistant/triggers/homeassistant.py::async_attach_trigger
+  lean:
+  - HALean.Automation.attachTriggers
+  - HALean.Automation.onEvent
+  status: translated
+  notes: 'start: armed when attached (Engine.haStart), fires once on homeassistant_started; shutdown is
+    rejected (a shutdown job, which the protocol does not report)'
+  hash: c5a3bb6ac0034512
+- python: components/tag/trigger.py::async_attach_trigger
+  lean:
+  - HALean.Automation.onEvent
+  status: translated
+  notes: 'tag_scanned: tag_id (and device_id, when given) must be one of the configured strings; no
+    composite device id expansion (no device registry)'
+  hash: c22926f7f41c3019
 - python: components/automation/__init__.py::AutomationEntity.async_trigger
   lean:
   - HALean.Automation.thisValue

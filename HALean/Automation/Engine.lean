@@ -215,6 +215,9 @@ structure Engine where
   (`_ScriptRun._started` is false): a `restart` start stops the other runs
   first, and that can start the same script again. -/
   starting : List Nat := []
+  /-- `homeassistant` start triggers still listening for `homeassistant_started`
+  (`async_listen_once`). -/
+  haStart : List (Owner × Nat) := []
   deriving Inhabited
 
 inductive Input where
@@ -321,7 +324,8 @@ def cleanupWait (e : Engine) (rid : Nat) : Engine :=
            sunNext := e.sunNext.filter (·.1.1 != o),
            timeEnt := e.timeEnt.filter (·.1.1 != o),
            armed := e.armed.filter (·.1 != o),
-           periods := e.periods.filter (·.1.1 != o) }
+           periods := e.periods.filter (·.1.1 != o),
+           haStart := e.haStart.filter (·.1 != o) }
 
 /-- Remove a run with its branches, and the listeners of their waits (also
 on stop: stopping a run cancels its sub-scripts). -/
@@ -436,6 +440,9 @@ def attachTriggers (o : Owner) (trigs : List Trigger) : EM Unit := do
         match Sun.nextEvent obs sunrise ((e.now.utc : Int) * 1000) e.now.tzOffsetSec off with
         | some at_ => sun := sun ++ [((o, t.idx), at_)]
         | none => logs := logs ++ [.log "error" s!"{a.alias}: Unable to find event after one year"]
+    | .haStart =>
+      let e' ← getE
+      setE { e' with armed, tmplTrigs := tts, sunNext := sun, haStart := e'.haStart ++ [(o, t.idx)] }
     | .template tm _ =>
       match Template.renderWithInfo tm (tmplCtxOf e o) true with
       | (.ok v, info) => tts := tts ++ [{ owner := o, trigIdx := t.idx, armed := !Template.resultAsBoolean v, info }]
@@ -1371,19 +1378,41 @@ partial def eventDataMatches (want : List (String × Json)) (data : Json) : Bool
 
 /-- `event.py` -/
 def onEvent (ty : String) (data : Json) : EM Unit := do
+  let ev : Template.Value := .pyobj "Event" [
+    ("event_type", .str ty), ("data", Template.Value.ofJson data),
+    ("origin", .opaque "event.origin"), ("time_fired", .opaque "datetime"),
+    ("context", .opaque "context")]
   for (o, trigs) in (← getE).owners do
     for t in trigs do
       if !(← getE).listening o then break
-      if let .event types want := t.kind then
+      match t.kind with
+      | .event types want =>
         if types.contains ty && eventDataMatches want data then
-          let ev : Template.Value := .pyobj "Event" [
-            ("event_type", .str ty), ("data", Template.Value.ofJson data),
-            ("origin", .opaque "event.origin"), ("time_fired", .opaque "datetime"),
-            ("context", .opaque "context")]
           fire o {
             id := t.id, idx := t.idx, platform := "event",
             description := s!"event '{ty}'",
             value := triggerValue t "event" [("event", ev), ("description", .str s!"event '{ty}'")] }
+      | .haStart =>
+        -- `homeassistant/triggers/homeassistant.py`: `async_listen_once`
+        let e ← getE
+        if ty == "homeassistant_started" && e.haStart.contains (o, t.idx) then
+          setE { e with haStart := e.haStart.filter (· != (o, t.idx)) }
+          fire o {
+            id := t.id, idx := t.idx, platform := "homeassistant",
+            description := "Home Assistant starting",
+            value := triggerValue t "homeassistant" [("event", .str "start"),
+              ("description", .str "Home Assistant starting")] }
+      | .tag tags devs =>
+        -- `tag/trigger.py::handle_event`: `event.data.get(TAG_ID) not in tag_ids`
+        let inSet (k : String) (xs : List String) : Bool :=
+          match field? data k with
+          | some (.str s) => xs.contains s
+          | _ => false
+        if ty == "tag_scanned" && inSet "tag_id" tags && (devs.map (inSet "device_id")).getD true then
+          fire o {
+            id := t.id, idx := t.idx, platform := "tag", description := "Tag scanned",
+            value := triggerValue t "tag" [("event", ev), ("description", .str "Tag scanned")] }
+      | _ => pure ()
 
 def Pattern.matches (p : Pattern) (v : Nat) : Bool :=
   match p with

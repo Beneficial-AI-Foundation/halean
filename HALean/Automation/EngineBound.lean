@@ -79,16 +79,16 @@ theorem Inv.branches {e e' : Engine} (h : Inv e) (kids : List Run)
     rw [hr, this]; exact Nat.le_refl _
 
 /-- A record update of anything but runs, automations and scripts. -/
-theorem Inv.mk {e : Engine} (h : Inv e) {st now pend armed nri nci npi ls tt lt per wt wk loc sun te sg} :
+theorem Inv.mk {e : Engine} (h : Inv e) {st now pend armed nri nci npi ls tt lt per wt wk loc sun te sg hs} :
     Inv ⟨e.automations, st, now, pend, armed, e.runs, nri, nci, npi, ls, tt, lt, per, wt, wk, loc, sun,
-      te, e.scripts, sg⟩ :=
+      te, e.scripts, sg, hs⟩ :=
   h.upd rfl rfl rfl
 
 /-- A record update that adds `parallel` branches. -/
 theorem Inv.mkBranches {e : Engine} (h : Inv e) {kids : List Run} (hp : ∀ k ∈ kids, k.parent ≠ none)
-    {st now pend armed nri nci npi ls tt lt per wt wk loc sun te sg} :
+    {st now pend armed nri nci npi ls tt lt per wt wk loc sun te sg hs} :
     Inv ⟨e.automations, st, now, pend, armed, e.runs ++ kids, nri, nci, npi, ls, tt, lt, per, wt, wk, loc,
-      sun, te, e.scripts, sg⟩ :=
+      sun, te, e.scripts, sg, hs⟩ :=
   h.branches kids rfl rfl rfl hp
 
 open Lean Elab Tactic Meta in

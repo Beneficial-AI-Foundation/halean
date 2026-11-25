@@ -1,0 +1,23 @@
+# `homeassistant` start trigger (async_listen_once on homeassistant_started)
+# and the `tag` trigger (tag_scanned events, tag_id and optional device_id)
+automations:
+  - id: started
+    triggers: [{trigger: homeassistant, event: start, id: boot}]
+    actions:
+      - event: saw_start
+        event_data: {p: "{{ trigger.platform }}", e: "{{ trigger.event }}", d: "{{ trigger.description }}", i: "{{ trigger.id }}"}
+  - id: tag_any
+    triggers: [{trigger: tag, tag_id: [abc, "123"]}]
+    actions:
+      - event: saw_tag
+        event_data: {p: "{{ trigger.platform }}", t: "{{ trigger.event.data.tag_id }}", d: "{{ trigger.description }}"}
+  - id: tag_device
+    triggers: [{trigger: tag, tag_id: abc, device_id: reader1}]
+    actions: [{event: saw_tag_device}]
+steps:
+  - {at: 1, send: {type: event, event_type: homeassistant_started}, expect: [{type: automation_triggered}, {type: fire_event, event_type: saw_start, data: {p: homeassistant, e: start, d: Home Assistant starting, i: boot}}]}
+  - {at: 2, send: {type: event, event_type: homeassistant_started}, expect: []}
+  - {at: 3, send: {type: event, event_type: tag_scanned, data: {tag_id: abc, device_id: reader2}}, expect: [{type: automation_triggered}, {type: fire_event, event_type: saw_tag}]}
+  - {at: 4, send: {type: event, event_type: tag_scanned, data: {tag_id: abc, device_id: reader1}}, expect: [{type: automation_triggered, id: tag_any}, {type: fire_event, event_type: saw_tag}, {type: automation_triggered, id: tag_device}, {type: fire_event, event_type: saw_tag_device}]}
+  - {at: 5, send: {type: event, event_type: tag_scanned, data: {tag_id: 123}}, expect: []}
+  - {at: 6, send: {type: event, event_type: tag_scanned, data: {tag_id: "123"}}, expect: [{type: automation_triggered}, {type: fire_event, event_type: saw_tag}]}

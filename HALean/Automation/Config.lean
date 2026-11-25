@@ -117,8 +117,14 @@ inductive TriggerKind where
   | zone (entityIds : List String) (zone : String) (enter : Bool)
   /-- Legacy `sun` trigger: `sunrise` (or sunset) plus `offset` (µs). -/
   | sun (sunrise : Bool) (offsetUs : Int)
-  /-- Flat `event_data` only: every pair must be present and equal. -/
+  /-- `event_type` and `event_data` as rendered when the trigger attached
+  (`eventDataMatches`). -/
   | event (eventTypes : List String) (data : List (String × Json))
+  /-- `homeassistant` with `event: start`: fires once, on `homeassistant_started`. -/
+  | haStart
+  /-- `tag`: a `tag_scanned` event whose `tag_id` (and `device_id`, when
+  given) is one of these. -/
+  | tag (tagIds : List String) (deviceIds : Option (List String))
   /-- `template` trigger (`components/template/trigger.py`). -/
   | template (t : Template.Tmpl) (forP : Option ForPeriod)
   deriving Repr, Inhabited
@@ -684,6 +690,27 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
           | .ok us => pure us
           | .error e => throw s!"invalid sun trigger offset {v.compress}: {e}"
       pure <| TriggerKind.sun sunrise off
+    | "homeassistant" =>
+      match field? j "event" with
+      | some (.str "start") => pure TriggerKind.haStart
+      | some (.str "shutdown") =>
+        throw "the homeassistant shutdown trigger is not supported: HA runs it as a shutdown job, before any event the shell sees"
+      | _ => throw "value must be one of ['shutdown', 'start'] for dictionary value @ data['event']"
+    | "tag" =>
+      -- `probatio.All(probatio.EnsureList(), [cv.string])`
+      let strs (k : String) (v : Json) : D (List String) :=
+        (ensureList v).mapM fun x => match x with
+          | .str s => pure s
+          | x@(.num _) | x@(.bool _) => match Template.pyStr (Template.Value.ofJson x) with
+            | .ok s => pure s
+            | .error e => throw e
+          | x => throw s!"expected str for {k}, got {x.compress}"
+      let some tagJ := field? j "tag_id" | throw "required key not provided @ data['tag_id']"
+      let tags ← strs "tag_id" tagJ
+      let devs ← match field? j "device_id" with
+        | none => pure none
+        | some d => some <$> strs "device_id" d
+      pure (TriggerKind.tag tags devs)
     | p => throw s!"trigger platform '{p}' is not supported"
   return some { id, idx, alias := str? j "alias", kind }
 
