@@ -748,6 +748,28 @@ def automationEntityIds (raw : List Json) (taken : List String) : List (Option S
       out := out ++ [none]
   return out
 
+/-- Python's `int(value)` for a JSON value: an int as is, a float truncated
+toward zero, a string read as an integer literal, `True`/`False` as 1/0;
+`none` where Python raises. -/
+def pyIntOfJson? (v : Json) : Option Int :=
+  match v with
+  | .num _ => match Template.Value.ofJson v with
+    | .int i => some i
+    | .float f => Template.floatToInt? f
+    | _ => none
+  | .str s => Template.parseIntStr s
+  | .bool b => some (if b then 1 else 0)
+  | _ => none
+
+/-- `max` of an automation or a script (`helpers/script.py`
+`make_script_schema`): `probatio.All(probatio.Coerce(int),
+probatio.Range(min=2))`. So `2.5` is 2, `"3"` is 3, and 0, 1, a negative
+number or `true` are refused. -/
+def maxRunsOf (v : Json) : Except String Nat :=
+  match pyIntOfJson? v with
+  | none => .error "expected int at 'max'"
+  | some i => if i < 2 then .error "value must be at least 2 at 'max'" else .ok i.toNat
+
 /-- Decode one automation, the `listNo`-th in the configuration, whose
 entity id is `entityId` (see `automationEntityIds`). -/
 def decodeAutomation (j : Json) (listNo : Nat := 0) (entityId : Option String := none) :
@@ -786,9 +808,11 @@ def decodeAutomation (j : Json) (listNo : Nat := 0) (entityId : Option String :=
     | some "queued" => pure .queued
     | some "parallel" => pure .parallel
     | some m => throw s!"unknown mode {m}"
-  let maxRuns := match field? j "max" with
-    | some (.num n) => n.mantissa.toNat
-    | _ => 10
+  let maxRuns ← match field? j "max" with
+    | none => pure 10
+    | some v => match maxRunsOf v with
+      | .ok n => pure n
+      | .error m => throw m
   return { id, alias, triggers := trigs.filterMap (fun x => x), conditions := conds,
            actions := acts.filterMap (fun x => x), mode, maxRuns,
            variables := mvars, triggerVars := tvars, entityId, uniqueId := str? j "id" }

@@ -301,22 +301,13 @@ theorem decodeScript_ok (key : String) (j : Json) (extra : List String) (s : Scr
       clear_value jpMax
       split at h
       · exact ⟨10, by decide, fun _ => rfl, h⟩
-      · rename_i n hv
-        simp only at h
-        split at h
-        · exact (throw_bind h).elim
-        · split at h
-          · exact (throw_bind h).elim
-          · rename_i hlt
-            exact ⟨_, by omega, fun hn => (by rw [hn] at hv; cases hv), h⟩
-      · rename_i s hv
+      · rename_i v hv
         split at h
         · split at h
           · exact (throw_bind h).elim
           · rename_i hlt
             exact ⟨_, by omega, fun hn => (by rw [hn] at hv; cases hv), h⟩
         · exact (throw_bind h).elim
-      · exact (throw_bind h).elim
     obtain ⟨maxRuns, hmax1, hmax2, h⟩ := h
     simp -zeta only [jpMax] at h
     clear jpMax

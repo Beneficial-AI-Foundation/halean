@@ -165,14 +165,11 @@ def decodeScript (key : String) (j : Json) (extraNames : List String := []) :
   -- `vol.All(vol.Coerce(int), vol.Range(min=2))`
   let maxRuns ← match field? j "max" with
     | none => pure 10
-    | some (.num n) =>
-      if n.exponent != 0 then throw s!"max must be an integer, got {n}"
-      if n.mantissa < 2 then throw "value must be at least 2 for dictionary value @ data['max']"
-      pure n.mantissa.toNat
-    | some (.str s) => match s.trim.toInt? with
-      | some i => if i < 2 then throw "value must be at least 2 for dictionary value @ data['max']" else pure i.toNat
-      | none => throw s!"expected int for dictionary value @ data['max'], got {s}"
-    | some v => throw s!"expected int for dictionary value @ data['max'], got {v.compress}"
+    | some v => match pyIntOfJson? v with
+      | some i =>
+        if i < 2 then throw "value must be at least 2 for dictionary value @ data['max']"
+        else pure i.toNat
+      | none => throw s!"expected int for dictionary value @ data['max'], got {v.compress}"
   if let some me := field? j "max_exceeded" then
     let s ← cvString "max_exceeded" me
     if !MAX_EXCEEDED_CHOICES.contains s.toUpper then throw s!"invalid max_exceeded {s}"
