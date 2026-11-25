@@ -33,14 +33,35 @@ private theorem forIn_pure_yield {α β σ : Type} (l : List α) (g : β → α 
 
 /-! ### Triggering an automation (`AutomationEntity.async_trigger`) -/
 
+/-- The variables the firing trigger defines itself (none for most). -/
+def ownVars (a : Automation) (tv : TriggerVars) : List (String × Complex) :=
+  ((a.triggers.find? (·.idx == tv.idx)).map (·.variables)).getD []
+
+/-- What they are rendered in: `trigger` only. -/
+def ownEnv (e : Engine) (tv : TriggerVars) : CondEnv :=
+  { e.condEnv with vars := [("trigger", tv.value)] }
+
 /-- The environment an automation's `variables` are rendered in: `this`
-(when the automation has an entity) and `trigger`. -/
-def trigEnv (e : Engine) (ai : Nat) (a : Automation) (tv : TriggerVars) : CondEnv :=
+(when the automation has an entity), then `trigger` and the trigger's own
+variables (`runVars`, rendered in `ownEnv`). -/
+def trigEnv (e : Engine) (ai : Nat) (a : Automation) (tv : TriggerVars)
+    (runVars : List (String × Template.Value)) : CondEnv :=
   { states := e.condEnv.states, now := e.condEnv.now, triggerId := some tv.id,
     vars := (match a.entityId with
         | some eid => [("this", thisValue e ai a eid)]
-        | none => []) ++ [("trigger", tv.value)],
+        | none => []) ++ runVars,
     location := e.condEnv.location }
+
+/-- An error rendering the trigger's own variables stops the trigger: one
+error is logged. -/
+theorem triggerAutomation_trigger_vars_error (ai : Nat) (tv : TriggerVars) (e : Engine)
+    (acc : List Cmd) (a : Automation) (msg : String)
+    (ha : e.automations[ai]? = some a)
+    (hown : renderVariables (ownEnv e tv) (ownVars a tv) = .error msg) :
+    (triggerAutomation ai tv).run (e, acc) =
+      ((), (e, acc ++ [.log "error" s!"{a.alias}: Error rendering trigger variables: {msg}"])) := by
+  unfold ownEnv ownVars at hown
+  em_simp [triggerAutomation, ha, hown]
 
 /-- The environment its conditions are checked in: the rendered variables. -/
 def condEnvOf (e : Engine) (tv : TriggerVars) (vars : List (String × Template.Value)) : CondEnv :=
@@ -68,67 +89,81 @@ theorem triggerAutomation_missing (ai : Nat) (tv : TriggerVars) (e : Engine) (ac
 theorem triggerAutomation_render_error (ai : Nat) (tv : TriggerVars) (e : Engine) (acc : List Cmd)
     (a : Automation) (msg : String)
     (ha : e.automations[ai]? = some a)
-    (hv : renderVariables (trigEnv e ai a tv) a.variables = .error msg) :
+    (runVars : List (String × Template.Value))
+    (hown : renderVariables (ownEnv e tv) (ownVars a tv) = .ok runVars)
+    (hv : renderVariables (trigEnv e ai a tv runVars) a.variables = .error msg) :
     (triggerAutomation ai tv).run (e, acc) =
       ((), (e, acc ++ [.log "error" s!"{a.alias}: Error rendering variables: {msg}"])) := by
   unfold trigEnv at hv
+  unfold ownEnv ownVars at hown
   cases hE : a.entityId <;> simp [hE] at hv <;>
-  em_simp [triggerAutomation, ha, hE, hv]
+  em_simp [triggerAutomation, ha, hown, hE, hv]
 
 /-- Conditions are checked before the run mode: when they fail nothing
 changes, whatever is running. -/
 theorem triggerAutomation_conditions (ai : Nat) (tv : TriggerVars) (e : Engine) (acc : List Cmd)
     (a : Automation) (vars : List (String × Template.Value))
     (ha : e.automations[ai]? = some a)
-    (hv : renderVariables (trigEnv e ai a tv) a.variables = .ok vars)
+    (runVars : List (String × Template.Value))
+    (hown : renderVariables (ownEnv e tv) (ownVars a tv) = .ok runVars)
+    (hv : renderVariables (trigEnv e ai a tv runVars) a.variables = .ok vars)
     (hc : checkAutomationConditions (condEnvOf e tv vars) a.conditions = false) :
     (triggerAutomation ai tv).run (e, acc) =
       ((), (e, acc ++ [.log "debug" s!"{a.alias}: conditions not met"])) := by
   unfold trigEnv at hv
+  unfold ownEnv ownVars at hown
   unfold condEnvOf at hc
   cases hE : a.entityId <;> simp [hE] at hv <;>
-  em_simp [triggerAutomation, ha, hE, hv, hc]
+  em_simp [triggerAutomation, ha, hown, hE, hv, hc]
 
 /-- A rejected trigger (`single` while running, `max` reached) only logs a
 warning. -/
 theorem triggerAutomation_reject (ai : Nat) (tv : TriggerVars) (e : Engine) (acc : List Cmd)
     (a : Automation) (vars : List (String × Template.Value)) (why : String)
     (ha : e.automations[ai]? = some a)
-    (hv : renderVariables (trigEnv e ai a tv) a.variables = .ok vars)
+    (runVars : List (String × Template.Value))
+    (hown : renderVariables (ownEnv e tv) (ownVars a tv) = .ok runVars)
+    (hv : renderVariables (trigEnv e ai a tv runVars) a.variables = .ok vars)
     (hc : checkAutomationConditions (condEnvOf e tv vars) a.conditions = true)
     (hr : admit a.mode a.maxRuns (runsOf e ai).length = .reject why) :
     (triggerAutomation ai tv).run (e, acc) =
       ((), (e, acc ++ [.log "warning" s!"{a.alias}: {why}"])) := by
   unfold trigEnv at hv
+  unfold ownEnv ownVars at hown
   unfold condEnvOf at hc
   cases hE : a.entityId <;> simp [hE] at hv <;>
-  em_simp [triggerAutomation, ha, hE, hv, hc, hr]
+  em_simp [triggerAutomation, ha, hown, hE, hv, hc, hr]
 
 /-- `queued` with a run in flight: the new run is added at the end, waiting
 for the lock; it is announced but not driven. -/
 theorem triggerAutomation_enqueue (ai : Nat) (tv : TriggerVars) (e : Engine) (acc : List Cmd)
     (a : Automation) (vars : List (String × Template.Value))
     (ha : e.automations[ai]? = some a)
-    (hv : renderVariables (trigEnv e ai a tv) a.variables = .ok vars)
+    (runVars : List (String × Template.Value))
+    (hown : renderVariables (ownEnv e tv) (ownVars a tv) = .ok runVars)
+    (hv : renderVariables (trigEnv e ai a tv runVars) a.variables = .ok vars)
     (hc : checkAutomationConditions (condEnvOf e tv vars) a.conditions = true)
     (hr : admit a.mode a.maxRuns (runsOf e ai).length = .enqueue) :
     (triggerAutomation ai tv).run (e, acc) =
       ((), (withRun e ai (newRun e ai a tv vars .queued),
             acc ++ [.automationTriggered a.id a.alias tv.description])) := by
   unfold trigEnv at hv
+  unfold ownEnv ownVars at hown
   unfold condEnvOf at hc
   have h1 : (Admit.enqueue == Admit.restart) = false := by decide
   have h3 : (Admit.enqueue == Admit.enqueue) = true := by decide
   have h2 : (Wait.queued == Wait.ready) = false := by rfl
   cases hE : a.entityId <;> simp [hE] at hv <;>
-  em_simp [triggerAutomation, ha, hE, hv, hc, hr, h1, h2, h3, withRun, newRun]
+  em_simp [triggerAutomation, ha, hown, hE, hv, hc, hr, h1, h2, h3, withRun, newRun]
 
 /-- An admitted run that may start at once: it is added, announced, and
 then driven. -/
 theorem triggerAutomation_start (ai : Nat) (tv : TriggerVars) (e : Engine) (acc : List Cmd)
     (a : Automation) (vars : List (String × Template.Value))
     (ha : e.automations[ai]? = some a)
-    (hv : renderVariables (trigEnv e ai a tv) a.variables = .ok vars)
+    (runVars : List (String × Template.Value))
+    (hown : renderVariables (ownEnv e tv) (ownVars a tv) = .ok runVars)
+    (hv : renderVariables (trigEnv e ai a tv runVars) a.variables = .ok vars)
     (hc : checkAutomationConditions (condEnvOf e tv vars) a.conditions = true)
     (hr : admit a.mode a.maxRuns (runsOf e ai).length = .start) :
     (triggerAutomation ai tv).run (e, acc) =
@@ -136,19 +171,22 @@ theorem triggerAutomation_start (ai : Nat) (tv : TriggerVars) (e : Engine) (acc 
         (withRun e ai (newRun e ai a tv vars .ready),
          acc ++ [.automationTriggered a.id a.alias tv.description]) := by
   unfold trigEnv at hv
+  unfold ownEnv ownVars at hown
   unfold condEnvOf at hc
   have h1 : (Admit.start == Admit.restart) = false := by decide
   have h3 : (Admit.start == Admit.enqueue) = false := by decide
   have h2 : (Wait.ready == Wait.ready) = true := by rfl
   cases hE : a.entityId <;> simp [hE] at hv <;>
-  em_simp [triggerAutomation, ha, hE, hv, hc, hr, h1, h2, h3, withRun, newRun]
+  em_simp [triggerAutomation, ha, hown, hE, hv, hc, hr, h1, h2, h3, withRun, newRun]
 
 /-- `restart`: the new run is added first, then every older run of the
 automation is removed, and only then is the new one driven. -/
 theorem triggerAutomation_restart (ai : Nat) (tv : TriggerVars) (e : Engine) (acc : List Cmd)
     (a : Automation) (vars : List (String × Template.Value))
     (ha : e.automations[ai]? = some a)
-    (hv : renderVariables (trigEnv e ai a tv) a.variables = .ok vars)
+    (runVars : List (String × Template.Value))
+    (hown : renderVariables (ownEnv e tv) (ownVars a tv) = .ok runVars)
+    (hv : renderVariables (trigEnv e ai a tv runVars) a.variables = .ok vars)
     (hc : checkAutomationConditions (condEnvOf e tv vars) a.conditions = true)
     (hr : admit a.mode a.maxRuns (runsOf e ai).length = .restart) :
     (triggerAutomation ai tv).run (e, acc) =
@@ -157,12 +195,13 @@ theorem triggerAutomation_restart (ai : Nat) (tv : TriggerVars) (e : Engine) (ac
             (withRun e ai (newRun e ai a tv vars .ready)),
          acc ++ [.automationTriggered a.id a.alias tv.description]) := by
   unfold trigEnv at hv
+  unfold ownEnv ownVars at hown
   unfold condEnvOf at hc
   have h1 : (Admit.restart == Admit.restart) = true := by decide
   have h3 : (Admit.restart == Admit.enqueue) = false := by decide
   have h2 : (Wait.ready == Wait.ready) = true := by rfl
   cases hE : a.entityId <;> simp [hE] at hv <;>
-  em_simp [triggerAutomation, ha, hE, hv, hc, hr, h1, h2, h3, withRun, newRun, forIn_pure_yield]
+  em_simp [triggerAutomation, ha, hown, hE, hv, hc, hr, h1, h2, h3, withRun, newRun, forIn_pure_yield]
 
 /-- `single` really is single, one trigger at a time: while the automation
 has a run, a trigger never changes the engine (it can only log). -/
@@ -173,12 +212,15 @@ theorem triggerAutomation_single_busy (ai : Nat) (tv : TriggerVars) (e : Engine)
   have hr : admit a.mode a.maxRuns (runsOf e ai).length = .reject "Already running" := by
     have : (runsOf e ai).length ≠ 0 := by simpa using hb
     simp [admit, hm, this]
-  cases hv : renderVariables (trigEnv e ai a tv) a.variables with
-  | error msg => rw [triggerAutomation_render_error ai tv e acc a msg ha hv]
+  cases hown : renderVariables (ownEnv e tv) (ownVars a tv) with
+  | error msg => rw [triggerAutomation_trigger_vars_error ai tv e acc a msg ha hown]
+  | ok runVars =>
+  cases hv : renderVariables (trigEnv e ai a tv runVars) a.variables with
+  | error msg => rw [triggerAutomation_render_error ai tv e acc a msg ha runVars hown hv]
   | ok vars =>
     cases hc : checkAutomationConditions (condEnvOf e tv vars) a.conditions with
-    | false => rw [triggerAutomation_conditions ai tv e acc a vars ha hv hc]
-    | true => rw [triggerAutomation_reject ai tv e acc a vars _ ha hv hc hr]
+    | false => rw [triggerAutomation_conditions ai tv e acc a vars ha runVars hown hv hc]
+    | true => rw [triggerAutomation_reject ai tv e acc a vars _ ha runVars hown hv hc hr]
 
 /-- `max` is respected, one trigger at a time: a `queued` or `parallel`
 automation that already has `max` runs never gets another. -/
@@ -190,12 +232,15 @@ theorem triggerAutomation_full (ai : Nat) (tv : TriggerVars) (e : Engine) (acc :
   have hr : admit a.mode a.maxRuns (runsOf e ai).length
       = .reject "Maximum number of runs exceeded" := by
     rcases hm with hm | hm <;> simp [admit, hm, hfull, hpos]
-  cases hv : renderVariables (trigEnv e ai a tv) a.variables with
-  | error msg => rw [triggerAutomation_render_error ai tv e acc a msg ha hv]
+  cases hown : renderVariables (ownEnv e tv) (ownVars a tv) with
+  | error msg => rw [triggerAutomation_trigger_vars_error ai tv e acc a msg ha hown]
+  | ok runVars =>
+  cases hv : renderVariables (trigEnv e ai a tv runVars) a.variables with
+  | error msg => rw [triggerAutomation_render_error ai tv e acc a msg ha runVars hown hv]
   | ok vars =>
     cases hc : checkAutomationConditions (condEnvOf e tv vars) a.conditions with
-    | false => rw [triggerAutomation_conditions ai tv e acc a vars ha hv hc]
-    | true => rw [triggerAutomation_reject ai tv e acc a vars _ ha hv hc hr]
+    | false => rw [triggerAutomation_conditions ai tv e acc a vars ha runVars hown hv hc]
+    | true => rw [triggerAutomation_reject ai tv e acc a vars _ ha runVars hown hv hc hr]
 
 /-- `queued` is first-in, first-out at admission: the new run goes behind
 every run the automation already has, and other automations are not

@@ -135,6 +135,9 @@ structure Trigger where
   idx : Nat
   alias : Option String := none
   kind : TriggerKind
+  /-- The trigger's own `variables`, rendered (not limited) when it fires,
+  seeing `trigger` and the ones before them (`_trigger_action_wrapper`). -/
+  variables : List (String × Complex) := []
   deriving Repr, Inhabited
 
 /-- The service an action calls (`cv.service` or `dynamic_template`). -/
@@ -556,6 +559,21 @@ partial def jsonHasList : Json → Bool
   | .obj m => m.toList.any fun (_, x) => jsonHasList x
   | _ => false
 
+/-- `render_complex(value, variables, limited=True)` of a JSON value at load
+time: the variables are known then, and a limited template reads neither
+states nor the clock. -/
+def limitedRenderJson (vars : List (String × Json)) (what : String) (v : Json) : D Json :=
+  renderJsonTemplates (fun s => do
+    let t ← compileTemplate s (vars.map (·.1))
+    for n in (t.nodes.map Template.nodeNames).flatMap (fun p => p.1.1 ++ p.1.2.1 ++ p.1.2.2) do
+      if LIMITED_UNSUPPORTED.contains n then
+        throw s!"'{n}' in templated {what} is not supported by HALean"
+    match Template.render t { states := [], vars := vars.map fun (k, x) => (k, Template.Value.ofJson x) } true with
+    | .ok r => match r.toJson with
+      | .ok j => pure j
+      | .error e => throw s!"templated {what} '{s}': {e}"
+    | .error e => throw s!"Error rendering {what}: {e}") v
+
 /-- `tvals`: the static trigger_variables, when the trigger attaches with
 them (an automation's triggers, not `wait_for_trigger`). -/
 def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
@@ -567,7 +585,13 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
       | none => .unsupported)) then return none
   let platform := (str? j "trigger").orElse (fun _ => str? j "platform") |>.getD ""
   let id := (str? j "id").getD (toString idx)
-  noTemplate j "variables"
+  -- the trigger's own `variables` (`cv.SCRIPT_VARIABLES_SCHEMA`)
+  let ownVars ← match field? j "variables" with
+    | none => pure []
+    | some v => do
+      if tvals.isNone then throw "a trigger's variables are not supported in wait_for_trigger"
+      (← orderedMapping "variables" v).foldlM (init := []) fun acc (k, x) => do
+        pure (acc ++ [(k, ← decodeComplex x (["trigger"] ++ acc.map (·.1)))])
   let kind ← match platform with
     | "state" =>
       let ids ← entityIds j
@@ -749,7 +773,7 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
         | some d => some <$> strs "device_id" d
       pure (TriggerKind.tag tags devs)
     | p => throw s!"trigger platform '{p}' is not supported"
-  return some { id, idx, alias := str? j "alias", kind }
+  return some { id, idx, alias := str? j "alias", kind, variables := ownVars }
 
 /-- `cv.comp_entity_ids`: `all` / `none` (any case), or entity ids
 (`ensure_list_csv`, each lower-cased and validated). -/
@@ -980,11 +1004,15 @@ def decodeAutomation (j : Json) (listNo : Nat := 0) (entityId : Option String :=
     | none => pure []
     | some v => orderedMapping k v
   let tvars ← mapping "trigger_variables"
-  -- trigger_variables are rendered `limited` when triggers attach; HALean
-  -- supports static values only
-  for (k, v) in tvars do
-    if (← decodeComplex v []).hasTemplate' then
-      throw s!"templated trigger_variables ({k}) are not supported"
+  -- `_async_attach_triggers`: trigger_variables are rendered `limited` when
+  -- the triggers attach, in order, each seeing the ones before it and
+  -- `this` (a run variable, so a trigger variable named `this` is skipped).
+  -- Limited templates read neither states nor the clock, so the values the
+  -- triggers see are known now. (At each trigger they are rendered again
+  -- with the automation's variables.)
+  let tvals ← tvars.foldlM (init := []) fun acc (k, v) => do
+    if k == "this" || acc.any (·.1 == k) then return acc
+    pure (acc ++ [(k, ← limitedRenderJson acc "trigger_variables" v)])
   let vars ← mapping "variables"
   -- `ScriptVariables(trigger_variables).variables.update(variables)`
   let merged := vars.foldl (fun acc (k, v) =>
@@ -994,11 +1022,19 @@ def decodeAutomation (j : Json) (listNo : Nat := 0) (entityId : Option String :=
   -- the names templates may use: `trigger`, `repeat`, `this` (when the
   -- automation's entity id is known), and every variable the automation
   -- defines (anywhere, including `variables` actions)
+  -- (and the variables triggers define)
+  let trigVarNames := (ensureList (pick "triggers" "trigger")).flatMap fun t =>
+    match field? t "variables" with
+    | some (.obj kvs) => kvs.toList.map (·.1)
+    | some (.arr xs) => xs.toList.filterMap fun x => match x with
+      | .arr #[.str k, _] => some k
+      | _ => none
+    | _ => []
   let nm := TEMPLATE_VARS ++ ["repeat", "wait"] ++ (if entityId.isSome then ["this"] else [])
-    ++ merged.map (·.1) ++ actionVariableNames (pick "actions" "action")
+    ++ merged.map (·.1) ++ trigVarNames ++ actionVariableNames (pick "actions" "action")
   let mvars ← merged.mapM fun (k, v) => do pure (k, ← decodeComplex v nm)
-  let tnm := tvars.map (·.1)
-  let trigs ← ((ensureList (pick "triggers" "trigger")).zipIdx).mapM fun (t, i) => decodeTrigger i t tnm (some tvars)
+  let tnm := tvals.map (·.1)
+  let trigs ← ((ensureList (pick "triggers" "trigger")).zipIdx).mapM fun (t, i) => decodeTrigger i t tnm (some tvals)
   let conds ← (ensureList (pick "conditions" "condition")).mapM (decodeCondition · nm)
   let acts ← (ensureList (pick "actions" "action")).mapM (decodeAction · nm)
   let mode ← match str? j "mode" with
@@ -1014,6 +1050,6 @@ def decodeAutomation (j : Json) (listNo : Nat := 0) (entityId : Option String :=
       | .error m => throw m
   return { id, alias, triggers := trigs.filterMap (fun x => x), conditions := conds,
            actions := acts.filterMap (fun x => x), mode, maxRuns,
-           variables := mvars, triggerVars := tvars, entityId, uniqueId := str? j "id" }
+           variables := mvars, triggerVars := tvals, entityId, uniqueId := str? j "id" }
 
 end HALean.Automation

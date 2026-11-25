@@ -1,0 +1,12 @@
+# A trigger's own `variables` that fail to render: HA raises the error in the
+# trigger's callback (_trigger_action_wrapper), so the automation does not
+# run and the error is logged.
+differential: false
+differential_reason: "HA raises the template error inside the trigger callback, which the test harness reports as a failure at teardown; with it, HA and HALean agreed (no run) when checked"
+automations:
+  - id: own_error
+    triggers:
+      - {trigger: event, event_type: go, variables: {bad: "{{ 1 / 0 }}"}}
+    actions: [{event: never_own}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: []}

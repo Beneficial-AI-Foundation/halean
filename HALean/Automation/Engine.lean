@@ -940,7 +940,16 @@ def triggerAutomation (ai : Nat) (tv : TriggerVars) : EM Unit := do
   let this := match a.entityId with
     | some eid => [("this", thisValue e ai a eid)]
     | none => []
-  let env0 := { e.condEnv with triggerId := some tv.id, vars := this ++ [("trigger", tv.value)] }
+  -- the trigger's own `variables` (`_trigger_action_wrapper`): rendered
+  -- with `trigger`, before `this` is added; an error is raised in the
+  -- trigger's callback, so the automation does not run
+  let own := ((a.triggers.find? (·.idx == tv.idx)).map (·.variables)).getD []
+  let runVars ← match renderVariables { e.condEnv with vars := [("trigger", tv.value)] } own with
+    | .ok vs => pure vs
+    | .error msg =>
+      emit [.log "error" s!"{a.alias}: Error rendering trigger variables: {msg}"]
+      return
+  let env0 := { e.condEnv with triggerId := some tv.id, vars := this ++ runVars }
   let vars ← match renderVariables env0 a.variables with
     | .ok vs => pure vs
     | .error msg =>

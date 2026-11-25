@@ -1,0 +1,30 @@
+# Templated trigger_variables (rendered limited when the triggers attach, and
+# again at each trigger with the automation's variables) and a trigger's own
+# `variables` (rendered when it fires, seeing `trigger`; they win over the
+# automation's `variables`)
+automations:
+  - id: tvars
+    trigger_variables: {base: 2, twice: "{{ base * 2 }}"}
+    triggers: [{trigger: event, event_type: "ev{{ twice }}"}]
+    actions:
+      - event: tvars_fired
+        event_data: {twice: "{{ twice }}"}
+  - id: tvars_states     # limited templates cannot read states: HA attaches no trigger
+    trigger_variables: {s: "{{ states('sensor.x') }}"}
+    triggers: [{trigger: event, event_type: ev4}]
+    actions: [{event: never}]
+  - id: own
+    variables: {n: 5, m: "{{ n + 1 }}"}
+    triggers:
+      - trigger: event
+        event_type: go
+        variables: {who: "{{ trigger.event.data.name }}", n: 1}
+    actions:
+      - event: own_fired
+        event_data: {who: "{{ who }}", n: "{{ n }}", m: "{{ m }}"}
+states: [{entity_id: sensor.x, state: "1"}]
+expect_init:
+  - {type: unsupported, id: tvars_states}
+steps:
+  - {at: 1, send: {type: event, event_type: ev4}, expect: [{type: automation_triggered, id: tvars}, {type: fire_event, event_type: tvars_fired, data: {twice: 4}}]}
+  - {at: 2, send: {type: event, event_type: go, data: {name: ann}}, expect: [{type: automation_triggered, id: own}, {type: fire_event, event_type: own_fired, data: {who: ann, n: 1, m: 2}}]}

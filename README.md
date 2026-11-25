@@ -224,7 +224,7 @@ demo/make-bundle.sh 0.1.0-local dist && demo/smoke-test.sh dist/halean-demo.tar.
 |---|---|---|
 | Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, `for`, re-rendered like HA's template tracker: only for what the last render read, every minute when it used `now()`, rate limits for loops over states), `time` (fixed or templated `at`: a limited template rendered with the static `trigger_variables`; `input_datetime` entities with a date or only a time, timestamp/uptime sensors, `offset`, weekday; rescheduled when the entity changes), `time_pattern`, `homeassistant` with `event: start` (once, on `homeassistant_started`), `tag` (`tag_id`, optional `device_id`), `event` (templated `event_type` and `event_data`, limited templates rendered with the static `trigger_variables`; nested `event_data`; values compared by Python's `==`), legacy `zone` (enter/leave by coordinates, Vincenty distance like HA's, or a person's/device tracker's `in_zones`), legacy `sun` (sunrise/sunset with `offset`, astral's NOAA calculation at HA's location and elevation); `for:` static or templated (a template string or a mapping of templates, rendered with the trigger variables when the trigger matches, then `cv.positive_time_period`; an error means no trigger) | `this` in trigger templates (its value depends on HA's startup phase), other sun events (dawn, dusk, noon, elevation, ...), `zone.entered`/`zone.left` and other new-style triggers, `homeassistant` with `event: shutdown` (a shutdown job, before any event the shell sees), `mqtt`, `webhook`, device triggers, a templated `time` `at` or event trigger that reads states, the clock or the time zone, or is in a `wait_for_trigger`; an event trigger's `context` (the protocol sends no event context), a list inside nested `event_data` |
 | Conditions | `and`/`or`/`not` (incl. shorthand), `state` (match any/all, `for` (templates too, rendered when checked; `for` with an attribute or an `input_*` state is refused, as HA's schema does), attribute, `input_*` references), `numeric_state` (incl. `value_template`), `time` (fixed, `input_datetime`, `time` entities, timestamp/uptime sensors, midnight crossing, weekday), `trigger`, `template` (incl. the `"{{ ... }}"` shorthand), `zone` (several entities and zones), `sun` (before/after sunrise/sunset with offsets, the night as before sunrise or after sunset, polar days), `enabled` (see Actions) | platform conditions |
-| Automations | automation `variables` (rendered in order before conditions) and static `trigger_variables`; `this` in variables, conditions and actions (the automation entity's `state.as_dict()`: `entity_id` derived from the name like HA, `state`, `attributes` `id`/`last_triggered`/`mode`/`current`/`max`/`friendly_name`); names default to `automation <n>` like HA | `this` when the entity id needs transliteration (non-ASCII names, also for every later automation) or HTML entities, templated `trigger_variables`, per-trigger `variables` |
+| Automations | automation `variables` (rendered in order before conditions), `trigger_variables` (limited templates rendered when the triggers attach, then again with `variables` at each trigger), a trigger's own `variables` (rendered when it fires, seeing `trigger`; they win over the automation's); `this` in variables, conditions and actions (the automation entity's `state.as_dict()`: `entity_id` derived from the name like HA, `state`, `attributes` `id`/`last_triggered`/`mode`/`current`/`max`/`friendly_name`); names default to `automation <n>` like HA | `this` when the entity id needs transliteration (non-ASCII names, also for every later automation) or HTML entities, `trigger_variables` that use `this`, states or the clock, `variables` on a `wait_for_trigger`'s triggers |
 | Actions | service call (blocking; static names lower-cased as HA does, or templated names; templates in `data`/`data_template` and `target`, or one template for the whole `data` or `target`; the action's own `entity_id`; `response_variable`), `stop` with `response_variable`, `delay` (static or templated), `condition`, `choose`, `if`/`else`, `repeat` count (incl. templated)/for_each/while/until with the `repeat` variable, `variables`, `stop` (+`error`), `event` (templates in `event_data` and the legacy `event_data_template`), `sequence`, `wait_template` (`timeout`, static or templated, `continue_on_timeout`, the `wait` variable; tracked like HA's `async_track_template`), `wait_for_trigger` (any supported trigger, seeing the run's variables; `timeout`, `continue_on_timeout`, `wait.trigger`), `parallel` (branches share variables except `wait`; errors and `stop` are raised once every branch is done), `continue_on_error`, `enabled` on triggers, conditions and actions (`cv.boolean` words and numbers, or a limited template, decided at load: a trigger's sees the static `trigger_variables` and a render error skips it, a condition's or action's sees no variables; a `parallel` branch's templated `enabled` is never rendered and the branch always runs, as in HA) | device actions, `scene` |
 | Run modes | `single`, `restart`, `queued` (FIFO), `parallel`, `max`, conditions checked before admission | `max_exceeded` log levels |
 
@@ -663,12 +663,12 @@ What is still missing, roughly in order of value:
      All of these need input the shell does not send yet: MQTT messages,
      webhook requests, calendar events, notifications, conversation
      sentences, a shutdown signal.
-   * Templates where HALean only takes literals: `trigger_variables`, a
-     trigger's own `variables`, and `enabled` in a `wait_for_trigger`'s
-     triggers. (`delay`, wait
-     timeouts, every `for`, action names, `data`/`data_template`,
-     `target`, `event_type`/`event_data` and `event_data_template` already take
-     templates.)
+   * Templates are taken everywhere HA takes them, except in a
+     `wait_for_trigger`'s triggers, whose limited templates (`enabled`, an
+     event trigger's type and data, a time trigger's `at`) and own
+     `variables` see the run's variables, so they cannot be rendered at load,
+     and except limited templates that use `this`, states, the clock or the
+     time zone.
    * Event triggers with `context`: the shell would have to send each
      event's context (user, parent).
 2. **HA's helper entities as state machines.** `input_boolean`, `input_number`,
@@ -697,7 +697,7 @@ Properties worth proving or model-checking are collected in
    `HALean/Automation/EngineBound.lean`.)
 3. User-level properties over a whole `automations.yaml`: conflicting commands to the
    same entity, and trigger loops (an action that re-triggers itself).
-4. Widen the subset: the other sun events and conditions (dawn, dusk, elevation), templated `trigger_variables`.
+4. Widen the subset: the other sun events and conditions (dawn, dusk, elevation).
 
 ## License
 
