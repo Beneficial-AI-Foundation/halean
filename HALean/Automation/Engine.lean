@@ -293,7 +293,7 @@ def valueOf (attr : Option String) : Option EntityState → Json
 def StateMatch.matches (m : StateMatch) (v : Json) : Bool :=
   match m.values with
   | none => !m.invert
-  | some vs => m.invert != vs.contains v
+  | some vs => m.invert != vs.any (pyJsonEq · v)
 
 /-! ## Runs and run modes -/
 
@@ -1106,8 +1106,8 @@ def onStateTrigger (o : Owner) (t : Trigger) (eid : String) (old new : Option En
   if !eids.contains eid then return
   let oldV := valueOf attr old
   let newV := valueOf attr new
-  if attr.isSome && oldV == newV then return
-  if !fromM.matches oldV || !toM.matches newV || (!matchAll && oldV == newV) then return
+  if attr.isSome && pyJsonEq oldV newV then return
+  if !fromM.matches oldV || !toM.matches newV || (!matchAll && pyJsonEq oldV newV) then return
   let check := if fromKeyOnly then SameCheck.notEqualOld attr oldV else .equalNew attr newV
   match forP with
   | none => fire o (stateTriggerVars t eid old new attr .none)
@@ -1172,8 +1172,8 @@ def sameStillHolds (env : CondEnv) (c : SameCheck) (new : Option EntityState) : 
   | none => false
   | some s =>
     match c with
-    | .equalNew attr v => valueOf attr (some s) == v
-    | .notEqualOld attr v => valueOf attr (some s) != v
+    | .equalNew attr v => pyJsonEq (valueOf attr (some s)) v
+    | .notEqualOld attr v => !pyJsonEq (valueOf attr (some s)) v
     | .numeric below above attr vt =>
       match numericStateOf env s below above attr vt with
       | .ok b => b

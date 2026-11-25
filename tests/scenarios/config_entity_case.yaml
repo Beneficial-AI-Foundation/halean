@@ -1,0 +1,18 @@
+# `cv.entity_ids` lower-cases entity ids (`Light.Kitchen` is
+# `light.kitchen`), and a state condition's `match` is lower-cased too
+# (`match: Any` is `any`). Review items A1, A3.
+automations:
+  - id: trig
+    triggers: [{trigger: state, entity_id: Light.Kitchen, to: "on"}]
+    actions: [{event: trig_fired}]
+  - id: cond
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: state, entity_id: "Light.Kitchen, LIGHT.HALL", state: "on", match: Any}]
+    actions: [{event: cond_passed}]
+states:
+  - {entity_id: light.kitchen, state: "off"}
+  - {entity_id: light.hall, state: "off"}
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: []}
+  - {at: 2, set: [light.kitchen, "on"], expect: [{type: automation_triggered, id: trig}, {type: fire_event, event_type: trig_fired}]}
+  - {at: 3, send: {type: event, event_type: go}, expect: [{type: automation_triggered, id: cond}, {type: fire_event, event_type: cond_passed}]}

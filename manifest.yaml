@@ -40,7 +40,9 @@ entries:
   lean:
   - HALean.Automation.decodeCondition
   status: translated
-  notes: 'key_dependency("for", "state"); `for` with an attribute or with a state naming an input entity is refused'
+  notes: 'key_dependency("for", "state"); `for` with an attribute or with a state naming an input entity is refused;
+    entity ids lower-cased (cvEntityIds); `match` lower-cased and one of all/any; `state` a str or a list of str
+    without an attribute (STATE_CONDITION_STATE_SCHEMA); a non-string attribute name is refused'
   hash: e76a36ce71c6f701
 - python: helpers/condition.py::async_numeric_state
   lean:
@@ -145,7 +147,8 @@ entries:
   - HALean.Automation.step
   - HALean.Automation.REPEAT_TERMINATE_ITERATIONS
   status: translated
-  notes: count (incl. templated), for_each, while, until; the `repeat` variable is local to its loop (currentRepeat)
+  notes: count (Coerce(int), else a template whose result int() reads), for_each, while, until; the
+    `repeat` variable is local to its loop (currentRepeat)
   hash: 8ae3b200144a1124
 - python: helpers/script.py::_ScriptRun._async_step_stop
   lean:
@@ -201,8 +204,11 @@ entries:
 - python: helpers/event.py::process_state_match
   lean:
   - HALean.Automation.StateMatch.matches
+  - HALean.Automation.processStateMatch
+  - HALean.Automation.pyJsonEq
   status: proven
-  notes: theorems match_invert, match_all
+  notes: None and MATCH_ALL ("*") match everything, a list by membership, a mapping by its keys, anything
+    else by Python ==; theorems match_invert, match_all, processStateMatch_values_none_iff
   hash: dfe501b7ee7ebfd0
 - python: helpers/event.py::async_track_same_state
   lean:
@@ -218,9 +224,20 @@ entries:
   - HALean.Automation.onStateTrigger
   - HALean.Automation.renderPeriod
   status: translated
-  notes: 'templated ''for'' rejected; matchAll is by key presence (so an explicit null ''to'' works as
-    upstream); templated for: rendered when the trigger matches (cv.positive_time_period_template)'
+  notes: 'matchAll is by key presence (so an explicit null ''to'' works as upstream); old/new values
+    compared by Python == (pyJsonEq); templated for: rendered when the trigger matches
+    (cv.positive_time_period_template)'
   hash: 5e5087a8dc6161d9
+- python: components/homeassistant/triggers/state.py::async_validate_trigger_config
+  lean:
+  - HALean.Automation.decodeTrigger
+  - HALean.Automation.strOrStrListOrNone
+  - HALean.Automation.cvEntityIds
+  status: translated
+  notes: TRIGGER_STATE_SCHEMA (from/to/not_from/not_to are str, [str] or None) without an attribute,
+    TRIGGER_ATTRIBUTE_SCHEMA (match_all) with one; entity ids lower-cased; a registry id (uuid) or a
+    non-string attribute name is refused
+  hash: de58be0adb3f4f4a
 - python: components/homeassistant/triggers/numeric_state.py::async_attach_trigger
   lean:
   - HALean.Automation.addPeriodPending
@@ -252,6 +269,12 @@ entries:
   - HALean.Automation.decodeTrigger
   status: translated
   hash: 61270e2f0e6c06ac
+- python: components/homeassistant/triggers/time_pattern.py::TimePattern.__call__
+  lean:
+  - HALean.Automation.decodeTrigger
+  status: translated
+  notes: '"*", "/n" (int(n) in 1..maximum) or int(value) in 0..maximum; non-ASCII text is refused'
+  hash: 8e9ad0999417cea5
 - python: components/homeassistant/triggers/event.py::async_attach_trigger
   lean:
   - HALean.Automation.onEvent
@@ -2110,8 +2133,11 @@ entries:
   lean:
   - HALean.Core.cvEntityIds
   - HALean.Core.pyIter
+  - HALean.Automation.cvEntityIds
+  - HALean.Automation.cvEntityIdStr
   status: translated
-  notes: allow_uuid=False only (entity_ids); iterating a scalar raises TypeError
+  notes: allow_uuid=False only (entity_ids); iterating a scalar raises TypeError. The automation decoder's
+    HALean.Automation.cvEntityIds refuses a uuid (no entity registry)
   hash: 7965187b5a15af43
 - python: helpers/config_validation.py::entity_ids
   lean:

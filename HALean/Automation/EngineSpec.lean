@@ -231,7 +231,7 @@ theorem valueOf_attr_missing (a : String) (s : EntityState) (h : s.attr? a = non
 theorem stateMatch_matches_iff (m : StateMatch) (v : Json) :
     m.matches v = true ↔
       (m.values = none ∧ m.invert = false) ∨
-      ∃ vs, m.values = some vs ∧ (m.invert = true ↔ vs.contains v = false) := by
+      ∃ vs, m.values = some vs ∧ (m.invert = true ↔ vs.any (pyJsonEq · v) = false) := by
   rcases m with ⟨vals, inv⟩
   cases vals <;> cases inv <;> simp [StateMatch.matches]
 

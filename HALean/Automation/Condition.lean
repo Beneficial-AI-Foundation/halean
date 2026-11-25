@@ -136,7 +136,7 @@ def stateOne (env : CondEnv) (eid : String) (req : List Json) (forP : Option For
       if isInputEntityId s then
         let some se := env.states.get? s | throw s!"the 'state' entity {s} is unavailable"
         sv := .str se.state
-    isState := value == sv
+    isState := pyJsonEq value sv
     if isState then break
   match forP with
   | none => return isState

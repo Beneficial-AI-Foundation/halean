@@ -419,13 +419,13 @@ theorem onStateTrigger_other_entity (o : Owner) (t : Trigger) (eid : String)
     (onStateTrigger o t eid old new).run (e, acc) = ((), (e, acc)) := by
   em_simp [onStateTrigger, hk, h]
 
-/-- An attribute trigger ignores changes that leave the attribute as it was. -/
+/-- An attribute trigger ignores changes that leave the attribute equal (Python `==`). -/
 theorem onStateTrigger_attr_unchanged (o : Owner) (t : Trigger) (eid : String)
     (old new : Option EntityState) (e : Engine) (acc : List Cmd)
     (eids : List String) (fromM toM : StateMatch) (matchAll : Bool) (a : String)
     (forP : Option ForPeriod) (fko : Bool)
     (hk : t.kind = .state eids fromM toM matchAll (some a) forP fko)
-    (h : (valueOf (some a) old == valueOf (some a) new) = true) :
+    (h : pyJsonEq (valueOf (some a) old) (valueOf (some a) new) = true) :
     (onStateTrigger o t eid old new).run (e, acc) = ((), (e, acc)) := by
   em_simp [onStateTrigger, hk, h]
 
@@ -445,7 +445,7 @@ theorem onStateTrigger_fires (o : Owner) (t : Trigger) (eid : String)
     (old new : Option EntityState) (e : Engine) (acc : List Cmd)
     (eids : List String) (fromM toM : StateMatch) (attr : Option String) (fko : Bool)
     (hk : t.kind = .state eids fromM toM false attr none fko) (h : eid ∈ eids)
-    (hne : (valueOf attr old == valueOf attr new) = false)
+    (hne : pyJsonEq (valueOf attr old) (valueOf attr new) = false)
     (hf : fromM.matches (valueOf attr old) = true) (ht : toM.matches (valueOf attr new) = true) :
     (onStateTrigger o t eid old new).run (e, acc) =
       (fire o (stateTriggerVars t eid old new attr .none)).run (e, acc) := by
@@ -458,7 +458,7 @@ theorem onStateTrigger_for (o : Owner) (t : Trigger) (eid : String)
     (old new : Option EntityState) (e : Engine) (acc : List Cmd)
     (eids : List String) (fromM toM : StateMatch) (attr : Option String) (p : Nat) (hp : p ≠ 0)
     (hk : t.kind = .state eids fromM toM false attr (some (.fixed p)) false) (h : eid ∈ eids)
-    (hne : (valueOf attr old == valueOf attr new) = false)
+    (hne : pyJsonEq (valueOf attr old) (valueOf attr new) = false)
     (hf : fromM.matches (valueOf attr old) = true) (ht : toM.matches (valueOf attr new) = true) :
     (onStateTrigger o t eid old new).run (e, acc) =
       ((), ({ e with
