@@ -90,7 +90,7 @@ These are statements about the record `RInfo`. No theorem says what a render put
 `forgivingFloat_default`; `toFloat_total`, `isNumber_total`; `lenV_eq_iterV_length`; `cmpOp_ne`; `asLocal_idem`;
 `pySplit_length_le`, `pySplit_unlimited`; `ignoreCase_nonstr`.
 The other 46 + 27 RenderSpec3 theorems are per-constructor equations (`arith_int`, `iterV_dict`, `getitemV_list`,
-`containsV_undef`, ...; 31 of them are `rfl`) and facts about `collect*`, `tick`, `Args.*`.
+`containsV_undef`, ...; 36 of the 97 are proved by `rfl` alone) and facts about `collect*`, `tick`, `Args.*`.
 
 **`Render.lean`, entry points.** O: `render_unparsed`, `render_parsed`, `renderWithInfo_fst` (the three entry
 points agree with each other), `renderWithInfo_error` (an error sets `exception`). E: `render_static`,
@@ -192,14 +192,14 @@ a render records in its `RInfo`. No theorem says rendering terminates or stays w
 
 What the 209 RenderSpec/RenderSpec2/RenderSpec3 theorems are about instead:
 
-1. the `RInfo` record as data: rate limit and filters (14 theorems);
+1. the `RInfo` record as data: rate limit, filters, listeners (12 theorems);
 2. non-recursive helper functions that the evaluator calls: `seqIndex`, `sliceList`, `roundHalfEven`, `scaledUs`,
    `utcFromTimestamp`, `floorF`/`ceilF`, `lookupKV`, `statesOf`, `cvBoolean`, `resultAsBoolean`, `iif`, `pyTitle`,
    `pyCapitalize`, `pyStrip`, `pyReplace` (empty pattern only), `isNumericStr`, `parseResult_str`;
 3. helpers in the `R` monad, mostly one equation per `Value` constructor: `toFloat?`, `doInt`, `forgivingFloat`,
    `forgivingInt`, `forgivingBool`, `isNumber`, `isState`, `stateAttrFn`, `hasValue`, `stateIfValid`, `iterV`,
-   `lenV`, `containsV`, `getitemV`, `arith` (11 literal operator/constructor combinations out of the whole
-   operator table), `cmpOp`, `asLocal`, `pySplit`;
+   `lenV`, `containsV`, `getitemV`, `arith` (seven theorems, each for fixed operators and constructors),
+   `cmpOp`, `asLocal`, `pySplit`;
 4. bookkeeping helpers: `collect`, `collectDomain`, `collectAll`, `collectTime`, `tick`, `Args.get`, `Args.check`;
 5. the static-template shortcut and the agreement of the wrappers (10 theorems above).
 
@@ -257,8 +257,7 @@ Weaker than they read, or restatements:
   `Civil.valid_eq_none_iff`, `dateOk_iff`, `rateLimit_eq_none_iff`, `rateLimit_eq_all_iff`,
   `rateLimit_eq_domain_iff`, `filter_iff`, `filterLifecycle_iff`, `resultAsBoolean_iff`, `seqIndex_eq`,
   `pyStrip_toList`, `pyCapitalize_cons`, `hasValue_iff`, `iif_truthy`, `numEq_int_float_comm` (`rfl`),
-  `cvBoolean_str` (`rfl`), and the 61 `rfl`-only theorems (list: proof column of the scratch script
-  `templates_classify.py` reasons marked "(rfl)", plus `peek_run`, `peek2_run`, `advance_run`, `isOp_run`, ...).
+  `cvBoolean_str` (`rfl`), and the other `rfl`-only theorems (61 in total; most are marked "(rfl)" in the tsv).
 * No theorem has a `True` conclusion. No theorem was found with hypotheses that cannot hold together.
 * `parseIntStr_iff` is `parseIntChars_iff` applied to `s.toList`; it is one fact counted twice in `C`.
 
@@ -297,18 +296,18 @@ Checked: 351 theorem docstrings and 13 module headers = 364 claims.
 
 False (4):
 
-1. `numEq_int_comm` (ValueSpec.lean:468): docstring "Mixed int/float `<` one way is `>` the other way." The statement
+1. `numEq_int_comm` (ValueSpec.lean:477): docstring "Mixed int/float `<` one way is `>` the other way." The statement
    is `numEq (.i a) (.i b) = numEq (.i b) (.i a)`: two ints, equality. No theorem states the docstring's claim.
-2. `parseIntChars_iff` (PyIntSpec.lean:204): "**Python's `int(s)` for ASCII `s`**: `parseIntChars` returns `n`
+2. `parseIntChars_iff` (PyIntSpec.lean:199): "**Python's `int(s)` for ASCII `s`**: `parseIntChars` returns `n`
    exactly when …". CPython refuses decimal strings with more than 4300 digits
    (`int("1"*4301)` → `ValueError`, `sys.get_int_max_str_digits() == 4300`, HA does not change it).
    `parseIntStr` of 4301 ones is `some _` (evaluated). `HALean/Core/Probatio.lean:263` knows the limit and adds it for
    `Coerce(int)` only.
-3. `parseTimeSeconds_iff` (ParseTimeSpec.lean:21): "`parseTimeSeconds s = some t` exactly when upstream's
+3. `parseTimeSeconds_iff` (ParseTimeSpec.lean:24): "`parseTimeSeconds s = some t` exactly when upstream's
    `parse_time(s)` returns the time `t` … (for ASCII text)". Counterexample, ASCII: `s = "0"*4301 + "1:00"`.
    Upstream `dt_util.parse_time(s)` is `None` (run against `upstream/ha-core`). `parseTimeSeconds s = some 3600`
    (evaluated).
-4. `isNumericStr_iff` (RenderSpec2.lean:606): "the fast numeric path of `_parse_result` is taken exactly for text
+4. `isNumericStr_iff` (RenderSpec2.lean:608): "the fast numeric path of `_parse_result` is taken exactly for text
    matching the regex's grammar". The upstream regex is `^[+-]?(?!0\d)\d*(?:\.\d*)?$`. In Python `\d` matches Unicode
    digits and `$` matches before a final newline: `_IS_NUMERIC.match("١٢")` and `_IS_NUMERIC.match("12\n")` both match.
    `isNumericStr` is `false` on both (evaluated). `IsNumericSpec` reads `\d` as `Char.isDigit` and `$` as end of text.
@@ -322,14 +321,14 @@ Overstated (28). The docstring says more than the statement:
 
 6. PyIntSpec.lean header: "Python's `int(str)` on ASCII text, written as its grammar". Digit limit missing (see 2).
 7. ParseTimeSpec.lean header: "proved against what upstream computes". See 3.
-8. `timeRE_aliases` (DateParseSpec.lean:188): "… and `%U` and `%W` read the same digits." The statement has four
+8. `timeRE_aliases` (DateParseSpec.lean:190): "… and `%U` and `%W` read the same digits." The statement has four
    equalities (`e/d`, `k/H`, `l/I`, `P/p`). Nothing about `U`/`W`.
 9. `typeName_of_num` (ValueSpec): "The numeric values are exactly the ones Python calls `bool`, `int`, `float`."
    One direction only. The converse is false in the model: `typeName (.gen "int" []) = "int"`.
-10. `iif_none` (Proofs.lean:22): "picks it exactly when the value is None". Statement: only the None case.
-11. `floorF_ceilF` (RenderSpec.lean:440): "… and differ by at most 1". Statement: only `isSome` equality.
-12. `floorF_some` (RenderSpec.lean:421): "it fails only when the float has no integer value". Not in the statement.
-13. `isIterable_scalar` (RenderSpec.lean:407): "Numbers, `None`, states and datetimes". The statement does not
+10. `iif_none` (Proofs.lean:23): "picks it exactly when the value is None". Statement: only the None case.
+11. `floorF_ceilF` (RenderSpec.lean:441): "… and differ by at most 1". Statement: only `isSome` equality.
+12. `floorF_some` (RenderSpec.lean:423): "it fails only when the float has no integer value". Not in the statement.
+13. `isIterable_scalar` (RenderSpec.lean:408): "Numbers, `None`, states and datetimes". The statement does not
     mention states.
 14. `Rx.Caps.get?_append_of_isSome` (RegexSpec): "What `matchPrefix` hands on is the group list `Caps.get?` reads".
     The statement is a list fact; `matchPrefix` is not in it.

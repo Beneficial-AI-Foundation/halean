@@ -41,6 +41,13 @@ FILTERS = [None, "light", "LIGHT", "sensor", "Sensor", ["light"], ["LIGHT"], ["s
            ["light", "light"], "", [], "nope", ["nope", "a"], "a", "switch", ["switch", "", "sensor"]]
 NON_ASCII_FILTERS = ["é", "LÏGHT"]
 STEPS = [0, 0, 1, 1, 999, 1000, 500_000, 1_000_000, 1_000_000, 60_000_000, 3_600_000_000, 999_999, 1_000_001]
+# groups of attribute mappings / states that Python treats as equal (or as the same str())
+EQUIV_ATTRS = [[{"a": 1}, {"a": 1.0}, {"a": True}], [{"a": 0}, {"a": False}, {"a": 0.0}],
+               [{"a": [1, 2]}, {"a": [1.0, 2]}], [{"a": 1, "b": 2}, {"b": 2, "a": 1}, {"b": 2.0, "a": True}],
+               [{"a": [[1]]}, {"a": [[True]]}], [None, {}], [{"a": 2**53}, {"a": 9007199254740992.0}],
+               [{"a": {"b": 0}}, {"a": {"b": False}}]]
+EQUIV_STATES = [[1, "1"], [1.0, "1.0"], [True, "True"], [None, "None"], [[1, 2], "[1, 2]"], [0, "0"],
+                [2.5, "2.5"], [{"a": 1}, "{'a': 1}"], [[], "[]"], [{}, "{}"]]
 T0 = datetime(2026, 11, 20, 16, 30, 45, 123456, tzinfo=UTC)
 STARTS = [T0, datetime(2026, 11, 20, 16, 30, 45, tzinfo=UTC), datetime(2001, 9, 9, 1, 46, 40, tzinfo=UTC),
           datetime(2038, 1, 19, 3, 14, 7, 999999, tzinfo=UTC), datetime(2100, 2, 28, 23, 59, 59, 999999, tzinfo=UTC),
@@ -53,13 +60,22 @@ def gen_case(rng: random.Random, n: int, known: bool) -> dict:
     now = rng.choice(STARTS)
     ops = []
     used: list[str] = []
+    last: dict[str, tuple] = {}   # lower-cased id -> (state, attributes) of the last set
+
+    def same_or_equal(value, groups):
+        for g in groups:
+            if any(type(value) is type(m) and value == m for m in g):
+                return rng.choice(g)
+        return value
 
     def eid(kind: str) -> tuple[str, bool]:
         r = rng.random()
         if kind == "internal":
             if known and r < 0.08:
                 return rng.choice(KNOWN_INTERNAL_IDS), False
-            pool = VALID_IDS * 4 + CASED_IDS + INVALID_IDS
+            if used and r < 0.6:
+                return rng.choice(used), False
+            pool = VALID_IDS * 8 + CASED_IDS + INVALID_IDS
             return rng.choice(pool), False
         if r < 0.03:
             return rng.choice(NON_ASCII_IDS), kind != "reserve"
@@ -68,7 +84,7 @@ def gen_case(rng: random.Random, n: int, known: bool) -> dict:
             if rng.random() < 0.2:
                 e = e.upper()
             return e, False
-        return rng.choice(VALID_IDS * 4 + CASED_IDS * 2 + INVALID_IDS), False
+        return rng.choice(VALID_IDS * 8 + CASED_IDS * 4 + INVALID_IDS), False
 
     for _ in range(rng.randint(8, 30)):
         r = rng.random()
@@ -85,12 +101,27 @@ def gen_case(rng: random.Random, n: int, known: bool) -> dict:
                 op["force_update"] = rng.random() < 0.75
             if rng.random() < 0.3:
                 op["context"] = rng.choice(CONTEXTS)
+            if e.lower() in last and rng.random() < 0.45:
+                # repeat the last state and/or attributes (possibly as an equal value of another type)
+                st, at = last[e.lower()]
+                if rng.random() < 0.8:
+                    op["state"] = same_or_equal(st, EQUIV_STATES)
+                if rng.random() < 0.8:
+                    op["attributes"] = same_or_equal(at, EQUIV_ATTRS)
             if not uns:
                 used.append(e.lower())
+                last[e.lower()] = (op["state"], op.get("attributes"))
         elif r < 0.55:
             e, uns = eid("internal")
             op = {"op": "set_internal", "entity_id": e, "state": rng.choice(STR_STATES),
                   "attributes": rng.choice(attrs)}
+            if e in last and rng.random() < 0.45:
+                st, at = last[e]
+                if isinstance(st, str) and rng.random() < 0.8:
+                    op["state"] = st
+                if rng.random() < 0.8:
+                    op["attributes"] = same_or_equal(at, EQUIV_ATTRS[:5] + EQUIV_ATTRS[6:])
+            last[e] = (op["state"], op["attributes"])
             if rng.random() < 0.2:
                 op["force_update"] = True
             if rng.random() < 0.3:

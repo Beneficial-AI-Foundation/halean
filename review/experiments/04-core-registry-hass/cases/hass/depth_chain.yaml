@@ -1,5 +1,6 @@
-# Review case: a chain of distinct services, each awaiting the next (no recursion into itself).
-- name: h_depth_chain_33_32_41
+# Review case: a chain of 41 distinct services d0..d40, each awaiting the next (no service calls itself).
+# 32 nested calls run; 33 and 41 are answered `unsupported` (call depth). HA's answers: cases/refused/.
+- name: h_depth_chain_32_ok_33_41_refused
   ops:
   - op: register
     domain: test
@@ -250,6 +251,6 @@
       do:
       - call: {id: c0, domain: test, service: d1, blocking: true}
   - {op: listen, id: m, event_type: bottom}
-  - {op: call, domain: test, service: d8, blocking: true}
   - {op: call, domain: test, service: d9, blocking: true}
-  - {op: call, domain: test, service: d0, blocking: true}
+  - {op: call, domain: test, service: d8, blocking: true, unsupported: true}
+  - {op: call, domain: test, service: d0, blocking: true, unsupported: true}

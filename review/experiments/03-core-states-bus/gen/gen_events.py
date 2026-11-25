@@ -57,10 +57,10 @@ class Gen:
             f["time_fired"] = rng.choice(TIMES)
         return f
 
-    def listen(self, depth: int) -> dict:
+    def listen(self, depth: int, once: bool = False) -> dict:
         rng = self.rng
         spec: dict = {"id": rng.choice(IDS), "event_type": rng.choice(self.types)}
-        if rng.random() < 0.35:
+        if rng.random() < (0.06 if once else 0.35):
             spec["filter"] = rng.choice(self.filters)
             if rng.random() < 0.08:
                 spec["filter_callback"] = False
@@ -80,7 +80,7 @@ class Gen:
         if r < 0.62:
             return {"listen": self.listen(depth)}
         if r < 0.72:
-            return {"listen_once": self.listen(depth)}
+            return {"listen_once": self.listen(depth, True)}
         if r < 0.9:
             return {"unsub": rng.choice(IDS)}
         return {"raise": rng.choice(RAISES)}
@@ -94,7 +94,7 @@ class Gen:
             if r < 0.3:
                 op = {"op": "listen", **self.listen(3)}
             elif r < 0.42:
-                op = {"op": "listen_once", **self.listen(3)}
+                op = {"op": "listen_once", **self.listen(3, True)}
             elif r < 0.55:
                 op = {"op": "unsub", "id": rng.choice(IDS)}
             elif r < 0.93:
