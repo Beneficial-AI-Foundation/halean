@@ -1,0 +1,35 @@
+init
+at=1 ["sensor.s", "b"]
+   {"id": "not_to", "name": "automation 1", "source": "state of sensor.s", "type": "automation_triggered"}
+   {"data": {"to": "b"}, "event_type": "nt", "type": "fire_event"}
+at=2 ["sensor.s", "c"]
+at=3 ["sensor.s", "d"]
+   {"id": "not_from", "name": "automation 0", "source": "state of sensor.s", "type": "automation_triggered"}
+   {"data": {"from": "c", "to": "d"}, "event_type": "nf", "type": "fire_event"}
+   {"id": "not_to", "name": "automation 1", "source": "state of sensor.s", "type": "automation_triggered"}
+   {"data": {"to": "d"}, "event_type": "nt", "type": "fire_event"}
+at=4 ["sensor.n", "x"]
+   {"id": "num_entity_bound", "name": "automation 2", "source": "numeric state of sensor.n", "type": "automation_triggered"}
+   {"data": {"v": 7}, "event_type": "num", "type": "fire_event"}
+at=5 ["sensor.n", "x"]
+at=6 ["sensor.n", "x"]
+at=7 ["sensor.n", "x"]
+   {"id": "num_entity_bound", "name": "automation 2", "source": "numeric state of sensor.n", "type": "automation_triggered"}
+   {"data": {"v": 9}, "event_type": "num", "type": "fire_event"}
+at=8 {"type": "event", "event_type": "go"}
+   {"id": "actions", "name": "automation 3", "source": "event 'go'", "type": "automation_triggered"}
+   {"data": {"brightness": 20}, "domain": "light", "return_response": false, "service": "turn_on", "target": {"entity_id": ["light.a"]}, "type": "call_service"}
+at=9 {"type": "service_result", "call_id": 0, "ok": true}
+   {"data": {"n": 2}, "event_type": "else_branch", "type": "fire_event"}
+   {"data": {}, "event_type": "default_branch", "type": "fire_event"}
+   {"data": {"first": true, "i": 1}, "event_type": "rep", "type": "fire_event"}
+   {"data": {"first": false, "i": 2}, "event_type": "rep", "type": "fire_event"}
+   {"data": {}, "event_type": "in_sequence", "type": "fire_event"}
+at=10 {"type": "event", "event_type": "r"}
+   {"id": "modes", "name": "automation 4", "source": "event 'r'", "type": "automation_triggered"}
+   {"data": {}, "domain": "x", "return_response": false, "service": "slow", "target": {}, "type": "call_service"}
+at=11 {"type": "event", "event_type": "r"}
+   {"id": "modes", "name": "automation 4", "source": "event 'r'", "type": "automation_triggered"}
+   {"data": {}, "domain": "x", "return_response": false, "service": "slow", "target": {}, "type": "call_service"}
+at=12 {"type": "service_result", "call_id": 2, "ok": true}
+   {"data": {}, "event_type": "r_done", "type": "fire_event"}

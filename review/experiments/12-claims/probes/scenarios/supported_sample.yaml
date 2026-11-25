@@ -1,0 +1,55 @@
+# README lines 231-235, Supported column: a sample, new cases (not copies of shipped scenarios).
+automations:
+  - id: not_from          # state trigger: not_from (no shipped scenario uses not_from)
+    triggers: [{trigger: state, entity_id: sensor.s, not_from: ["a", "b"]}]
+    actions: [{event: nf, event_data: {from: "{{ trigger.from_state.state }}", to: "{{ trigger.to_state.state }}"}}]
+  - id: not_to
+    triggers: [{trigger: state, entity_id: sensor.s, not_to: "c"}]
+    actions: [{event: nt, event_data: {to: "{{ trigger.to_state.state }}"}}]
+  - id: num_entity_bound  # numeric_state: entity bound, attribute, arming
+    triggers: [{trigger: numeric_state, entity_id: sensor.n, attribute: level, above: input_number.limit}]
+    actions: [{event: num, event_data: {v: "{{ trigger.to_state.attributes.level }}"}}]
+  - id: actions           # templated service name, if/else, choose default, repeat until, stop + error
+    triggers: [{trigger: event, event_type: go}]
+    variables: {svc: "light.TURN_on", n: 2}
+    actions:
+      - action: "{{ svc | lower }}"
+        target: {entity_id: "light.{{ 'a' }}"}
+        data: {brightness: "{{ n * 10 }}"}
+      - if: "{{ n > 5 }}"
+        then: [{event: then_branch}]
+        else: [{event: else_branch, event_data: {n: "{{ n }}"}}]
+      - choose:
+          - conditions: "{{ false }}"
+            sequence: [{event: never}]
+        default: [{event: default_branch}]
+      - repeat:
+          until: "{{ repeat.index >= n }}"
+          sequence: [{event: rep, event_data: {i: "{{ repeat.index }}", first: "{{ repeat.first }}"}}]
+      - sequence: [{event: in_sequence}]
+      - {stop: "bad", error: true}
+      - {event: never_after_stop}
+  - id: modes             # restart: the second trigger stops the first run
+    mode: restart
+    triggers: [{trigger: event, event_type: r}]
+    actions: [{action: x.slow}, {event: r_done}]
+  - id: registers_light_turn_on   # the harness registers only services named statically
+    triggers: [{trigger: event, event_type: never_sent}]
+    actions: [{action: light.turn_on}]
+states:
+  - {entity_id: sensor.s, state: "a"}
+  - {entity_id: sensor.n, state: "x", attributes: {level: 1}}
+  - {entity_id: input_number.limit, state: "5"}
+steps:
+  - {at: 1, set: [sensor.s, "b"]}          # from a: not_from blocks; not_to fires
+  - {at: 2, set: [sensor.s, "c"]}          # from b: not_from blocks; to c: not_to blocks
+  - {at: 3, set: [sensor.s, "d"]}          # from c: both fire
+  - {at: 4, set: [sensor.n, "x"], attributes: {level: 7}}
+  - {at: 5, set: [sensor.n, "x"], attributes: {level: 8}}   # still above: not armed
+  - {at: 6, set: [sensor.n, "x"], attributes: {level: 2}}
+  - {at: 7, set: [sensor.n, "x"], attributes: {level: 9}}
+  - {at: 8, send: {type: event, event_type: go}}
+  - {at: 9, send: {type: service_result, call_id: 0, ok: true}}
+  - {at: 10, send: {type: event, event_type: r}}
+  - {at: 11, send: {type: event, event_type: r}}
+  - {at: 12, send: {type: service_result, call_id: 2, ok: true}}

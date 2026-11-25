@@ -9,6 +9,7 @@ Definitions:
                    least one theorem classed C or O. Share = code lines of such defs / code lines of all
                    implementation defs (def + partial + opaque + instance; types excluded from both).
   'are or call a partial def' = partial defs plus defs whose body reaches a partial def through calls.
+  C-only direct  = the same as direct cover, counting only class-C theorems (statements that determine a result).
   reach cover    = defs reachable from those statements through the call graph of non-partial defs (upper bound:
                    a callee is only constrained through its caller's theorem). Partial defs are never counted as
                    covered: the kernel sees them as opaque constants, so no theorem can depend on their bodies.
@@ -41,7 +42,7 @@ cls = {}
 for f in sorted((T / 'class').glob('*.tsv')):
     for l in f.read_text().splitlines():
         p = l.split('\t')
-        if len(p) >= 3 and p[2].strip() in ('C', 'O', 'E', 'H'): cls[p[1].strip()] = p[2].strip()
+        if len(p) >= 3 and p[2].strip() in ('C', 'O', 'E', 'H'): cls[(p[0].strip(), p[1].strip())] = p[2].strip()
 have_cls = bool(cls)
 all_files = sorted((ROOT / 'HALean').rglob('*.lean'))
 assigned = set(); rows = []
@@ -54,11 +55,16 @@ print('definitions inside Spec/Proofs files (specification helpers), count:', su
 # call graph over source defs
 kind = {d[2]: d[0] for d in defs}; dfile = {d[2]: d[3] for d in defs}; dlines = {d[2]: int(d[6]) for d in defs}
 uses = {d[2]: set(d[7].split()) if len(d) > 7 else set() for d in defs}
-sub = [t for t in thms if cls.get(t[1]) in ('C', 'O')]
+sub = [t for t in thms if cls.get((t[0], t[1])) in ('C', 'O')]
 direct = set()
 for t in sub:
     for c in (t[8].split() if len(t) > 8 else []):
         if kind.get(c) in ('def', 'opaque', 'instance'): direct.add(c)
+directC = set()
+for t in thms:
+    if cls.get((t[0], t[1])) == 'C':
+        for c in (t[8].split() if len(t) > 8 else []):
+            if kind.get(c) in ('def', 'opaque', 'instance'): directC.add(c)
 reach = set(direct); stack = list(direct)
 while stack:
     x = stack.pop()
@@ -75,7 +81,7 @@ while changed:
             dep_partial.add(n); changed = True
 
 hdr = ['area', 'impl files', 'impl code lines', 'proof files', 'proof code lines', 'theorems', 'partial defs', 'code lines in partial defs',
-       'def code lines', 'lines in defs that are or call a partial def', 'C', 'O', 'E', 'H', 'direct cover lines', 'direct cover %', 'reach cover lines', 'reach cover %']
+       'def code lines', 'lines in defs that are or call a partial def', 'C', 'O', 'E', 'H', 'direct cover lines', 'direct cover %', 'reach cover lines', 'reach cover %', 'C-only direct lines', 'C-only direct %']
 tot = collections.Counter()
 for name, impl, proof in AREAS:
     if impl is None:
@@ -88,10 +94,10 @@ for name, impl, proof in AREAS:
     adefs = [d for d in defs if d[3] in I and d[0] in ('def', 'partial', 'opaque', 'instance')]
     npart = sum(1 for d in adefs if d[0] == 'partial'); lpart = sum(int(d[6]) for d in adefs if d[0] == 'partial')
     ldef = sum(int(d[6]) for d in adefs)
-    cc = collections.Counter(cls.get(t[1], '?') for t in ath)
+    cc = collections.Counter(cls.get((t[0], t[1]), '?') for t in ath)
     dc = sum(int(d[6]) for d in adefs if d[2] in direct); rc = sum(int(d[6]) for d in adefs if d[2] in reach)
     ldp = sum(int(d[6]) for d in adefs if d[2] in dep_partial)
-    row = [name, len(I), icl, len(P), pcl, len(ath), npart, lpart, ldef, ldp, cc['C'], cc['O'], cc['E'], cc['H'], dc, f'{100*dc/ldef:.1f}', rc, f'{100*rc/ldef:.1f}']
+    row = [name, len(I), icl, len(P), pcl, len(ath), npart, lpart, ldef, ldp, cc['C'], cc['O'], cc['E'], cc['H'], dc, f'{100*dc/ldef:.1f}', rc, f'{100*rc/ldef:.1f}', sum(int(d[6]) for d in adefs if d[2] in directC), f"{100*sum(int(d[6]) for d in adefs if d[2] in directC)/ldef:.1f}"]
     rows.append(row)
     for k, v in zip(hdr[1:], row[1:]):
         if isinstance(v, int): tot[k] += v
@@ -107,8 +113,9 @@ for r in rows: print('\t'.join(map(str, r)))
 t = ['TOTAL'] + [tot[k] if k in tot else '' for k in hdr[1:]]
 ld = tot['def code lines']
 t[hdr.index('direct cover %')] = f"{100*tot['direct cover lines']/ld:.1f}"; t[hdr.index('reach cover %')] = f"{100*tot['reach cover lines']/ld:.1f}"
+t[hdr.index('C-only direct %')] = f"{100*tot['C-only direct lines']/ld:.1f}"
 print('\t'.join(map(str, t)))
 print('\nproof length per class (code lines): class, theorems, total, median, max')
 for c in 'COEH?':
-    pl = sorted(int(x[5]) for x in thms if cls.get(x[1], '?') == c)
+    pl = sorted(int(x[5]) for x in thms if cls.get((x[0], x[1]), '?') == c)
     if pl: print(c, len(pl), sum(pl), pl[len(pl)//2], pl[-1], sep='\t')

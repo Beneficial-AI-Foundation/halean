@@ -1,0 +1,13 @@
+diff --git a/HALean/Core/Hass.lean b/HALean/Core/Hass.lean
+index 743d124..27553b7 100644
+--- a/HALean/Core/Hass.lean
++++ b/HALean/Core/Hass.lean
+@@ -350,7 +350,7 @@ def syncOutcome : Res → Out × Option PyError
+ 
+ /-! ### The loop's primitives -/
+ 
+-def Hass.enqueue (h : Hass) (x : Handle) : Hass := { h with ready := h.ready ++ [x] }
++def Hass.enqueue (h : Hass) (x : Handle) : Hass := { h with ready := x :: h.ready }
+ 
+ def Hass.futOf (h : Hass) (f : String) : Fut := (h.futures.lookup f).getD (.pending [])
+ 

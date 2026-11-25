@@ -1,14 +1,15 @@
 diff --git a/HALean/Helpers/Component.lean b/HALean/Helpers/Component.lean
-index 1ef014e..32d58eb 100644
+index 1ef014e..51a473d 100644
 --- a/HALean/Helpers/Component.lean
 +++ b/HALean/Helpers/Component.lean
-@@ -97,6 +97,9 @@ def applyEffects (h : Helpers) (es : List Effect) : Helpers × List Out :=
-   es.foldl (fun (h, outs) e =>
-     match e with
-     | .write eid st attrs force =>
-+      -- `async_set_internal`: a state longer than `MAX_LENGTH_STATE_STATE`
-+      -- (255) is replaced by `unknown` (core.py:2501); the attributes stay.
-+      let st := if st.length > 255 then STATE_UNKNOWN else st
+@@ -100,6 +100,10 @@ def applyEffects (h : Helpers) (es : List Effect) : Helpers × List Out :=
        let same := match h.states.lookup eid with
          | some (st', attrs') => st' == st && attrsEq attrs' attrs
          | none => false
++      -- `async_set_internal`: after the comparison with the old state, a state
++      -- longer than `MAX_LENGTH_STATE_STATE` (255) is replaced by `unknown`
++      -- (core.py:2501); the attributes stay.
++      let st := if st.length > 255 then STATE_UNKNOWN else st
+       let states := if h.states.any (·.1 == eid)
+         then h.states.map fun p => if p.1 == eid then (eid, (st, attrs)) else p
+         else h.states ++ [(eid, (st, attrs))]
