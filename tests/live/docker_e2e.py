@@ -176,36 +176,45 @@ async def run_test(token: str) -> list[str]:
             assert json.loads(await ws.recv())["type"] == "auth_ok"
             c = Client(ws)
             reader = asyncio.create_task(c.reader())
-            await c.call({"type": "subscribe_events", "event_type": "halean_done"})
-            await asyncio.sleep(6)  # let the bridge start and subscribe
+            try:
+                await c.call({"type": "subscribe_events", "event_type": "halean_done"})
+                await asyncio.sleep(6)  # let the bridge start and subscribe
 
-            async def turn(service: str, eid: str) -> None:
-                r = await c.call({"type": "call_service", "domain": "input_boolean",
-                                  "service": service, "target": {"entity_id": eid}})
-                assert r["success"], r
+                async def turn(service: str, eid: str) -> None:
+                    r = await c.call({"type": "call_service", "domain": "input_boolean",
+                                      "service": service, "target": {"entity_id": eid}})
+                    assert r["success"], r
 
-            # 1. state trigger -> service call -> event action
-            await turn("turn_on", "input_boolean.a")
-            dt = await c.wait_state("input_boolean.b", "on", 10)
-            ev = await asyncio.wait_for(c.events.get(), 5)
-            assert ev["data"] == {"step": "copy"}, ev
-            results.append(f"PASS state trigger -> input_boolean.b on in {dt:.2f}s, event fired")
+                # 1. state trigger -> service call -> event action
+                await turn("turn_on", "input_boolean.a")
+                dt = await c.wait_state("input_boolean.b", "on", 10)
+                ev = await asyncio.wait_for(c.events.get(), 5)
+                assert ev["data"] == {"step": "copy"}, ev
+                results.append(f"PASS state trigger -> input_boolean.b on in {dt:.2f}s, event fired")
 
-            # 2. a missing service stops the run despite continue_on_error
-            #    (HA's websocket reports `not_found`, the bridge passes it on as
-            #    a configuration error), so the next action does not run
-            await turn("turn_on", "input_boolean.c")
-            await asyncio.sleep(3)
-            assert await c.state("input_boolean.a") == "on", "the run went on past ServiceNotFound"
-            results.append("PASS a missing service stops the run despite continue_on_error")
+                # turning c on starts both the run of check 2 and the `for: 2s`
+                # timer of check 3, so check 3 is timed from here
+                await turn("turn_on", "input_boolean.c")
+                t_on = time.monotonic()
 
-            # 3. `for: 2s` on the real clock (timer driven by the bridge's ticks)
-            assert await c.state("input_boolean.d") == "off"
-            await asyncio.sleep(1.0)
-            assert await c.state("input_boolean.d") == "off", "fired before 2s"
-            dt = await c.wait_state("input_boolean.d", "on", 5)
-            results.append(f"PASS for: 2s fired after ~{1.0 + dt:.1f}s (not before 1s)")
-            reader.cancel()
+                # 2. a missing service stops the run despite continue_on_error
+                #    (HA's websocket reports `not_found`, the bridge passes it on as
+                #    a configuration error), so the next action does not run. Had
+                #    the run gone on, `a` would be off within milliseconds.
+                await asyncio.sleep(1.0)
+                assert await c.state("input_boolean.a") == "on", "the run went on past ServiceNotFound"
+                results.append("PASS a missing service stops the run despite continue_on_error")
+
+                # 3. `for: 2s` on the real clock (timer driven by the bridge's ticks)
+                assert time.monotonic() - t_on < 1.9, "check 2 took too long to test check 3"
+                assert await c.state("input_boolean.d") == "off", "for: 2s fired before 2s"
+                await c.wait_state("input_boolean.d", "on", 5)
+                held = time.monotonic() - t_on
+                # t_on is taken after HA answered the call, so a little after the change
+                assert held >= 1.8, f"for: 2s fired after {held:.2f}s"
+                results.append(f"PASS for: 2s fired {held:.1f}s after input_boolean.c turned on")
+            finally:
+                reader.cancel()
     finally:
         bridge.terminate()
         bridge.wait(10)
@@ -232,7 +241,7 @@ def main() -> int:
         print(f"\n{len(results)}/3 live checks passed")
         return 0 if len(results) == 3 else 1
     except Exception as e:
-        print(f"FAIL: {e}\n--- bridge log ---")
+        print(f"FAIL: {e!r}\n--- bridge log ---")
         print((RUN_DIR / "bridge.log").read_text() if (RUN_DIR / "bridge.log").exists() else "")
         return 1
     finally:
