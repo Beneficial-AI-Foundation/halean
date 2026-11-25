@@ -1,0 +1,127 @@
+description: random scenario seed=202 index=98
+scripts:
+  s0:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s1:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: test.m
+      data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+  s2:
+    icon: mdi:script
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - delay: 1
+steps:
+- at: 1
+  call: s0
+- at: 2
+  call: s0
+  data:
+    v: 3
+- at: 5
+  call: s2
+  return_response: true
+- at: 6
+  call: s0
+  return_response: true
+- at: 8
+  call: s0
+- at: 11
+  call: s2
+  data:
+    v: 0
+- at: 13
+  reload:
+    s0:
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s1:
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+      - action: test.m
+        data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: test.m
+        data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+      alias: Reloaded s1
+    s2:
+      icon: mdi:script
+      mode: parallel
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - delay: 1
+- at: 14
+  result: 0
+  ok: false
+  error_kind: other
+- at: 15
+  call: s2
+  return_response: true

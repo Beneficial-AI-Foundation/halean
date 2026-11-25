@@ -1,0 +1,198 @@
+description: random scenario seed=202 index=117
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - delay: 1
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s2:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - delay: 1
+    - delay: 1
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+steps:
+- at: 3
+  call: s0
+- at: 4
+  call: s2
+- at: 6
+  call: s2
+  data:
+    v: 3
+  return_response: true
+- at: 7
+  call: s0
+  data:
+    v: 1
+  return_response: true
+- at: 7
+  call: turn_off
+  data:
+    entity_id: all
+- at: 10
+  reload:
+    s0:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - delay: 1
+      - event: mark
+        event_data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s2:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.2
+          v: '{{ v | default(0) }}'
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - delay: 1
+      - delay: 1
+      - action: test.m
+        data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+      alias: Reloaded s2
+- at: 11
+  call: s0
+  data:
+    v: 3
+  return_response: true
+- at: 12
+- at: 13
+  reload:
+    s0:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      alias: Reloaded s0
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - delay: 1
+      - event: mark
+        event_data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s2:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.2
+          v: '{{ v | default(0) }}'
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - delay: 1
+      - delay: 1
+      - action: test.m
+        data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+      alias: Reloaded s2
+- at: 15
+  call: turn_off
+  data:
+    entity_id: all
+- at: 16
+  call: s1
+  data:
+    v: 2
+- at: 17
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s2
+- at: 18
+  result: 0
+  response:
+    n: 0
+- at: 19
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+    variables:
+      v: 4
+- at: 21
+  call: s1
+  return_response: true

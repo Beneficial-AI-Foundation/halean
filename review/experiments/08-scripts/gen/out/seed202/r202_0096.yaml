@@ -1,0 +1,119 @@
+description: random scenario seed=202 index=96
+scripts:
+  s0:
+    alias: Script 0 A
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s1'') }}'
+        cur: '{{ state_attr(''script.s1'', ''current'') }}'
+    - action: script.toggle
+      target:
+        entity_id: script.s1
+  s1:
+    icon: mdi:script
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.toggle
+      target:
+        entity_id: script.s2
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s0'') }}'
+        cur: '{{ state_attr(''script.s0'', ''current'') }}'
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+    - delay: 2
+steps:
+- at: 3
+  call: s1
+  data:
+    v: 1
+  return_response: true
+- at: 4
+  call: s1
+  return_response: true
+- at: 5
+  reload:
+    s1:
+      icon: mdi:script
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.toggle
+        target:
+          entity_id: script.s2
+      - event: mark
+        event_data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s0'') }}'
+          cur: '{{ state_attr(''script.s0'', ''current'') }}'
+    s2:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 1
+      - delay: 2
+- at: 8
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 9
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s2
+- at: 10
+  call: s2
+  data:
+    v: 1
+- at: 10
+  call: s2
+  data:
+    v: 1
+  return_response: true
+- at: 10
+- at: 11
+  call: s1
+  return_response: true
+- at: 12
+  call: s1
+- at: 13
+  call: s2
+  return_response: true
+- at: 14
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 16
+  call: s1
+  data:
+    v: 3

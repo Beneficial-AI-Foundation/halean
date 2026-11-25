@@ -1,0 +1,148 @@
+description: random scenario seed=202 index=100
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - parallel:
+      - sequence:
+        - delay: 1
+      - sequence:
+        - delay: 1
+        - action: script.s1
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          response_variable: r
+          continue_on_error: true
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - repeat:
+        count: 2
+        sequence:
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s3
+            - script.s2
+          data:
+            variables:
+              v: '{{ v | default(0) + 10 }}'
+        - action: script.s2
+          data:
+            v: '{{ v | default(0) + 1 }}'
+  s2:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s2.1
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s3
+    - repeat:
+        count: 2
+        sequence:
+        - action: test.m
+          data:
+            id: s2.2
+            v: '{{ v | default(0) }}'
+          continue_on_error: true
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s3
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+  s3:
+    alias: Script 3 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - stop: bad
+      error: true
+    - delay: 2
+    - parallel:
+      - sequence:
+        - action: script.turn_off
+          target:
+            entity_id: script.s3
+      - sequence:
+        - condition: template
+          value_template: '{{ v | default(0) < 2 }}'
+steps:
+- at: 1
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+- at: 3
+- at: 4
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s3
+- at: 4
+  call: s1
+  data:
+    v: 0
+  return_response: true
+- at: 5
+  call: s1
+  return_response: true
+- at: 6
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+    - script.s3
+- at: 7
+- at: 8
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s3
+    variables:
+      v: 0
+- at: 9
+  call: s3
+  data:
+    v: 1
+- at: 11
+  call: turn_off
+  data:
+    entity_id:
+    - script.s2
+    - script.s3
+- at: 14
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    variables:
+      v: 2

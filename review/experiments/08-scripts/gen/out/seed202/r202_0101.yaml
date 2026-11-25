@@ -1,0 +1,139 @@
+description: random scenario seed=202 index=101
+scripts:
+  s0:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+  s1:
+    icon: mdi:script
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+    - delay: 3
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - delay: 2
+      else:
+      - action: test.m
+        data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+      - event: mark
+        event_data:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s3
+  s3:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - stop: bad
+      error: true
+    - action: test.m
+      data:
+        id: s3.6
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s3.7
+        v: '{{ v | default(0) }}'
+steps:
+- at: 2
+  call: s3
+- at: 3
+  call: s0
+  data:
+    v: 3
+  return_response: true
+- at: 6
+  call: s0
+  return_response: true
+- at: 7
+  call: turn_off
+  data:
+    entity_id: all
+- at: 8
+  call: s1
+  data:
+    v: 0
+- at: 9
+  result: 0
+  response:
+    n: 0
+- at: 9
+  result: 1
+  response:
+    n: 1
+- at: 10
+  call: s0
+  data:
+    v: 1
+- at: 11
+  call: s0
+  data:
+    v: 3
+- at: 11
+  call: s3
+  return_response: true
+- at: 14
+  call: s1
+  data:
+    v: 1
+  return_response: true
+- at: 14
+  call: s1
+- at: 15
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s3
+    variables:
+      v: 2
+- at: 15
+  call: s0
+- at: 16
+  call: s2
+  data:
+    v: 2
+- at: 18
+  call: s2

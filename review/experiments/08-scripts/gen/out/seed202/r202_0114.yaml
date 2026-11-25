@@ -1,0 +1,159 @@
+description: random scenario seed=202 index=114
+scripts:
+  s0:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: test.m
+      data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+      response_variable: r
+  s2:
+    icon: mdi:script
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+    - action: test.m
+      data:
+        id: s2.6
+        v: '{{ v | default(0) }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+steps:
+- at: 3
+- at: 4
+  call: s0
+  return_response: true
+- at: 5
+  call: s1
+  data:
+    v: 2
+- at: 6
+  result: 1
+  response:
+    n: 1
+- at: 7
+  result: 2
+  response:
+    n: 2
+- at: 8
+  result: 0
+  response:
+    n: 0
+- at: 11
+  call: s1
+  data:
+    v: 2
+- at: 13
+  reload:
+    s0:
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+      - event: mark
+        event_data:
+          id: s0.7
+          v: '{{ v | default(0) }}'
+          r: '{{ r | default(''undef'') }}'
+      - delay: 1
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: test.m
+        data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: test.m
+        data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+        response_variable: r
+    s2:
+      icon: mdi:script
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+        response_variable: r
+        continue_on_error: true
+      - action: test.m
+        data:
+          id: s2.6
+          v: '{{ v | default(0) }}'
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+- at: 14
+  call: s2
+- at: 17
+  result: 3
+  response:
+    n: 3
+- at: 20
+  result: 4
+  response:
+    n: 4
+- at: 21
+  call: turn_off
+  data:
+    entity_id: script.s1
+- at: 22
+  call: s2
+- at: 24
+  call: s0
+  data:
+    v: 4
+- at: 24
+  call: s2
