@@ -1,0 +1,15 @@
+# while checks before the body, until after; repeat.index in the conditions
+automations:
+  - alias: loops
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - repeat:
+          while: "{{ repeat.index <= trigger.event.data.n }}"
+          sequence: [{event: m_while, event_data: {i: "{{ repeat.index }}", first: "{{ repeat.first }}", has_last: "{{ 'last' in repeat }}"}}]
+      - repeat:
+          until: "{{ repeat.index >= trigger.event.data.n }}"
+          sequence: [{event: m_until, event_data: {i: "{{ repeat.index }}"}}]
+      - {event: m_end}
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {n: 2}}}
+  - {at: 2, send: {type: event, event_type: e, data: {n: 0}}}

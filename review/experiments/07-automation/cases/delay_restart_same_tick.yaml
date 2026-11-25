@@ -1,0 +1,10 @@
+# a delay that ends at the same tick as a new trigger: the old run finishes first, then the trigger starts a run
+automations:
+  - alias: sametick
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_start}, {delay: 2}, {event: m_end}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 3, send: {type: event, event_type: e}}
+  - {at: 4, send: {type: event, event_type: e}}
+  - {at: 5, send: {type: event, event_type: tick}}

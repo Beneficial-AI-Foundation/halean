@@ -1,0 +1,15 @@
+# parallel with max 2: the third concurrent trigger is dropped
+automations:
+  - alias: par
+    mode: parallel
+    max: 2
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{action: test.block, data: {n: "{{ trigger.event.data.n }}"}}, {event: m_done, event_data: {n: "{{ trigger.event.data.n }}"}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {n: 1}}}
+  - {at: 2, send: {type: event, event_type: e, data: {n: 2}}}
+  - {at: 3, send: {type: event, event_type: e, data: {n: 3}}}
+  - {at: 4, send: {type: service_result, call_id: 1, ok: true}}
+  - {at: 5, send: {type: event, event_type: e, data: {n: 4}}}
+  - {at: 6, send: {type: service_result, call_id: 0, ok: true}}
+  - {at: 7, send: {type: service_result, call_id: 2, ok: true}}

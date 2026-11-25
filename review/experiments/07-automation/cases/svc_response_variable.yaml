@@ -1,0 +1,13 @@
+# response_variable: used by later steps; overwritten; a service without response gives None
+automations:
+  - alias: resp
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {action: test.get, response_variable: r}
+      - {event: m_resp, event_data: {v: "{{ r.vals[0] }}", n: "{{ r.n + 1 }}", whole: "{{ r }}"}}
+      - {action: test.get, response_variable: r}
+      - {event: m_resp2, event_data: {r_none: "{{ r is none }}", r: "{{ r }}"}}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: true, response: {vals: ["a", "b"], n: 1}}}
+  - {at: 3, send: {type: service_result, call_id: 1, ok: true, response: {}}}

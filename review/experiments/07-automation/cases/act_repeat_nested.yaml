@@ -1,0 +1,14 @@
+# nested repeats: the inner `repeat` hides the outer; the outer is back afterwards
+automations:
+  - alias: nested
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - repeat:
+          for_each: [x, y]
+          sequence:
+            - repeat:
+                count: 2
+                sequence: [{event: m_inner, event_data: {i: "{{ repeat.index }}", item: "{{ repeat.item | default('none') }}"}}]
+            - {event: m_outer, event_data: {i: "{{ repeat.index }}", item: "{{ repeat.item }}"}}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

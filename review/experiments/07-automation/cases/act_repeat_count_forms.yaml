@@ -1,0 +1,15 @@
+# repeat count: 0, a string, a template, a negative template, and the repeat variable
+automations:
+  - alias: counts
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - repeat: {count: 0, sequence: [{event: m_zero}]}
+      - repeat: {count: "2", sequence: [{event: m_str, event_data: {i: "{{ repeat.index }}", first: "{{ repeat.first }}", last: "{{ repeat.last }}"}}]}
+      - repeat: {count: "{{ trigger.event.data.n }}", sequence: [{event: m_tmpl, event_data: {i: "{{ repeat.index }}", last: "{{ repeat.last }}"}}]}
+      - repeat: {count: "{{ -3 }}", sequence: [{event: m_neg}]}
+      - repeat: {count: "{{ '2' }}", sequence: [{event: m_tmpl_str}]}
+      - repeat: {count: "{{ 1.9 }}", sequence: [{event: m_tmpl_float}]}
+      - {event: m_end, event_data: {repeat_defined: "{{ repeat is defined }}"}}
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {n: 2}}}
+  - {at: 2, send: {type: event, event_type: e, data: {n: 0}}}

@@ -1,0 +1,16 @@
+# enabled on triggers and on steps inside blocks
+automations:
+  - alias: entrig
+    triggers:
+      - {trigger: event, event_type: e1, enabled: "{{ false }}"}
+      - {trigger: event, event_type: e2, enabled: "yes"}
+    actions:
+      - choose:
+          - conditions: [{condition: template, value_template: "{{ false }}", enabled: false}]
+            sequence: [{event: m_opt, enabled: false}, {event: m_opt2}]
+      - repeat: {count: 2, sequence: [{event: m_rep, enabled: false}]}
+        enabled: true
+      - {event: m_end}
+steps:
+  - {at: 1, send: {type: event, event_type: e1}}
+  - {at: 2, send: {type: event, event_type: e2}}

@@ -1,0 +1,14 @@
+# a templated delay that is negative or not a period aborts the run
+automations:
+  - alias: negdelay
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_a1}, {delay: "{{ -1 }}"}, {event: m_a2}]
+  - alias: baddelay
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_b1}, {delay: "{{ 'soon' }}", continue_on_error: true}, {event: m_b2}]
+  - alias: nonedelay
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_c1}, {delay: {minutes: "{{ none }}"}}, {event: m_c2}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 3, send: {type: event, event_type: tick}}

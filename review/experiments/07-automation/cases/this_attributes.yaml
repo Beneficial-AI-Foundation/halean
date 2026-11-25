@@ -1,0 +1,14 @@
+# `this`: current, last_triggered, mode of the automation entity as the run starts
+automations:
+  - alias: This One
+    id: abc
+    mode: parallel
+    max: 3
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - event: m_this
+        event_data: {eid: "{{ this.entity_id }}", st: "{{ this.state }}", cur: "{{ this.attributes.current }}", mode: "{{ this.attributes.mode }}", max: "{{ this.attributes.max }}", id: "{{ this.attributes.id }}", lt_none: "{{ this.attributes.last_triggered is none }}"}
+      - {delay: 5}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: event, event_type: e}}

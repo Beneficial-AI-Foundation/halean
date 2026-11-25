@@ -1,0 +1,11 @@
+# trigger_variables, then variables in order; run variables (trigger) win; a variable can read trigger
+automations:
+  - alias: autovars
+    trigger_variables: {tv: "{{ 'T' }}", shared: "from_tv"}
+    variables: {v1: "{{ tv ~ trigger.event.data.x }}", shared: "from_v", v2: "{{ v1 | lower }}", trigger: "ignored"}
+    triggers: [{trigger: event, event_type: e}]
+    conditions: ["{{ v2 == 'ta' }}"]
+    actions: [{event: m_autovars, event_data: {v1: "{{ v1 }}", v2: "{{ v2 }}", shared: "{{ shared }}", tv: "{{ tv }}", trig: "{{ trigger.platform }}"}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {x: "A"}}}
+  - {at: 2, send: {type: event, event_type: e, data: {x: "B"}}}

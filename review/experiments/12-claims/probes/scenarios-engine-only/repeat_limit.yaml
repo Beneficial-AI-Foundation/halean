@@ -1,0 +1,13 @@
+# README line 270: "repeat aborts after 10,000 iterations". No shipped scenario runs a loop that long.
+automations:
+  - id: limit
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - repeat:
+          while: "{{ true }}"
+          sequence: [{event: loop}]
+      - {event: after_limit}
+steps:
+  - {at: 1, send: {type: event, event_type: go}}
+  - {at: 2, send: {type: event, event_type: other}}
+  - {at: 3, send: {type: event, event_type: other}}

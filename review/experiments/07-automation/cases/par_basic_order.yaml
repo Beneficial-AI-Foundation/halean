@@ -1,0 +1,14 @@
+# parallel: branches start in order, each runs to its first block; the step after waits for all
+automations:
+  - alias: par
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - parallel:
+          - sequence: [{event: m_a1}, {action: test.a}, {event: m_a2}]
+          - sequence: [{event: m_b1}, {delay: 2}, {event: m_b2}]
+          - {event: m_c}
+      - {event: m_after}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 3, send: {type: event, event_type: tick}}
+  - {at: 4, send: {type: service_result, call_id: 0, ok: true}}

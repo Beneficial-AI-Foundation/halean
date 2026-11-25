@@ -1,0 +1,15 @@
+# data that fails to render or does not render to a mapping: error; continue_on_error swallows it
+automations:
+  - alias: dataerr
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {action: test.x, data: {v: "{{ 1 / 0 }}"}, continue_on_error: true}
+      - {event: m_after1}
+      - {action: test.x, data: "{{ [1, 2] }}", continue_on_error: true}
+      - {event: m_after2}
+      - {action: test.x, target: {entity_id: "{{ 'not an id' }}"}, continue_on_error: true}
+      - {event: m_after3}
+      - {action: test.x, data: {v: "{{ 1 / 0 }}"}}
+      - {event: m_never}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

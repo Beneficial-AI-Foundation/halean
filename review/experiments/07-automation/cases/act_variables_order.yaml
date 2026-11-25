@@ -1,0 +1,10 @@
+# one variables action: each value sees the ones before it, not the ones after
+automations:
+  - alias: varorder
+    variables: {a: 1}
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - variables: {b: "{{ a + 1 }}", a: "{{ b + 10 }}", c: "{{ a + b }}", d: {x: "{{ c }}", y: [1, "{{ a }}"]}}
+      - {event: m_varorder, event_data: {a: "{{ a }}", b: "{{ b }}", c: "{{ c }}", d: "{{ d }}"}}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

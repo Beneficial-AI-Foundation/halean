@@ -1,0 +1,10 @@
+# a variables action that fails to render ends the run, even with continue_on_error
+automations:
+  - alias: varerr
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - variables: {x: "{{ 1 / 0 }}"}
+        continue_on_error: true
+      - {event: m_never}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

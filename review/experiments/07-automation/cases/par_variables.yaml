@@ -1,0 +1,12 @@
+# parallel branches share variables (writes go to the outer scope); `wait` stays in its branch
+automations:
+  - alias: parvars
+    variables: {x: 0}
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - parallel:
+          - sequence: [{variables: {x: "{{ x + 1 }}", a: "A"}}, {wait_template: "{{ true }}"}, {event: m_b1, event_data: {x: "{{ x }}", w: "{{ wait.completed }}"}}]
+          - sequence: [{variables: {x: "{{ x + 10 }}"}}, {event: m_b2, event_data: {x: "{{ x }}", a: "{{ a | default('undef') }}", wait_defined: "{{ wait is defined }}"}}]
+      - {event: m_after, event_data: {x: "{{ x }}", a: "{{ a }}", wait_defined: "{{ wait is defined }}"}}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

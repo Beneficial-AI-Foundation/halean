@@ -1,0 +1,17 @@
+# for_each over a static list, a template list, dict items, None items; the repeat variable
+automations:
+  - alias: foreach
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - repeat:
+          for_each: [a, "{{ 1 + 1 }}", {k: v}, null]
+          sequence: [{event: m_static, event_data: {item: "{{ repeat.item | default('NOITEM') }}", i: "{{ repeat.index }}", last: "{{ repeat.last }}"}}]
+      - repeat:
+          for_each: "{{ trigger.event.data.xs }}"
+          sequence: [{event: m_tmpl, event_data: {item: "{{ repeat.item }}"}}]
+      - {event: m_end}
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {xs: [1, [2, 3]]}}}
+  - {at: 2, send: {type: event, event_type: e, data: {xs: []}}}
+  - {at: 3, send: {type: event, event_type: e, data: {xs: "abc"}}}
+  - {at: 4, send: {type: event, event_type: e, data: {xs: {a: 1}}}}

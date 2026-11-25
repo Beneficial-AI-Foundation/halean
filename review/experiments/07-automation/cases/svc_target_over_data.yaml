@@ -1,0 +1,10 @@
+# entity_id in both `data` and `target`: HA's ServiceRegistry.async_call does service_data.update(target)
+automations:
+  - alias: tod
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - action: test.tod
+        target: {entity_id: light.from_target}
+        data: {entity_id: light.from_data, v: 1}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

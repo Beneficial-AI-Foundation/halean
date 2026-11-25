@@ -1,0 +1,9 @@
+# the `trigger` variable of an event trigger: event_type, data, nested data
+automations:
+  - alias: tv_event
+    triggers: [{trigger: event, event_type: e, id: x}]
+    actions:
+      - event: m_tv_event
+        event_data: {keys: "{{ trigger.keys() | sort | list }}", ty: "{{ trigger.event.event_type }}", n: "{{ trigger.event.data.a.b }}", d: "{{ trigger.description }}", data: "{{ trigger.event.data }}"}
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {a: {b: [1, 2]}, s: "x"}}}

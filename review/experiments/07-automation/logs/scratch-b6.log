@@ -1,0 +1,1793 @@
+...FFFFF........F....F.F...FF...                                         [100%]
+=================================== FAILURES ===================================
+_______________________ test_scenario[cfg_duplicate_ids] _______________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b3412a520>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/cfg_duplicate_ids.yaml')
+
+    @pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
+    async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+>       await _run(hass, freezer, path)
+
+test_differential.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b3412a520>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/cfg_duplicate_ids.yaml')
+client = None
+
+    async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+                   client=None) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        loc = sc.get("location", LOCATION)
+        hass.config.latitude = loc["latitude"]
+        hass.config.longitude = loc["longitude"]
+        hass.config.elevation = loc["elevation"]
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = set()
+        automations = copy.deepcopy(sc["automations"])
+        for a in automations:
+            _walk_actions(a.get("actions") or a.get("action"), services, events)
+    
+        observed: list[tuple] = []
+        futures: list[asyncio.Future] = []
+        ha_log: list[str] = []  # review: HA's warnings/errors, for the dump only
+        if _DUMP:
+            import logging
+    
+            class _H(logging.Handler):
+                def emit(self, record):  # noqa: ANN001
+                    ha_log.append(f"{record.levelname} {record.name}: {record.getMessage()}"[:600])
+    
+            _h = _H(level=logging.WARNING)
+            logging.getLogger().addHandler(_h)
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall) -> None:
+            observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut  # the scenario's response; raises if it reports a failure
+    
+        # services answer with response data when asked (SupportsResponse.OPTIONAL)
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type == "automation_triggered":
+                observed.append(("automation_triggered", event.data.get("name")))
+            elif event.event_type in events and event.context is not input_ctx:
+                observed.append(("fire_event", event.event_type, dict(event.data)))
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "automation", {"automation": automations})
+        await _settle()
+    
+        per_step: list[list[tuple]] = [list(observed)]
+        observed.clear()
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            # advance one second at a time, like the bridge's ticks
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            else:
+                msg = st["send"]
+                if msg["type"] == "event":
+                    hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+                elif msg["type"] == "mqtt":
+                    async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                            msg.get("qos", 0), msg.get("retain", False))
+                elif msg["type"] == "webhook":
+                    await _send_webhook(hass, client, msg)
+                elif msg["type"] == "service_result":
+                    fut = futures[msg["call_id"]]
+                    if fut.done():
+                        pass  # the run was stopped (restart) and its call cancelled
+                    elif msg.get("ok"):
+                        fut.set_result(msg.get("response"))
+                    else:
+                        kind = msg.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            await _settle()
+            per_step.append(list(observed))
+            observed.clear()
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+    
+        if _DUMP:
+            logging.getLogger().removeHandler(_h)
+        raw_engine = engine_outputs(sc)
+        engine = [_normalise_engine(c) for c in raw_engine]
+        if _DUMP:
+            Path(_DUMP).mkdir(parents=True, exist_ok=True)
+            (Path(_DUMP) / f"{path.stem}.json").write_text(json.dumps({
+                "ha": per_step, "engine": engine, "ha_log": ha_log,
+                "engine_other": [[c for c in cs if c["type"] not in ("automation_triggered", "call_service", "fire_event")]
+                                 for cs in raw_engine]}, default=str, indent=1))
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = [
+            f"{label}\n    HA:     {ha}\n    engine: {en}"
+            for label, ha, en in zip(labels, per_step, engine)
+            if _streams(ha) != _streams(en)
+        ]
+>       assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and the Lean engine disagree:
+E           step at=1
+E             HA:     [('automation_triggered', 'first'), ('fire_event', 'm_first', {})]
+E             engine: [('automation_triggered', 'first'), ('fire_event', 'm_first', {}), ('automation_triggered', 'second'), ('fire_event', 'm_second', {})]
+E       assert not ["step at=1\n    HA:     [('automation_triggered', 'first'), ('fire_event', 'm_first', {})]\n    engine: [('automation...ggered', 'first'), ('fire_event', 'm_first', {}), ('automation_triggered', 'second'), ('fire_event', 'm_second', {})]"]
+
+test_differential.py:305: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded automation from homeassistant.components.automation
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+INFO:homeassistant.setup:Setting up automation
+INFO:homeassistant.helpers.entity_registry:Registered new automation.automation entity: automation.first
+INFO:homeassistant.components.automation.first:Initialized trigger first
+ERROR:homeassistant.components.automation:Platform automation does not generate unique IDs. ID same already exists - ignoring automation.first
+WARNING:asyncio:Executing <Task pending name='Task-64' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.first:first: Running automation actions
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded automation from homeassistant.components.automation
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+INFO     homeassistant.setup:setup.py:393 Setting up automation
+INFO     homeassistant.helpers.entity_registry:entity_registry.py:1715 Registered new automation.automation entity: automation.first
+INFO     homeassistant.components.automation.first:__init__.py:888 Initialized trigger first
+ERROR    homeassistant.components.automation:entity_platform.py:1019 Platform automation does not generate unique IDs. ID same already exists - ignoring automation.first
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-64' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.first:script.py:2301 first: Running automation actions
+____________________ test_scenario[cfg_initial_state_false] ____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27e7cb00>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/cfg_initial_state_false.yaml')
+
+    @pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
+    async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+>       await _run(hass, freezer, path)
+
+test_differential.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27e7cb00>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/cfg_initial_state_false.yaml')
+client = None
+
+    async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+                   client=None) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        loc = sc.get("location", LOCATION)
+        hass.config.latitude = loc["latitude"]
+        hass.config.longitude = loc["longitude"]
+        hass.config.elevation = loc["elevation"]
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = set()
+        automations = copy.deepcopy(sc["automations"])
+        for a in automations:
+            _walk_actions(a.get("actions") or a.get("action"), services, events)
+    
+        observed: list[tuple] = []
+        futures: list[asyncio.Future] = []
+        ha_log: list[str] = []  # review: HA's warnings/errors, for the dump only
+        if _DUMP:
+            import logging
+    
+            class _H(logging.Handler):
+                def emit(self, record):  # noqa: ANN001
+                    ha_log.append(f"{record.levelname} {record.name}: {record.getMessage()}"[:600])
+    
+            _h = _H(level=logging.WARNING)
+            logging.getLogger().addHandler(_h)
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall) -> None:
+            observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut  # the scenario's response; raises if it reports a failure
+    
+        # services answer with response data when asked (SupportsResponse.OPTIONAL)
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type == "automation_triggered":
+                observed.append(("automation_triggered", event.data.get("name")))
+            elif event.event_type in events and event.context is not input_ctx:
+                observed.append(("fire_event", event.event_type, dict(event.data)))
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "automation", {"automation": automations})
+        await _settle()
+    
+        per_step: list[list[tuple]] = [list(observed)]
+        observed.clear()
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            # advance one second at a time, like the bridge's ticks
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            else:
+                msg = st["send"]
+                if msg["type"] == "event":
+                    hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+                elif msg["type"] == "mqtt":
+                    async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                            msg.get("qos", 0), msg.get("retain", False))
+                elif msg["type"] == "webhook":
+                    await _send_webhook(hass, client, msg)
+                elif msg["type"] == "service_result":
+                    fut = futures[msg["call_id"]]
+                    if fut.done():
+                        pass  # the run was stopped (restart) and its call cancelled
+                    elif msg.get("ok"):
+                        fut.set_result(msg.get("response"))
+                    else:
+                        kind = msg.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            await _settle()
+            per_step.append(list(observed))
+            observed.clear()
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+    
+        if _DUMP:
+            logging.getLogger().removeHandler(_h)
+        raw_engine = engine_outputs(sc)
+        engine = [_normalise_engine(c) for c in raw_engine]
+        if _DUMP:
+            Path(_DUMP).mkdir(parents=True, exist_ok=True)
+            (Path(_DUMP) / f"{path.stem}.json").write_text(json.dumps({
+                "ha": per_step, "engine": engine, "ha_log": ha_log,
+                "engine_other": [[c for c in cs if c["type"] not in ("automation_triggered", "call_service", "fire_event")]
+                                 for cs in raw_engine]}, default=str, indent=1))
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = [
+            f"{label}\n    HA:     {ha}\n    engine: {en}"
+            for label, ha, en in zip(labels, per_step, engine)
+            if _streams(ha) != _streams(en)
+        ]
+>       assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and the Lean engine disagree:
+E           step at=1
+E             HA:     [('automation_triggered', 'on_at_start'), ('fire_event', 'm_on_at_start', {})]
+E             engine: [('automation_triggered', 'off_at_start'), ('fire_event', 'm_off_at_start', {}), ('automation_triggered', 'on_at_start'), ('fire_event', 'm_on_at_start', {})]
+E       assert not ["step at=1\n    HA:     [('automation_triggered', 'on_at_start'), ('fire_event', 'm_on_at_start', {})]\n    engine: [..., ('fire_event', 'm_off_at_start', {}), ('automation_triggered', 'on_at_start'), ('fire_event', 'm_on_at_start', {})]"]
+
+test_differential.py:305: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded automation from homeassistant.components.automation
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+INFO:homeassistant.setup:Setting up automation
+INFO:homeassistant.components.automation.on_at_start:Initialized trigger on_at_start
+WARNING:asyncio:Executing <Task pending name='Task-79' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.on_at_start:on_at_start: Running automation actions
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded automation from homeassistant.components.automation
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+INFO     homeassistant.setup:setup.py:393 Setting up automation
+INFO     homeassistant.components.automation.on_at_start:__init__.py:888 Initialized trigger on_at_start
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-79' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.on_at_start:script.py:2301 on_at_start: Running automation actions
+________________________ test_scenario[cfg_legacy_keys] ________________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27ec31d0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/cfg_legacy_keys.yaml')
+
+    @pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
+    async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+>       await _run(hass, freezer, path)
+
+test_differential.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27ec31d0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/cfg_legacy_keys.yaml')
+client = None
+
+    async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+                   client=None) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        loc = sc.get("location", LOCATION)
+        hass.config.latitude = loc["latitude"]
+        hass.config.longitude = loc["longitude"]
+        hass.config.elevation = loc["elevation"]
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = set()
+        automations = copy.deepcopy(sc["automations"])
+        for a in automations:
+            _walk_actions(a.get("actions") or a.get("action"), services, events)
+    
+        observed: list[tuple] = []
+        futures: list[asyncio.Future] = []
+        ha_log: list[str] = []  # review: HA's warnings/errors, for the dump only
+        if _DUMP:
+            import logging
+    
+            class _H(logging.Handler):
+                def emit(self, record):  # noqa: ANN001
+                    ha_log.append(f"{record.levelname} {record.name}: {record.getMessage()}"[:600])
+    
+            _h = _H(level=logging.WARNING)
+            logging.getLogger().addHandler(_h)
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall) -> None:
+            observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut  # the scenario's response; raises if it reports a failure
+    
+        # services answer with response data when asked (SupportsResponse.OPTIONAL)
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type == "automation_triggered":
+                observed.append(("automation_triggered", event.data.get("name")))
+            elif event.event_type in events and event.context is not input_ctx:
+                observed.append(("fire_event", event.event_type, dict(event.data)))
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "automation", {"automation": automations})
+        await _settle()
+    
+        per_step: list[list[tuple]] = [list(observed)]
+        observed.clear()
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            # advance one second at a time, like the bridge's ticks
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            else:
+                msg = st["send"]
+                if msg["type"] == "event":
+                    hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+                elif msg["type"] == "mqtt":
+                    async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                            msg.get("qos", 0), msg.get("retain", False))
+                elif msg["type"] == "webhook":
+                    await _send_webhook(hass, client, msg)
+                elif msg["type"] == "service_result":
+                    fut = futures[msg["call_id"]]
+                    if fut.done():
+                        pass  # the run was stopped (restart) and its call cancelled
+                    elif msg.get("ok"):
+                        fut.set_result(msg.get("response"))
+                    else:
+                        kind = msg.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            await _settle()
+            per_step.append(list(observed))
+            observed.clear()
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+    
+        if _DUMP:
+            logging.getLogger().removeHandler(_h)
+        raw_engine = engine_outputs(sc)
+        engine = [_normalise_engine(c) for c in raw_engine]
+        if _DUMP:
+            Path(_DUMP).mkdir(parents=True, exist_ok=True)
+            (Path(_DUMP) / f"{path.stem}.json").write_text(json.dumps({
+                "ha": per_step, "engine": engine, "ha_log": ha_log,
+                "engine_other": [[c for c in cs if c["type"] not in ("automation_triggered", "call_service", "fire_event")]
+                                 for cs in raw_engine]}, default=str, indent=1))
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = [
+            f"{label}\n    HA:     {ha}\n    engine: {en}"
+            for label, ha, en in zip(labels, per_step, engine)
+            if _streams(ha) != _streams(en)
+        ]
+>       assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and the Lean engine disagree:
+E           step at=1
+E             HA:     [('automation_triggered', 'legacy')]
+E             engine: [('automation_triggered', 'legacy'), ('call_service', 'test', 'legacy', {'v': 1}), ('automation_triggered', 'both_keys'), ('fire_event', 'm_both_keys', {})]
+E       assert not ["step at=1\n    HA:     [('automation_triggered', 'legacy')]\n    engine: [('automation_triggered', 'legacy'), ('call_service', 'test', 'legacy', {'v': 1}), ('automation_triggered', 'both_keys'), ('fire_event', 'm_both_keys', {})]"]
+
+test_differential.py:305: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded automation from homeassistant.components.automation
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+ERROR:homeassistant.components.automation:Automation with alias 'both_keys' could not be validated and has been disabled: Cannot specify both 'trigger' and 'triggers'. Please use 'triggers' only.. Got {'alias': 'both_keys', 'trigger': [{'trigger': 'event', 'event_type': 'e'}], 'triggers': [{'trigger': 'event', 'event_type': 'e'}], 'actions': [{'event': 'm_both_keys'}]}
+INFO:homeassistant.setup:Setting up automation
+INFO:homeassistant.components.automation.legacy:Initialized trigger legacy
+WARNING:asyncio:Executing <Task pending name='Task-93' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.legacy:legacy: Running automation actions
+ERROR:homeassistant.components.automation.legacy:legacy: Error executing script. Service not found for call_service at pos 1: Action test.legacy not found
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded automation from homeassistant.components.automation
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+ERROR    homeassistant.components.automation:config.py:129 Automation with alias 'both_keys' could not be validated and has been disabled: Cannot specify both 'trigger' and 'triggers'. Please use 'triggers' only.. Got {'alias': 'both_keys', 'trigger': [{'trigger': 'event', 'event_type': 'e'}], 'triggers': [{'trigger': 'event', 'event_type': 'e'}], 'actions': [{'event': 'm_both_keys'}]}
+INFO     homeassistant.setup:setup.py:393 Setting up automation
+INFO     homeassistant.components.automation.legacy:__init__.py:888 Initialized trigger legacy
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-93' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.legacy:script.py:2301 legacy: Running automation actions
+ERROR    homeassistant.components.automation.legacy:script.py:2301 legacy: Error executing script. Service not found for call_service at pos 1: Action test.legacy not found
+_____________________ test_scenario[cfg_missing_required] ______________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27fc1ae0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/cfg_missing_required.yaml')
+
+    @pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
+    async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+>       await _run(hass, freezer, path)
+
+test_differential.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27fc1ae0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/cfg_missing_required.yaml')
+client = None
+
+    async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+                   client=None) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        loc = sc.get("location", LOCATION)
+        hass.config.latitude = loc["latitude"]
+        hass.config.longitude = loc["longitude"]
+        hass.config.elevation = loc["elevation"]
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = set()
+        automations = copy.deepcopy(sc["automations"])
+        for a in automations:
+            _walk_actions(a.get("actions") or a.get("action"), services, events)
+    
+        observed: list[tuple] = []
+        futures: list[asyncio.Future] = []
+        ha_log: list[str] = []  # review: HA's warnings/errors, for the dump only
+        if _DUMP:
+            import logging
+    
+            class _H(logging.Handler):
+                def emit(self, record):  # noqa: ANN001
+                    ha_log.append(f"{record.levelname} {record.name}: {record.getMessage()}"[:600])
+    
+            _h = _H(level=logging.WARNING)
+            logging.getLogger().addHandler(_h)
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall) -> None:
+            observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut  # the scenario's response; raises if it reports a failure
+    
+        # services answer with response data when asked (SupportsResponse.OPTIONAL)
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type == "automation_triggered":
+                observed.append(("automation_triggered", event.data.get("name")))
+            elif event.event_type in events and event.context is not input_ctx:
+                observed.append(("fire_event", event.event_type, dict(event.data)))
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "automation", {"automation": automations})
+        await _settle()
+    
+        per_step: list[list[tuple]] = [list(observed)]
+        observed.clear()
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            # advance one second at a time, like the bridge's ticks
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            else:
+                msg = st["send"]
+                if msg["type"] == "event":
+                    hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+                elif msg["type"] == "mqtt":
+                    async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                            msg.get("qos", 0), msg.get("retain", False))
+                elif msg["type"] == "webhook":
+                    await _send_webhook(hass, client, msg)
+                elif msg["type"] == "service_result":
+                    fut = futures[msg["call_id"]]
+                    if fut.done():
+                        pass  # the run was stopped (restart) and its call cancelled
+                    elif msg.get("ok"):
+                        fut.set_result(msg.get("response"))
+                    else:
+                        kind = msg.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            await _settle()
+            per_step.append(list(observed))
+            observed.clear()
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+    
+        if _DUMP:
+            logging.getLogger().removeHandler(_h)
+        raw_engine = engine_outputs(sc)
+        engine = [_normalise_engine(c) for c in raw_engine]
+        if _DUMP:
+            Path(_DUMP).mkdir(parents=True, exist_ok=True)
+            (Path(_DUMP) / f"{path.stem}.json").write_text(json.dumps({
+                "ha": per_step, "engine": engine, "ha_log": ha_log,
+                "engine_other": [[c for c in cs if c["type"] not in ("automation_triggered", "call_service", "fire_event")]
+                                 for cs in raw_engine]}, default=str, indent=1))
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = [
+            f"{label}\n    HA:     {ha}\n    engine: {en}"
+            for label, ha, en in zip(labels, per_step, engine)
+            if _streams(ha) != _streams(en)
+        ]
+>       assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and the Lean engine disagree:
+E           step at=1
+E             HA:     []
+E             engine: [('automation_triggered', 'no_actions'), ('automation_triggered', 'choose_no_sequence'), ('fire_event', 'm_choose_no_sequence', {}), ('automation_triggered', 'if_no_then'), ('fire_event', 'm_if_no_then', {}), ('automation_triggered', 'repeat_no_sequence'), ('fire_event', 'm_repeat_no_sequence', {}), ('automation_triggered', 'choose_no_conditions'), ('fire_event', 'm_choose_no_conditions', {})]
+E       assert not ["step at=1\n    HA:     []\n    engine: [('automation_triggered', 'no_actions'), ('automation_triggered', 'choose_no_...at_no_sequence', {}), ('automation_triggered', 'choose_no_conditions'), ('fire_event', 'm_choose_no_conditions', {})]"]
+
+test_differential.py:305: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded automation from homeassistant.components.automation
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+ERROR:homeassistant.components.automation:Automation with alias 'no_actions' could not be validated and has been disabled: required key not provided at 'actions'. Got None
+ERROR:homeassistant.components.automation:Automation with alias 'choose_no_sequence' could not be validated and has been disabled: required key not provided at 'actions[0].choose[0].sequence'. Got None
+ERROR:homeassistant.components.automation:Automation with alias 'if_no_then' could not be validated and has been disabled: required key not provided at 'actions[0].then'. Got None
+ERROR:homeassistant.components.automation:Automation with alias 'repeat_no_sequence' could not be validated and has been disabled: required key not provided at 'actions[0].repeat.sequence'. Got None
+ERROR:homeassistant.components.automation:Automation with alias 'choose_no_conditions' could not be validated and has been disabled: required key not provided at 'actions[0].choose[0].conditions'. Got None
+INFO:homeassistant.setup:Setting up automation
+WARNING:asyncio:Executing <Task pending name='Task-109' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded automation from homeassistant.components.automation
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+ERROR    homeassistant.components.automation:config.py:129 Automation with alias 'no_actions' could not be validated and has been disabled: required key not provided at 'actions'. Got None
+ERROR    homeassistant.components.automation:config.py:129 Automation with alias 'choose_no_sequence' could not be validated and has been disabled: required key not provided at 'actions[0].choose[0].sequence'. Got None
+ERROR    homeassistant.components.automation:config.py:129 Automation with alias 'if_no_then' could not be validated and has been disabled: required key not provided at 'actions[0].then'. Got None
+ERROR    homeassistant.components.automation:config.py:129 Automation with alias 'repeat_no_sequence' could not be validated and has been disabled: required key not provided at 'actions[0].repeat.sequence'. Got None
+ERROR    homeassistant.components.automation:config.py:129 Automation with alias 'choose_no_conditions' could not be validated and has been disabled: required key not provided at 'actions[0].choose[0].conditions'. Got None
+INFO     homeassistant.setup:setup.py:393 Setting up automation
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-109' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+_______________________ test_scenario[cfg_unknown_keys] ________________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27d4cc00>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/cfg_unknown_keys.yaml')
+
+    @pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
+    async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+>       await _run(hass, freezer, path)
+
+test_differential.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27d4cc00>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/cfg_unknown_keys.yaml')
+client = None
+
+    async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+                   client=None) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        loc = sc.get("location", LOCATION)
+        hass.config.latitude = loc["latitude"]
+        hass.config.longitude = loc["longitude"]
+        hass.config.elevation = loc["elevation"]
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = set()
+        automations = copy.deepcopy(sc["automations"])
+        for a in automations:
+            _walk_actions(a.get("actions") or a.get("action"), services, events)
+    
+        observed: list[tuple] = []
+        futures: list[asyncio.Future] = []
+        ha_log: list[str] = []  # review: HA's warnings/errors, for the dump only
+        if _DUMP:
+            import logging
+    
+            class _H(logging.Handler):
+                def emit(self, record):  # noqa: ANN001
+                    ha_log.append(f"{record.levelname} {record.name}: {record.getMessage()}"[:600])
+    
+            _h = _H(level=logging.WARNING)
+            logging.getLogger().addHandler(_h)
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall) -> None:
+            observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut  # the scenario's response; raises if it reports a failure
+    
+        # services answer with response data when asked (SupportsResponse.OPTIONAL)
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type == "automation_triggered":
+                observed.append(("automation_triggered", event.data.get("name")))
+            elif event.event_type in events and event.context is not input_ctx:
+                observed.append(("fire_event", event.event_type, dict(event.data)))
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "automation", {"automation": automations})
+        await _settle()
+    
+        per_step: list[list[tuple]] = [list(observed)]
+        observed.clear()
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            # advance one second at a time, like the bridge's ticks
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            else:
+                msg = st["send"]
+                if msg["type"] == "event":
+                    hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+                elif msg["type"] == "mqtt":
+                    async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                            msg.get("qos", 0), msg.get("retain", False))
+                elif msg["type"] == "webhook":
+                    await _send_webhook(hass, client, msg)
+                elif msg["type"] == "service_result":
+                    fut = futures[msg["call_id"]]
+                    if fut.done():
+                        pass  # the run was stopped (restart) and its call cancelled
+                    elif msg.get("ok"):
+                        fut.set_result(msg.get("response"))
+                    else:
+                        kind = msg.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            await _settle()
+            per_step.append(list(observed))
+            observed.clear()
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+    
+        if _DUMP:
+            logging.getLogger().removeHandler(_h)
+        raw_engine = engine_outputs(sc)
+        engine = [_normalise_engine(c) for c in raw_engine]
+        if _DUMP:
+            Path(_DUMP).mkdir(parents=True, exist_ok=True)
+            (Path(_DUMP) / f"{path.stem}.json").write_text(json.dumps({
+                "ha": per_step, "engine": engine, "ha_log": ha_log,
+                "engine_other": [[c for c in cs if c["type"] not in ("automation_triggered", "call_service", "fire_event")]
+                                 for cs in raw_engine]}, default=str, indent=1))
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = [
+            f"{label}\n    HA:     {ha}\n    engine: {en}"
+            for label, ha, en in zip(labels, per_step, engine)
+            if _streams(ha) != _streams(en)
+        ]
+>       assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and the Lean engine disagree:
+E           step at=1
+E             HA:     []
+E             engine: [('automation_triggered', 'action_extra'), ('fire_event', 'm_action_extra', {}), ('automation_triggered', 'trigger_extra'), ('fire_event', 'm_trigger_extra', {}), ('automation_triggered', 'condition_extra'), ('fire_event', 'm_condition_extra', {}), ('automation_triggered', 'automation_extra'), ('fire_event', 'm_automation_extra', {}), ('automation_triggered', 'two_actions_in_one')]
+E       assert not ["step at=1\n    HA:     []\n    engine: [('automation_triggered', 'action_extra'), ('fire_event', 'm_action_extra', {...ered', 'automation_extra'), ('fire_event', 'm_automation_extra', {}), ('automation_triggered', 'two_actions_in_one')]"]
+
+test_differential.py:305: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded automation from homeassistant.components.automation
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+ERROR:homeassistant.components.automation:Automation with alias 'action_extra' could not be validated and has been disabled: not a valid option at 'actions[0].foo'. Got 1
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+ERROR:homeassistant.components.automation:Automation with alias 'trigger_extra' failed to setup triggers and has been disabled: not a valid option at 'foo'. Got None
+ERROR:homeassistant.components.automation:Automation with alias 'condition_extra' could not be validated and has been disabled: not a valid option at 'conditions[0].foo'. Got 1
+ERROR:homeassistant.components.automation:Automation with alias 'automation_extra' could not be validated and has been disabled: not a valid option at 'foo'. Got 1
+ERROR:homeassistant.components.automation:Automation with alias 'two_actions_in_one' could not be validated and has been disabled: not a valid option at 'actions[0].event'. Got 'm_two'
+INFO:homeassistant.setup:Setting up automation
+WARNING:asyncio:Executing <Task pending name='Task-121' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-121' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded automation from homeassistant.components.automation
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+ERROR    homeassistant.components.automation:config.py:129 Automation with alias 'action_extra' could not be validated and has been disabled: not a valid option at 'actions[0].foo'. Got 1
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+ERROR    homeassistant.components.automation:config.py:129 Automation with alias 'trigger_extra' failed to setup triggers and has been disabled: not a valid option at 'foo'. Got None
+ERROR    homeassistant.components.automation:config.py:129 Automation with alias 'condition_extra' could not be validated and has been disabled: not a valid option at 'conditions[0].foo'. Got 1
+ERROR    homeassistant.components.automation:config.py:129 Automation with alias 'automation_extra' could not be validated and has been disabled: not a valid option at 'foo'. Got 1
+ERROR    homeassistant.components.automation:config.py:129 Automation with alias 'two_actions_in_one' could not be validated and has been disabled: not a valid option at 'actions[0].event'. Got 'm_two'
+INFO     homeassistant.setup:setup.py:393 Setting up automation
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-121' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-121' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+________________________ test_scenario[par_list_branch] ________________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27c74ad0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/par_list_branch.yaml')
+
+    @pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
+    async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+>       await _run(hass, freezer, path)
+
+test_differential.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27c74ad0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/par_list_branch.yaml')
+client = None
+
+    async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+                   client=None) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        loc = sc.get("location", LOCATION)
+        hass.config.latitude = loc["latitude"]
+        hass.config.longitude = loc["longitude"]
+        hass.config.elevation = loc["elevation"]
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = set()
+        automations = copy.deepcopy(sc["automations"])
+        for a in automations:
+            _walk_actions(a.get("actions") or a.get("action"), services, events)
+    
+        observed: list[tuple] = []
+        futures: list[asyncio.Future] = []
+        ha_log: list[str] = []  # review: HA's warnings/errors, for the dump only
+        if _DUMP:
+            import logging
+    
+            class _H(logging.Handler):
+                def emit(self, record):  # noqa: ANN001
+                    ha_log.append(f"{record.levelname} {record.name}: {record.getMessage()}"[:600])
+    
+            _h = _H(level=logging.WARNING)
+            logging.getLogger().addHandler(_h)
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall) -> None:
+            observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut  # the scenario's response; raises if it reports a failure
+    
+        # services answer with response data when asked (SupportsResponse.OPTIONAL)
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type == "automation_triggered":
+                observed.append(("automation_triggered", event.data.get("name")))
+            elif event.event_type in events and event.context is not input_ctx:
+                observed.append(("fire_event", event.event_type, dict(event.data)))
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "automation", {"automation": automations})
+        await _settle()
+    
+        per_step: list[list[tuple]] = [list(observed)]
+        observed.clear()
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            # advance one second at a time, like the bridge's ticks
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            else:
+                msg = st["send"]
+                if msg["type"] == "event":
+                    hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+                elif msg["type"] == "mqtt":
+                    async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                            msg.get("qos", 0), msg.get("retain", False))
+                elif msg["type"] == "webhook":
+                    await _send_webhook(hass, client, msg)
+                elif msg["type"] == "service_result":
+                    fut = futures[msg["call_id"]]
+                    if fut.done():
+                        pass  # the run was stopped (restart) and its call cancelled
+                    elif msg.get("ok"):
+                        fut.set_result(msg.get("response"))
+                    else:
+                        kind = msg.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            await _settle()
+            per_step.append(list(observed))
+            observed.clear()
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+    
+        if _DUMP:
+            logging.getLogger().removeHandler(_h)
+        raw_engine = engine_outputs(sc)
+        engine = [_normalise_engine(c) for c in raw_engine]
+        if _DUMP:
+            Path(_DUMP).mkdir(parents=True, exist_ok=True)
+            (Path(_DUMP) / f"{path.stem}.json").write_text(json.dumps({
+                "ha": per_step, "engine": engine, "ha_log": ha_log,
+                "engine_other": [[c for c in cs if c["type"] not in ("automation_triggered", "call_service", "fire_event")]
+                                 for cs in raw_engine]}, default=str, indent=1))
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = [
+            f"{label}\n    HA:     {ha}\n    engine: {en}"
+            for label, ha, en in zip(labels, per_step, engine)
+            if _streams(ha) != _streams(en)
+        ]
+>       assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and the Lean engine disagree:
+E           step at=1
+E             HA:     [('automation_triggered', 'parlist'), ('fire_event', 'm_b', {}), ('fire_event', 'm_after', {})]
+E             engine: []
+E       assert not ["step at=1\n    HA:     [('automation_triggered', 'parlist'), ('fire_event', 'm_b', {}), ('fire_event', 'm_after', {})]\n    engine: []"]
+
+test_differential.py:305: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded automation from homeassistant.components.automation
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+INFO:homeassistant.setup:Setting up automation
+INFO:homeassistant.components.automation.parlist:Initialized trigger parlist
+WARNING:asyncio:Executing <Task pending name='Task-304' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.parlist:parlist: Running automation actions
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded automation from homeassistant.components.automation
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+INFO     homeassistant.setup:setup.py:393 Setting up automation
+INFO     homeassistant.components.automation.parlist:__init__.py:888 Initialized trigger parlist
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-304' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.parlist:script.py:2301 parlist: Running automation actions
+________________________ test_scenario[svc_data_merge] _________________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27d27140>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/svc_data_merge.yaml')
+
+    @pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
+    async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+>       await _run(hass, freezer, path)
+
+test_differential.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27d27140>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/svc_data_merge.yaml')
+client = None
+
+    async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+                   client=None) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        loc = sc.get("location", LOCATION)
+        hass.config.latitude = loc["latitude"]
+        hass.config.longitude = loc["longitude"]
+        hass.config.elevation = loc["elevation"]
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = set()
+        automations = copy.deepcopy(sc["automations"])
+        for a in automations:
+            _walk_actions(a.get("actions") or a.get("action"), services, events)
+    
+        observed: list[tuple] = []
+        futures: list[asyncio.Future] = []
+        ha_log: list[str] = []  # review: HA's warnings/errors, for the dump only
+        if _DUMP:
+            import logging
+    
+            class _H(logging.Handler):
+                def emit(self, record):  # noqa: ANN001
+                    ha_log.append(f"{record.levelname} {record.name}: {record.getMessage()}"[:600])
+    
+            _h = _H(level=logging.WARNING)
+            logging.getLogger().addHandler(_h)
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall) -> None:
+            observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut  # the scenario's response; raises if it reports a failure
+    
+        # services answer with response data when asked (SupportsResponse.OPTIONAL)
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type == "automation_triggered":
+                observed.append(("automation_triggered", event.data.get("name")))
+            elif event.event_type in events and event.context is not input_ctx:
+                observed.append(("fire_event", event.event_type, dict(event.data)))
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "automation", {"automation": automations})
+        await _settle()
+    
+        per_step: list[list[tuple]] = [list(observed)]
+        observed.clear()
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            # advance one second at a time, like the bridge's ticks
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            else:
+                msg = st["send"]
+                if msg["type"] == "event":
+                    hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+                elif msg["type"] == "mqtt":
+                    async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                            msg.get("qos", 0), msg.get("retain", False))
+                elif msg["type"] == "webhook":
+                    await _send_webhook(hass, client, msg)
+                elif msg["type"] == "service_result":
+                    fut = futures[msg["call_id"]]
+                    if fut.done():
+                        pass  # the run was stopped (restart) and its call cancelled
+                    elif msg.get("ok"):
+                        fut.set_result(msg.get("response"))
+                    else:
+                        kind = msg.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            await _settle()
+            per_step.append(list(observed))
+            observed.clear()
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+    
+        if _DUMP:
+            logging.getLogger().removeHandler(_h)
+        raw_engine = engine_outputs(sc)
+        engine = [_normalise_engine(c) for c in raw_engine]
+        if _DUMP:
+            Path(_DUMP).mkdir(parents=True, exist_ok=True)
+            (Path(_DUMP) / f"{path.stem}.json").write_text(json.dumps({
+                "ha": per_step, "engine": engine, "ha_log": ha_log,
+                "engine_other": [[c for c in cs if c["type"] not in ("automation_triggered", "call_service", "fire_event")]
+                                 for cs in raw_engine]}, default=str, indent=1))
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = [
+            f"{label}\n    HA:     {ha}\n    engine: {en}"
+            for label, ha, en in zip(labels, per_step, engine)
+            if _streams(ha) != _streams(en)
+        ]
+>       assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and the Lean engine disagree:
+E           step at=2
+E             HA:     [('call_service', 'test', 'eid', {'entity_id': ['light.c'], 'device_id': ['d1']})]
+E             engine: [('call_service', 'test', 'eid', {'device_id': ['d1'], 'entity_id': ['light.from_data']})]
+E       assert not ["step at=2\n    HA:     [('call_service', 'test', 'eid', {'entity_id': ['light.c'], 'device_id': ['d1']})]\n    engine: [('call_service', 'test', 'eid', {'device_id': ['d1'], 'entity_id': ['light.from_data']})]"]
+
+test_differential.py:305: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded automation from homeassistant.components.automation
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+INFO:homeassistant.setup:Setting up automation
+INFO:homeassistant.components.automation.merge:Initialized trigger merge
+WARNING:asyncio:Executing <Task pending name='Task-410' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.merge:merge: Running automation actions
+WARNING:asyncio:Executing <Task pending name='Task-410' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-410' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-410' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-410' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded automation from homeassistant.components.automation
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+INFO     homeassistant.setup:setup.py:393 Setting up automation
+INFO     homeassistant.components.automation.merge:__init__.py:888 Initialized trigger merge
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-410' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.merge:script.py:2301 merge: Running automation actions
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-410' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-410' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-410' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-410' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+_____________________ test_scenario[svc_target_over_data] ______________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27c6ecd0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/svc_target_over_data.yaml')
+
+    @pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
+    async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+>       await _run(hass, freezer, path)
+
+test_differential.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b27c6ecd0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/svc_target_over_data.yaml')
+client = None
+
+    async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+                   client=None) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        loc = sc.get("location", LOCATION)
+        hass.config.latitude = loc["latitude"]
+        hass.config.longitude = loc["longitude"]
+        hass.config.elevation = loc["elevation"]
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = set()
+        automations = copy.deepcopy(sc["automations"])
+        for a in automations:
+            _walk_actions(a.get("actions") or a.get("action"), services, events)
+    
+        observed: list[tuple] = []
+        futures: list[asyncio.Future] = []
+        ha_log: list[str] = []  # review: HA's warnings/errors, for the dump only
+        if _DUMP:
+            import logging
+    
+            class _H(logging.Handler):
+                def emit(self, record):  # noqa: ANN001
+                    ha_log.append(f"{record.levelname} {record.name}: {record.getMessage()}"[:600])
+    
+            _h = _H(level=logging.WARNING)
+            logging.getLogger().addHandler(_h)
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall) -> None:
+            observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut  # the scenario's response; raises if it reports a failure
+    
+        # services answer with response data when asked (SupportsResponse.OPTIONAL)
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type == "automation_triggered":
+                observed.append(("automation_triggered", event.data.get("name")))
+            elif event.event_type in events and event.context is not input_ctx:
+                observed.append(("fire_event", event.event_type, dict(event.data)))
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "automation", {"automation": automations})
+        await _settle()
+    
+        per_step: list[list[tuple]] = [list(observed)]
+        observed.clear()
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            # advance one second at a time, like the bridge's ticks
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            else:
+                msg = st["send"]
+                if msg["type"] == "event":
+                    hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+                elif msg["type"] == "mqtt":
+                    async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                            msg.get("qos", 0), msg.get("retain", False))
+                elif msg["type"] == "webhook":
+                    await _send_webhook(hass, client, msg)
+                elif msg["type"] == "service_result":
+                    fut = futures[msg["call_id"]]
+                    if fut.done():
+                        pass  # the run was stopped (restart) and its call cancelled
+                    elif msg.get("ok"):
+                        fut.set_result(msg.get("response"))
+                    else:
+                        kind = msg.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            await _settle()
+            per_step.append(list(observed))
+            observed.clear()
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+    
+        if _DUMP:
+            logging.getLogger().removeHandler(_h)
+        raw_engine = engine_outputs(sc)
+        engine = [_normalise_engine(c) for c in raw_engine]
+        if _DUMP:
+            Path(_DUMP).mkdir(parents=True, exist_ok=True)
+            (Path(_DUMP) / f"{path.stem}.json").write_text(json.dumps({
+                "ha": per_step, "engine": engine, "ha_log": ha_log,
+                "engine_other": [[c for c in cs if c["type"] not in ("automation_triggered", "call_service", "fire_event")]
+                                 for cs in raw_engine]}, default=str, indent=1))
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = [
+            f"{label}\n    HA:     {ha}\n    engine: {en}"
+            for label, ha, en in zip(labels, per_step, engine)
+            if _streams(ha) != _streams(en)
+        ]
+>       assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and the Lean engine disagree:
+E           step at=1
+E             HA:     [('automation_triggered', 'tod'), ('call_service', 'test', 'tod', {'entity_id': ['light.from_target'], 'v': 1})]
+E             engine: [('automation_triggered', 'tod'), ('call_service', 'test', 'tod', {'entity_id': ['light.from_data'], 'v': 1})]
+E       assert not ["step at=1\n    HA:     [('automation_triggered', 'tod'), ('call_service', 'test', 'tod', {'entity_id': ['light.from_...ngine: [('automation_triggered', 'tod'), ('call_service', 'test', 'tod', {'entity_id': ['light.from_data'], 'v': 1})]"]
+
+test_differential.py:305: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded automation from homeassistant.components.automation
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+INFO:homeassistant.setup:Setting up automation
+INFO:homeassistant.components.automation.tod:Initialized trigger tod
+WARNING:asyncio:Executing <Task pending name='Task-444' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.tod:tod: Running automation actions
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded automation from homeassistant.components.automation
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+INFO     homeassistant.setup:setup.py:393 Setting up automation
+INFO     homeassistant.components.automation.tod:__init__.py:888 Initialized trigger tod
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-444' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.tod:script.py:2301 tod: Running automation actions
+_____________________ test_scenario[tmpl_context_variable] _____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b271279b0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/tmpl_context_variable.yaml')
+
+    @pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
+    async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+>       await _run(hass, freezer, path)
+
+test_differential.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b271279b0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/tmpl_context_variable.yaml')
+client = None
+
+    async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+                   client=None) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        loc = sc.get("location", LOCATION)
+        hass.config.latitude = loc["latitude"]
+        hass.config.longitude = loc["longitude"]
+        hass.config.elevation = loc["elevation"]
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = set()
+        automations = copy.deepcopy(sc["automations"])
+        for a in automations:
+            _walk_actions(a.get("actions") or a.get("action"), services, events)
+    
+        observed: list[tuple] = []
+        futures: list[asyncio.Future] = []
+        ha_log: list[str] = []  # review: HA's warnings/errors, for the dump only
+        if _DUMP:
+            import logging
+    
+            class _H(logging.Handler):
+                def emit(self, record):  # noqa: ANN001
+                    ha_log.append(f"{record.levelname} {record.name}: {record.getMessage()}"[:600])
+    
+            _h = _H(level=logging.WARNING)
+            logging.getLogger().addHandler(_h)
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall) -> None:
+            observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut  # the scenario's response; raises if it reports a failure
+    
+        # services answer with response data when asked (SupportsResponse.OPTIONAL)
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type == "automation_triggered":
+                observed.append(("automation_triggered", event.data.get("name")))
+            elif event.event_type in events and event.context is not input_ctx:
+                observed.append(("fire_event", event.event_type, dict(event.data)))
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "automation", {"automation": automations})
+        await _settle()
+    
+        per_step: list[list[tuple]] = [list(observed)]
+        observed.clear()
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            # advance one second at a time, like the bridge's ticks
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            else:
+                msg = st["send"]
+                if msg["type"] == "event":
+                    hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+                elif msg["type"] == "mqtt":
+                    async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                            msg.get("qos", 0), msg.get("retain", False))
+                elif msg["type"] == "webhook":
+                    await _send_webhook(hass, client, msg)
+                elif msg["type"] == "service_result":
+                    fut = futures[msg["call_id"]]
+                    if fut.done():
+                        pass  # the run was stopped (restart) and its call cancelled
+                    elif msg.get("ok"):
+                        fut.set_result(msg.get("response"))
+                    else:
+                        kind = msg.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            await _settle()
+            per_step.append(list(observed))
+            observed.clear()
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+    
+        if _DUMP:
+            logging.getLogger().removeHandler(_h)
+        raw_engine = engine_outputs(sc)
+        engine = [_normalise_engine(c) for c in raw_engine]
+        if _DUMP:
+            Path(_DUMP).mkdir(parents=True, exist_ok=True)
+            (Path(_DUMP) / f"{path.stem}.json").write_text(json.dumps({
+                "ha": per_step, "engine": engine, "ha_log": ha_log,
+                "engine_other": [[c for c in cs if c["type"] not in ("automation_triggered", "call_service", "fire_event")]
+                                 for cs in raw_engine]}, default=str, indent=1))
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = [
+            f"{label}\n    HA:     {ha}\n    engine: {en}"
+            for label, ha, en in zip(labels, per_step, engine)
+            if _streams(ha) != _streams(en)
+        ]
+>       assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and the Lean engine disagree:
+E           step at=1
+E             HA:     [('automation_triggered', 'ctx'), ('fire_event', 'm_ctx', {'d': True})]
+E             engine: []
+E       assert not ["step at=1\n    HA:     [('automation_triggered', 'ctx'), ('fire_event', 'm_ctx', {'d': True})]\n    engine: []"]
+
+test_differential.py:305: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded automation from homeassistant.components.automation
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+INFO:homeassistant.setup:Setting up automation
+INFO:homeassistant.components.automation.ctx:Initialized trigger ctx
+WARNING:asyncio:Executing <Task pending name='Task-513' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.ctx:ctx: Running automation actions
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded automation from homeassistant.components.automation
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+INFO     homeassistant.setup:setup.py:393 Setting up automation
+INFO     homeassistant.components.automation.ctx:__init__.py:888 Initialized trigger ctx
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-513' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.ctx:script.py:2301 ctx: Running automation actions
+____________________ test_scenario[tmpl_undefined_variable] ____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b272f0ff0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/tmpl_undefined_variable.yaml')
+
+    @pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
+    async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+>       await _run(hass, freezer, path)
+
+test_differential.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f2b272f0ff0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/cases/tmpl_undefined_variable.yaml')
+client = None
+
+    async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+                   client=None) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        loc = sc.get("location", LOCATION)
+        hass.config.latitude = loc["latitude"]
+        hass.config.longitude = loc["longitude"]
+        hass.config.elevation = loc["elevation"]
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = set()
+        automations = copy.deepcopy(sc["automations"])
+        for a in automations:
+            _walk_actions(a.get("actions") or a.get("action"), services, events)
+    
+        observed: list[tuple] = []
+        futures: list[asyncio.Future] = []
+        ha_log: list[str] = []  # review: HA's warnings/errors, for the dump only
+        if _DUMP:
+            import logging
+    
+            class _H(logging.Handler):
+                def emit(self, record):  # noqa: ANN001
+                    ha_log.append(f"{record.levelname} {record.name}: {record.getMessage()}"[:600])
+    
+            _h = _H(level=logging.WARNING)
+            logging.getLogger().addHandler(_h)
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall) -> None:
+            observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut  # the scenario's response; raises if it reports a failure
+    
+        # services answer with response data when asked (SupportsResponse.OPTIONAL)
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type == "automation_triggered":
+                observed.append(("automation_triggered", event.data.get("name")))
+            elif event.event_type in events and event.context is not input_ctx:
+                observed.append(("fire_event", event.event_type, dict(event.data)))
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "automation", {"automation": automations})
+        await _settle()
+    
+        per_step: list[list[tuple]] = [list(observed)]
+        observed.clear()
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            # advance one second at a time, like the bridge's ticks
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            else:
+                msg = st["send"]
+                if msg["type"] == "event":
+                    hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+                elif msg["type"] == "mqtt":
+                    async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                            msg.get("qos", 0), msg.get("retain", False))
+                elif msg["type"] == "webhook":
+                    await _send_webhook(hass, client, msg)
+                elif msg["type"] == "service_result":
+                    fut = futures[msg["call_id"]]
+                    if fut.done():
+                        pass  # the run was stopped (restart) and its call cancelled
+                    elif msg.get("ok"):
+                        fut.set_result(msg.get("response"))
+                    else:
+                        kind = msg.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            await _settle()
+            per_step.append(list(observed))
+            observed.clear()
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+    
+        if _DUMP:
+            logging.getLogger().removeHandler(_h)
+        raw_engine = engine_outputs(sc)
+        engine = [_normalise_engine(c) for c in raw_engine]
+        if _DUMP:
+            Path(_DUMP).mkdir(parents=True, exist_ok=True)
+            (Path(_DUMP) / f"{path.stem}.json").write_text(json.dumps({
+                "ha": per_step, "engine": engine, "ha_log": ha_log,
+                "engine_other": [[c for c in cs if c["type"] not in ("automation_triggered", "call_service", "fire_event")]
+                                 for cs in raw_engine]}, default=str, indent=1))
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = [
+            f"{label}\n    HA:     {ha}\n    engine: {en}"
+            for label, ha, en in zip(labels, per_step, engine)
+            if _streams(ha) != _streams(en)
+        ]
+>       assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and the Lean engine disagree:
+E           step at=1
+E             HA:     [('automation_triggered', 'undef'), ('fire_event', 'm_undef', {'v': 'fallback', 'd': False})]
+E             engine: []
+E       assert not ["step at=1\n    HA:     [('automation_triggered', 'undef'), ('fire_event', 'm_undef', {'v': 'fallback', 'd': False})]\n    engine: []"]
+
+test_differential.py:305: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded automation from homeassistant.components.automation
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+INFO:homeassistant.setup:Setting up automation
+INFO:homeassistant.components.automation.undef:Initialized trigger undef
+WARNING:asyncio:Executing <Task pending name='Task-527' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.undef:undef: Running automation actions
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded automation from homeassistant.components.automation
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+INFO     homeassistant.setup:setup.py:393 Setting up automation
+INFO     homeassistant.components.automation.undef:__init__.py:888 Initialized trigger undef
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-527' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.undef:script.py:2301 undef: Running automation actions
+=========================== short test summary info ============================
+FAILED test_differential.py::test_scenario[cfg_duplicate_ids] - AssertionErro...
+FAILED test_differential.py::test_scenario[cfg_initial_state_false] - Asserti...
+FAILED test_differential.py::test_scenario[cfg_legacy_keys] - AssertionError:...
+FAILED test_differential.py::test_scenario[cfg_missing_required] - AssertionE...
+FAILED test_differential.py::test_scenario[cfg_unknown_keys] - AssertionError...
+FAILED test_differential.py::test_scenario[par_list_branch] - AssertionError:...
+FAILED test_differential.py::test_scenario[svc_data_merge] - AssertionError: ...
+FAILED test_differential.py::test_scenario[svc_target_over_data] - AssertionE...
+FAILED test_differential.py::test_scenario[tmpl_context_variable] - Assertion...
+FAILED test_differential.py::test_scenario[tmpl_undefined_variable] - Asserti...
+10 failed, 22 passed, 111 deselected in 10.39s
+exit=1

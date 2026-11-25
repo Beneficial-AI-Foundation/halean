@@ -1,0 +1,17 @@
+# continue_on_error by exception kind, on the failing step itself
+automations:
+  - alias: coe
+    mode: queued
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {action: test.fail, continue_on_error: true}
+      - {event: m_after}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: false, error_kind: ha_error}}
+  - {at: 3, send: {type: event, event_type: e}}
+  - {at: 4, send: {type: service_result, call_id: 1, ok: false, error_kind: other}}
+  - {at: 5, send: {type: event, event_type: e}}
+  - {at: 6, send: {type: service_result, call_id: 2, ok: false, error_kind: invalid}}
+  - {at: 7, send: {type: event, event_type: e}}
+  - {at: 8, send: {type: service_result, call_id: 3, ok: true}}

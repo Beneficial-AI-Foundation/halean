@@ -1,0 +1,13 @@
+# a failing condition in a repeat body ends that iteration only
+automations:
+  - alias: bodycond
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - repeat:
+          count: 4
+          sequence:
+            - "{{ repeat.index is odd }}"
+            - {event: m_odd, event_data: {i: "{{ repeat.index }}"}}
+      - {event: m_end}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

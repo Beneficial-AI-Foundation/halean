@@ -1,0 +1,17 @@
+# a state change that both completes a wait_template and triggers the automation again (single mode)
+automations:
+  - alias: waitself
+    triggers: [{trigger: state, entity_id: light.a, to: "on"}]
+    actions:
+      - {event: m_start}
+      - {wait_template: "{{ is_state('light.b', 'on') }}"}
+      - {event: m_done}
+  - alias: other
+    triggers: [{trigger: state, entity_id: light.b, to: "on"}]
+    actions: [{event: m_other}]
+states: [{entity_id: light.a, state: "off"}, {entity_id: light.b, state: "off"}]
+steps:
+  - {at: 1, set: [light.a, "on"]}
+  - {at: 2, set: [light.b, "on"]}
+  - {at: 3, set: [light.a, "off"]}
+  - {at: 4, set: [light.a, "on"]}

@@ -1,0 +1,66 @@
+# README lines 260-267: bullets 1 and 3, the parts no shipped scenario covers.
+automations:
+  - id: cond_in_if
+    triggers: [{trigger: event, event_type: e_if}]
+    actions:
+      - if: [{condition: template, value_template: "{{ true }}"}]
+        then:
+          - {condition: template, value_template: "{{ false }}"}
+          - {event: never_if}
+      - {event: after_if}
+  - id: cond_in_repeat
+    triggers: [{trigger: event, event_type: e_rep}]
+    actions:
+      - repeat:
+          count: 2
+          sequence:
+            - {event: rep_body}
+            - {condition: template, value_template: "{{ false }}"}
+            - {event: never_rep}
+      - {event: after_rep}
+  - id: cond_in_sequence
+    triggers: [{trigger: event, event_type: e_seq}]
+    actions:
+      - sequence:
+          - {condition: template, value_template: "{{ false }}"}
+          - {event: never_seq}
+      - {event: after_seq}
+  - id: and_skips_disabled
+    triggers: [{trigger: event, event_type: e_and}]
+    conditions:
+      - condition: and
+        conditions:
+          - {condition: template, value_template: "{{ false }}", enabled: false}
+          - {condition: template, value_template: "{{ true }}"}
+    actions: [{event: and_passed}]
+  - id: or_skips_disabled
+    triggers: [{trigger: event, event_type: e_or}]
+    conditions:
+      - condition: or
+        conditions:
+          - {condition: template, value_template: "{{ true }}", enabled: false}
+          - {condition: template, value_template: "{{ false }}"}
+    actions: [{event: or_passed_never}]
+  - id: not_disabled_is_true
+    triggers: [{trigger: event, event_type: e_not}]
+    conditions:
+      - condition: not
+        conditions:
+          - {condition: template, value_template: "{{ true }}", enabled: false}
+    actions: [{event: not_passed}]
+  - id: while_error_is_false
+    triggers: [{trigger: event, event_type: e_while}]
+    actions:
+      - repeat:
+          while: [{condition: numeric_state, entity_id: sensor.text, above: 1}]
+          sequence: [{event: never_while}]
+      - {event: after_while}
+states: [{entity_id: sensor.text, state: hello}]
+steps:
+  - {at: 1, send: {type: event, event_type: e_if}}
+  - {at: 2, send: {type: event, event_type: e_rep}}
+  - {at: 3, send: {type: event, event_type: e_seq}}
+  - {at: 4, send: {type: event, event_type: e_and}}
+  - {at: 5, send: {type: event, event_type: e_or}}
+  - {at: 6, send: {type: event, event_type: e_not}}
+  - {at: 7, send: {type: event, event_type: e_while}}

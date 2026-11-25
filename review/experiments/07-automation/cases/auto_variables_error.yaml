@@ -1,0 +1,10 @@
+# automation variables that fail to render: the automation does not trigger
+automations:
+  - alias: autovarerr
+    variables: {v: "{{ trigger.event.data.x | int }}"}
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_autovarerr, event_data: {v: "{{ v }}"}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {x: "5"}}}
+  - {at: 2, send: {type: event, event_type: e, data: {x: "abc"}}}
+  - {at: 3, send: {type: event, event_type: e}}

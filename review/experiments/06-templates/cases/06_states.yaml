@@ -1,0 +1,95 @@
+# states(), state objects, is_state/state_attr/has_value, iteration, render info.
+- {name: st_case_insensitive_call, template: "{{ states('SENSOR.Temp') }}", states: [{entity_id: sensor.temp, state: "21"}], render_info: true}
+- {name: st_case_insensitive_is_state, template: "{{ is_state('Light.X', 'on') }}", states: [{entity_id: light.x, state: "on"}], render_info: true}
+- {name: st_case_insensitive_state_attr, template: "{{ state_attr('Light.X', 'b') }}", states: [{entity_id: light.x, state: "on", attributes: {b: 5}}]}
+- {name: st_case_insensitive_has_value, template: "{{ has_value('Sensor.A') }}", states: [{entity_id: sensor.a, state: "1"}]}
+- {name: st_case_insensitive_subscript, template: "{{ states['Sensor.Temp'].state }}", states: [{entity_id: sensor.temp, state: "21"}], render_info: true}
+- {name: st_case_insensitive_is_state_attr, template: "{{ is_state_attr('LIGHT.x', 'b', 5) }}", states: [{entity_id: light.x, state: "on", attributes: {b: 5}}]}
+- {name: st_case_insensitive_missing, template: "{{ states('SENSOR.Nope') }}", render_info: true}
+- {name: st_invalid_id_call, template: "{{ states('bad') }}", render_info: true}
+- {name: st_int_id_call, template: "{{ states(5) }}"}
+- {name: st_none_id_call, template: "{{ states(none) }}"}
+- {name: st_nonstr_is_state, template: "{{ is_state(5, 'on') }}"}
+- {name: st_nonstr_state_attr, template: "{{ state_attr(none, 'a') }}"}
+- {name: st_nonstr_has_value, template: "{{ has_value(5) }}"}
+- {name: st_nonstr_is_state_attr, template: "{{ is_state_attr(5, 'a', 1) }}"}
+- {name: st_list_id_is_state, template: "{{ is_state(['light.x'], 'on') }}"}
+- {name: st_rounded_kw, template: "{{ states('sensor.t', rounded=true) }}", states: [{entity_id: sensor.t, state: "21.456"}]}
+- {name: st_with_unit_kw, template: "{{ states('sensor.t', with_unit=true) }}", states: [{entity_id: sensor.t, state: "21", attributes: {unit_of_measurement: "°C"}}]}
+- {name: st_state_with_unit, template: "{{ states.sensor.t.state_with_unit }}", states: [{entity_id: sensor.t, state: "21", attributes: {unit_of_measurement: "°C"}}]}
+- {name: st_attr_order, template: "{{ states.sensor.t.attributes }}", states: [{entity_id: sensor.t, state: "1", attributes: {b: 1, a: 2}}]}
+- {name: st_attr_keys_order, template: "{{ states.sensor.t.attributes | list }}", states: [{entity_id: sensor.t, state: "1", attributes: {zeta: 1, alpha: 2}}]}
+- {name: st_attr_missing, template: "{{ states.sensor.t.attributes.foo is defined }}", states: [{entity_id: sensor.t, state: "1"}]}
+- {name: st_attr_subscript_space, template: "{{ states.sensor.t.attributes['friendly name'] }}", states: [{entity_id: sensor.t, state: "1", attributes: {"friendly name": "x"}}]}
+- {name: st_attr_len, template: "{{ states.sensor.t.attributes | length }}", states: [{entity_id: sensor.t, state: "1", attributes: {a: 1, b: 2}}]}
+- {name: st_attr_get, template: "{{ states.sensor.t.attributes.get('a', 0) }}", states: [{entity_id: sensor.t, state: "1", attributes: {a: 1}}]}
+- {name: st_attr_float_whole, template: "{{ state_attr('sensor.t', 'v') }}", states: [{entity_id: sensor.t, state: "1", attributes: {v: 20.0}}]}
+- {name: st_attr_float_exp, template: "{{ state_attr('sensor.t', 'v') }}", states: [{entity_id: sensor.t, state: "1", attributes: {v: 1.0e+25}}]}
+- {name: st_attr_nested_order, template: "{{ state_attr('sensor.t', 'v') }}", states: [{entity_id: sensor.t, state: "1", attributes: {v: {z: 1, a: 2}}}]}
+- {name: st_attr_null_is_state_attr_none, template: "{{ is_state_attr('sensor.t', 'v', none) }}", states: [{entity_id: sensor.t, state: "1", attributes: {v: null}}]}
+- {name: st_attr_missing_is_state_attr_none, template: "{{ is_state_attr('sensor.t', 'w', none) }}", states: [{entity_id: sensor.t, state: "1"}]}
+- {name: st_name_empty_friendly, template: "{{ states.sensor.my_temp.name }}", states: [{entity_id: sensor.my_temp, state: "1", attributes: {friendly_name: ""}}]}
+- {name: st_name_nonstr_friendly, template: "{{ states.sensor.my_temp.name }}", states: [{entity_id: sensor.my_temp, state: "1", attributes: {friendly_name: 5}}]}
+- {name: st_obj_unknown_attr, template: "{{ states.sensor.t.foo is defined }}", states: [{entity_id: sensor.t, state: "1"}]}
+- {name: st_obj_subscript_state, template: "{{ states.sensor.t['state'] }}", states: [{entity_id: sensor.t, state: "7"}]}
+- {name: st_obj_eq_self, template: "{{ states.sensor.t == states.sensor.t }}", states: [{entity_id: sensor.t, state: "7"}]}
+- {name: st_obj_truthy, template: "{{ 'y' if states.sensor.t else 'n' }}", states: [{entity_id: sensor.t, state: "7"}]}
+- {name: st_obj_missing_is_none, template: "{{ states.sensor.zz is none }}", render_info: true}
+- {name: st_obj_last_changed_iso, template: "{{ states.sensor.t.last_changed.isoformat() }}", states: [{entity_id: sensor.t, state: "7"}]}
+- {name: st_obj_entity_id_no_collect, template: "{{ states.sensor.t.entity_id }}", states: [{entity_id: sensor.t, state: "7"}], render_info: true}
+- {name: st_obj_domain_collect, template: "{{ states.sensor.t.domain }}", states: [{entity_id: sensor.t, state: "7"}], render_info: true}
+- {name: st_obj_no_access_info, template: "{{ states.sensor.t is none }}", states: [{entity_id: sensor.t, state: "7"}], render_info: true}
+- {name: st_is_state_int_state, template: "{{ is_state('sensor.t', 5) }}", states: [{entity_id: sensor.t, state: "5"}]}
+- {name: st_is_state_tuple, template: "{{ is_state('sensor.t', ('5', '6')) }}", states: [{entity_id: sensor.t, state: "5"}]}
+- {name: st_is_state_none_state, template: "{{ is_state('sensor.zz', none) }}", render_info: true}
+- {name: st_state_attr_nonstr_name, template: "{{ state_attr('sensor.t', 5) }}", states: [{entity_id: sensor.t, state: "5"}]}
+- {name: st_has_value_unavailable, template: "{{ has_value('sensor.t') }}", states: [{entity_id: sensor.t, state: "unavailable"}], render_info: true}
+- {name: st_has_value_invalid_id, template: "{{ has_value('bad id') }}", render_info: true}
+- {name: st_has_value_empty_state, template: "{{ has_value('sensor.t') }}", states: [{entity_id: sensor.t, state: ""}]}
+- {name: st_domain_order_insertion, template: "{{ states.light | map(attribute='entity_id') | list }}", states: [{entity_id: light.b, state: "on"}, {entity_id: light.a, state: "on"}, {entity_id: light.c, state: "on"}]}
+- {name: st_all_order, template: "{{ states | map(attribute='entity_id') | list }}", states: [{entity_id: switch.z, state: "on"}, {entity_id: light.a, state: "on"}, {entity_id: sensor.m, state: "on"}]}
+- {name: st_all_len_info, template: "{{ states | length }}", states: [{entity_id: light.a, state: "on"}], render_info: true}
+- {name: st_domain_len_info, template: "{{ states.light | length }}", states: [{entity_id: light.a, state: "on"}], render_info: true}
+- {name: st_domain_list_info, template: "{{ states.light | list | length }}", states: [{entity_id: light.a, state: "on"}], render_info: true}
+- {name: st_domain_first_info, template: "{{ (states.light | first).state }}", states: [{entity_id: light.a, state: "on"}], render_info: true}
+- {name: st_domain_for_info, template: "{% for s in states.light %}{{ s.state }}{% endfor %}", states: [{entity_id: light.a, state: "on"}], render_info: true}
+- {name: st_domain_sort_info, template: "{{ states.light | sort(attribute='state') | map(attribute='state') | list }}", states: [{entity_id: light.a, state: "on"}, {entity_id: light.b, state: "off"}], render_info: true}
+- {name: st_domain_join_info, template: "{{ states.light | map(attribute='state') | join(',') }}", states: [{entity_id: light.a, state: "on"}], render_info: true}
+- {name: st_domain_min_info, template: "{{ (states.sensor | min(attribute='state')).state }}", states: [{entity_id: sensor.a, state: "5"}, {entity_id: sensor.b, state: "3"}], render_info: true}
+- {name: st_domain_unique_info, template: "{{ states.sensor | unique(attribute='state') | list | length }}", states: [{entity_id: sensor.a, state: "5"}, {entity_id: sensor.b, state: "5"}], render_info: true}
+- {name: st_domain_reverse, template: "{{ states.sensor | reverse | list | length }}", states: [{entity_id: sensor.a, state: "5"}], render_info: true}
+- {name: st_all_reverse, template: "{{ states | reverse | list | length }}", states: [{entity_id: sensor.a, state: "5"}], render_info: true}
+- {name: st_domain_last, template: "{{ (states.sensor | last).state }}", states: [{entity_id: sensor.a, state: "5"}, {entity_id: sensor.b, state: "6"}], render_info: true}
+- {name: st_domain_select_info, template: "{{ states.sensor | selectattr('state', 'eq', '5') | list | length }}", states: [{entity_id: sensor.a, state: "5"}], render_info: true}
+- {name: st_domain_sum_info, template: "{{ states.sensor | map(attribute='state') | map('int') | sum }}", states: [{entity_id: sensor.a, state: "5"}], render_info: true}
+- {name: st_domain_if_info, template: "{% if states.light %}y{% else %}n{% endif %}", states: [{entity_id: light.a, state: "on"}], render_info: true}
+- {name: st_domain_in_info, template: "{{ 5 in states.light }}", states: [{entity_id: light.a, state: "on"}], render_info: true}
+- {name: st_domain_default_filter, template: "{{ states.light | default('x') is string }}", render_info: true}
+- {name: st_domain_iter_state_attr_info, template: "{% for s in states.light %}{{ s.attributes.b }}{% endfor %}", states: [{entity_id: light.a, state: "on", attributes: {b: 3}}], render_info: true}
+- {name: st_all_subscript_domain, template: "{{ states['light'] | list | length }}", states: [{entity_id: light.a, state: "on"}], render_info: true}
+- {name: st_all_reserved_name, template: "{{ states.contextfunction is none }}"}
+- {name: st_all_private_attr, template: "{{ states._hass }}"}
+- {name: st_domain_private_attr, template: "{{ states.light._hass }}"}
+- {name: st_domain_invalid_object_id, template: "{{ states.light.Bad }}"}
+- {name: st_domain_attr_numeric, template: "{{ states.sensor['1abc'] is none }}"}
+- {name: st_error_info, template: "{{ states('sensor.a') }}{{ 1 / 0 }}", states: [{entity_id: sensor.a, state: "5"}], render_info: true}
+- {name: st_static_info, template: "plain text", render_info: true}
+- {name: st_two_entities_info, template: "{{ states('sensor.a') ~ states('sensor.b') ~ states('sensor.a') }}", states: [{entity_id: sensor.a, state: "5"}], render_info: true}
+- {name: st_states_filter_info, template: "{{ 'sensor.a' | states }}", states: [{entity_id: sensor.a, state: "5"}], render_info: true}
+- {name: st_states_filter_missing, template: "{{ 'sensor.zz' | states }}", render_info: true}
+- {name: st_state_attr_filter_info, template: "{{ 'sensor.a' | state_attr('x') }}", states: [{entity_id: sensor.a, state: "5"}], render_info: true}
+- {name: st_selectattr_states_test, template: "{{ ['light.a', 'light.b'] | select('is_state', 'on') | list }}", states: [{entity_id: light.a, state: "on"}, {entity_id: light.b, state: "off"}], render_info: true}
+- {name: st_map_states, template: "{{ ['light.a', 'light.zz'] | map('states') | list }}", states: [{entity_id: light.a, state: "on"}], render_info: true}
+- {name: st_var_trigger_state_dict, template: "{{ trigger.to_state.state }} {{ trigger.to_state.attributes.b }}", variables: {trigger: {to_state: {state: "on", attributes: {b: 4}}}}}
+- {name: st_state_numeric_string_cmp, template: "{{ states('sensor.t') > 5 }}", states: [{entity_id: sensor.t, state: "7"}]}
+- {name: st_state_string_cmp, template: "{{ states('sensor.t') > '10' }}", states: [{entity_id: sensor.t, state: "7"}]}
+- {name: st_state_float_arith, template: "{{ (states('sensor.t') | float - 32) * 5 / 9 }}", states: [{entity_id: sensor.t, state: "71.6"}]}
+- {name: st_state_unicode, template: "{{ states('sensor.t') }}", states: [{entity_id: sensor.t, state: "héllo ☃"}]}
+- {name: st_state_whitespace, template: "{{ states('sensor.t') | length }}", states: [{entity_id: sensor.t, state: "  a  "}]}
+- {name: st_state_looks_like_list, template: "{{ states('sensor.t') }}", states: [{entity_id: sensor.t, state: "[1, 2]"}]}
+- {name: st_expand_case_insensitive, template: "{{ expand('Light.A') | map(attribute='entity_id') | list }}", states: [{entity_id: light.a, state: "on"}], render_info: true}
+- {name: st_expand_none, template: "{{ expand(none) }}"}
+- {name: st_expand_int, template: "{{ expand(5) }}"}
+- {name: st_expand_group_order, template: "{{ expand('group.g') | map(attribute='entity_id') | list }}", states: [{entity_id: light.b, state: "on"}, {entity_id: light.a, state: "on"}, {entity_id: group.g, state: "on", attributes: {entity_id: [light.b, light.a]}}], render_info: true}
+- {name: st_last_reported_refused, template: "{{ states.sensor.t.last_reported }}", states: [{entity_id: sensor.t, state: "1"}], expect_error_in_halean_only: true}
+- {name: st_context_refused, template: "{{ states.sensor.t.context.id | length }}", states: [{entity_id: sensor.t, state: "1"}], expect_error_in_halean_only: true}

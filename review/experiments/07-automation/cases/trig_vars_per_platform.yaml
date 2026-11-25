@@ -1,0 +1,21 @@
+# the `trigger` variable of state / numeric_state / time_pattern triggers
+automations:
+  - alias: tv_state
+    triggers: [{trigger: state, entity_id: sensor.a, to: "2"}]
+    actions:
+      - event: m_tv_state
+        event_data: {keys: "{{ trigger.keys() | sort | list }}", f: "{{ trigger.from_state.state }}", t: "{{ trigger.to_state.state }}", for: "{{ trigger.for }}", attr: "{{ trigger.attribute }}", d: "{{ trigger.description }}", e: "{{ trigger.entity_id }}"}
+  - alias: tv_num
+    triggers: [{trigger: numeric_state, entity_id: sensor.a, above: 1, below: sensor.lim}]
+    actions:
+      - event: m_tv_num
+        event_data: {keys: "{{ trigger.keys() | sort | list }}", above: "{{ trigger.above }}", below: "{{ trigger.below }}", d: "{{ trigger.description }}", for: "{{ trigger.for }}"}
+  - alias: tv_pat
+    triggers: [{trigger: time_pattern, seconds: 23}]
+    actions:
+      - event: m_tv_pat
+        event_data: {keys: "{{ trigger.keys() | sort | list }}", d: "{{ trigger.description }}", p: "{{ trigger.platform }}"}
+states: [{entity_id: sensor.a, state: "1"}, {entity_id: sensor.lim, state: "10"}]
+steps:
+  - {at: 1, set: [sensor.a, "2"]}
+  - {at: 4, send: {type: event, event_type: tick}}

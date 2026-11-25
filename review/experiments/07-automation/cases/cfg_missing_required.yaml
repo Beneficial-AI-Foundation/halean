@@ -1,0 +1,18 @@
+# required keys missing: no `actions`, no `triggers`, choose option without sequence, if without then
+automations:
+  - alias: no_actions
+    triggers: [{trigger: event, event_type: e}]
+  - alias: choose_no_sequence
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{choose: [{conditions: "{{ true }}"}]}, {event: m_choose_no_sequence}]
+  - alias: if_no_then
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{if: "{{ true }}", else: [{event: m_x}]}, {event: m_if_no_then}]
+  - alias: repeat_no_sequence
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{repeat: {count: 2}}, {event: m_repeat_no_sequence}]
+  - alias: choose_no_conditions
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{choose: [{sequence: [{event: m_choose_no_conditions}]}]}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

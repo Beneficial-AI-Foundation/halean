@@ -1,0 +1,12 @@
+# automations without alias are named "automation <position>"; ids do not matter for the name
+automations:
+  - triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_0}]
+  - id: second
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_1}]
+  - alias: Named One
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_2, event_data: {this: "{{ this.entity_id }}", name: "{{ this.attributes.friendly_name }}"}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

@@ -1,0 +1,20 @@
+# delay strings: "5" (seconds), "00:01" (HH:MM), "0:0:2.5", "-0:00:01" is rejected
+automations:
+  - alias: s5
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{delay: "2"}, {event: m_s2}]
+  - alias: frac
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{delay: "0:0:2.5"}, {event: m_frac}]
+  - alias: bool
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{delay: true}, {event: m_bool}]
+  - alias: float
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{delay: 1.5}, {event: m_float}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: event, event_type: tick}}
+  - {at: 3, send: {type: event, event_type: tick}}
+  - {at: 4, send: {type: event, event_type: tick}}
+  - {at: 5, send: {type: event, event_type: tick}}

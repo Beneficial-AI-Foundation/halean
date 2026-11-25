@@ -1,0 +1,21 @@
+# choose: first matching option only; default when none; nothing without default
+automations:
+  - alias: choose
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - choose:
+          - conditions: "{{ trigger.event.data.n == 1 }}"
+            sequence: [{event: m_one}]
+          - conditions: ["{{ trigger.event.data.n < 3 }}", "{{ trigger.event.data.n > 0 }}"]
+            sequence: [{event: m_lt3}]
+        default: [{event: m_default}]
+      - choose:
+          - conditions: "{{ trigger.event.data.n == 9 }}"
+            sequence: [{event: m_nine}]
+      - choose: []
+        default: [{event: m_empty_default}]
+      - {event: m_end}
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {n: 1}}}
+  - {at: 2, send: {type: event, event_type: e, data: {n: 2}}}
+  - {at: 3, send: {type: event, event_type: e, data: {n: 5}}}

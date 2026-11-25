@@ -1,0 +1,13 @@
+# conditions are checked before the mode: a failing condition while running, then a pass that is rejected
+automations:
+  - alias: condmode
+    triggers: [{trigger: event, event_type: e}]
+    conditions: ["{{ trigger.event.data.ok }}"]
+    actions: [{delay: 3}, {event: m_done}]
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {ok: true}}}
+  - {at: 2, send: {type: event, event_type: e, data: {ok: false}}}
+  - {at: 3, send: {type: event, event_type: e, data: {ok: true}}}
+  - {at: 4, send: {type: event, event_type: tick}}
+  - {at: 5, send: {type: event, event_type: e, data: {ok: true}}}
+  - {at: 9, send: {type: event, event_type: tick}}

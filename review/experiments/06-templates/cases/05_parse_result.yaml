@@ -1,0 +1,123 @@
+# _parse_result / ast.literal_eval on static templates and rendered output.
+- {name: pr_underscore_int, template: "1_000"}
+- {name: pr_exp, template: "1e3"}
+- {name: pr_nan, template: "nan"}
+- {name: pr_lower_true, template: "true"}
+- {name: pr_tuple_parens, template: "(1, 2)"}
+- {name: pr_tuple_bare, template: "1, 2"}
+- {name: pr_tuple_bare_single, template: "1,"}
+- {name: pr_nested, template: "[1, [2, {'a': (3,)}]]"}
+- {name: pr_set, template: "{1, 2}"}
+- {name: pr_set_empty_call, template: "set()"}
+- {name: pr_set_dedupe, template: "{1, 1}"}
+- {name: pr_empty_dict, template: "{}"}
+- {name: pr_empty_list, template: "[]"}
+- {name: pr_empty_tuple, template: "()"}
+- {name: pr_quoted_empty, template: "''"}
+- {name: pr_quoted_str, template: "'a'"}
+- {name: pr_bytes, template: "b'a'"}
+- {name: pr_bytes_in_list, template: "[b'a']"}
+- {name: pr_hex, template: "0x10"}
+- {name: pr_complex, template: "1j"}
+- {name: pr_complex_sum, template: "1+2j"}
+- {name: pr_complex_in_list, template: "[1j]"}
+- {name: pr_binop, template: "1 + 2"}
+- {name: pr_plus_int, template: "+1"}
+- {name: pr_double_neg, template: "--1"}
+- {name: pr_minus_only, template: "-"}
+- {name: pr_dot_only, template: "."}
+- {name: pr_empty, template: ""}
+- {name: pr_int_dot, template: "1."}
+- {name: pr_dot_frac, template: ".5"}
+- {name: pr_plus_dot_frac, template: "+.5"}
+- {name: pr_neg_zero_int, template: "-0"}
+- {name: pr_double_zero, template: "00"}
+- {name: pr_zero_zero_frac, template: "00.5"}
+- {name: pr_neg_zero_float, template: "-0.0"}
+- {name: pr_fullwidth_int, template: "１２"}
+- {name: pr_fullwidth_float, template: "１.５"}
+- {name: pr_arabic_int_rendered, template: "{{ '١٢' }}"}
+- {name: pr_ellipsis, template: "..."}
+- {name: pr_ellipsis_rendered, template: "{{ '...' }}"}
+- {name: pr_ellipsis_in_list, template: "[...]"}
+- {name: pr_list_newline_inside, template: "[1,\n2]"}
+- {name: pr_newline_top, template: "1\n2"}
+- {name: pr_list_comment, template: "[1, 2] # c"}
+- {name: pr_int_comment, template: "1 # x"}
+- {name: pr_comment_only, template: "# c"}
+- {name: pr_unclosed_list, template: "[1, 2"}
+- {name: pr_missing_comma, template: "[1 2]"}
+- {name: pr_double_comma, template: "[1,,2]"}
+- {name: pr_paren_int, template: "(1)"}
+- {name: pr_trailing_comma_list, template: "[1, 2,]"}
+- {name: pr_trailing_comma_dict, template: "{'a': 1,}"}
+- {name: pr_set_single_str, template: "{'a'}"}
+- {name: pr_dict_dup_key, template: "{1: 2, 1: 3}"}
+- {name: pr_dict_int_bool_key, template: "{1: 'a', True: 'b'}"}
+- {name: pr_dict_unhashable_key, template: "{[1]: 2}"}
+- {name: pr_set_unhashable, template: "{[1], 2}"}
+- {name: pr_subscript, template: "[1, 2][0]"}
+- {name: pr_none_tuple, template: "None,"}
+- {name: pr_str_concat, template: "'a' 'b'"}
+- {name: pr_str_u_prefix_in_list, template: "[u'a']"}
+- {name: pr_str_r_prefix_in_list, template: "[r'a\\n']"}
+- {name: pr_fstring, template: "[f'a']"}
+- {name: pr_str_x_escape_in_list, template: "['\\x41']"}
+- {name: pr_str_u_escape_in_list, template: "['\\u00e9']"}
+- {name: pr_str_octal_escape_in_list, template: "['\\101']"}
+- {name: pr_str_named_escape_in_list, template: "['\\N{DIGIT ONE}']"}
+- {name: pr_str_triple_quote, template: "['''a''']"}
+- {name: pr_str_raw_newline, template: "['a\nb']"}
+- {name: pr_leading_zero_in_list, template: "[007]"}
+- {name: pr_underscore_in_list, template: "[1_0]"}
+- {name: pr_exp_in_list, template: "[1e3]"}
+- {name: pr_radix_in_list, template: "[0x10, 0o7, 0b1, 0XfF]"}
+- {name: pr_float_forms_in_list, template: "[1., .5, 1.e3, 1.5e+3]"}
+- {name: pr_inf_in_list, template: "[1e400]"}
+- {name: pr_signs_in_list, template: "[-1, +2, - 3, --4]"}
+- {name: pr_neg_bool_in_list, template: "[-True]"}
+- {name: pr_neg_str_in_list, template: "[-'a']"}
+- {name: pr_zero_underscore, template: "[0_1]"}
+- {name: pr_zeros_underscore, template: "[0_0]"}
+- {name: pr_bad_hex, template: "[0xg]"}
+- {name: pr_lower_true_in_list, template: "[true]"}
+- {name: pr_name_in_list, template: "[inf]"}
+- {name: pr_dict_mixed_keys, template: "{None: 1, True: 2, 1.5: 3, (1, 2): 4}"}
+- {name: pr_dict_nested, template: "{'a': {'b': [1]}}"}
+- {name: pr_semicolon, template: "1;2"}
+- {name: pr_exp_float, template: "1.0e5"}
+- {name: pr_static_vt_strip, template: "\x0b42\x0c"}
+- {name: pr_static_nbsp_strip, template: " 42 "}
+- {name: pr_static_us_strip_text, template: "\x1fon\x1c", parse_result: false}
+- {name: pr_rendered_bools, template: "{{ true }}"}
+- {name: pr_rendered_none, template: "{{ none }}"}
+- {name: pr_rendered_none_str, template: "{{ 'None' }}"}
+- {name: pr_rendered_empty, template: "{{ '' }}"}
+- {name: pr_rendered_quoted, template: "{{ '\"a\"' }}"}
+- {name: pr_rendered_list_like, template: "[{{ 1 }}, {{ 'a' }}]"}
+- {name: pr_rendered_list_like_quoted, template: "[{{ 1 }}, '{{ 'a' }}']"}
+- {name: pr_rendered_tuple_of_strs, template: "{{ ('a', 'b') }}"}
+- {name: pr_rendered_set_like, template: "{{ '{1, 2}' }}"}
+- {name: pr_rendered_leading_zero, template: "{{ '0123' }}"}
+- {name: pr_rendered_plus, template: "{{ '+5' }}"}
+- {name: pr_rendered_float_trailing_zeros, template: "{{ '1.50' }}"}
+- {name: pr_rendered_spaces_inside, template: "{{ '1 000' }}"}
+- {name: pr_rendered_time_like, template: "{{ '12:30' }}"}
+- {name: pr_rendered_date_like, template: "{{ '2026-11-20' }}"}
+- {name: pr_rendered_version_like, template: "{{ '1.2.3' }}"}
+- {name: pr_rendered_percent, template: "{{ '50%' }}"}
+- {name: pr_rendered_neg_dot, template: "{{ '-.' }}"}
+- {name: pr_rendered_dict_like, template: "{ 'a': {{ 1 }} }"}
+- {name: pr_rendered_parse_false_list, template: "{{ [1, 2] }}", parse_result: false}
+- {name: pr_rendered_big_int_string, template: "{{ '123456789012345678901234567890' }}"}
+- {name: pr_rendered_bool_words, template: "{{ 'False' }}"}
+- {name: pr_rendered_none_in_tuple, template: "{{ (none, true) }}"}
+- {name: pr_rendered_str_with_newline, template: "{{ 'a\\nb' }}"}
+- {name: pr_rendered_list_str_with_nul_escape, template: "{{ ['\\0'] | string | length }}"}
+- {name: pr_condition_padded_true, template: "  {{ 'true' }}  ", condition: true}
+- {name: pr_condition_number_one_str, template: "{{ '1' }}", condition: true}
+- {name: pr_condition_list, template: "{{ [1] }}", condition: true}
+- {name: pr_condition_static_true, template: "true", condition: true}
+- {name: pr_condition_static_True, template: "True", condition: true}
+- {name: pr_condition_on, template: "{{ 'on' }}", condition: true}
+- {name: pr_condition_none, template: "{{ none }}", condition: true}

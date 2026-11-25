@@ -1,0 +1,15 @@
+# queued: a waiting run's variables are rendered when it was triggered, not when it starts
+automations:
+  - alias: queuedvars
+    mode: queued
+    variables: {snap: "{{ states('sensor.n') }}"}
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{action: test.block}, {event: m_done, event_data: {snap: "{{ snap }}", now: "{{ states('sensor.n') }}"}}]
+states: [{entity_id: sensor.n, state: "1"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, set: [sensor.n, "2"]}
+  - {at: 3, send: {type: event, event_type: e}}
+  - {at: 4, set: [sensor.n, "3"]}
+  - {at: 5, send: {type: service_result, call_id: 0, ok: true}}
+  - {at: 6, send: {type: service_result, call_id: 1, ok: true}}

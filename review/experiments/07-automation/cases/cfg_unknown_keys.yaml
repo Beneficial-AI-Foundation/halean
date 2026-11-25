@@ -1,0 +1,22 @@
+# keys HA's schemas do not know: each automation is rejected by HA
+automations:
+  - alias: action_extra
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_action_extra, foo: 1}]
+  - alias: trigger_extra
+    triggers: [{trigger: event, event_type: e, foo: 1}]
+    actions: [{event: m_trigger_extra}]
+  - alias: condition_extra
+    triggers: [{trigger: event, event_type: e}]
+    conditions: [{condition: template, value_template: "{{ true }}", foo: 1}]
+    actions: [{event: m_condition_extra}]
+  - alias: automation_extra
+    foo: 1
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_automation_extra}]
+  - alias: two_actions_in_one
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_two, delay: 5}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: event, event_type: tick}}

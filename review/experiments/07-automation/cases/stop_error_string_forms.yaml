@@ -1,0 +1,12 @@
+# stop's `error` is cv.boolean: "true" is true (the run ends either way; the difference is in parallel)
+automations:
+  - alias: stoperrstr
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - parallel:
+          - sequence: [{stop: "x", error: "true"}]
+            continue_on_error: true
+          - {event: m_branch}
+      - {event: m_after}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

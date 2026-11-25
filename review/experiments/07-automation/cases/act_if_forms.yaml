@@ -1,0 +1,18 @@
+# if without else; else only; nested condition failure inside then ends only the then-block
+automations:
+  - alias: ifs
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - if: "{{ trigger.event.data.x }}"
+        then: [{event: m_then}]
+      - if: ["{{ not trigger.event.data.x }}"]
+        then: []
+        else: [{event: m_else}]
+      - if: ["{{ true }}"]
+        then:
+          - {condition: template, value_template: "{{ trigger.event.data.x }}"}
+          - {event: m_inner_after_condition}
+      - {event: m_end}
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {x: true}}}
+  - {at: 2, send: {type: event, event_type: e, data: {x: false}}}

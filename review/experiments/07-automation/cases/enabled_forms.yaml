@@ -1,0 +1,18 @@
+# enabled: false / "false" / 0 / "no" / a template, on actions
+automations:
+  - alias: enabled
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {event: m_false, enabled: false}
+      - {event: m_strfalse, enabled: "false"}
+      - {event: m_zero, enabled: 0}
+      - {event: m_no, enabled: "no"}
+      - {event: m_off, enabled: "Off"}
+      - {event: m_tmpl_false, enabled: "{{ 1 > 2 }}"}
+      - {event: m_tmpl_true, enabled: "{{ 2 > 1 }}"}
+      - {event: m_true, enabled: true}
+      - {event: m_one, enabled: 1}
+      - {event: m_text, enabled: "{{ 'no' }}"}
+      - {event: m_empty, enabled: "{{ '' }}"}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

@@ -1,0 +1,15 @@
+# two triggers of one automation matching the same change: two attempts, the second sees the first's run
+automations:
+  - alias: twice_single
+    triggers: [{trigger: state, entity_id: sensor.a, id: a}, {trigger: state, entity_id: sensor.a, to: "1", id: b}]
+    actions: [{event: m_single, event_data: {id: "{{ trigger.id }}"}}, {delay: 2}]
+  - alias: twice_parallel
+    mode: parallel
+    triggers: [{trigger: state, entity_id: sensor.a, id: a}, {trigger: state, entity_id: sensor.a, to: "1", id: b}]
+    actions: [{event: m_parallel, event_data: {id: "{{ trigger.id }}"}}, {delay: 2}]
+  - alias: twice_instant
+    triggers: [{trigger: state, entity_id: sensor.a, id: a}, {trigger: state, entity_id: sensor.a, to: "1", id: b}]
+    actions: [{event: m_instant, event_data: {id: "{{ trigger.id }}"}}]
+states: [{entity_id: sensor.a, state: "0"}]
+steps:
+  - {at: 1, set: [sensor.a, "1"]}

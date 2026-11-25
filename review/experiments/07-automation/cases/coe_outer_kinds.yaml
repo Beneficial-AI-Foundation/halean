@@ -1,0 +1,19 @@
+# continue_on_error on an enclosing step: swallows ha_error only
+automations:
+  - alias: coeouter
+    mode: queued
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - continue_on_error: true
+        sequence:
+          - if: ["{{ true }}"]
+            then: [{action: test.fail}, {event: m_inner_never}]
+          - {event: m_seq_never}
+      - {event: m_after}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: false, error_kind: ha_error}}
+  - {at: 3, send: {type: event, event_type: e}}
+  - {at: 4, send: {type: service_result, call_id: 1, ok: false, error_kind: other}}
+  - {at: 5, send: {type: event, event_type: e}}
+  - {at: 6, send: {type: service_result, call_id: 2, ok: false, error_kind: invalid}}

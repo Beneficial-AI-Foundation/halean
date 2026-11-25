@@ -1,0 +1,24 @@
+# data then data_template (the latter wins), target, the action's own entity_id; value types
+automations:
+  - alias: merge
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - action: Test.Merge
+        data: {a: 1, b: "{{ 1 + 1 }}", c: "{{ [1, 'x'] }}", d: "{{ none }}", e: "007", f: "{{ '1.50' }}", "{{ 'k' ~ 1 }}": "v"}
+        data_template: {a: "{{ 'override' }}", g: {h: "{{ trigger.event.data.n }}"}}
+        target: {entity_id: "{{ 'Light.A, light.b' }}", area_id: kitchen}
+      - action: test.eid
+        entity_id: light.c
+        target: {entity_id: light.zzz, device_id: [d1]}
+        data: {entity_id: light.from_data}
+      - action: test.eid_all
+        entity_id: ALL
+      - action: test.whole
+        data: "{{ {'x': trigger.event.data.n, 'y': [1]} }}"
+        target: "{{ {'entity_id': 'light.t'} }}"
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {n: 3}}}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: true}}
+  - {at: 3, send: {type: service_result, call_id: 1, ok: true}}
+  - {at: 4, send: {type: service_result, call_id: 2, ok: true}}
+  - {at: 5, send: {type: service_result, call_id: 3, ok: true}}

@@ -1,0 +1,14 @@
+# a wait_template that raises ends the run with an error, even with continue_on_error
+automations:
+  - alias: wterr
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {wait_template: "{{ 1 / 0 }}", continue_on_error: true}
+      - {event: m_never}
+  - alias: wtbadtimeout
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {wait_template: "{{ false }}", timeout: "{{ 'x' }}"}
+      - {event: m_never2}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

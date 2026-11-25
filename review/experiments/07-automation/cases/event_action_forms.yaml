@@ -1,0 +1,14 @@
+# event action: event_data and event_data_template merge; a failing one is dropped, the event still fires
+automations:
+  - alias: evact
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - event: m_merge
+        event_data: {a: 1, b: "{{ 2 }}"}
+        event_data_template: {b: "{{ 'tmpl' }}", c: [1, "{{ 2 * 2 }}"]}
+      - event: m_fail
+        event_data: {a: "{{ 1 / 0 }}"}
+        event_data_template: {b: 2}
+      - event: m_plain
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

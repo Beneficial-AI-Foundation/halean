@@ -1,0 +1,19 @@
+# continue_on_error on repeat / choose: an error in the body leaves the whole block
+automations:
+  - alias: coerepeat
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - continue_on_error: true
+        repeat:
+          count: 3
+          sequence: [{event: m_iter, event_data: {i: "{{ repeat.index }}"}}, {action: test.fail}]
+      - {event: m_after_repeat}
+      - continue_on_error: true
+        choose:
+          - conditions: "{{ true }}"
+            sequence: [{action: test.fail}, {event: m_choose_never}]
+      - {event: m_after_choose}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: false, error_kind: ha_error}}
+  - {at: 3, send: {type: service_result, call_id: 1, ok: false, error_kind: ha_error}}

@@ -1,0 +1,18 @@
+# variables set inside if / repeat / sequence are visible afterwards (assigned at top level)
+automations:
+  - alias: scope
+    variables: {outer: 1}
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - if: ["{{ true }}"]
+        then:
+          - variables: {outer: 2, inner: "a"}
+      - repeat:
+          count: 2
+          sequence:
+            - variables: {acc: "{{ (acc | default(0)) + repeat.index }}", outer: "{{ outer + 10 }}"}
+      - sequence:
+          - variables: {seqvar: "{{ inner ~ acc }}"}
+      - {event: m_scope, event_data: {outer: "{{ outer }}", inner: "{{ inner }}", acc: "{{ acc }}", seqvar: "{{ seqvar }}"}}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

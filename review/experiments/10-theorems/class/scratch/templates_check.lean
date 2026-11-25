@@ -16,3 +16,4 @@ open HALean HALean.Template
 #print pyEq
 #print Rx.run
 #print renderNodes
+#eval (repr (parseResult "١٢"), repr (parseResult "12\n"), isNumericStr "12\n", isNumericStr "١٢")

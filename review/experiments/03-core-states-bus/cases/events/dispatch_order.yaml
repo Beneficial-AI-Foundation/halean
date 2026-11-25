@@ -26,7 +26,8 @@
     - {op: listen, id: y0, event_type: y}
     - {op: listen, id: y1, event_type: y}
     - {op: fire, event_type: x, expect: {deliveries: [a, b, y1]}}
-    - {op: fire, event_type: x, expect: {deliveries: [a, y1], logs: ["Error running job: KeyError"]}}
+    # the handles are still there: removing again is logged, not raised
+    - {op: fire, event_type: x, expect: {deliveries: [a, y1], logs: ["Unable to remove unknown job listener", "Unable to remove unknown job listener"]}}
 
 - name: queue_breadth_first
   ops:

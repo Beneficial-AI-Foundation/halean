@@ -1,0 +1,16 @@
+# several automations on one state change run in config order, each to its first block
+automations:
+  - alias: first
+    triggers: [{trigger: state, entity_id: sensor.a}]
+    actions: [{action: test.one}, {action: test.two}]
+  - alias: second
+    triggers: [{trigger: template, value_template: "{{ states('sensor.a') | int > 0 }}"}]
+    actions: [{action: test.three}]
+  - alias: third
+    triggers: [{trigger: numeric_state, entity_id: sensor.a, above: 0}]
+    conditions: [{condition: state, entity_id: sensor.a, state: "1"}]
+    actions: [{action: test.four}]
+states: [{entity_id: sensor.a, state: "0"}]
+steps:
+  - {at: 1, set: [sensor.a, "1"]}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: true}}

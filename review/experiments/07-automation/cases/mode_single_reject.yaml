@@ -1,0 +1,11 @@
+# single: a second trigger while running is dropped (no automation_triggered); after the run ends it triggers again
+automations:
+  - alias: single
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{action: test.block, data: {n: "{{ trigger.event.data.n }}"}}, {event: m_done}]
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {n: 1}}}
+  - {at: 2, send: {type: event, event_type: e, data: {n: 2}}}
+  - {at: 3, send: {type: service_result, call_id: 0, ok: true}}
+  - {at: 4, send: {type: event, event_type: e, data: {n: 3}}}
+  - {at: 5, send: {type: service_result, call_id: 1, ok: true}}

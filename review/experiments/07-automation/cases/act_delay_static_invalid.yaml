@@ -1,0 +1,17 @@
+# static delays HA's schema rejects: unknown unit, empty mapping, float hours in a string
+automations:
+  - alias: unit
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{delay: {secs: 1}}, {event: m_unit}]
+  - alias: empty
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{delay: {}}, {event: m_empty}]
+  - alias: floathours
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{delay: "0.5:00"}, {event: m_floathours}]
+  - alias: weeks
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{delay: {weeks: 1}}, {event: m_weeks}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 3, send: {type: event, event_type: tick}}

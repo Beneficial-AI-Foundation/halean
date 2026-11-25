@@ -1,0 +1,14 @@
+# restart ignores max; restarting a run blocked in a service call: its late result is ignored
+automations:
+  - alias: restartsvc
+    mode: restart
+    max: 2
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{action: test.block}, {event: m_done, event_data: {n: "{{ trigger.event.data.n }}"}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {n: 1}}}
+  - {at: 2, send: {type: event, event_type: e, data: {n: 2}}}
+  - {at: 3, send: {type: event, event_type: e, data: {n: 3}}}
+  - {at: 4, send: {type: service_result, call_id: 0, ok: true}}
+  - {at: 5, send: {type: service_result, call_id: 2, ok: true}}
+  - {at: 6, send: {type: service_result, call_id: 1, ok: true}}

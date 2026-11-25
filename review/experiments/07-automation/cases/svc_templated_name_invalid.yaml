@@ -1,0 +1,15 @@
+# a service name template that renders to something invalid: an error for the step
+automations:
+  - alias: badname
+    mode: queued
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - action: "{{ trigger.event.data.s }}"
+        continue_on_error: true
+      - {event: m_after_coe}
+      - action: "{{ trigger.event.data.s }}"
+      - {event: m_never}
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {s: "nodot"}}}
+  - {at: 2, send: {type: event, event_type: e, data: {s: 5}}}
+  - {at: 3, send: {type: event, event_type: e}}

@@ -1,0 +1,7 @@
+# a template that uses a name nothing defines: undefined renders as empty / takes `default`
+automations:
+  - alias: undef
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_undef, event_data: {v: "{{ nothing_defines_me | default('fallback') }}", d: "{{ nothing_defines_me is defined }}"}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

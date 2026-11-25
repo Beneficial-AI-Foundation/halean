@@ -22,11 +22,12 @@
     - {op: fire, event_type: "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀", expect: {deliveries: [m]}}
     - {op: fire, event_type: "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀", expect: {result: {error: MaxLengthExceeded}}}
 
-- name: event_type_combining_33_pairs
+- name: event_type_combining_marks_count
+  # 32 x (e + U+0301) = 64 code points; one more character is too long
   ops:
     - {op: listen, id: m, event_type: "*"}
-    - {op: fire, event_type: "éééééééééééééééééééééééééééééééé", expect: {deliveries: [m]}}
-    - {op: fire, event_type: "ééééééééééééééééééééééééééééééééa", expect: {result: {error: MaxLengthExceeded}}}
+    - {op: fire, event_type: "e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301", expect: {deliveries: [m]}}
+    - {op: fire, event_type: "e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301a", expect: {result: {error: MaxLengthExceeded}}}
 
 - name: event_type_too_long_in_listener
   ops:

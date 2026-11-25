@@ -1,0 +1,26 @@
+# wait_for_trigger: timeout with continue, then completion by an event; wait.trigger
+automations:
+  - alias: wft
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - wait_for_trigger: [{trigger: event, event_type: go}]
+        timeout: 2
+      - {event: m_first, event_data: {completed: "{{ wait.completed }}", trig_none: "{{ wait.trigger is none }}", remaining: "{{ wait.remaining }}"}}
+      - wait_for_trigger:
+          - {trigger: state, entity_id: light.a, to: "on", id: st}
+          - {trigger: event, event_type: go, id: ev}
+      - {event: m_second, event_data: {completed: "{{ wait.completed }}", id: "{{ wait.trigger.id }}", idx: "{{ wait.trigger.idx }}", platform: "{{ wait.trigger.platform }}"}}
+      - wait_for_trigger: [{trigger: event, event_type: go}]
+        timeout: 0
+        continue_on_timeout: false
+      - {event: m_never}
+states: [{entity_id: light.a, state: "off"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: event, event_type: tick}}
+  - {at: 3, send: {type: event, event_type: tick}}
+  - {at: 4, send: {type: event, event_type: go}}
+  - {at: 5, send: {type: event, event_type: e}}
+  - {at: 6, send: {type: event, event_type: tick}}
+  - {at: 7, send: {type: event, event_type: tick}}
+  - {at: 8, set: [light.a, "on"]}

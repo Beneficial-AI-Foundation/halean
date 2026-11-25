@@ -1,0 +1,13 @@
+# continue_on_error is cv.boolean: "true", "yes", 1 are true
+automations:
+  - alias: coestr
+    triggers: [{trigger: event, event_type: e1}]
+    actions: [{action: test.fail, continue_on_error: "true"}, {event: m_str}]
+  - alias: coeint
+    triggers: [{trigger: event, event_type: e2}]
+    actions: [{action: test.fail, continue_on_error: 1}, {event: m_int}]
+steps:
+  - {at: 1, send: {type: event, event_type: e1}}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: false, error_kind: ha_error}}
+  - {at: 3, send: {type: event, event_type: e2}}
+  - {at: 4, send: {type: service_result, call_id: 1, ok: false, error_kind: ha_error}}

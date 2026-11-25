@@ -1,0 +1,31 @@
+# delay as a number, "HH:MM:SS", a mapping, a template, a mapping of templates, zero
+automations:
+  - alias: delays
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {delay: 2}
+      - {event: m_num}
+      - {delay: "00:00:01"}
+      - {event: m_str}
+      - {delay: {seconds: 1, milliseconds: 1000}}
+      - {event: m_map}
+      - {delay: "{{ 1 }}"}
+      - {event: m_tmpl}
+      - {delay: {seconds: "{{ 2 }}"}}
+      - {event: m_tmplmap}
+      - {delay: 0}
+      - {delay: "{{ 0 }}"}
+      - {event: m_zero}
+      - {delay: "{{ '00:00:02' }}"}
+      - {event: m_tmplstr}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: event, event_type: tick}}
+  - {at: 3, send: {type: event, event_type: tick}}
+  - {at: 4, send: {type: event, event_type: tick}}
+  - {at: 5, send: {type: event, event_type: tick}}
+  - {at: 6, send: {type: event, event_type: tick}}
+  - {at: 7, send: {type: event, event_type: tick}}
+  - {at: 8, send: {type: event, event_type: tick}}
+  - {at: 9, send: {type: event, event_type: tick}}
+  - {at: 10, send: {type: event, event_type: tick}}

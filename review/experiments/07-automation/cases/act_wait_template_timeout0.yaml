@@ -1,0 +1,19 @@
+# wait_template with timeout 0: continue or abort; the wait variable
+automations:
+  - alias: w0
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {wait_template: "{{ is_state('light.a', 'on') }}", timeout: 0}
+      - {event: m_w0, event_data: {completed: "{{ wait.completed }}", remaining: "{{ wait.remaining }}"}}
+      - {wait_template: "{{ is_state('light.a', 'on') }}", timeout: 0, continue_on_timeout: false}
+      - {event: m_w0_never}
+  - alias: w0true
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {wait_template: "{{ is_state('light.a', 'off') }}", timeout: "00:00:05", continue_on_timeout: false}
+      - {event: m_w0true, event_data: {completed: "{{ wait.completed }}", remaining: "{{ wait.remaining }}"}}
+      - {wait_template: "{{ true }}"}
+      - {event: m_w0true2, event_data: {completed: "{{ wait.completed }}", remaining: "{{ wait.remaining }}"}}
+states: [{entity_id: light.a, state: "off"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

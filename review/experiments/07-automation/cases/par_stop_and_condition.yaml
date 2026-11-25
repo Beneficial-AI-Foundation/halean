@@ -1,0 +1,21 @@
+# parallel: a failing condition ends its branch only; `stop` in a branch ends the run once all are done
+automations:
+  - alias: parcond
+    triggers: [{trigger: event, event_type: e1}]
+    actions:
+      - parallel:
+          - sequence: ["{{ false }}", {event: m_a_never}]
+          - sequence: [{event: m_b}]
+      - {event: m_after_cond}
+  - alias: parstop
+    triggers: [{trigger: event, event_type: e2}]
+    actions:
+      - parallel:
+          - sequence: [{stop: "done"}, {event: m_c_never}]
+          - sequence: [{delay: 1}, {event: m_d}]
+      - {event: m_after_stop_never}
+steps:
+  - {at: 1, send: {type: event, event_type: e1}}
+  - {at: 2, send: {type: event, event_type: e2}}
+  - {at: 3, send: {type: event, event_type: tick}}
+  - {at: 4, send: {type: event, event_type: tick}}

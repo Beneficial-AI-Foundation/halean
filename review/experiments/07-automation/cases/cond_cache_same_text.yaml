@@ -1,0 +1,13 @@
+# two conditions of one script that differ only in a value's type (1 vs "1"):
+# HA's Script._async_get_condition caches by str() of the values, so the second reuses the first
+automations:
+  - alias: cache
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - if: [{condition: state, entity_id: sensor.a, attribute: v, state: 1}]
+        then: [{event: m_int_1}]
+      - if: [{condition: state, entity_id: sensor.a, attribute: v, state: "1"}]
+        then: [{event: m_str_1}]
+states: [{entity_id: sensor.a, state: "x", attributes: {v: "1"}}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

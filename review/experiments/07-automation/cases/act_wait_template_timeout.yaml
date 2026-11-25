@@ -1,0 +1,19 @@
+# wait_template that times out (continue), then one that completes; restart-safe
+automations:
+  - alias: wt
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {wait_template: "{{ is_state('light.a', 'on') }}", timeout: {seconds: 2}}
+      - {event: m_first, event_data: {completed: "{{ wait.completed }}", remaining: "{{ wait.remaining }}"}}
+      - {wait_template: "{{ is_state('light.a', 'on') }}"}
+      - {event: m_second, event_data: {completed: "{{ wait.completed }}", remaining: "{{ wait.remaining }}"}}
+      - {wait_template: "{{ is_state('light.a', 'off') }}", timeout: 3, continue_on_timeout: false}
+      - {event: m_never}
+states: [{entity_id: light.a, state: "off"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: event, event_type: tick}}
+  - {at: 3, send: {type: event, event_type: tick}}
+  - {at: 5, set: [light.a, "on"]}
+  - {at: 8, send: {type: event, event_type: tick}}
+  - {at: 9, send: {type: event, event_type: tick}}

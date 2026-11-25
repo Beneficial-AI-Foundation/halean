@@ -1,0 +1,298 @@
+# Filters and tests: argument forms and edge inputs.
+- {name: loop_continue_all_then_else, template: "{% for i in [1, 2] %}{% continue %}{% else %}e{% endfor %}x"}
+- {name: loop_break_second_iter_else, template: "{% for i in [1, 2] %}{% if i == 2 %}{% break %}{% endif %}{% else %}e{% endfor %}x"}
+- {name: flt_default_none_stays, template: "{{ none | default('x') }}"}
+- {name: flt_default_false_boolean, template: "{{ false | default('x', true) }}"}
+- {name: flt_default_boolean_kw, template: "{{ 0 | default('z', boolean=true) }}"}
+- {name: flt_default_no_arg, template: "{{ trigger.x | default }}|", variables: {trigger: {}}}
+- {name: flt_default_kw_value, template: "{{ trigger.x | default(default_value='z') }}", variables: {trigger: {}}}
+- {name: flt_default_extra_args, template: "{{ 1 | default(1, 2, 3) }}"}
+- {name: flt_round_ceil_neg, template: "{{ -1.5 | round(0, 'ceil') }}"}
+- {name: flt_round_floor_neg, template: "{{ -1.5 | round(0, 'floor') }}"}
+- {name: flt_round_ceil_prec, template: "{{ 1.2301 | round(2, 'ceil') }}"}
+- {name: flt_round_floor_prec, template: "{{ 1.2399 | round(2, 'floor') }}"}
+- {name: flt_round_half_prec_ignored, template: "{{ 1.26 | round(1, 'half') }}"}
+- {name: flt_round_half_zero_prec, template: "{{ 2.3 | round(0, 'half') }}"}
+- {name: flt_round_neg_precision, template: "{{ 1234.5 | round(-2) }}"}
+- {name: flt_round_neg_precision_ceil, template: "{{ 1234.5 | round(-2, 'ceil') }}"}
+- {name: flt_round_precision_true, template: "{{ 1.25 | round(true) }}"}
+- {name: flt_round_precision_false, template: "{{ 1.5 | round(false) }}"}
+- {name: flt_round_precision_float_default, template: "{{ 1.234 | round(1.0, default=9) }}"}
+- {name: flt_round_precision_str, template: "{{ 1.234 | round('2') }}"}
+- {name: flt_round_unknown_method, template: "{{ 2.5 | round(0, 'foo') }}"}
+- {name: flt_round_int_input_prec, template: "{{ 5 | round(1) }}"}
+- {name: flt_round_big_int, template: "{{ 12345678901234567890 | round }}"}
+- {name: flt_round_str_input, template: "{{ '2.5' | round }}"}
+- {name: flt_round_none, template: "{{ none | round }}"}
+- {name: flt_round_neg_half, template: "{{ -0.5 | round }}"}
+- {name: flt_round_nan, template: "{{ 'nan' | float | round }}"}
+- {name: flt_round_nan_default, template: "{{ 'nan' | float | round(default=7) }}"}
+- {name: flt_round_nan_ceil_default, template: "{{ 'nan' | float | round(0, 'ceil', 5) }}"}
+- {name: flt_round_inf, template: "{{ 'inf' | float | round }}"}
+- {name: flt_round_inf_prec, template: "{{ 'inf' | float | round(1) }}"}
+- {name: flt_round_huge_precision, template: "{{ 1.5 | round(400) }}"}
+- {name: flt_round_tiny_precision, template: "{{ 5 | round(-400) }}"}
+- {name: flt_round_kw, template: "{{ 1.2355 | round(precision=3, method='floor') }}"}
+- {name: flt_round_half_even_17, template: "{{ 0.125 | round(2) }}"}
+- {name: flt_round_1e300, template: "{{ 1e300 | round(2) }}"}
+- {name: flt_int_base16, template: "{{ '1A' | int(base=16) }}"}
+- {name: flt_int_base_pos, template: "{{ '11' | int(0, 2) }}"}
+- {name: flt_int_exp_string, template: "{{ '1e3' | int }}"}
+- {name: flt_int_float_string, template: "{{ '-12.7' | int }}"}
+- {name: flt_int_inf_string_default, template: "{{ 'inf' | int(0) }}"}
+- {name: flt_int_inf_float_default, template: "{{ 'inf' | float | int(0) }}"}
+- {name: flt_int_nan_string_default, template: "{{ 'nan' | int(0) }}"}
+- {name: flt_int_none_default, template: "{{ none | int(0) }}"}
+- {name: flt_int_list_default, template: "{{ [1] | int(0) }}"}
+- {name: flt_int_garbage_default_none, template: "{{ '12abc' | int(none) }}"}
+- {name: flt_int_blank_default, template: "{{ '  ' | int(3) }}"}
+- {name: flt_int_global_default, template: "{{ int('x', 7) }}"}
+- {name: flt_int_big_float, template: "{{ 1e20 | int }}"}
+- {name: flt_int_hex_string_default, template: "{{ '0x1A' | int(0) }}"}
+- {name: flt_int_underscore_float_str, template: "{{ '1_0.9' | int }}"}
+- {name: flt_float_comma, template: "{{ '1,5' | float(0) }}"}
+- {name: flt_float_newline, template: "{{ '  1.5\\n' | float }}"}
+- {name: flt_float_vt_ws, template: "{{ '1.5\x0b' | float(0) }}"}
+- {name: flt_float_ff_ws_isnumber, template: "{{ '\x0c1.5' | is_number }}"}
+- {name: flt_float_us_ws, template: "{{ '1.5\x1f' | float(0) }}"}
+- {name: flt_float_nbsp_ws, template: "{{ ' 1.5' | float(0) }}"}
+- {name: flt_float_arabic_digits, template: "{{ '١٢' | float(0) }}"}
+- {name: flt_float_fullwidth_isnumber, template: "{{ '１２' | is_number }}"}
+- {name: flt_float_dot5, template: "{{ '.5' | float }}"}
+- {name: flt_float_5dot, template: "{{ '5.' | float }}"}
+- {name: flt_float_exp_forms, template: "{{ '+.5e-3' | float }}"}
+- {name: flt_float_bad_underscore, template: "{{ '1__0' | float(-1) }}"}
+- {name: flt_float_underscore_before_dot, template: "{{ '1_.5' | float(-1) }}"}
+- {name: flt_float_underscore_exp, template: "{{ '1e1_0' | float }}"}
+- {name: flt_float_hex, template: "{{ '0x10' | float(-1) }}"}
+- {name: flt_float_infinity_word, template: "{{ 'Infinity' | float }}"}
+- {name: flt_float_neg_inf, template: "{{ '-inf' | float }}"}
+- {name: flt_float_plus_nan, template: "{{ '+NaN' | float }}"}
+- {name: flt_float_inner_space, template: "{{ '1 2' | float(-1) }}"}
+- {name: flt_float_empty, template: "{{ '' | float(-1) }}"}
+- {name: flt_float_1e400, template: "{{ '1e400' | float }}"}
+- {name: flt_float_1e_minus_400, template: "{{ '1e-400' | float }}"}
+- {name: flt_float_long_digits, template: "{{ '0.1000000000000000055511151231257827021181583404541015625' | float }}"}
+- {name: flt_float_halfway, template: "{{ '9007199254740993' | float }}"}
+- {name: flt_float_none_default, template: "{{ float(none, 5) }}"}
+- {name: flt_float_list, template: "{{ [1] | float }}"}
+- {name: flt_bool_number, template: "{{ 2 | bool }}"}
+- {name: flt_bool_padded_upper, template: "{{ ' TRUE ' | bool }}"}
+- {name: flt_bool_none_default_none, template: "{{ none | bool(none) }}"}
+- {name: flt_bool_list_default, template: "{{ [] | bool(1) }}"}
+- {name: flt_bool_nan, template: "{{ 'nan' | float | bool }}"}
+- {name: flt_bool_numeric_string, template: "{{ '2' | bool(0) }}"}
+- {name: flt_isnumber_exp, template: "{{ '1e5' | is_number }}"}
+- {name: flt_isnumber_inf, template: "{{ 'inf' | is_number }}"}
+- {name: flt_isnumber_bool, template: "{{ true | is_number }}"}
+- {name: flt_isnumber_none, template: "{{ none | is_number }}"}
+- {name: flt_isnumber_underscore, template: "{{ '1_0' | is_number }}"}
+- {name: flt_iif_no_args_false, template: "{{ iif(0) }}"}
+- {name: flt_iif_none_no_if_none, template: "{{ none | iif('a', 'b') }}"}
+- {name: flt_iif_none_explicit_none, template: "{{ iif(none, 'a', 'b', none) }}"}
+- {name: flt_title_separators, template: "{{ \"o'neil-smith (x) [y] {z} <w> a_b 1abc\" | title }}"}
+- {name: flt_title_vt, template: "{{ 'a\x0bb' | title | last }}"}
+- {name: flt_title_tab_newline, template: "{{ 'a\\tb\\nc' | title }}", parse_result: false}
+- {name: flt_capitalize_nonstr, template: "{{ [1, 'A'] | capitalize }}"}
+- {name: flt_upper_int, template: "{{ 5 | upper }}"}
+- {name: flt_lower_none, template: "{{ none | lower }}"}
+- {name: flt_lower_list, template: "{{ [1, 'A'] | lower }}"}
+- {name: flt_trim_int, template: "{{ 5 | trim }}"}
+- {name: flt_trim_chars_kw_none, template: "{{ ' a ' | trim(chars=none) }}|"}
+- {name: flt_trim_empty_chars, template: "{{ ' a ' | trim('') | length }}"}
+- {name: flt_trim_unicode_ws, template: "{{ ' a ' | trim | length }}"}
+- {name: flt_replace_empty_old, template: "{{ 'abc' | replace('', '-') }}"}
+- {name: flt_replace_count_zero, template: "{{ 'aaa' | replace('a', 'b', 0) }}"}
+- {name: flt_replace_nonstr, template: "{{ 123 | replace(2, 'x') }}"}
+- {name: flt_replace_count_kw, template: "{{ 'aaa' | replace('a', 'b', count=1) }}"}
+- {name: flt_replace_missing_arg, template: "{{ 'aaa' | replace('a') }}"}
+- {name: flt_length_int, template: "{{ 5 | length }}"}
+- {name: flt_length_none, template: "{{ none | length }}"}
+- {name: flt_length_nonascii, template: "{{ 'é日' | length }}"}
+- {name: flt_length_datetime, template: "{{ now() | length }}"}
+- {name: flt_first_dict, template: "{{ {'a': 1, 'b': 2} | first }}"}
+- {name: flt_first_empty_str, template: "{{ '' | first is defined }}"}
+- {name: flt_first_int, template: "{{ 5 | first }}"}
+- {name: flt_first_range, template: "{{ range(3, 9) | first }}"}
+- {name: flt_last_str, template: "{{ 'abc' | last }}"}
+- {name: flt_last_dict, template: "{{ {'a': 1, 'b': 2} | last }}"}
+- {name: flt_last_range, template: "{{ range(3) | last }}"}
+- {name: flt_last_empty, template: "{{ [] | last is defined }}"}
+- {name: flt_last_generator, template: "{{ [1, 2] | select | last }}"}
+- {name: flt_join_no_sep_int, template: "{{ [1, 2] | join }}"}
+- {name: flt_join_attribute, template: "{{ [{'a': 1}, {'a': 2}] | join(', ', attribute='a') }}"}
+- {name: flt_join_kw_d, template: "{{ [1, 2] | join(d='-') }}"}
+- {name: flt_join_string, template: "{{ 'abc' | join('-') }}"}
+- {name: flt_join_int, template: "{{ 5 | join }}"}
+- {name: flt_join_nested, template: "{{ [[1], (2,), none, 1.0, true] | join('|') }}"}
+- {name: flt_join_dict, template: "{{ {'a': 1, 'b': 2} | join(',') }}"}
+- {name: flt_join_int_sep, template: "{{ [1, 2] | join(0) }}"}
+- {name: flt_list_dict, template: "{{ {'a': 1} | list }}"}
+- {name: flt_list_int, template: "{{ 5 | list }}"}
+- {name: flt_list_tuple, template: "{{ (1, 2) | list }}"}
+- {name: flt_string_none, template: "{{ none | string }}"}
+- {name: flt_string_float, template: "{{ 1.0 | string }}"}
+- {name: flt_string_list_len, template: "{{ [1, 'a'] | string | length }}"}
+- {name: flt_string_datetime, template: "{{ now() | string }}"}
+- {name: flt_abs_neg_zero, template: "{{ -0.0 | abs }}"}
+- {name: flt_abs_str, template: "{{ 'a' | abs }}"}
+- {name: flt_abs_bool, template: "{{ true | abs }}"}
+- {name: flt_sum_empty, template: "{{ [] | sum }}"}
+- {name: flt_sum_start_kw, template: "{{ [1, 2] | sum(start=10) }}"}
+- {name: flt_sum_strings_start, template: "{{ ['a', 'b'] | sum(start='') }}"}
+- {name: flt_sum_lists_start, template: "{{ [[1], [2]] | sum(start=[]) }}"}
+- {name: flt_sum_mixed_error, template: "{{ [1, 'a'] | sum }}"}
+- {name: flt_sum_float_compensated, template: "{{ [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1] | sum }}"}
+- {name: flt_sum_float_cancel, template: "{{ [1e100, 1.0, -1e100] | sum }}"}
+- {name: flt_sum_int_then_float, template: "{{ [1, 0.1, 0.2] | sum }}"}
+- {name: flt_sum_float_start, template: "{{ [0.1, 0.2] | sum(start=0.3) }}"}
+- {name: flt_sum_attribute, template: "{{ [{'a': 1}, {'a': 2}] | sum(attribute='a') }}"}
+- {name: flt_sum_bools, template: "{{ [true, true, false] | sum }}"}
+- {name: flt_sum_timedelta, template: "{{ [timedelta(hours=1), timedelta(minutes=30)] | sum(start=timedelta(0)) }}"}
+- {name: flt_map_lazy_first, template: "{{ [1, 'x'] | map('int') | first }}"}
+- {name: flt_select_lazy_first, template: "{{ [1, 'a'] | select('gt', 0) | first }}"}
+- name: flt_map_lazy_states_info
+  template: "{{ ['sensor.a', 'sensor.b'] | map('states') | first }}"
+  states: [{entity_id: sensor.a, state: "1"}, {entity_id: sensor.b, state: "2"}]
+  render_info: true
+- {name: flt_map_no_args, template: "{{ [1] | map | list }}"}
+- {name: flt_map_filter_args, template: "{{ [1.26, 2.34] | map('round', 1) | list }}"}
+- {name: flt_map_filter_kwargs, template: "{{ [1.26] | map('round', precision=1) | list }}"}
+- {name: flt_map_attribute_default, template: "{{ [{'a': 1}, {}] | map(attribute='a', default='z') | list }}"}
+- {name: flt_map_attribute_default_none, template: "{{ [{'a': 1}, {}] | map(attribute='a', default=none) | map('default', 'u') | list }}"}
+- {name: flt_map_attribute_dotted, template: "{{ [{'a': {'b': 5}}] | map(attribute='a.b') | list }}"}
+- {name: flt_map_attribute_int, template: "{{ [[5, 6]] | map(attribute=1) | list }}"}
+- {name: flt_map_attribute_on_str, template: "{{ ['ab'] | map(attribute='x') | map('default', 'u') | list }}"}
+- {name: flt_map_attribute_on_list, template: "{{ [[1]] | map(attribute='x') | map('default', 'u') | list }}"}
+- {name: flt_map_dict_keys, template: "{{ {'a': 1} | map('upper') | list }}"}
+- {name: flt_map_unknown_filter, template: "{{ [1] | map('nosuch') | list }}", unsupported: true}
+- {name: flt_map_default_filter, template: "{{ [none, 1] | map('default', 'x', true) | list }}"}
+- {name: flt_map_str_chars, template: "{{ 'ab' | map('upper') | join }}"}
+- {name: flt_select_string_test, template: "{{ [1, 'a', none] | select('string') | list }}"}
+- {name: flt_select_in, template: "{{ [1, 2, 3] | select('in', [1, 3]) | list }}"}
+- {name: flt_reject_none, template: "{{ [1, none] | reject('none') | list }}"}
+- {name: flt_reject_no_args, template: "{{ [0, 1, '', 'a'] | reject | list }}"}
+- {name: flt_select_eq_op_name, template: "{{ [1, 2] | select('==', 2) | list }}"}
+- {name: flt_select_missing_test_arg, template: "{{ [1, 2] | select('eq') | list }}"}
+- {name: flt_selectattr_truthy, template: "{{ [{'a': 1}, {'a': 0}, {}] | selectattr('a') | list }}"}
+- {name: flt_selectattr_defined, template: "{{ [{'a': 0}, {}] | selectattr('a', 'defined') | list }}"}
+- {name: flt_selectattr_dotted, template: "{{ [{'a': {'b': 1}}, {'a': {}}] | selectattr('a.b', 'eq', 1) | list }}"}
+- {name: flt_rejectattr_none, template: "{{ [{'a': none}, {'a': 1}] | rejectattr('a', 'none') | list }}"}
+- {name: flt_selectattr_no_args, template: "{{ [{'a': 1}] | selectattr | list }}"}
+- {name: flt_selectattr_on_ints, template: "{{ [1, 2] | selectattr('x') | list }}"}
+- {name: flt_selectattr_on_strs, template: "{{ ['ab'] | selectattr('x') | list }}"}
+- {name: flt_selectattr_undefined_lt, template: "{{ [{}] | selectattr('a', 'lt', 1) | list }}"}
+- {name: flt_sort_mixed, template: "{{ [1, 'a'] | sort }}"}
+- {name: flt_sort_reverse_stable, template: "{{ [(1, 'a'), (1, 'b'), (0, 'c')] | sort(reverse=true, attribute='0') }}"}
+- {name: flt_sort_case_insensitive, template: "{{ ['b', 'A', 'a', 'B'] | sort }}"}
+- {name: flt_sort_case_sensitive, template: "{{ ['b', 'A', 'a', 'B'] | sort(case_sensitive=true) }}"}
+- {name: flt_sort_dict_keys, template: "{{ {'b': 1, 'a': 2} | sort }}"}
+- {name: flt_sort_str_chars, template: "{{ 'bca' | sort }}"}
+- {name: flt_sort_multi_attr, template: "{{ [{'a': 1, 'b': 2}, {'a': 1, 'b': 1}, {'a': 0, 'b': 9}] | sort(attribute='a,b') | map(attribute='b') | list }}"}
+- {name: flt_sort_none_pair, template: "{{ [none, none] | sort }}"}
+- {name: flt_sort_single_none, template: "{{ [none] | sort }}"}
+- {name: flt_sort_bool_int, template: "{{ [2, true, 0, false] | sort }}"}
+- {name: flt_sort_int_float, template: "{{ [2, 1.5, 1] | sort }}"}
+- {name: flt_sort_positional_reverse, template: "{{ [1, 3, 2] | sort(true) }}"}
+- {name: flt_sort_missing_attr, template: "{{ [{'a': 1}, {}] | sort(attribute='a') }}"}
+- {name: flt_sort_missing_attr_both, template: "{{ [{}, {}] | sort(attribute='a') | length }}"}
+- {name: flt_sort_nested_lists, template: "{{ [[2, 1], [1, 5], [1]] | sort }}"}
+- {name: flt_min_empty, template: "{{ [] | min is defined }}"}
+- {name: flt_min_case_insensitive, template: "{{ ['b', 'A'] | min }}"}
+- {name: flt_min_case_sensitive, template: "{{ ['b', 'A', 'a'] | min(case_sensitive=true) }}"}
+- {name: flt_max_attribute, template: "{{ [{'a': 1}, {'a': 3}] | max(attribute='a') }}"}
+- {name: flt_max_first_of_equal, template: "{{ [1, 1.0, true] | max }}"}
+- {name: flt_min_first_of_equal, template: "{{ [true, 1, 1.0] | min }}"}
+- {name: flt_max_global_args, template: "{{ max(1, 2.5) }}"}
+- {name: flt_max_global_iterable, template: "{{ max([1, 3]) }}"}
+- {name: flt_max_global_string, template: "{{ max('abc') }}"}
+- {name: flt_max_global_int, template: "{{ max(1) }}"}
+- {name: flt_min_global_none, template: "{{ min() }}"}
+- {name: flt_min_global_empty_list, template: "{{ min([]) is defined }}"}
+- {name: flt_min_mixed, template: "{{ [1, 'a'] | min }}"}
+- {name: flt_min_dict, template: "{{ {'b': 1, 'a': 2} | min }}"}
+- {name: flt_unique_mixed_numeric, template: "{{ [1, 1.0, true, 'a', 'A'] | unique | list }}"}
+- {name: flt_unique_case_sensitive, template: "{{ ['a', 'A'] | unique(case_sensitive=true) | list }}"}
+- {name: flt_unique_unhashable, template: "{{ [[1], [1]] | unique | list }}"}
+- {name: flt_unique_attribute, template: "{{ [{'a': 1}, {'a': 1}, {'a': 2}] | unique(attribute='a') | list | length }}"}
+- {name: flt_unique_string, template: "{{ 'aAb' | unique | join }}"}
+- {name: flt_unique_tuples, template: "{{ [(1, 2), (1, 2), (2, 1)] | unique | list }}"}
+- {name: flt_reverse_first, template: "{{ [1, 2] | reverse | first }}"}
+- {name: flt_reverse_dict, template: "{{ {'a': 1, 'b': 2} | reverse | list }}"}
+- {name: flt_reverse_range, template: "{{ range(3) | reverse | list }}"}
+- {name: flt_reverse_int, template: "{{ 5 | reverse }}"}
+- {name: flt_reverse_generator_is_list, template: "{{ [1, 2] | select | reverse }}"}
+- {name: flt_reverse_tuple, template: "{{ (1, 2) | reverse | list }}"}
+- {name: flt_arity_upper, template: "{{ 'a' | upper(1) }}"}
+- {name: flt_arity_length, template: "{{ 'a' | length(1) }}"}
+- {name: flt_arity_first, template: "{{ [1] | first(2) }}"}
+- {name: flt_arity_abs, template: "{{ 1 | abs(2) }}"}
+- {name: flt_arity_string, template: "{{ 'a' | string(1) }}"}
+- {name: flt_arity_list, template: "{{ [1] | list(1) }}"}
+- {name: flt_arity_trim, template: "{{ 'a' | trim('a', 'b') }}"}
+- {name: flt_arity_float, template: "{{ 1 | float(1, 2) }}"}
+- {name: flt_arity_is_state_missing, template: "{{ is_state('light.x') }}"}
+- {name: flt_arity_state_attr_missing, template: "{{ state_attr('light.x') }}"}
+- {name: flt_arity_has_value_missing, template: "{{ has_value() }}"}
+- {name: flt_arity_float_missing, template: "{{ float() }}"}
+- {name: flt_arity_int_missing, template: "{{ int() }}"}
+- {name: flt_arity_bool_missing, template: "{{ bool() }}"}
+- {name: flt_arity_is_number_missing, template: "{{ is_number() }}"}
+- {name: flt_arity_iif_missing, template: "{{ iif() }}"}
+- {name: flt_arity_states_missing, template: "{{ states() }}"}
+- {name: flt_arity_now_extra, template: "{{ now(1) }}"}
+- {name: flt_arity_dup_kw, template: "{{ float('1', value='2') }}"}
+- {name: flt_arity_round_extra, template: "{{ 1.5 | round(1, 'common', 0, 9) }}"}
+- {name: flt_arity_join_extra, template: "{{ [1] | join(',', none, 3) }}"}
+- {name: flt_arity_unknown_kw, template: "{{ 'a' | upper(foo=1) }}"}
+- {name: flt_arity_iif_extra, template: "{{ iif(1, 2, 3, 4, 5) }}"}
+- {name: flt_unknown_filter, template: "{{ 1 | nosuchfilter }}", unsupported: true}
+- {name: flt_unsupported_tojson, template: "{{ [1] | tojson }}", unsupported: true}
+- {name: flt_unsupported_regex, template: "{{ 'a' | regex_replace('a', 'b') }}", unsupported: true}
+- {name: flt_unsupported_format, template: "{{ '%d' | format(1) }}", unsupported: true}
+- {name: flt_unsupported_batch, template: "{{ [1] | batch(1) | list }}", unsupported: true}
+- {name: flt_unsupported_global, template: "{{ area_name('x') }}", unsupported: true}
+- {name: flt_unsupported_is_state_filter, template: "{{ 'light.x' | is_state('on') }}", unsupported: true}
+- {name: tst_sequence_range, template: "{{ range(3) is sequence }}"}
+- {name: tst_iterable_range, template: "{{ range(3) is iterable }}"}
+- {name: tst_iterable_generator, template: "{{ [1] | map('int') is iterable }}"}
+- {name: tst_iterable_states, template: "{{ states is iterable }}"}
+- {name: tst_iterable_domain, template: "{{ states.sensor is iterable }}"}
+- {name: tst_sequence_dict, template: "{{ {} is sequence }}"}
+- {name: tst_sequence_generator, template: "{{ [1] | select is sequence }}"}
+- {name: tst_mapping_states, template: "{{ states is mapping }}"}
+- {name: tst_iterable_datetime, template: "{{ now() is iterable }}"}
+- {name: tst_integer_bool, template: "{{ true is integer }}"}
+- {name: tst_number_bool, template: "{{ true is number }}"}
+- {name: tst_float_int, template: "{{ 1 is float }}"}
+- {name: tst_true_one, template: "{{ 1 is true }}"}
+- {name: tst_false_none, template: "{{ none is false }}"}
+- {name: tst_even_float, template: "{{ 2.0 is even }}"}
+- {name: tst_even_str, template: "{{ 'a' is even }}"}
+- {name: tst_odd_none, template: "{{ none is odd }}"}
+- {name: tst_odd_negative, template: "{{ -3 is odd }}"}
+- {name: tst_divisibleby_zero, template: "{{ 3 is divisibleby 0 }}"}
+- {name: tst_divisibleby_str_format, template: "{{ 'x%s' is divisibleby 2 }}"}
+- {name: tst_divisibleby_float, template: "{{ 4.5 is divisibleby 1.5 }}"}
+- {name: tst_lt_mixed, template: "{{ 1 is lt 'a' }}"}
+- {name: tst_eq_missing_arg, template: "{{ 1 is eq }}"}
+- {name: tst_divisibleby_missing_arg, template: "{{ 4 is divisibleby }}"}
+- {name: tst_none_extra_arg, template: "{{ 1 is none(2) }}"}
+- {name: tst_defined_extra_arg, template: "{{ 1 is defined(1) }}"}
+- {name: tst_eq_two_args, template: "{{ 1 is eq(1, 2) }}"}
+- {name: tst_in_string, template: "{{ 'a' is in 'abc' }}"}
+- {name: tst_ge_alias, template: "{{ 2 is ge 2 }}"}
+- {name: tst_lessthan_alias, template: "{{ 1 is lessthan 2 }}"}
+- {name: tst_equalto_alias, template: "{{ 1 is equalto 1.0 }}"}
+- {name: tst_string_number, template: "{{ '1' is number }}"}
+- {name: tst_unsupported_sameas, template: "{{ 1 is sameas 1 }}", unsupported: true}
+- {name: tst_unsupported_callable, template: "{{ float is callable }}", unsupported: true}
+- {name: tst_unsupported_lower, template: "{{ 'a' is lower }}", unsupported: true}
+- {name: tst_unsupported_contains, template: "{{ [1] is contains 1 }}", unsupported: true}
+- {name: tst_unsupported_list, template: "{{ [1] is list }}", unsupported: true}
+- {name: tst_unsupported_match, template: "{{ 'a' is match 'a' }}", unsupported: true}
+- {name: tst_unknown, template: "{{ 1 is nosuchtest }}", unsupported: true}
+- {name: tst_is_state_test_list, template: "{{ 'light.x' is is_state(['on', 'off']) }}", states: [{entity_id: light.x, state: "off"}]}
+- {name: tst_has_value_unknown, template: "{{ 'sensor.q' is has_value }}"}
+- {name: tst_is_state_attr_test, template: "{{ 'light.x' is is_state_attr('b', 5) }}", states: [{entity_id: light.x, state: "on", attributes: {b: 5}}]}
+- {name: tst_datetime_str, template: "{{ '2020-01-01' is datetime }}"}

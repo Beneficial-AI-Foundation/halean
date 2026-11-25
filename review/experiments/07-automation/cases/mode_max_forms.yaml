@@ -1,0 +1,21 @@
+# max: "3" and 2.9 are coerced to int; max 1 and 0 are rejected by HA
+automations:
+  - alias: maxstr
+    mode: parallel
+    max: "2"
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_maxstr}, {delay: 5}]
+  - alias: maxfloat
+    mode: parallel
+    max: 2.9
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_maxfloat}, {delay: 5}]
+  - alias: maxone
+    mode: parallel
+    max: 1
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_maxone}, {delay: 5}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: event, event_type: e}}
+  - {at: 3, send: {type: event, event_type: e}}

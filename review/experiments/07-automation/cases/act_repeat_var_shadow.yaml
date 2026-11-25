@@ -1,0 +1,13 @@
+# assigning to `repeat` inside a loop writes the loop's local variable
+automations:
+  - alias: shadow
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - repeat:
+          count: 2
+          sequence:
+            - variables: {repeat: "mine"}
+            - {event: m_in, event_data: {r: "{{ repeat }}"}}
+      - {event: m_out, event_data: {defined: "{{ repeat is defined }}"}}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

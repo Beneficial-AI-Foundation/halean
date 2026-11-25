@@ -1,0 +1,22 @@
+# restart while the old run is in a delay / in a wait_template: the old run never continues
+automations:
+  - alias: restart
+    mode: restart
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {event: m_start, event_data: {n: "{{ trigger.event.data.n }}"}}
+      - {delay: 3}
+      - {event: m_mid, event_data: {n: "{{ trigger.event.data.n }}"}}
+      - {wait_template: "{{ is_state('light.a', 'on') }}"}
+      - {event: m_end, event_data: {n: "{{ trigger.event.data.n }}"}}
+states: [{entity_id: light.a, state: "off"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {n: 1}}}
+  - {at: 2, send: {type: event, event_type: e, data: {n: 2}}}
+  - {at: 4, send: {type: event, event_type: tick}}
+  - {at: 5, send: {type: event, event_type: tick}}
+  - {at: 6, send: {type: event, event_type: e, data: {n: 3}}}
+  - {at: 7, set: [light.a, "on"]}
+  - {at: 9, send: {type: event, event_type: tick}}
+  - {at: 10, set: [light.a, "off"]}
+  - {at: 11, set: [light.a, "on"]}

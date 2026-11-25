@@ -1,0 +1,17 @@
+# a templated service name (rendered per run); names are lower-cased; the registered names appear in `known`
+automations:
+  - alias: known
+    triggers: [{trigger: event, event_type: never}]
+    actions: [{action: test.alpha}, {action: test.beta}]
+  - alias: tmplname
+    mode: queued
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - action: "{{ 'test.' ~ trigger.event.data.s }}"
+        data: {v: 1}
+      - {event: m_after}
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {s: alpha}}}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: true}}
+  - {at: 3, send: {type: event, event_type: e, data: {s: BETA}}}
+  - {at: 4, send: {type: service_result, call_id: 1, ok: true}}

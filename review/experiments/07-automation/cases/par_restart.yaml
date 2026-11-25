@@ -1,0 +1,16 @@
+# restart while parallel branches are blocked: all branches stop
+automations:
+  - alias: parrestart
+    mode: restart
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - parallel:
+          - sequence: [{delay: 2}, {event: m_a, event_data: {n: "{{ trigger.event.data.n }}"}}]
+          - sequence: [{wait_for_trigger: [{trigger: event, event_type: go}]}, {event: m_b, event_data: {n: "{{ trigger.event.data.n }}"}}]
+      - {event: m_after, event_data: {n: "{{ trigger.event.data.n }}"}}
+steps:
+  - {at: 1, send: {type: event, event_type: e, data: {n: 1}}}
+  - {at: 2, send: {type: event, event_type: e, data: {n: 2}}}
+  - {at: 3, send: {type: event, event_type: tick}}
+  - {at: 4, send: {type: event, event_type: go}}
+  - {at: 5, send: {type: event, event_type: go}}

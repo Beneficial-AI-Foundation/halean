@@ -1,0 +1,27 @@
+# stop inside nested blocks ends the whole run; stop with error; stop after continue_on_error
+automations:
+  - alias: stopnested
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - if: ["{{ true }}"]
+        then:
+          - repeat:
+              count: 3
+              sequence:
+                - {event: m_iter, event_data: {i: "{{ repeat.index }}"}}
+                - if: ["{{ repeat.index == 2 }}"]
+                  then: [{stop: "enough"}]
+      - {event: m_never}
+  - alias: stoperr
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - sequence: [{stop: "bad", error: true}]
+        continue_on_error: true
+      - {event: m_never2}
+  - alias: stopcoe
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {stop: "quiet", continue_on_error: true}
+      - {event: m_never3}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

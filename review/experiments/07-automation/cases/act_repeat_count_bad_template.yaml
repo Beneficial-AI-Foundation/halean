@@ -1,0 +1,16 @@
+# a count template that is not a number aborts the run (no error for the rest)
+automations:
+  - alias: badcount
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - {event: m_before}
+      - repeat: {count: "{{ 'abc' }}", sequence: [{event: m_body}]}
+      - {event: m_after}
+  - alias: nonecount
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - continue_on_error: true
+        repeat: {count: "{{ none }}", sequence: [{event: m_body2}]}
+      - {event: m_after2}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

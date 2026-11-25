@@ -133,7 +133,7 @@ class Gen:
         cfg["mode"] = mode
         if mode in ("queued", "parallel") and rng.random() < 0.6:
             cfg["max"] = rng.choice([2, 2, 3])
-        cfg["fields"] = {"v": {}}
+        cfg["fields"] = {"v": {}, "r": {}}
         if rng.random() < 0.2:
             cfg["variables"] = {"v": 100}
         cfg["sequence"] = self.seq(i, 0, 1, 4)
@@ -164,11 +164,13 @@ def scenario(seed: int, idx: int) -> dict:
             n = rng.choice(pending[:2])  # mostly the oldest
             resolved.add(n)
             st["result"] = n
-            kk = rng.random()
-            if kk < 0.15:
+            # an ok result always carries a response: HA refuses `None` for a
+            # call that asked for one (ServiceRegistry.async_call), and the
+            # generator does not know which calls asked
+            if rng.random() < 0.15:
                 st["ok"] = False
                 st["error_kind"] = rng.choice(["ha_error", "invalid", "other"])
-            elif kk < 0.5:
+            else:
                 st["response"] = {"n": n}
         elif k < 0.65:
             st["call"] = rng.choice(list(current))

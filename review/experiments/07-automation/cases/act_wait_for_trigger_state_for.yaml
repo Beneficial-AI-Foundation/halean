@@ -1,0 +1,18 @@
+# wait_for_trigger with a state trigger that has `for`, and a template trigger
+automations:
+  - alias: wftfor
+    triggers: [{trigger: event, event_type: e}]
+    actions:
+      - wait_for_trigger: [{trigger: state, entity_id: light.a, to: "on", for: 2}]
+      - {event: m_for, event_data: {to: "{{ wait.trigger.to_state.state }}", for: "{{ wait.trigger.for }}"}}
+      - wait_for_trigger: [{trigger: template, value_template: "{{ is_state('light.a', 'off') }}"}]
+      - {event: m_tmpl, event_data: {e: "{{ wait.trigger.entity_id }}"}}
+states: [{entity_id: light.a, state: "off"}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, set: [light.a, "on"]}
+  - {at: 3, set: [light.a, "off"]}
+  - {at: 4, set: [light.a, "on"]}
+  - {at: 5, send: {type: event, event_type: tick}}
+  - {at: 6, send: {type: event, event_type: tick}}
+  - {at: 7, set: [light.a, "off"]}
