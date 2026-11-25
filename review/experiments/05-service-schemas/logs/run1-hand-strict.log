@@ -1,0 +1,724 @@
+.F.....FF.FFFF................                                           [100%]
+=================================== FAILURES ===================================
+_____________________ test_services[hw_cv_boolean_string] ______________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fac813ffb60>
+engine = <function engine.<locals>.ask at 0x7fac82735640>
+case = {'name': 'hw_cv_boolean_string', 'ops': [{'domain': 'hw', 'handler': {'echo': True}, 'op': 'register', 'schema': {'fie...main': 'hw', 'op': 'call', ...}, {'blocking': True, 'data': {'b': 'enabled'}, 'domain': 'hw', 'op': 'call', ...}, ...]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+        failures: list = []
+        schema_of: dict = {}
+        counts: dict = {}
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                if not RECORD:
+                    assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+                assert op.get("domain", "x").lower() not in baseline
+    
+                fired.clear()
+                records.records.clear()
+                try:
+                    result = await run_ha(hass, op, baseline)
+                    ha: dict = {"ok": True, "result": result}
+                except Exception as err:  # noqa: BLE001
+                    ha = {"ok": False, "error": error_dict(err)}
+                await hass.async_block_till_done()
+                ha["events"] = [
+                    {"event_type": e.event_type, "data": _fresh(repr(e.data)),
+                     "time_fired": round(e.time_fired_timestamp * 1000),
+                     "context": {"id": _fresh(e.context.id), "user_id": e.context.user_id,
+                                 "parent_id": e.context.parent_id}}
+                    for e in fired]
+                ha["logs"] = [_log_dict(r) for r in records.records]
+                if RECORD:
+                    if lean != ha:
+                        failures.append(i)
+                        with open(RECORD, "a") as fh:
+                            fh.write(json.dumps({"case": case["name"], "op_index": i, "op": op,
+                                                 "schema": schema_of.get((op.get("domain"), op.get("service"))),
+                                                 "kind": "unsupported" if "unsupported" in lean else "differs",
+                                                 "ha": ha, "halean": lean}) + "\n")
+                    elif op["op"] == "call":
+                        counts["same"] = counts.get("same", 0) + 1
+                    if op["op"] == "register":
+                        schema_of[(op["domain"], op["service"])] = op.get("schema")
+                    continue
+>               assert lean == ha, f"op {i}: {op}\n  HA:     {ha}\n  HALean: {lean}"
+E               AssertionError: op 12: {'op': 'call', 'domain': 'hw', 'service': 'v', 'blocking': True, 'return_response': True, 'data': {'b': 'TRUE\xa0'}}
+E                   HA:     {'ok': True, 'result': "{'domain': 'hw', 'service': 'v', 'data': {'b': True}, 'return_response': True, 'context_id': 'new'}", 'events': [{'event_type': 'call_service', 'data': "{'domain': 'hw', 'service': 'v', 'service_data': {'b': 'TRUE\\xa0'}}", 'time_fired': 1795192257000, 'context': {'id': 'new', 'user_id': None, 'parent_id': None}}], 'logs': []}
+E                   HALean: {'events': [{'context': {'id': 'new', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'hw', 'service': 'v', 'service_data': {'b': 'TRUE\xa0'}}", 'event_type': 'call_service', 'time_fired': 1795192257000}], 'logs': [], 'ok': True, 'result': "{'domain': 'hw', 'service': 'v', 'data': {'b': True}, 'return_response': True, 'context_id': 'new'}"}
+E               assert {'events': [{..._id': 'new'}"} == {'events': [{..._id': 'new'}"}
+E                 
+E                 Omitting 3 identical items, use -vv to show
+E                 Differing items:
+E                 {'events': [{'context': {'id': 'new', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'hw', 'service': 'v', 'service_data': {'b': 'TRUE\xa0'}}", 'event_type': 'call_service', 'time_fired': 1795192257000}]} != {'events': [{'context': {'id': 'new', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'hw', 'service': 'v', 'service_data': {'b': 'TRUE\\xa0'}}", 'event_type': 'call_service', 'time_fired': 1795192257000}]}
+E                 Use -v to get more diff
+
+test_services.py:245: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+------------------------------ Captured log setup ------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-11' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+__________________ test_services[hw_sch2_repr_non_printable] ___________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fac80a217b0>
+engine = <function engine.<locals>.ask at 0x7fac82735640>
+case = {'name': 'hw_sch2_repr_non_printable', 'ops': [{'domain': 'hw', 'handler': {'echo': True}, 'op': 'register', 'schema':... [{'key': 's', 'type': 'str'}]}, ...}, {'blocking': True, 'data': {'s': 'a\xa0b'}, 'domain': 'hw', 'op': 'call', ...}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+        failures: list = []
+        schema_of: dict = {}
+        counts: dict = {}
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                if not RECORD:
+                    assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+                assert op.get("domain", "x").lower() not in baseline
+    
+                fired.clear()
+                records.records.clear()
+                try:
+                    result = await run_ha(hass, op, baseline)
+                    ha: dict = {"ok": True, "result": result}
+                except Exception as err:  # noqa: BLE001
+                    ha = {"ok": False, "error": error_dict(err)}
+                await hass.async_block_till_done()
+                ha["events"] = [
+                    {"event_type": e.event_type, "data": _fresh(repr(e.data)),
+                     "time_fired": round(e.time_fired_timestamp * 1000),
+                     "context": {"id": _fresh(e.context.id), "user_id": e.context.user_id,
+                                 "parent_id": e.context.parent_id}}
+                    for e in fired]
+                ha["logs"] = [_log_dict(r) for r in records.records]
+                if RECORD:
+                    if lean != ha:
+                        failures.append(i)
+                        with open(RECORD, "a") as fh:
+                            fh.write(json.dumps({"case": case["name"], "op_index": i, "op": op,
+                                                 "schema": schema_of.get((op.get("domain"), op.get("service"))),
+                                                 "kind": "unsupported" if "unsupported" in lean else "differs",
+                                                 "ha": ha, "halean": lean}) + "\n")
+                    elif op["op"] == "call":
+                        counts["same"] = counts.get("same", 0) + 1
+                    if op["op"] == "register":
+                        schema_of[(op["domain"], op["service"])] = op.get("schema")
+                    continue
+>               assert lean == ha, f"op {i}: {op}\n  HA:     {ha}\n  HALean: {lean}"
+E               AssertionError: op 1: {'op': 'call', 'domain': 'hw', 'service': 'v', 'blocking': True, 'return_response': True, 'data': {'s': 'a\xa0b'}}
+E                   HA:     {'ok': True, 'result': "{'domain': 'hw', 'service': 'v', 'data': {'s': 'a\\xa0b'}, 'return_response': True, 'context_id': 'new'}", 'events': [{'event_type': 'call_service', 'data': "{'domain': 'hw', 'service': 'v', 'service_data': {'s': 'a\\xa0b'}}", 'time_fired': 1795192246000, 'context': {'id': 'new', 'user_id': None, 'parent_id': None}}], 'logs': []}
+E                   HALean: {'events': [{'context': {'id': 'new', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'hw', 'service': 'v', 'service_data': {'s': 'a\xa0b'}}", 'event_type': 'call_service', 'time_fired': 1795192246000}], 'logs': [], 'ok': True, 'result': "{'domain': 'hw', 'service': 'v', 'data': {'s': 'a\xa0b'}, 'return_response': True, 'context_id': 'new'}"}
+E               assert {'events': [{..._id': 'new'}"} == {'events': [{..._id': 'new'}"}
+E                 
+E                 Omitting 2 identical items, use -vv to show
+E                 Differing items:
+E                 {'events': [{'context': {'id': 'new', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'hw', 'service': 'v', 'service_data': {'s': 'a\xa0b'}}", 'event_type': 'call_service', 'time_fired': 1795192246000}]} != {'events': [{'context': {'id': 'new', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'hw', 'service': 'v', 'service_data': {'s': 'a\\xa0b'}}", 'event_type': 'call_service', 'time_fired': 1795192246000}]}
+E                 {'result': "{'domain': 'hw', 'service': 'v', 'data': {'s': 'a\xa0b'}, 'return_response':...
+E                 
+E                 ...Full output truncated (2 lines hidden), use '-vv' to show
+
+test_services.py:245: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-59' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-59' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+________________ test_services[hw_sch2_path_non_printable_key] _________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fac8282bac0>
+engine = <function engine.<locals>.ask at 0x7fac82735640>
+case = {'name': 'hw_sch2_path_non_printable_key', 'ops': [{'domain': 'hw', 'handler': {'echo': True}, 'op': 'register', 'sche...': [{'key': 's', 'type': 'str'}]}, ...}, {'blocking': True, 'data': {'\u200b': 1}, 'domain': 'hw', 'op': 'call', ...}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+        failures: list = []
+        schema_of: dict = {}
+        counts: dict = {}
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                if not RECORD:
+                    assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+                assert op.get("domain", "x").lower() not in baseline
+    
+                fired.clear()
+                records.records.clear()
+                try:
+                    result = await run_ha(hass, op, baseline)
+                    ha: dict = {"ok": True, "result": result}
+                except Exception as err:  # noqa: BLE001
+                    ha = {"ok": False, "error": error_dict(err)}
+                await hass.async_block_till_done()
+                ha["events"] = [
+                    {"event_type": e.event_type, "data": _fresh(repr(e.data)),
+                     "time_fired": round(e.time_fired_timestamp * 1000),
+                     "context": {"id": _fresh(e.context.id), "user_id": e.context.user_id,
+                                 "parent_id": e.context.parent_id}}
+                    for e in fired]
+                ha["logs"] = [_log_dict(r) for r in records.records]
+                if RECORD:
+                    if lean != ha:
+                        failures.append(i)
+                        with open(RECORD, "a") as fh:
+                            fh.write(json.dumps({"case": case["name"], "op_index": i, "op": op,
+                                                 "schema": schema_of.get((op.get("domain"), op.get("service"))),
+                                                 "kind": "unsupported" if "unsupported" in lean else "differs",
+                                                 "ha": ha, "halean": lean}) + "\n")
+                    elif op["op"] == "call":
+                        counts["same"] = counts.get("same", 0) + 1
+                    if op["op"] == "register":
+                        schema_of[(op["domain"], op["service"])] = op.get("schema")
+                    continue
+>               assert lean == ha, f"op {i}: {op}\n  HA:     {ha}\n  HALean: {lean}"
+E               AssertionError: op 1: {'op': 'call', 'domain': 'hw', 'service': 'v', 'blocking': True, 'return_response': True, 'data': {'\u200b': 1}}
+E                   HA:     {'ok': False, 'error': {'exception': 'MultipleInvalid', 'error_kind': 'invalid', 'message': "not a valid option at '['\\u200b']'"}, 'events': [], 'logs': []}
+E                   HALean: {'error': {'error_kind': 'invalid', 'exception': 'MultipleInvalid', 'message': "not a valid option at '['\u200b']'"}, 'events': [], 'logs': [], 'ok': False}
+E               assert {'error': {'e..., 'ok': False} == {'error': {'e..., 'ok': False}
+E                 
+E                 Omitting 3 identical items, use -vv to show
+E                 Differing items:
+E                 {'error': {'error_kind': 'invalid', 'exception': 'MultipleInvalid', 'message': "not a valid option at '['\u200b']'"}} != {'error': {'error_kind': 'invalid', 'exception': 'MultipleInvalid', 'message': "not a valid option at '['\\u200b']'"}}
+E                 Use -v to get more diff
+
+test_services.py:245: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-67' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-67' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+___________ test_services[hw_sch3_coerce_float_after_50_validations] ___________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fac8147de50>
+engine = <function engine.<locals>.ask at 0x7fac82735640>
+case = {'name': 'hw_sch3_coerce_float_after_50_validations', 'ops': [{'domain': 'hw', 'handler': {'echo': True}, 'op': 'regis... 4}, 'domain': 'hw', 'op': 'call', ...}, {'blocking': True, 'data': {'f': 5}, 'domain': 'hw', 'op': 'call', ...}, ...]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+        failures: list = []
+        schema_of: dict = {}
+        counts: dict = {}
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                if not RECORD:
+                    assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+                assert op.get("domain", "x").lower() not in baseline
+    
+                fired.clear()
+                records.records.clear()
+                try:
+                    result = await run_ha(hass, op, baseline)
+                    ha: dict = {"ok": True, "result": result}
+                except Exception as err:  # noqa: BLE001
+                    ha = {"ok": False, "error": error_dict(err)}
+                await hass.async_block_till_done()
+                ha["events"] = [
+                    {"event_type": e.event_type, "data": _fresh(repr(e.data)),
+                     "time_fired": round(e.time_fired_timestamp * 1000),
+                     "context": {"id": _fresh(e.context.id), "user_id": e.context.user_id,
+                                 "parent_id": e.context.parent_id}}
+                    for e in fired]
+                ha["logs"] = [_log_dict(r) for r in records.records]
+                if RECORD:
+                    if lean != ha:
+                        failures.append(i)
+                        with open(RECORD, "a") as fh:
+                            fh.write(json.dumps({"case": case["name"], "op_index": i, "op": op,
+                                                 "schema": schema_of.get((op.get("domain"), op.get("service"))),
+                                                 "kind": "unsupported" if "unsupported" in lean else "differs",
+                                                 "ha": ha, "halean": lean}) + "\n")
+                    elif op["op"] == "call":
+                        counts["same"] = counts.get("same", 0) + 1
+                    if op["op"] == "register":
+                        schema_of[(op["domain"], op["service"])] = op.get("schema")
+                    continue
+>               assert lean == ha, f"op {i}: {op}\n  HA:     {ha}\n  HALean: {lean}"
+E               AssertionError: op 51: {'op': 'call', 'domain': 'hw', 'service': 'v', 'blocking': True, 'return_response': True, 'data': {'f': 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}}
+E                   HA:     {'ok': False, 'error': {'exception': 'OverflowError', 'error_kind': 'other', 'message': 'int too large to convert to float'}, 'events': [], 'logs': []}
+E                   HALean: {'error': {'error_kind': 'invalid', 'exception': 'MultipleInvalid', 'message': "expected float at 'f'"}, 'events': [], 'logs': [], 'ok': False}
+E               assert {'error': {'e..., 'ok': False} == {'error': {'e..., 'ok': False}
+E                 
+E                 Omitting 3 identical items, use -vv to show
+E                 Differing items:
+E                 {'error': {'error_kind': 'invalid', 'exception': 'MultipleInvalid', 'message': "expected float at 'f'"}} != {'error': {'error_kind': 'other', 'exception': 'OverflowError', 'message': 'int too large to convert to float'}}
+E                 Use -v to get more diff
+
+test_services.py:245: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+________________ test_services[hw_sch4_timedelta_not_iterable] _________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fac82772030>
+engine = <function engine.<locals>.ask at 0x7fac82735640>
+case = {'name': 'hw_sch4_timedelta_not_iterable', 'ops': [{'domain': 'hw', 'handler': {'echo': True}, 'op': 'register', 'sche...elds': [{'key': 'e', 'value': {...}}]}, ...}, {'blocking': True, 'data': {'e': 5}, 'domain': 'hw', 'op': 'call', ...}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+        failures: list = []
+        schema_of: dict = {}
+        counts: dict = {}
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                if not RECORD:
+                    assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+                assert op.get("domain", "x").lower() not in baseline
+    
+                fired.clear()
+                records.records.clear()
+                try:
+                    result = await run_ha(hass, op, baseline)
+                    ha: dict = {"ok": True, "result": result}
+                except Exception as err:  # noqa: BLE001
+                    ha = {"ok": False, "error": error_dict(err)}
+                await hass.async_block_till_done()
+                ha["events"] = [
+                    {"event_type": e.event_type, "data": _fresh(repr(e.data)),
+                     "time_fired": round(e.time_fired_timestamp * 1000),
+                     "context": {"id": _fresh(e.context.id), "user_id": e.context.user_id,
+                                 "parent_id": e.context.parent_id}}
+                    for e in fired]
+                ha["logs"] = [_log_dict(r) for r in records.records]
+                if RECORD:
+                    if lean != ha:
+                        failures.append(i)
+                        with open(RECORD, "a") as fh:
+                            fh.write(json.dumps({"case": case["name"], "op_index": i, "op": op,
+                                                 "schema": schema_of.get((op.get("domain"), op.get("service"))),
+                                                 "kind": "unsupported" if "unsupported" in lean else "differs",
+                                                 "ha": ha, "halean": lean}) + "\n")
+                    elif op["op"] == "call":
+                        counts["same"] = counts.get("same", 0) + 1
+                    if op["op"] == "register":
+                        schema_of[(op["domain"], op["service"])] = op.get("schema")
+                    continue
+>               assert lean == ha, f"op {i}: {op}\n  HA:     {ha}\n  HALean: {lean}"
+E               AssertionError: op 1: {'op': 'call', 'domain': 'hw', 'service': 'v', 'blocking': True, 'return_response': True, 'data': {'e': 5}}
+E                   HA:     {'ok': False, 'error': {'exception': 'TypeError', 'error_kind': 'other', 'message': "'datetime.timedelta' object is not iterable"}, 'events': [], 'logs': []}
+E                   HALean: {'error': {'error_kind': 'other', 'exception': 'TypeError', 'message': "'timedelta' object is not iterable"}, 'events': [], 'logs': [], 'ok': False}
+E               assert {'error': {'e..., 'ok': False} == {'error': {'e..., 'ok': False}
+E                 
+E                 Omitting 3 identical items, use -vv to show
+E                 Differing items:
+E                 {'error': {'error_kind': 'other', 'exception': 'TypeError', 'message': "'timedelta' object is not iterable"}} != {'error': {'error_kind': 'other', 'exception': 'TypeError', 'message': "'datetime.timedelta' object is not iterable"}}
+E                 Use -v to get more diff
+
+test_services.py:245: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-91' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-91' coro=<test_services() running at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:224> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+_______________ test_services[hw_sch5_slug_ampersand_semicolon] ________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fac801419a0>
+engine = <function engine.<locals>.ask at 0x7fac82735640>
+case = {'name': 'hw_sch5_slug_ampersand_semicolon', 'ops': [{'domain': 'hw', 'handler': {'echo': True}, 'op': 'register', 'sc... [{'key': 'sl', 'value': {...}}]}, ...}, {'blocking': True, 'data': {'sl': 'a;&'}, 'domain': 'hw', 'op': 'call', ...}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+        failures: list = []
+        schema_of: dict = {}
+        counts: dict = {}
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                if not RECORD:
+>                   assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+E                   AssertionError: op 1: HALean rejected {'op': 'call', 'domain': 'hw', 'service': 'v', 'blocking': True, 'return_response': True, 'data': {'sl': 'a;&'}}: {'unsupported': 'util.slugify of this text (HTML entities) is not modelled'}
+E                   assert 'unsupported' not in {'unsupported': 'util.slugify of this text (HTML entities) is not modelled'}
+
+test_services.py:214: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task finished name='Task-99' coro=<test_services() done, defined at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:179> exception=AssertionError("op 1: HALean rejected {'op': 'call', 'domain': 'hw', 'service': 'v', 'blocking': True, 'return_response': True, 'data': {'sl': 'a;&'}}: {'unsupported': 'util.slugify of this text (HTML entities) is not modelled'}\nassert 'unsupported' not in {'unsupported': 'util.slugify of this text (HTML entities) is not modelled'}") created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task finished name='Task-99' coro=<test_services() done, defined at /home/user/halean/review/experiments/05-service-schemas/harness/test_services.py:179> exception=AssertionError("op 1: HALean rejected {'op': 'call', 'domain': 'hw', 'service': 'v', 'blocking': True, 'return_response': True, 'data': {'sl': 'a;&'}}: {'unsupported': 'util.slugify of this text (HTML entities) is not modelled'}\nassert 'unsupported' not in {'unsupported': 'util.slugify of this text (HTML entities) is not modelled'}") created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+_________________ test_services[hw_sch6_at_least_one_no_keys] __________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fac80bb59b0>
+engine = <function engine.<locals>.ask at 0x7fac82735640>
+case = {'name': 'hw_sch6_at_least_one_no_keys', 'ops': [{'domain': 'hw', 'handler': {'echo': True}, 'op': 'register', 'schema': {'fields': [{'key': 'm', 'value': {...}}]}, ...}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_services(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        baseline = set(hass.services.async_services())
+    
+        # a fresh registry in the engine: remove what earlier cases left behind
+        # (the engine process is shared by every case)
+        engine_reset(engine)
+    
+        fired: list = []
+        failures: list = []
+        schema_of: dict = {}
+        counts: dict = {}
+    
+        def on_event(event) -> None:
+            if event.event_type in EVENTS:
+                fired.append(event)
+    
+        for et in EVENTS:
+            hass.bus.async_listen(et, on_event)
+        records = _Records()
+        core_logger = logging.getLogger("homeassistant.core")
+        core_logger.addHandler(records)
+        try:
+            for i, op in enumerate(case["ops"]):
+                now = T0 + timedelta(seconds=i)
+                freezer.move_to(now)
+                msg = {k: v for k, v in op.items() if k != "unsupported"}
+                lean = engine({**msg, "now": int(now.timestamp() * 1000)})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                if not RECORD:
+                    assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean}"
+                assert op.get("domain", "x").lower() not in baseline
+    
+                fired.clear()
+                records.records.clear()
+                try:
+                    result = await run_ha(hass, op, baseline)
+                    ha: dict = {"ok": True, "result": result}
+                except Exception as err:  # noqa: BLE001
+                    ha = {"ok": False, "error": error_dict(err)}
+                await hass.async_block_till_done()
+                ha["events"] = [
+                    {"event_type": e.event_type, "data": _fresh(repr(e.data)),
+                     "time_fired": round(e.time_fired_timestamp * 1000),
+                     "context": {"id": _fresh(e.context.id), "user_id": e.context.user_id,
+                                 "parent_id": e.context.parent_id}}
+                    for e in fired]
+                ha["logs"] = [_log_dict(r) for r in records.records]
+                if RECORD:
+                    if lean != ha:
+                        failures.append(i)
+                        with open(RECORD, "a") as fh:
+                            fh.write(json.dumps({"case": case["name"], "op_index": i, "op": op,
+                                                 "schema": schema_of.get((op.get("domain"), op.get("service"))),
+                                                 "kind": "unsupported" if "unsupported" in lean else "differs",
+                                                 "ha": ha, "halean": lean}) + "\n")
+                    elif op["op"] == "call":
+                        counts["same"] = counts.get("same", 0) + 1
+                    if op["op"] == "register":
+                        schema_of[(op["domain"], op["service"])] = op.get("schema")
+                    continue
+>               assert lean == ha, f"op {i}: {op}\n  HA:     {ha}\n  HALean: {lean}"
+E               AssertionError: op 0: {'op': 'register', 'domain': 'hw', 'service': 'v', 'handler': {'echo': True}, 'supports_response': 'only', 'schema': {'fields': [{'key': 'm', 'value': {'at_least_one': []}}]}}
+E                   HA:     {'ok': False, 'error': {'exception': 'SchemaError', 'error_kind': 'other', 'message': 'needs at least one key'}, 'events': [], 'logs': []}
+E                   HALean: {'events': [{'context': {'id': 'new', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'hw', 'service': 'v'}", 'event_type': 'service_registered', 'time_fired': 1795192245000}], 'logs': [], 'ok': True, 'result': None}
+E               assert {'events': [{...result': None} == {'error': {'e..., 'ok': False}
+E                 
+E                 Omitting 1 identical items, use -vv to show
+E                 Differing items:
+E                 {'ok': True} != {'ok': False}
+E                 {'events': [{'context': {'id': 'new', 'parent_id': None, 'user_id': None}, 'data': "{'domain': 'hw', 'service': 'v'}", 'event_type': 'service_registered', 'time_fired': 1795192245000}]} != {'events': []}
+E                 Left contains 1 more item:
+E                 {'result': None}...
+E                 
+E                 ...Full output truncated (5 lines hidden), use '-vv' to show
+
+test_services.py:245: AssertionError
+=========================== short test summary info ============================
+FAILED test_services.py::test_services[hw_cv_boolean_string] - AssertionError...
+FAILED test_services.py::test_services[hw_sch2_repr_non_printable] - Assertio...
+FAILED test_services.py::test_services[hw_sch2_path_non_printable_key] - Asse...
+FAILED test_services.py::test_services[hw_sch3_coerce_float_after_50_validations]
+FAILED test_services.py::test_services[hw_sch4_timedelta_not_iterable] - Asse...
+FAILED test_services.py::test_services[hw_sch5_slug_ampersand_semicolon] - As...
+FAILED test_services.py::test_services[hw_sch6_at_least_one_no_keys] - Assert...
+7 failed, 23 passed in 2.75s
