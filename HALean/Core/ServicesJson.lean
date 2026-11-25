@@ -119,6 +119,7 @@ def decodeCv (name : String) (spec : Value) : Except String Validator :=
   | "entity_ids" => pure (.cv .entityIds)
   | "color_hex" => pure (.cv .colorHex)
   | "slug" => pure (.cv .slug)
+  | "icon" => pure (.cv .icon)
   -- probatio objects in config_validation.py
   | "positive_int" => pure (.all [.coerce .int, posRange none])
   | "positive_float" => pure (.all [.coerce .float, posRange none])
