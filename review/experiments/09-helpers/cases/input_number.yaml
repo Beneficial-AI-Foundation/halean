@@ -234,3 +234,24 @@
       data: {entity_id: input_number.a, value: 3}
     - call: input_number.set_value
       data: {entity_id: input_number.a, value: 3.0000000000000004}
+- name: hw_in_negative_zero_kept
+  steps:
+    - setup: {input_number: {a: {min: -5, max: 5, initial: -0.0}, b: {min: -5, max: 5, initial: 0}}}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 0}
+    - call: input_number.set_value
+      data: {entity_id: input_number.b, value: -0.0}
+- name: hw_in_decrement_to_negative_zero_bound
+  steps:
+    - setup: {input_number: {a: {min: -0.0, max: 5, initial: 1}}}
+    - call: input_number.decrement
+      data: {entity_id: input_number.a}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 0.0}
+- name: hw_in_restore_control_whitespace
+  steps:
+    - setup: {input_number: {a: {min: 0, max: 100}, b: {min: 0, max: 100}, c: {min: 0, max: 100}}}
+      restore:
+        - [input_number.a, "\x0c5\x0b", {}]
+        - [input_number.b, "5\x1c", {}]
+        - [input_number.c, "\t6\r\n", {}]

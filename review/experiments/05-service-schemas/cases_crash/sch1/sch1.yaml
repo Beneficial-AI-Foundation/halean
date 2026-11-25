@@ -1,0 +1,9 @@
+# SCH-1: the engine process dies (INTERNAL PANIC: Nat.pow exponent is too big).
+# Kept out of cases/ because the shipped harness shares one engine process
+# between all cases of a run: every later case would fail with it.
+
+- name: hw_sch1_coerce_float_huge_exponent
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: f, value: {coerce: float}}]}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: "1e9999999999"}}

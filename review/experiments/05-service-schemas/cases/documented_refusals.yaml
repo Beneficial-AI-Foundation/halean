@@ -1,0 +1,47 @@
+# Operations HALean answers with `unsupported` and the README (line 335, right
+# column) lists as outside the subset. `unsupported: true` is the shipped
+# marker: the harness requires HALean to refuse and does not compare with HA.
+
+- name: hw_refused_non_printable_ascii_text
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: lo, value: {lower: null}}, {key: i, value: {coerce: int}}, {key: f, value: {coerce: float}},
+                         {key: e, value: {cv: entity_ids}}, {key: b, value: {cv: boolean}}, {key: h, value: {cv: color_hex}},
+                         {key: t, value: {cv: time_period}}, {key: p, value: {port: null}}, {key: sl, value: {cv: slug}}]}}
+    - &c1 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {lo: "ÉCOLE"}, unsupported: true}
+    - {<<: *c1, data: {lo: "a\x0bb"}}
+    - {<<: *c1, data: {lo: ["ß"]}}
+    - {<<: *c1, data: {i: "１２"}}
+    - {<<: *c1, data: {i: "1\x1f"}}
+    - {<<: *c1, data: {f: "١٫٥"}}
+    - {<<: *c1, data: {f: "1\x0c"}}
+    - {<<: *c1, data: {e: "light.a,light.é"}}
+    - {<<: *c1, data: {b: "ｏｎ"}}
+    - {<<: *c1, data: {h: "#１２３４５６"}}
+    - {<<: *c1, data: {t: "١:٣٠"}}
+    - {<<: *c1, data: {p: "８０"}}
+    - {<<: *c1, data: {sl: "straße"}}
+
+- name: hw_refused_timedelta_overflow_nan
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: t, value: {cv: time_period}}, {key: d, value: {cv: time_period_dict}},
+                         {key: s, value: {cv: time_period_str}}, {key: sec, value: {cv: time_period_seconds}}]}}
+    - &c2 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {t: "nan"}, unsupported: true}
+    - {<<: *c2, data: {t: "inf"}}
+    - {<<: *c2, data: {t: 1.0e+16}}
+    - {<<: *c2, data: {d: {days: 1000000000}}}
+    - {<<: *c2, data: {d: {hours: "nan"}}}
+    - {<<: *c2, data: {s: "0:0:nan"}}
+    - {<<: *c2, data: {s: "24000000000:00"}}
+    - {<<: *c2, data: {sec: -86399999999999.9}}
+    - {<<: *c2, data: {sec: "1e400"}}
+
+- name: hw_refused_slugify_html_entities
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: sl, value: {cv: slug}}]}}
+    - &c3 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {sl: "a&amp;b"}, unsupported: true}
+    - {<<: *c3, data: {sl: "&#65;"}}
+    - {<<: *c3, data: {sl: "&#x41;"}}
+    - {<<: *c3, data: {sl: "&lt;b&gt;"}}

@@ -1,0 +1,17 @@
+diff --git a/HALean/Helpers/InputNumber.lean b/HALean/Helpers/InputNumber.lean
+index 59c8abf..c4c9056 100644
+--- a/HALean/Helpers/InputNumber.lean
++++ b/HALean/Helpers/InputNumber.lean
+@@ -142,7 +142,11 @@ def handle (service : String) (args : List (String × Value)) : HM Entity Unit :
+     | "increment", _ => increment e
+     | _, _ => decrement e
+   match r with
+-  | .ok e' => setEnt e'; write
++  | .ok e' =>
++    -- `self._attr_native_value = num_value` does nothing when the old value
++    -- compares equal and has the same type (helpers/entity.py `_setter`):
++    -- `-0.0` stays when `0.0` is set, and `0.0` stays when `-0.0` is set.
++    setEnt (if e'.value == e.value then { e' with value := e.value } else e'); write
+   | .error err => throw err
+ 
+ end HALean.Helpers.InputNumber

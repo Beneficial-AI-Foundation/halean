@@ -1,0 +1,83 @@
+## lean files without a built .olean (library coverage of 'lake build')
+  97 lean files under HALean/, 0 without olean
+## sorry / axiom / admit in HALean
+HALean/Automation/EngineSpec2.lean:140:admission (`admit`). -/
+HALean/Automation/EngineSpec3.lean:128:    (hr : admit a.mode a.maxRuns (runsOf e ai).length = .reject why) :
+HALean/Automation/EngineSpec3.lean:146:    (hr : admit a.mode a.maxRuns (runsOf e ai).length = .enqueue) :
+HALean/Automation/EngineSpec3.lean:168:    (hr : admit a.mode a.maxRuns (runsOf e ai).length = .start) :
+HALean/Automation/EngineSpec3.lean:191:    (hr : admit a.mode a.maxRuns (runsOf e ai).length = .restart) :
+  (end)
+## LICENSE / NOTICE / LICENSES
+Apache License
+Version 2.0, January 2004
+http://www.apache.org/licenses/
+astral.Apache-2.0.txt
+cpython.PSF-2.0.txt
+home-assistant-core.Apache-2.0.md
+jinja2.BSD-3-Clause.txt
+probatio.MIT.txt
+python-slugify.MIT.txt
+HALean
+Copyright 2026 Beneficial AI Foundation
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+HALean is a translation into Lean 4 of parts of Home Assistant Core and of
+libraries it uses. Those parts are derivative works of the upstream code; the
+Lean files say which upstream functions they translate ("Translated from ..."),
+and manifest.yaml maps each upstream Python function to its Lean version. The
+translations are changed from the original: they are rewritten in another
+language and only model a subset of the original behaviour.
+
+Upstream works, their licenses and where the license texts are:
+
+* Home Assistant Core 2026.10.4 (https://github.com/home-assistant/core)
+  Copyright the Home Assistant authors.
+  Apache License 2.0: LICENSES/home-assistant-core.Apache-2.0.md
+
+* probatio 0.13.0, Home Assistant's validation library
+  (https://pypi.org/project/probatio/)
+  Copyright (c) 2026 Franck Nijhof. MIT License: LICENSES/probatio.MIT.txt
+
+* Jinja2 3.1.6, the template engine Home Assistant uses
+  (https://github.com/pallets/jinja)
+  Copyright 2007 Pallets. BSD 3-Clause License: LICENSES/jinja2.BSD-3-Clause.txt
+
+* astral 2.2, the solar calculator Home Assistant uses
+  (https://github.com/sffjunkie/astral)
+  Apache License 2.0: LICENSES/astral.Apache-2.0.txt
+
+* python-slugify 9.1.2, behind homeassistant.util.slugify
+  (https://github.com/un33k/python-slugify)
+  Copyright (c) Val Neekman @ Neekware Inc. MIT License:
+  LICENSES/python-slugify.MIT.txt
+
+* CPython (parts of Lib/_strptime.py, Modules/_datetimemodule.c and the
+  int() / float() parsers) (https://github.com/python/cpython)
+  Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+  2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023
+  Python Software Foundation; All Rights Reserved.
+## manifest entry cited at README:162
+182:- python: helpers/script.py::Script.async_run
+## astral pin: HA requirement vs README:76 'astral==2.2'
+14:astral==2.2
+installed astral 2.2
+## HA websocket commands (README:502, 720, 732)
+
+/opt/havenv/lib/python3.14/site-packages/homeassistant/components/mqtt/__init__.py:631:        probatio.Required("type"): "mqtt/subscribe",
+/opt/havenv/lib/python3.14/site-packages/homeassistant/components/webhook/__init__.py:277:        probatio.Required("type"): "webhook/handle",
+## Engine references to Helpers (README:566 not connected)
+HALean/Automation/EngineBound.lean
+## theorems about queued order / restart newest (README:781 lists them as left)
+HALean/Automation/EngineSpec3.lean:184:theorem triggerAutomation_restart (ai : Nat) (tv : TriggerVars) (e : Engine) (acc : List Cmd)
+HALean/Automation/EngineBound.lean:357:theorem admit_restart {a : Automation} {n : Nat} (h : (admit a.mode a.maxRuns n == .restart) = true) 
+HALean/Automation/Proofs.lean:64:theorem restart_never_rejects (m n : Nat) (why : String) :
+HALean/Automation/Proofs.lean:83:theorem queued_waits (m n : Nat) (h0 : n ≠ 0) (hm : n ≠ m) :
+HALean/Automation/EngineSpec.lean:250:theorem admit_restart_iff (mode : Mode) (m n : Nat) :
+HALean/Core/EventBusSpec2.lean:108:theorem fireNested_queued (b : Bus) (q : Queued)
+HALean/Core/HassSchedProofs.lean:338:theorem runHandle_fifo (n now : Nat) (h : Hass) (x : Handle) (rest : List Handle) :
+HALean/Core/HassSchedProofs.lean:348:theorem resume_main_fifo (n now : Nat) (h : Hass) (rest : List Handle) :
+## util/color in manifest (README:776 lists it as left)
+0
+## scenario generator in repo (README:790 lists it as a next step)
+  none

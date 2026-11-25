@@ -330,6 +330,12 @@ class Gen:
         if self.chance(0.4):
             a["conditions"] = self.conditions()
         a["actions"] = self.sequence(0)
+        # every vN the automation mentions is defined at automation level: HALean refuses
+        # templates that use a name nothing defines (AUT-13), which would hide everything else
+        if self.varn:
+            vs = a.setdefault("variables", {})
+            for n in range(1, self.varn + 1):
+                vs.setdefault(f"v{n}", 0)
         return a
 
     # ---- scenario
@@ -364,22 +370,43 @@ class Gen:
             return {"at": at, "send": msg}
         if k == "tick":
             return {"at": at, "send": {"type": "event", "event_type": "tick"}}
-        cid = self.pick(open_calls)
+        cid = self.pick(sorted(open_calls))
         msg = {"type": "service_result", "call_id": cid, "ok": True}
         r = self.r.random()
         if r < 0.25:
             msg.update(ok=False, error_kind=self.pick(["ha_error", "ha_error", "other", "invalid"]))
-        elif r < 0.5:
+        elif r < 0.5 or open_calls[cid]:
+            # a call that asked for a response always gets a mapping (HA's
+            # ServiceRegistry.async_call raises otherwise; the engine leaves that check to HA)
             msg["response"] = {"value": self.pick([1, "x", [1, 2]])}
         return {"at": at, "send": msg}
 
 
-def open_calls(sc) -> list[int]:
-    """Call ids the engine has issued and the scenario has not answered yet."""
-    outs = run_scenarios.engine_outputs(sc)
-    issued = [c["call_id"] for cmds in outs for c in cmds if c["type"] == "call_service"]
-    answered = {s["send"]["call_id"] for s in sc["steps"] if "send" in s and s["send"]["type"] == "service_result"}
-    return [c for c in issued if c not in answered]
+class EngineSession:
+    """One engine process fed step by step, to know which calls are open
+    (call id -> whether the call asked for a response)."""
+
+    def __init__(self, engine: Path):
+        self.p = subprocess.Popen([str(engine)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.sent = 0
+        self.open: dict[int, bool] = {}
+
+    def feed(self, sc) -> None:
+        lines, _, _ = run_scenarios.build(sc)
+        for line in lines[self.sent:]:
+            if line.get("type") == "service_result":
+                self.open.pop(line["call_id"], None)
+            self.p.stdin.write(json.dumps(line) + "\n")
+            self.p.stdin.flush()
+            out = json.loads(self.p.stdout.readline())
+            for c in out.get("cmds", []):
+                if c["type"] == "call_service":
+                    self.open[c["call_id"]] = bool(c.get("return_response"))
+        self.sent = len(lines)
+
+    def close(self) -> None:
+        self.p.stdin.close()
+        self.p.wait()
 
 
 def main() -> int:
@@ -396,13 +423,12 @@ def main() -> int:
         g = Gen(random.Random(rnd.getrandbits(64)))
         sc = g.scenario()
         at = 0
+        eng = EngineSession(args.engine)
         for _ in range(g.pick([12, 16, 20, 24])):
             at += g.pick([0, 1, 1, 1, 2, 3])
-            try:
-                pending = open_calls(sc)
-            except subprocess.CalledProcessError:
-                pending = []
-            sc["steps"].append(g.input_step(at, pending))
+            eng.feed(sc)
+            sc["steps"].append(g.input_step(at, eng.open))
+        eng.close()
         header = f"# random scenario, seed {args.seed}, index {i} (gen/gen_scenarios.py)\n"
         (args.out / f"r{args.seed}_{i:03d}.yaml").write_text(
             header + yaml.safe_dump(sc, sort_keys=False, default_flow_style=None, width=200))

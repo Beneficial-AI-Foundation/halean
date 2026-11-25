@@ -1,0 +1,101 @@
+# Reproducers of the divergences in FINDINGS.md. Each case fails with the
+# shipped assertions, except hw_sch3_control (the same data before the schema's
+# 50th validation), which passes.
+
+- name: hw_sch2_repr_non_printable
+  # SCH-2: repr() of a string with a non-printable non-ASCII character
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: s, type: str}]}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {s: "a b"}}
+
+- name: hw_sch2_path_non_printable_key
+  # SCH-2, in a message: the path of an unknown key
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: s, type: str}]}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {"​": 1}}
+
+- name: hw_sch3_control
+  # the datum of SCH-3 on a schema validated fewer than 50 times: both say "expected float"
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: f, value: {coerce: float}}]}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}}
+
+- name: hw_sch3_coerce_float_after_50_validations
+  # SCH-3: the 51st validation of a schema runs probatio's generated code
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: f, value: {coerce: float}}]}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 1}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 2}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 3}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 4}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 5}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 6}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 7}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 8}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 9}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 10}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 11}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 12}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 13}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 14}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 15}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 16}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 17}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 18}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 19}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 20}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 21}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 22}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 23}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 24}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 25}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 26}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 27}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 28}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 29}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 30}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 31}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 32}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 33}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 34}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 35}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 36}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 37}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 38}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 39}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 40}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 41}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 42}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 43}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 44}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 45}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 46}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 47}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 48}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 49}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 50}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {f: 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}}
+
+- name: hw_sch4_timedelta_not_iterable
+  # SCH-4: the TypeError of iterating a timedelta names the type 'datetime.timedelta'
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: e, value: {all: [{cv: time_period}, {cv: entity_ids}]}}]}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {e: 5}}
+
+- name: hw_sch5_slug_ampersand_semicolon
+  # SCH-5: text with '&' and ';' but no HTML entity is refused
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: sl, value: {cv: slug}}]}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {sl: "a;&"}}
+
+- name: hw_sch6_at_least_one_no_keys
+  # SCH-6: probatio.AtLeastOne() raises SchemaError; HALean registers the service
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: m, value: {at_least_one: []}}]}}

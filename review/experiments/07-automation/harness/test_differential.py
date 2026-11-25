@@ -236,6 +236,7 @@ async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
     await _settle()
 
     per_step: list[list[tuple]] = [list(observed)]
+    missing_calls: list[int] = []  # review: see the service_result branch below
     observed.clear()
     current = T0_DT
     for st in sc["steps"]:
@@ -265,6 +266,15 @@ async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
             elif msg["type"] == "webhook":
                 await _send_webhook(hass, client, msg)
             elif msg["type"] == "service_result":
+                # review: the shipped code raises IndexError here when HA made fewer calls than
+                # the scenario answers. Record it instead, so that both results can be dumped;
+                # the test still fails (see the assertion at the end).
+                if msg["call_id"] >= len(futures):
+                    missing_calls.append(msg["call_id"])
+                    await _settle()
+                    per_step.append(list(observed))
+                    observed.clear()
+                    continue
                 fut = futures[msg["call_id"]]
                 if fut.done():
                     pass  # the run was stopped (restart) and its call cancelled
@@ -303,6 +313,7 @@ async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
         if _streams(ha) != _streams(en)
     ]
     assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+    assert not missing_calls, f"IndexError in the shipped harness: HA never made call(s) {missing_calls}"
 
 
 def test_harness_matches_pin() -> None:
