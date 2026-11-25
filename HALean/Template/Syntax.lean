@@ -89,16 +89,43 @@ abbrev P := Except String
 def isNameStart (c : Char) : Bool := c.isAlpha || c == '_'
 def isNameChar (c : Char) : Bool := c.isAlphanum || c == '_'
 
-/-- Python string-literal escapes, as Jinja's lexer unescapes them. -/
+/-- The value of exactly `n` hex digits at the head of the list. -/
+def unescapeHex : Nat → List Char → Nat → Option Nat
+  | 0, _, v => some v
+  | n + 1, c :: rest, v => (hexVal c).bind fun d => unescapeHex n rest (v * 16 + d)
+  | _ + 1, [], _ => none
+
+/-- Up to `n` octal digits at the head of the list: (value, how many). -/
+def unescapeOctal : Nat → List Char → Nat → Nat × Nat
+  | 0, _, v => (v, 0)
+  | n + 1, c :: rest, v =>
+    if '0' ≤ c && c ≤ '7' then
+      let (v', k) := unescapeOctal n rest (v * 8 + (c.toNat - '0'.toNat)); (v', k + 1)
+    else (v, 0)
+  | _ + 1, [], v => (v, 0)
+
+def unescapeCode (n : Nat) (what : String) : P Char := do
+  if n > 0x10FFFF then throw "illegal Unicode character in string literal"
+  if 0xD800 ≤ n && n ≤ 0xDFFF then throw s!"a lone surrogate ({what}) in a string literal is not supported by HALean"
+  pure (Char.ofNat n)
+
+/-- Jinja's lexer unescapes a string literal with
+`.encode("ascii", "backslashreplace").decode("unicode-escape")`: Python's
+escapes (`\n`, `\xhh`, `\uhhhh`, `\Uhhhhhhhh`, octal `\ooo`, a
+backslash-newline continuation...), unknown escapes kept as written. A
+non-ASCII character reads as itself (its `backslashreplace` form decodes back
+to it), except right after a backslash: `\é` is `\` followed by `xe9`.
+`\N{name}` needs the Unicode name database and a lone surrogate (`\ud800`)
+cannot be a Lean `Char`: both are rejected. -/
 def unescape (cs : List Char) : P String := do
   let rec go : List Char → String → P String
     | [], acc => pure acc
     | '\\' :: c :: rest, acc =>
+      if c.toNat ≥ 128 then go rest (acc ++ "\\" ++ ((escapeChar c).drop 1).toString) else
       match c with
       | 'n' => go rest (acc.push '\n')
       | 't' => go rest (acc.push '\t')
       | 'r' => go rest (acc.push '\r')
-      | '0' => go rest (acc.push (Char.ofNat 0))
       | '\\' => go rest (acc.push '\\')
       | '\'' => go rest (acc.push '\'')
       | '"' => go rest (acc.push '"')
@@ -107,23 +134,91 @@ def unescape (cs : List Char) : P String := do
       | 'f' => go rest (acc.push (Char.ofNat 12))
       | 'v' => go rest (acc.push (Char.ofNat 11))
       | '\n' => go rest acc
-      | 'x' => match rest with
-        | h1 :: h2 :: rest' =>
-          let hv (c : Char) : Option Nat :=
-            if c.isDigit then some (c.toNat - '0'.toNat)
-            else if 'a' ≤ c.toLower && c.toLower ≤ 'f' then some (c.toLower.toNat - 'a'.toNat + 10)
-            else none
-          match hv h1, hv h2 with
-          | some a, some b => go rest' (acc.push (Char.ofNat (a * 16 + b)))
-          | _, _ => throw "invalid \\x escape in string literal"
-        | _ => throw "invalid \\x escape in string literal"
-      | other => go rest (acc.push '\\' |>.push other)  -- unknown escapes are kept
+      | 'x' => match unescapeHex 2 rest 0 with
+        | some v => go (rest.drop 2) (acc.push (Char.ofNat v))
+        | none => throw "truncated \\xXX escape in string literal"
+      | 'u' => match unescapeHex 4 rest 0 with
+        | some v => do go (rest.drop 4) (acc.push (← unescapeCode v "\\u"))
+        | none => throw "truncated \\uXXXX escape in string literal"
+      | 'U' => match unescapeHex 8 rest 0 with
+        | some v => do go (rest.drop 8) (acc.push (← unescapeCode v "\\U"))
+        | none => throw "truncated \\UXXXXXXXX escape in string literal"
+      | 'N' => throw "\\N{...} escapes (Unicode character names) are not supported by HALean"
+      | other =>
+        if '0' ≤ other && other ≤ '7' then
+          let (v, k) := unescapeOctal 2 rest (other.toNat - '0'.toNat)
+          go (rest.drop k) (acc.push (Char.ofNat v))
+        else go rest (acc.push '\\' |>.push other)  -- unknown escapes are kept
     | c :: rest, acc => go rest (acc.push c)
+  termination_by cs => cs.length
+  decreasing_by all_goals (simp only [List.length_drop, List.length_cons]; omega)
   go cs ""
+
+/-- `d(_?d)*` at the head of `cs`, for a digit class `isD`, with an optional
+leading underscore: (the matched characters, the rest). -/
+def digitRun (isD : Char → Bool) : List Char → List Char × List Char
+  | '_' :: d :: rest =>
+    if isD d then let (m, r) := digitRun isD rest; ('_' :: d :: m, r) else ([], '_' :: d :: rest)
+  | c :: rest => if isD c then let (m, r) := digitRun isD rest; (c :: m, r) else ([], c :: rest)
+  | [] => ([], [])
+
+/-- `(\d+_)*\d+` at the head: digits with single underscores between them. -/
+def digitGroups (cs : List Char) : Option (List Char × List Char) :=
+  match cs with
+  | d :: _ => if d.isDigit then some (digitRun Char.isDigit cs) else none
+  | [] => none
+
+/-- Jinja's `float_re` at the head of `cs` (a digit): digit groups, then an
+exponent with an optional fraction, or a fraction. -/
+def lexFloat (cs : List Char) : Option (List Char × List Char) := do
+  let (ip, r1) ← digitGroups cs
+  let frac (r : List Char) : Option (List Char × List Char) := match r with
+    | '.' :: r' => (digitGroups r').map fun (f, r'') => ('.' :: f, r'')
+    | _ => none
+  let expo (r : List Char) : Option (List Char × List Char) := match r with
+    | e :: r' =>
+      if e == 'e' || e == 'E' then
+        let (sg, r'') := match r' with
+          | '+' :: x => (['+'], x)
+          | '-' :: x => (['-'], x)
+          | x => ([], x)
+        (digitGroups r'').map fun (ds, r3) => (e :: sg ++ ds, r3)
+      else none
+    | [] => none
+  match frac r1 with
+  | some (f, r2) => match expo r2 with
+    | some (ex, r3) => some (ip ++ f ++ ex, r3)
+    | none => match expo r1 with
+      | some (ex, r3) => some (ip ++ ex, r3)
+      | none => some (ip ++ f, r2)
+  | none => (expo r1).map fun (ex, r3) => (ip ++ ex, r3)
+
+/-- Jinja's `integer_re` at a digit `c`: `0b`/`0o`/`0x` literals (case
+insensitive, underscores allowed), a decimal without leading zero, or zeros
+(`0(_?0)*`). So `007` lexes as `00` followed by `7`. -/
+def lexInt (c : Char) (rest : List Char) : Int × List Char :=
+  let based (base : Nat) (isD : Char → Bool) : Option (Int × List Char) :=
+    match rest with
+    | p :: r =>
+      let (ds, r') := digitRun isD r
+      let marker := if base == 2 then 'b' else if base == 8 then 'o' else 'x'
+      if c == '0' && p.toLower == marker && ds.any (· != '_') then
+        some ((ds.filter (· != '_')).foldl (fun n d => n * base + ((hexVal d).getD 0 : Int)) 0, r')
+      else none
+    | [] => none
+  match based 2 (fun d => d == '0' || d == '1') with
+  | some x => x
+  | none => match based 8 (fun d => '0' ≤ d && d ≤ '7') with
+    | some x => x
+    | none => match based 16 (fun d => (hexVal d).isSome) with
+      | some x => x
+      | none =>
+        let (ds, r) := digitRun (if c == '0' then (· == '0') else Char.isDigit) rest
+        ((digitValue (c :: ds) : Nat), r)
 
 /-- Lex one `{{ }}` / `{% %}` body. Returns tokens and the rest after the
 closing delimiter, plus whether it ended with `-` (strip following space). -/
-partial def lexBlock (closer : Char) (cs : List Char) (acc : Array Tok) :
+partial def lexBlock (closer : Char) (cs : List Char) (acc : Array Tok) (prevDot : Bool := false) :
     P (List Tok × List Char × Bool) :=
   -- Jinja only ends a block when no bracket is open (`{{ {'a': 1}}}`)
   let depth : Int := acc.foldl (fun d t => match t with
@@ -139,35 +234,16 @@ partial def lexBlock (closer : Char) (cs : List Char) (acc : Array Tok) :
     else if isNameStart c then
       let name := (c :: rest).takeWhile isNameChar
       lexBlock closer ((c :: rest).drop name.length) (acc.push (.name (String.ofList name)))
-    else if c.isDigit || (c == '.' && (rest.headD ' ').isDigit) then
-      -- jinja: integer `\d(\d|_\d)*`, float with `.` and/or exponent
-      let isNum (x : Char) := x.isDigit || x == '_'
-      let ip := (c :: rest).takeWhile isNum
-      let r1 := (c :: rest).drop ip.length
-      let (fp, r2, isF) := match r1 with
-        | '.' :: d :: r => if d.isDigit then
-            let f := (d :: r).takeWhile isNum
-            ('.' :: f, (d :: r).drop f.length, true)
-          else ([], r1, false)
-        | _ => ([], r1, false)
-      let (ep, r3, isE) := match r2 with
-        | e :: r => if e == 'e' || e == 'E' then
-            let (sg, r') := match r with
-              | '+' :: r' => (['+'], r')
-              | '-' :: r' => (['-'], r')
-              | _ => ([], r)
-            let ds := r'.takeWhile isNum
-            if ds.isEmpty then ([], r2, false) else (e :: sg ++ ds, r'.drop ds.length, true)
-          else ([], r2, false)
-        | [] => ([], r2, false)
-      let txt := String.ofList (ip ++ fp ++ ep)
-      if isF || isE then
-        match parseFloatStr txt with
-        | some f => lexBlock closer r3 (acc.push (.float f))
-        | none => throw s!"invalid number {txt}"
-      else match parseIntStr txt with
-        | some i => lexBlock closer r3 (acc.push (.int i))
-        | none => throw s!"invalid number {txt}"
+    else if c.isDigit then
+      -- Jinja tries `float_re` (not right after a `.`), then `integer_re`
+      match (if prevDot then none else lexFloat (c :: rest)) with
+      | some (txt, r) =>
+        match parseFloatStr (String.ofList (txt.filter (· != '_'))) with
+        | some f => lexBlock closer r (acc.push (.float f))
+        | none => throw s!"invalid number {String.ofList txt}"
+      | none =>
+        let (i, r) := lexInt c rest
+        lexBlock closer r (acc.push (.int i))
     else if c == '\'' || c == '"' then
       let rec str (xs : List Char) (body : Array Char) : P (List Char × List Char) :=
         match xs with
@@ -185,7 +261,7 @@ where
     let ops := ["//", "**", "==", "!=", "<=", ">=", "+", "-", "*", "/", "%", "~", "<", ">",
                 "(", ")", "[", "]", "{", "}", ",", ":", ".", "|", "="]
     match ops.find? (fun o => (String.ofList (cs.take o.length)) == o) with
-    | some o => lexBlock closer (cs.drop o.length) (acc.push (.op o))
+    | some o => lexBlock closer (cs.drop o.length) (acc.push (.op o)) (o == ".")
     | none => throw s!"unexpected character '{cs.headD ' '}' in template"
 
 def stripRight (s : String) : String := String.ofList (s.toList.reverse.dropWhile Char.isWhitespace).reverse
@@ -621,7 +697,9 @@ def dropTrailingNewline (s : String) : String :=
 def compile (raw : String) : P Tmpl := do
   let src := raw.trim
   if !isTemplateString raw then return { src, isStatic := true, nodes := [.text src] }
-  let pieces ← lexTemplate (dropTrailingNewline src)
+  -- `Lexer.tokeniter` joins the source's lines with "\n" (`\r\n` and `\r`
+  -- become `\n`) and drops one trailing newline
+  let pieces ← lexTemplate (dropTrailingNewline ((src.replace "\r\n" "\n").replace "\r" "\n"))
   let (nodes, _, _) ← buildNodes pieces []
   return { src, isStatic := false, nodes }
 

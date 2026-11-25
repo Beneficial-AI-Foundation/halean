@@ -3,7 +3,8 @@ tests/templates/*.yaml with Home Assistant's own `Template.async_render`
 (or `condition.async_template`) and with `halean-template`, and require the
 same result type and `repr()`, or an error from both.
 
-Cases marked `unsupported: true` must be rejected by HALean at load time.
+Cases marked `unsupported: true` must be rejected by HALean at load time;
+with `ha_error: true` HA must raise as well (e.g. a syntax error).
 Cases marked `render_info: true` also compare what the render read
 (`async_render_to_info`: entities, domains, all states).
 
@@ -88,6 +89,10 @@ async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, eng
                    "tz": int(dt_util.now().utcoffset().total_seconds())})
     if case.get("unsupported"):
         assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+        if case.get("ha_error"):
+            # rejected by both: HA raises too (a syntax error, say)
+            with pytest.raises((TemplateError, HomeAssistantError)):
+                Template(case["template"], hass).async_render(variables, parse_result=parse)
         return
     assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
 

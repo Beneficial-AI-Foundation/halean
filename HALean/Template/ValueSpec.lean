@@ -107,7 +107,7 @@ theorem strRepr_empty : strRepr "" = "''" := by
 /-- A string containing `'` but no `"` is quoted with `"` instead, so
 nothing needs escaping: `repr("it's")` is `"it's"`. -/
 theorem strRepr_apostrophe : strRepr "it's" = "\"it's\"" := by
-  simp [strRepr, String.foldl_eq_foldl_toList]
+  simp [strRepr, String.foldl_eq_foldl_toList, isPrintable]
 
 private theorem foldl_plain (f : String → Char → String) (l : List Char)
     (hf : ∀ acc c, c ∈ l → f acc c = acc.push c) (acc : String) :
@@ -118,10 +118,11 @@ private theorem foldl_plain (f : String → Char → String) (l : List Char)
     rw [List.foldl_cons, hf acc c (by simp), ih (fun a d hd => hf a d (by simp [hd]))]
     rw [String.ext_iff]; simp
 
-/-- **`repr` of a plain string** (no quote, backslash or control character)
-is the string in single quotes, unchanged. -/
+/-- **`repr` of a plain string** (no quote, no backslash, every character
+printable as `str.isprintable()` says) is the string in single quotes,
+unchanged. -/
 theorem strRepr_plain (s : String)
-    (h : ∀ c ∈ s.toList, c ≠ '\'' ∧ c ≠ '\\' ∧ 32 ≤ c.toNat ∧ c.toNat ≠ 127) :
+    (h : ∀ c ∈ s.toList, c ≠ '\'' ∧ c ≠ '\\' ∧ isPrintable c = true) :
     strRepr s = "'" ++ s ++ "'" := by
   have hq : s.toList.contains '\'' = false := by
     rw [List.contains_eq_mem, decide_eq_false_iff_not]
@@ -134,12 +135,18 @@ theorem strRepr_plain (s : String)
   rw [foldl_plain _ s.toList]
   · simp
   · intro acc c hcm
-    obtain ⟨h1, h2, h3, h4⟩ := h c hcm
-    have n1 : c ≠ '\n' := by rintro rfl; simp at h3
-    have n2 : c ≠ '\r' := by rintro rfl; simp at h3
-    have n3 : c ≠ '\t' := by rintro rfl; simp at h3
-    simp [h1, h2, n1, n2, n3, h4]
-    omega
+    obtain ⟨h1, h2, h3⟩ := h c hcm
+    have n1 : c ≠ '\n' := by rintro rfl; exact absurd h3 (by decide)
+    have n2 : c ≠ '\r' := by rintro rfl; exact absurd h3 (by decide)
+    have n3 : c ≠ '\t' := by rintro rfl; exact absurd h3 (by decide)
+    simp [h1, h2, n1, n2, n3, h3]
+
+/-- `repr` escapes the characters `str.isprintable()` rejects, beyond ASCII
+too: `repr('\xa0')` is `'\\xa0'`, `repr('\u200b')` is `'\\u200b'`. -/
+theorem escapeChar_examples :
+    escapeChar '\u00a0' = "\\xa0" ∧ escapeChar '\u200b' = "\\u200b" ∧
+      escapeChar (Char.ofNat 0xE0001) = "\\U000e0001" := by
+  refine ⟨?_, ?_, ?_⟩ <;> decide
 
 theorem boolStr_eq_True (b : Bool) : boolStr b = "True" ↔ b = true := by
   cases b <;> decide
@@ -222,6 +229,8 @@ inductive Printable : Value → Prop where
   | ns (id : Nat) : Printable (.ns id)
   | timedelta (us : Int) : Printable (.timedelta us)
   | range (a b c : Int) : Printable (.range a b c)
+  | view (k : String) (xs : List Value) : isDictView k = true → (∀ x ∈ xs, Printable x) →
+      Printable (.gen k xs)
   | list (xs : List Value) : (∀ x ∈ xs, Printable x) → Printable (.list xs)
   | tuple (xs : List Value) : (∀ x ∈ xs, Printable x) → Printable (.tuple xs)
   | dict (kvs : List (Value × Value)) : (∀ kv ∈ kvs, Printable kv.1) → (∀ kv ∈ kvs, Printable kv.2) →
@@ -273,6 +282,9 @@ theorem pyRepr_ok_of_printable (v : Value) (h : Printable v) : ∃ s, pyRepr v =
   | dict kvs _ _ ih1 ih2 =>
     obtain ⟨ps, hps⟩ := (reprDict_ok_iff kvs).2 ⟨ih1, ih2⟩
     exact ⟨_, by rw [pyRepr, hps]; rfl⟩
+  | view k xs hk _ ih =>
+    obtain ⟨ps, hps⟩ := (reprList_ok_iff xs).2 ih
+    exact ⟨_, by rw [pyRepr, hps]; simp [hk]; rfl⟩
   | _ => exact ⟨_, by rw [pyRepr]; rfl⟩
 
 /-- Only plain data prints: a value with anything else inside it, at any
@@ -323,8 +335,21 @@ theorem printable_of_pyRepr_ok : ∀ (v : Value) (s : String), pyRepr v = .ok s 
       have := List.sizeOf_lt_of_mem hx
       have : sizeOf kv.2 < sizeOf kv := by cases kv; simp; omega
       exact printable_of_pyRepr_ok kv.2 t ht
+  | .gen k xs, s, h => by
+    rw [pyRepr] at h
+    by_cases hk : isDictView k = true
+    · simp only [hk, ite_true] at h
+      have hl : ∃ ps, reprList xs = .ok ps := by
+        cases hps : reprList xs with
+        | error e => rw [hps] at h; cases h
+        | ok ps => exact ⟨ps, rfl⟩
+      refine .view k xs hk (fun x hx => ?_)
+      obtain ⟨t, ht⟩ := (reprList_ok_iff xs).1 hl x hx
+      have := List.sizeOf_lt_of_mem hx
+      exact printable_of_pyRepr_ok x t ht
+    · simp only [hk] at h; cases h
   | .state _ _, _, h | .domain _, _, h | .allStates, _, h | .func _ _, _, h | .datetime _ _, _, h
-  | .gen _ _, _, h | .pyobj _ _, _, h | .opaque _, _, h => by rw [pyRepr] at h; cases h
+  | .pyobj _ _, _, h | .opaque _, _, h => by rw [pyRepr] at h; cases h
 termination_by v => sizeOf v
 decreasing_by all_goals simp_wf; all_goals omega
 
@@ -335,7 +360,7 @@ theorem pyRepr_ok_iff (v : Value) : (∃ s, pyRepr v = .ok s) ↔ Printable v :=
 /-- `str()` is `repr()` except on strings, undefined, datetimes and
 timedeltas; in particular it prints the same containers. -/
 theorem pyStr_eq_pyRepr (v : Value) (h1 : ∀ s, v ≠ .str s) (h2 : ∀ us off, v ≠ .datetime us off)
-    (h3 : ∀ us, v ≠ .timedelta us) : pyStr v = pyRepr v := by
+    (h3 : ∀ us, v ≠ .timedelta us) (h4 : ∀ n, v ≠ .undef n) : pyStr v = pyRepr v := by
   cases v <;> simp_all [pyStr, pyRepr] <;> rfl
 
 /-! ## `range` -/

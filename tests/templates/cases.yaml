@@ -98,9 +98,9 @@
   states: [{entity_id: sensor.temp, state: "3"}]
 # int(str): Python's grammar (HALean.Template.parseIntChars_iff); \v and \f are whitespace, \x1c-\x1f are not (ASCII text)
 - {template: "{{ '7\x0b' | int(-1) }} {{ '\x0c 8' | int(-1) }} {{ '\x1f9\x1c' | int(-1) }}"}
-# non-ASCII spaces and digits: Python accepts them, HALean refuses instead of guessing
-- {template: "{{ '\x85 9' | int(-1) }}", expect_error_in_halean_only: true}
-- {template: "{{ '٣' | int(-1) }}", expect_error_in_halean_only: true}
+# non-ASCII spaces and digits: int() first maps Unicode spaces and decimal digits to ASCII
+- {template: "{{ '\x85 9' | int(-1) }}"}
+- {template: "{{ '٣' | int(-1) }}"}
 - {template: "{{ ' +1_000 ' | int }} {{ '-0' | int }} {{ '0_7' | int }} {{ '007' | int }}"}
 - {template: "{{ '1__0' | int(-1) }} {{ '_1' | int(-1) }} {{ '1_' | int(-1) }} {{ '+' | int(-1) }} {{ '- 1' | int(-1) }} {{ '' | int(-1) }}"}
 - template: "{{ states.sensor.temp.state }}"

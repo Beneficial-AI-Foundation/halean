@@ -140,22 +140,28 @@ theorem strOf_eq (v : Value) (s : RS) : runR (strOf v) s = (pyStr v, s) := by
 theorem liftExcept_eq (x : Except String α) (s : RS) : runR (liftExcept x) s = (x, s) := by
   cases x <;> rfl
 
-/-- `float(x)` of a number is that number; of anything that is neither a
-number nor text it is a `TypeError` (`none`). -/
+/-- `float(x)` of a number is that number (an int too large for a float
+raises `OverflowError`); text is read as Python reads it (Unicode digits and
+spaces too); anything else is a `TypeError` (`none`). -/
 theorem toFloat_cases (s : RS) :
     (∀ f, runR (toFloat? (.float f)) s = (.ok (some f), s)) ∧
-    (∀ i, runR (toFloat? (.int i)) s = (.ok (some (intToFloat i)), s)) ∧
-    (∀ t, runR (toFloat? (.str t)) s = (.ok (parseFloatStr t), s)) ∧
+    (∀ i, (intToFloat i).isInf = false → runR (toFloat? (.int i)) s = (.ok (some (intToFloat i)), s)) ∧
+    (∀ i, (intToFloat i).isInf = true → ∃ e, runR (toFloat? (.int i)) s = (.error e, s)) ∧
+    (∀ t, runR (toFloat? (.str t)) s = (.ok (pyFloatStr t), s)) ∧
     runR (toFloat? .none) s = (.ok none, s) ∧
     (∀ xs, runR (toFloat? (.list xs)) s = (.ok none, s)) ∧
     (∀ kvs, runR (toFloat? (.dict kvs)) s = (.ok none, s)) :=
-  ⟨fun _ => rfl, fun _ => rfl, fun _ => rfl, rfl, fun _ => rfl, fun _ => rfl⟩
+  ⟨fun _ => rfl, fun _ hi => by rsimp [toFloat?, hi], fun _ hi => ⟨"OverflowError: int too large to convert to float", by rsimp [toFloat?, hi]⟩,
+   fun _ => rfl, rfl, fun _ => rfl, fun _ => rfl⟩
 
-/-- `toFloat?` never changes the render state, and only an Undefined or an
-unmodelled object makes it raise. -/
-theorem toFloat_total (v : Value) (s : RS) (h : isOpaqueOrUndef v = false) :
+/-- `toFloat?` never changes the render state, and only an Undefined, an
+unmodelled object or an int too large for a float makes it raise. -/
+theorem toFloat_total (v : Value) (s : RS) (h : isOpaqueOrUndef v = false)
+    (hi : ∀ i, v = .int i → (intToFloat i).isInf = false) :
     ∃ r, runR (toFloat? v) s = (.ok r, s) := by
-  cases v <;> first | exact ⟨_, rfl⟩ | simp [isOpaqueOrUndef] at h
+  cases v with
+  | int i => exact ⟨some (intToFloat i), by rsimp [toFloat?, hi i rfl]⟩
+  | _ => first | exact ⟨_, rfl⟩ | (simp [isOpaqueOrUndef] at h; done)
 
 /-- `int(x)`: an int is itself and a bool is 0 or 1. -/
 theorem doInt_int (i : Int) (b : Bool) (s : RS) :
@@ -170,17 +176,20 @@ theorem doInt_none (xs : List Value) (s : RS) :
 
 /-- `float(x, default)` never raises for a modelled value: the result is a
 float or the default. -/
-theorem forgivingFloat_default (v d : Value) (s : RS) (h : isOpaqueOrUndef v = false) :
+theorem forgivingFloat_default (v d : Value) (s : RS) (h : isOpaqueOrUndef v = false)
+    (hi : ∀ i, v = .int i → (intToFloat i).isInf = false) :
     ∃ r, runR (forgivingFloat v (some d)) s = (.ok r, s) ∧ (r = d ∨ ∃ f, r = .float f) := by
-  cases v <;> first
+  cases v with
+  | int i =>
+    exact ⟨.float (intToFloat i), by rsimp [forgivingFloat, toFloat?, hi i rfl], .inr ⟨_, rfl⟩⟩
+  | str t =>
+    cases hp : pyFloatStr t with
+    | none => exact ⟨d, by rsimp [forgivingFloat, toFloat?, hp], .inl rfl⟩
+    | some f => exact ⟨.float f, by rsimp [forgivingFloat, toFloat?, hp], .inr ⟨f, rfl⟩⟩
+  | _ => first
     | exact ⟨_, rfl, .inl rfl⟩
     | exact ⟨_, rfl, .inr ⟨_, rfl⟩⟩
     | (simp [isOpaqueOrUndef] at h; done)
-    | skip
-  rename_i t
-  cases hp : parseFloatStr t with
-  | none => exact ⟨d, by rsimp [forgivingFloat, toFloat?, hp], .inl rfl⟩
-  | some f => exact ⟨.float f, by rsimp [forgivingFloat, toFloat?, hp], .inr ⟨f, rfl⟩⟩
 
 /-- A float is its own `float()`. -/
 theorem forgivingFloat_float (f : Float) (d : Option Value) (s : RS) :
@@ -228,10 +237,12 @@ theorem forgivingBool_no_default (v : Value) (s : RS) (h : ∀ w, v ≠ .opaque 
   simp only [cvBoolean] at hc
   exact ⟨_, by rsimp [forgivingBool, cvBoolean, hc, noDefault]; rfl⟩
 
-/-- `is_number` never raises for a modelled value. -/
-theorem isNumber_total (v : Value) (s : RS) (h : isOpaqueOrUndef v = false) :
+/-- `is_number` never raises for a modelled value (an int too large for a
+float raises `OverflowError` in `float()`, which `is_number` does not catch). -/
+theorem isNumber_total (v : Value) (s : RS) (h : isOpaqueOrUndef v = false)
+    (hi : ∀ i, v = .int i → (intToFloat i).isInf = false) :
     ∃ b, runR (isNumber v) s = (.ok b, s) := by
-  obtain ⟨r, hr⟩ := toFloat_total v s h
+  obtain ⟨r, hr⟩ := toFloat_total v s h hi
   rsimp [isNumber] at hr ⊢
   rw [hr]
   cases r <;> rsimp [id]

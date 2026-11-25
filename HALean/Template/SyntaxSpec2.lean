@@ -81,7 +81,8 @@ theorem unescape_plain (cs : List Char) (h : ∀ c ∈ cs, c ≠ '\\') :
   simp
 
 /-- The Python escapes Jinja's lexer handles: `\n`, `\t`, `\\`, `\'`, `\"`,
-and `\xhh`; an unknown escape keeps its backslash. -/
+`\xhh`, `\uhhhh`, octal; an unknown escape keeps its backslash, and a
+backslash before a non-ASCII character escapes its `backslashreplace` form. -/
 theorem unescape_escapes :
     unescape ['a', '\\', 'n', 'b'] = .ok "a\nb" ∧
     unescape ['\\', 't'] = .ok "\t" ∧
@@ -89,14 +90,19 @@ theorem unescape_escapes :
     unescape ['\\', '\''] = .ok "'" ∧
     unescape ['\\', '"'] = .ok "\"" ∧
     unescape ['\\', 'x', '4', '1'] = .ok "A" ∧
+    unescape ['\\', 'u', '0', '0', 'e', '9'] = .ok "é" ∧
+    unescape ['\\', '1', '0', '1', '7'] = .ok "A7" ∧
+    unescape ['\\', 'é'] = .ok "\\xe9" ∧
     unescape ['\\', 'q'] = .ok "\\q" := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> rfl
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+    simp [unescape, unescape.go, unescapeHex, unescapeOctal, unescapeCode, hexVal, escapeChar, hexPad,
+      pure, Except.pure, bind, Except.bind] <;> decide
 
 /-- A truncated or non-hex `\x` escape is an error. -/
 theorem unescape_bad_hex :
-    unescape ['\\', 'x'] = .error "invalid \\x escape in string literal" ∧
-    unescape ['\\', 'x', 'g', '0'] = .error "invalid \\x escape in string literal" := by
-  constructor <;> rfl
+    unescape ['\\', 'x'] = .error "truncated \\xXX escape in string literal" ∧
+    unescape ['\\', 'x', 'g', '0'] = .error "truncated \\xXX escape in string literal" := by
+  constructor <;> simp [unescape, unescape.go, unescapeHex, hexVal, throw, throwThe, MonadExceptOf.throw]
 
 /-! ## Whitespace control (`-}}`, `{{-`) -/
 

@@ -1,0 +1,176 @@
+# Cases from the external faithfulness review of 2026-11-24 (items M1-M18 of
+# its section 4.3, and the features where HALean raised and HA did not), with
+# the edge cases the fixes had to get right. Same format as cases.yaml.
+
+# --- M1: float floor division and modulo (CPython's float_divmod) ------------
+- {name: m1_floordiv_negzero, template: "{{ 0 // -0.5 }}"}
+- {name: m1_floordiv_more, template: "{{ [0 // -0.5, -0.0 // 1, 0.0 // -1, 1 // -0.5, -1 // 0.5, 0 % -0.5, -0.0 % 1] }}"}
+# (`inf` comes from a variable: Jinja folds `'inf' | float` into the compiled
+# code as the name `inf`, a NameError; see README, Known gaps)
+- name: m1_floordiv_inf
+  template: "{% set i = s | float %}{{ [1.0 // i, -1.0 // i, 1.0 // -i, -1.0 // -i, 1.0 % i, -1.0 % i, 1.0 % -i, 0.0 // -i, -0.0 % i] }}"
+  variables: {s: inf}
+- name: m1_floordiv_inf_nan
+  template: "{% set i = s | float %}{{ [i // 1, i % 2, -i // i] }}"
+  variables: {s: inf}
+
+# --- M2: string-literal escapes (unicode-escape) -----------------------------
+- {name: m2_escape_u, template: "{{ '\\u00e9' }}"}
+- {name: m2_escape_U, template: "{{ '\\U0001F600' | length }}"}
+- {name: m2_escape_octal, template: "{{ ['\\101', '\\0', '\\7a', '\\1234', '\\777', '\\8'] }}"}
+- {name: m2_escape_x, template: "{{ '\\x41\\x7e' }}"}
+- {name: m2_escape_misc, template: "{{ ['\\a\\b\\f\\v', '\\q', 'a\\\nb'] }}"}
+- {name: m2_escape_backslash_nonascii, template: "{{ ['\\é', '\\€'] }}"}
+- {name: m2_escape_nonascii_literal, template: "{{ 'é€😀' | length }}"}
+# \N{...} needs the Unicode name database: refused
+- {name: m2_escape_N, template: "{{ '\\N{BULLET}' }}", unsupported: true}
+# a lone surrogate cannot be a Lean Char: refused
+- {name: m2_escape_surrogate, template: "{{ '\\ud800' | length }}", unsupported: true}
+- {name: m2_escape_truncated, template: "{{ '\\x4' }}", unsupported: true, ha_error: true}
+- {name: m2_escape_truncated_u, template: "{{ '\\u00e' }}", unsupported: true, ha_error: true}
+- {name: m2_escape_too_large, template: "{{ '\\U00110000' }}", unsupported: true, ha_error: true}
+# the lexer joins lines with \n (in text and in string literals)
+- {name: m2_newlines, template: "{{ 'a\r\nb' | length }}x\r\ny\rz"}
+
+# --- M3: repr() escapes what str.isprintable() rejects ------------------------
+- {name: m3_repr_nonprint, template: "{{ ['\u0080', ' ', '　', '​', '­', ' '] }}"}
+- {name: m3_repr_astral, template: "{{ ['\U000E0001', '\\uffff', '\U0010FFFF', '\U0001F600', 'é°€'] }}"}
+- {name: m3_repr_unassigned, template: "{{ ['͸', 'ͷ'] }}"}
+
+# --- M4: Unicode whitespace in split() and trim (already fixed before) -------
+- {name: m4_split_unicode_space, template: "{{ 'a b　c'.split() }}"}
+- {name: m4_trim_unicode_space, template: "{{ (' x　' | trim) | length }}"}
+
+# --- M5: a bool is an int index ----------------------------------------------
+- {name: m5_str_index_bool, template: "{{ 'abc'[true] }}"}
+- {name: m5_list_index_bool, template: "{{ [1, 2][true] }} {{ [1, 2][false] }} {{ 'abc'[false] }}"}
+- {name: m5_slice_bool, template: "{{ [1, 2, 3][true:] }} {{ 'abc'[:true] }}"}
+
+# --- M6: dict displays merge equal keys ----------------------------------------
+- {name: m6_dict_int_float_key, template: "{{ {1: 'a', 1.0: 'b'} }}"}
+- {name: m6_dict_dup_key, template: "{{ {'a': 1, 'a': 2} | length }}"}
+- {name: m6_dict_true_one, template: "{{ {1: 'a', true: 'b'} }}"}
+- {name: m6_dict_unhashable, template: "{{ {[1]: 2} }}"}
+
+# --- M7: _parse_result -----------------------------------------------------------
+- {name: m7_parse_dup_keys, template: "{{ '{\"a\": 1, \"a\": 2}' }}"}
+- {name: m7_parse_equal_keys, template: "{{ '{1: 1, 1.0: 2, True: 3}' }}"}
+- {name: m7_parse_list_key, template: "{{ '{[1]: 2}' }}"}
+- {name: m7_parse_tuple_list_key, template: "{{ '{(1, [2]): 2}' }}"}
+- {name: m7_parse_double_neg, template: "{{ '[--1]' }}"}
+- {name: m7_parse_neg_neg_paren, template: "{{ '[-(-1)]' }}"}
+- {name: m7_parse_neg_paren, template: "{{ '[-(1)]' }}"}
+- {name: m7_parse_pos_paren, template: "{{ '[+((1.5)), -(2,)]' }}"}
+- {name: m7_parse_top_neg_paren, template: "{{ '-(1)' }}"}
+- {name: m7_parse_unicode_digits, template: "{{ '١٢' }}"}
+- {name: m7_parse_unicode_zero, template: "{{ '٠1' }}"}
+- {name: m7_parse_unicode_float, template: "{{ '+١.٥' }}"}
+- {name: m7_int_unicode_digit, template: "{{ '٣' | int(0) }}"}
+- {name: m7_parse_set_unhashable, template: "{{ '{[1]}' }}"}
+# a set: HA returns a `set`, whose order follows the hashes; HALean refuses
+- {name: m7_parse_set, template: "{{ '{1, 2}' }}", expect_error_in_halean_only: true}
+
+# --- M8: loop.depth, loop.cycle -------------------------------------------------
+- {name: m8_loop_depth, template: "{% for a in [1] %}{{ loop.depth }}{{ loop.depth0 }}{% endfor %}"}
+- {name: m8_loop_cycle, template: "{% for x in [1, 2, 3] %}{{ loop.cycle('a', 'b') }}{% endfor %}"}
+- {name: m8_loop_cycle_empty, template: "{% for x in [1] %}{{ loop.cycle() }}{% endfor %}"}
+# loop.changed keeps state between calls: not modelled, refused
+- {name: m8_loop_changed, template: "{% for x in [1, 1] %}{{ loop.changed(x) }}{% endfor %}", expect_error_in_halean_only: true}
+
+# --- M9: for/else runs unless an iteration reached the end of the body ---------
+- {name: m9_continue_else, template: "{% for x in [1] %}{% continue %}{% else %}E{% endfor %}"}
+- {name: m9_continue_first_only, template: "{% for x in [1, 2] %}{% if x == 1 %}{% continue %}{% endif %}{{ x }}{% else %}E{% endfor %}"}
+- {name: m9_continue_last_only, template: "{% for x in [1, 2] %}{% if x == 2 %}{% continue %}{% endif %}{{ x }}{% else %}E{% endfor %}"}
+- {name: m9_break_first, template: "{% for x in [1, 2] %}{% break %}{% else %}E{% endfor %}"}
+- {name: m9_break_second, template: "{% for x in [1, 2] %}{{ x }}{% if x == 2 %}{% break %}{% endif %}{% else %}E{% endfor %}"}
+- {name: m9_empty_else, template: "{% for x in [] %}{{ x }}{% else %}E{% endfor %}"}
+
+# --- M11: startswith/endswith with start and end ----------------------------------
+- {name: m11_startswith_start, template: "{{ 'abc'.startswith('b', 1) }}"}
+- {name: m11_endswith_end, template: "{{ 'abc'.endswith('b', 0, 2) }}"}
+- {name: m11_more, template: "{{ ['abc'.startswith('', 3), 'abc'.startswith('', 4), 'abc'.endswith('c', -1), 'abc'.startswith('a', -10), 'abc'.endswith(('x', 'bc'), none, 3), 'abc'.startswith('ab', 0, 1), 'abc'.startswith('b', true)] }}"}
+- {name: m11_tuple_non_str, template: "{{ 'abc'.startswith(('a', 1)) }}"}
+- {name: m11_bad_index, template: "{{ 'abc'.startswith('a', 'x') }}"}
+
+# --- M13: sum (Python 3.12+ compensated summation) ---------------------------------
+- {name: m13_sum_floats, template: "{{ [0.1, 0.2, 0.3] | sum }}"}
+- {name: m13_sum_mixed, template: "{{ [[1, 0.1, 0.2, 0.3] | sum, [0.1] * 10 | sum, [1e100, 1.0, -1e100] | sum, [true, 0.1, 0.2] | sum, [0.1, 0.2, 0.3] | sum(start=0.5)] }}"}
+- {name: m13_sum_ints, template: "{{ [[1, 2, true] | sum, [2 ** 62, 2 ** 62, 1] | sum, [] | sum, [0.5] | sum(start=-1)] }}"}
+# a total beyond Py_ssize_t leaves the fast paths: then floats add plainly
+- {name: m13_sum_overflow, template: "{{ [2 ** 63, 0.1, 0.2, 0.3] | sum }} {{ [2 ** 62, 2 ** 62, 0.1, 0.2, 0.3] | sum }}"}
+- {name: m13_sum_inf, template: "{{ [1e308, 1e308, -1e308] | sum }} {{ [('inf' | float), 1.0] | sum }}"}
+- {name: m13_sum_attribute, template: "{{ [{'a': 0.1}, {'a': 0.2}, {'a': 0.3}] | sum(attribute='a') }}"}
+- {name: m13_sum_lists, template: "{{ [[1], [2]] | sum(start=[]) }}"}
+- {name: m13_sum_str_start, template: "{{ ['a'] | sum(start='') }}"}
+- {name: m13_sum_str_items, template: "{{ ['a', 'b'] | sum }}"}
+
+# --- M14: Undefined prints as `Undefined` inside a container ----------------------
+- {name: m14_map_missing_attr, template: "{{ [{'a': 1}, {}] | map(attribute='a') | list }}"}
+- {name: m14_list_of_undefined, template: "{{ [{'a': 1}] | map(attribute='b') | list }}"}
+
+# --- M15: dict views ----------------------------------------------------------------
+- {name: m15_dict_keys, template: "{{ {'a': 1}.keys() }}"}
+- {name: m15_dict_values_items, template: "{{ {'a': 1, 'b': [2]}.values() }} {{ {'a': 1}.items() }}"}
+- {name: m15_dict_views_use, template: "{% set d = {'a': 1, 'b': 2} %}{{ [d.keys() | list, d.values() | length, d.items() | list, 'a' in d.keys(), d.keys() | last, d.keys() | first] }}"}
+- {name: m15_dict_views_truth, template: "{{ [{}.keys() | bool, ({}.keys()) is iterable, (1 if {}.values() else 2), (1 if {'a': 1}.items() else 2)] }}"}
+- {name: m15_dict_keys_eq, template: "{% set d = {'a': 1, 'b': 2} %}{{ [d.keys() == {'b': 3, 'a': 4}.keys(), d.items() == d.items(), d.keys() == ['a', 'b']] }}"}
+- {name: m15_dict_views_loop, template: "{% for k, v in {'a': 1, 'b': 2}.items() %}{{ k }}={{ v }};{% endfor %}"}
+- {name: m15_reverse_generator, template: "{{ [1, 2, 3] | map('string') | reverse }}"}
+
+# --- M16: hour 24 (ciso8601) ---------------------------------------------------------
+- {name: m16_as_datetime_24, template: "{{ as_datetime('2026-11-20T24:00:00') }}"}
+- {name: m16_as_datetime_24_more, template: "{{ as_datetime('2026-11-20 24:00') }}|{{ as_datetime('2026-12-31T24:00:00.000') }}|{{ as_datetime('2026-11-20T24:00:00+01:00') }}|{{ as_datetime('2026-11-20T24:00:00Z') }}"}
+- {name: m16_as_datetime_24_invalid, template: "{{ [as_datetime('2026-11-20T24:00:01'), as_datetime('2026-1-2T24:00'), as_datetime('2026-11-31T24:00'), as_datetime('2026-11-20T24:00:00.5')] }}"}
+# ciso8601 adds a day past 9999-12-31: OverflowError, not caught
+- {name: m16_as_datetime_24_overflow, template: "{{ as_datetime('9999-12-31T24:00:00', 1) }}"}
+- {name: m16_as_timestamp_24, template: "{{ as_timestamp('2026-11-20T24:00:00Z') }}"}
+
+# --- M17: overflow raises -------------------------------------------------------------
+- {name: m17_pow_float_overflow, template: "{{ 2 ** 1024 * 1.0 }}"}
+- {name: m17_float_filter_overflow, template: "{{ (2 ** 1024) | float(0) }}"}
+- {name: m17_round_400, template: "{{ 5e-324 | round(400) }}"}
+- {name: m17_int_div_overflow, template: "{{ (2 ** 1024) / 1 }}"}
+- {name: m17_int_neg_pow_overflow, template: "{{ (2 ** 1024) ** -1 }}"}
+- {name: m17_float_pow_overflow, template: "{{ 10.0 ** 400 }}"}
+- {name: m17_is_number_overflow, template: "{{ (2 ** 1024) is is_number }}"}
+- {name: m17_round_neg_400_ceil, template: "{{ 1.5 | round(-400, 'ceil') }}"}
+- {name: m17_round_neg_400, template: "{{ 1.5 | round(-400) }}"}
+- {name: m17_round_nan_ceil, template: "{{ 'nan' | float | round(2, 'ceil', default=7) }}"}
+- {name: m17_round_inf_half, template: "{{ 'inf' | float | round(2, 'half', default=7) }}"}
+- {name: m17_timestamp_utc_value_error, template: "{{ 1e12 | timestamp_utc('x') }} {{ -1e12 | timestamp_local('x') }} {{ 1e12 | timestamp_custom('%Y', true, 'x') }}"}
+- {name: m17_timestamp_utc_os_error, template: "{{ 1e17 | timestamp_utc('x') }}"}
+- {name: m17_timestamp_local_os_error, template: "{{ -1e17 | timestamp_local('x') }}"}
+- {name: m17_timestamp_utc_overflow, template: "{{ 1e300 | timestamp_utc('x') }}"}
+- {name: m17_timestamp_custom_overflow, template: "{{ (2 ** 64) | timestamp_custom('%Y', true, 'x') }}"}
+- {name: m17_timestamp_utc_inf, template: "{{ s | float | timestamp_utc('x') }}", variables: {s: inf}}
+- {name: m17_timestamp_local_nan, template: "{{ s | float | timestamp_local('x') }}", variables: {s: nan}}
+# the datetime filters are not globals
+- {name: m17_timestamp_utc_global, template: "{{ timestamp_utc(0) }}", unsupported: true, ha_error: true}
+- {name: m17_as_datetime_year, template: "{{ as_datetime(1e12) }}"}
+- {name: m17_as_datetime_year_default, template: "{{ as_datetime(1e12, 5) }}"}
+- {name: m17_as_datetime_year_str, template: "{{ as_datetime('1e12') }}"}
+- {name: m17_as_datetime_os_error, template: "{{ as_datetime(1e17, 5) }}"}
+- {name: m17_as_datetime_int_overflow, template: "{{ as_datetime(2 ** 1024, 5) }}"}
+
+# --- M18: number literals as Jinja's lexer reads them ----------------------------------
+- {name: m18_leading_dot, template: "{{ .5 }}", unsupported: true, ha_error: true}
+- {name: m18_leading_zero, template: "{{ 007 }}", unsupported: true, ha_error: true}
+- {name: m18_float_no_frac, template: "{{ 1. }}", unsupported: true, ha_error: true}
+- {name: m18_literals, template: "{{ [0x1F, 0o17, 0b101, 0X1f, 0_0, 00, 1_000, 00.5, 007.5, 1e5, 1E+5, 1_0.5_0, 0x_f] }}"}
+- {name: m18_dotted_index, template: "{{ x.0.1 }}", variables: {x: [[1, 2]]}}
+
+# --- 4.3: features where HALean raised and HA did not ------------------------------------
+- {name: g_int_unicode_digit, template: "{{ '٣' | int }}"}
+- {name: g_float_unicode_digit, template: "{{ ['٣.5' | float, ' ٣_٣ ' | float, '１２' | int, '٣.٥e-١' | float, '1²' | float(-1), '٣' is is_number] }}"}
+- {name: g_attr_missing_str, template: "{{ 'abc'.nope }}"}
+- {name: g_attr_missing_list, template: "{{ [1].nope }} {{ (1, 2).append }}"}
+- {name: g_str_find, template: "{{ 'abc'.find('c') }}"}
+- {name: g_str_find_more, template: "{{ ['abcabc'.find('c', 3), 'abc'.find('x'), 'abc'.rfind('', 1), 'abcabc'.rfind('b', 0, 4), 'abc'.find('', 4), 'abc'.find('', 3), 'abc'.index('b'), 'abcab'.rindex('ab')] }}"}
+- {name: g_str_index_missing, template: "{{ 'abc'.index('x') }}"}
+- {name: g_str_count, template: "{{ ['aaaa'.count('aa'), 'abc'.count(''), 'abc'.count('', 2), 'abc'.count('', 4), 'abab'.count('ab', 1), 'aaa'.count('a', -2)] }}"}
+- {name: g_str_join, template: "{{ ', '.join(['a', 'b']) }} {{ '-'.join('xyz') }} {{ ''.join([]) }}"}
+- {name: g_str_join_non_str, template: "{{ ', '.join(['a', 1]) }}"}
+- {name: g_str_is, template: "{{ ['123'.isdigit(), ''.isdigit(), '12a'.isdigit(), 'abc'.isalpha(), 'ab1'.isalnum(), 'ab1'.islower(), 'AB'.isupper(), '1'.islower(), ' \t'.isspace(), ''.isspace(), 'é'.isascii(), '42'.isnumeric(), '42'.isdecimal()] }}"}
+- {name: g_list_count, template: "{{ [1, 2, 1].count(1) }}"}
+- {name: g_list_count_index, template: "{{ [[1, 1.0, true, 2].count(1), (1, 2).count(3), [1, 2, 1].index(1, 1), ('a', 'b').index('b'), [1, 2, 3].index(3, -1)] }}"}
+- {name: g_list_index_missing, template: "{{ [1, 2].index(3) }}"}
