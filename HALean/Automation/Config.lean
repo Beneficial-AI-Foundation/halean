@@ -8,6 +8,7 @@
 -/
 import HALean.Core.Types
 import HALean.Template
+import HALean.Template.CvBoolean
 import HALean.Automation.TimePeriod
 import HALean.Automation.Slugify
 open Lean
@@ -243,11 +244,6 @@ def entityIds (j : Json) : D (List String) :=
     pure (xs.flatMap fun s => (s.splitOn ",").map String.trim |>.filter (· ≠ ""))
   | none => throw "missing entity_id"
 
-def isEnabled (j : Json) : D Bool :=
-  match field? j "enabled" with
-  | none => pure true
-  | some (.bool b) => pure b
-  | some v => throw s!"templated 'enabled' is not supported: {v.compress}"
 
 def jsonNumToFloat (v : Json) : Option Float :=
   match v with
@@ -325,6 +321,50 @@ def compileTemplate (s : String) (vars : List String := TEMPLATE_VARS) : D Templ
   match Template.check t vars with
   | .ok () => pure t
   | .error e => throw e
+
+/-- Template names a `limited` template may not use (`limited_ok=False`), and
+date functions whose result depends on the time zone, which is not known at
+load time. -/
+def LIMITED_UNSUPPORTED : List String :=
+  ["states", "is_state", "state_attr", "is_state_attr", "has_value", "expand",
+   "now", "utcnow", "today_at", "relative_time", "time_since", "time_until", "timedelta_string",
+   "as_local", "as_datetime", "as_timestamp", "timestamp_local", "timestamp_custom", "strptime"]
+
+/-- How a templated `enabled` is handled where it appears. -/
+inductive EnabledTmpl where
+  /-- Rendered `limited` with these variables; a render error disables
+  (a trigger: logged and skipped) or is refused (`none`). -/
+  | render (vars : List (String × Json)) (onError : Option Bool)
+  /-- Not rendered: the Template object itself is the value, and it is truthy
+  (a `parallel` branch's `sequence:` passes it to `Script(enabled=...)`). -/
+  | truthy
+  /-- The variables are only known while the run runs (`wait_for_trigger`). -/
+  | unsupported
+
+/-- `enabled`: `probatio.Any(cv.boolean, cv.template)`, then `if not enabled`.
+`cv.boolean` takes booleans, numbers (`!= 0`) and the words of
+`cvBooleanText`; any other string is a template. -/
+def isEnabled (j : Json) (how : EnabledTmpl := .render [] none) : D Bool := do
+  match field? j "enabled" with
+  | none => pure true
+  | some (.bool b) => pure b
+  | some (.num n) => pure (n.mantissa != 0)
+  | some (.str s) =>
+    if let some b := Template.cvBooleanText s then return b
+    match how with
+    | .truthy => pure true
+    | .unsupported => throw s!"templated 'enabled' is not supported here: {s}"
+    | .render vars onError =>
+      let t ← compileTemplate s (vars.map (·.1))
+      for n in (t.nodes.map Template.nodeNames).flatMap (fun p => p.1.1 ++ p.1.2.1 ++ p.1.2.2) do
+        if LIMITED_UNSUPPORTED.contains n then
+          throw s!"'{n}' in a templated 'enabled' is not supported by HALean"
+      match Template.render t { states := [], vars := vars.map fun (k, x) => (k, Template.Value.ofJson x) } true with
+      | .ok v => pure (Template.truthy v)
+      | .error e => match onError with
+        | some b => pure b
+        | none => throw s!"Error rendering enabled template: {e}"
+  | some v => throw s!"invalid enabled {v.compress}"
 
 /-- `cv.template_complex` -/
 partial def decodeComplex (j : Json) (nm : List String := TEMPLATE_VARS) : D Complex := do
@@ -496,14 +536,6 @@ def stateMatch (j : Json) (pos neg : String) : StateMatch :=
     | some v => { values := some (ensureList v), invert := true }
   | some v => { values := some (ensureList v) }
 
-/-- Template names a `limited` template may not use (`limited_ok=False`), and
-date functions whose result depends on the time zone, which is not known at
-load time. -/
-def LIMITED_UNSUPPORTED : List String :=
-  ["states", "is_state", "state_attr", "is_state_attr", "has_value", "expand",
-   "now", "utcnow", "today_at", "relative_time", "time_since", "time_until", "timedelta_string",
-   "as_local", "as_datetime", "as_timestamp", "timestamp_local", "timestamp_custom", "strptime"]
-
 /-- `render_complex` of a JSON value: every template string (keys too) is
 replaced by what `render` gives it. -/
 partial def renderJsonTemplates (render : String → D Json) : Json → D Json
@@ -528,7 +560,11 @@ partial def jsonHasList : Json → Bool
 them (an automation's triggers, not `wait_for_trigger`). -/
 def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
     (tvals : Option (List (String × Json)) := none) : D (Option Trigger) := do
-  if !(← isEnabled j) then return none
+  -- `async_initialize_triggers`: rendered `limited` with the trigger
+  -- variables; a render error is logged and the trigger skipped
+  if !(← isEnabled j (match tvals with
+      | some tv => .render tv (some false)
+      | none => .unsupported)) then return none
   let platform := (str? j "trigger").orElse (fun _ => str? j "platform") |>.getD ""
   let id := (str? j "id").getD (toString idx)
   noTemplate j "variables"
@@ -838,7 +874,7 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
     -- skipped (`_async_run_script` with `enabled: false`)
     let branches ← (ensureList ps).mapM fun b => do
       if has b "sequence" && !(has b "action" || has b "service") then
-        if !(← isEnabled b) then return []
+        if !(← isEnabled b .truthy) then return []
         seqOf ((field? b "sequence").getD .null)
       else
         return (← decodeAction b nm).toList

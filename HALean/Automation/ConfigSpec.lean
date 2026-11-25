@@ -198,19 +198,15 @@ theorem weekday?_some_iff (j : Json) (xs : List String) :
 
 /-! ### `isEnabled`, `continueOnTimeout?`, `responseVariable?`, `noTemplate` -/
 
-/-- `enabled` defaults to true and must otherwise be a literal boolean. -/
-theorem isEnabled_ok_iff (j : Json) (b : Bool) :
-    isEnabled j = .ok b ↔
-      (field? j "enabled" = none ∧ b = true) ∨ field? j "enabled" = some (.bool b) := by
-  unfold isEnabled
-  cases hf : field? j "enabled" with
-  | none => simp [pure, Except.pure, eq_comm]
-  | some v => cases v <;> simp [pure, Except.pure, throw, throwThe, MonadExceptOf.throw]
+/-- `enabled` defaults to true. -/
+theorem isEnabled_absent (j : Json) (how : EnabledTmpl) (h : field? j "enabled" = none) :
+    isEnabled j how = .ok true := by
+  unfold isEnabled; simp [h, pure, Except.pure]
 
-/-- Only an explicit `enabled: false` disables. -/
-theorem isEnabled_false_iff (j : Json) :
-    isEnabled j = .ok false ↔ field? j "enabled" = some (.bool false) := by
-  rw [isEnabled_ok_iff]; simp
+/-- A literal boolean is the answer, wherever it appears. -/
+theorem isEnabled_bool (j : Json) (how : EnabledTmpl) (b : Bool) (h : field? j "enabled" = some (.bool b)) :
+    isEnabled j how = .ok b := by
+  unfold isEnabled; simp [h, pure, Except.pure]
 
 /-- `continue_on_timeout` defaults to true and must otherwise be a boolean. -/
 theorem continueOnTimeout?_ok_iff (j : Json) (b : Bool) :
@@ -636,16 +632,19 @@ theorem stateMatch_invert_iff (j : Json) (pos neg : String) :
 theorem decodeTrigger_disabled (idx : Nat) (j : Json) (tnm : List String)
     (tvals : Option (List (String × Json))) (h : field? j "enabled" = some (.bool false)) :
     decodeTrigger idx j tnm tvals = .ok none := by
-  have he : isEnabled j = .ok false := (isEnabled_false_iff j).mpr h
   unfold decodeTrigger
-  simp only [he, bind, Except.bind, pure, Except.pure, Bool.not_false, ite_true]
+  simp only [isEnabled_bool j _ false h, bind, Except.bind, pure, Except.pure, Bool.not_false, ite_true]
 
-/-- A templated `enabled` is rejected rather than guessed. -/
+/-- An `enabled` HALean cannot decide (a template in a `wait_for_trigger`)
+is rejected rather than guessed. -/
 theorem decodeTrigger_enabled_error (idx : Nat) (j : Json) (tnm : List String)
-    (tvals : Option (List (String × Json))) (e : String) (h : isEnabled j = .error e) :
+    (tvals : Option (List (String × Json))) (e : String)
+    (h : isEnabled j (match tvals with
+      | some tv => .render tv (some false)
+      | none => .unsupported) = .error e) :
     decodeTrigger idx j tnm tvals = .error e := by
   unfold decodeTrigger
-  simp only [h, bind, Except.bind]
+  cases tvals <;> simp only at h ⊢ <;> simp only [h, bind, Except.bind]
 
 /-! ### `automationName` (`_automation_name`) -/
 

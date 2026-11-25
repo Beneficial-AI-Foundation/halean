@@ -1,0 +1,30 @@
+# `enabled`: probatio.Any(cv.boolean, template). Words and numbers are
+# cv.boolean; any other string is a limited template: a trigger's is rendered
+# with the trigger variables when it attaches (an error skips it), a
+# condition's and an action's with no variables. A parallel branch's
+# `sequence:` is never rendered: the Template object is truthy, so it runs.
+automations:
+  - id: words
+    trigger_variables: {flag: false}
+    triggers:
+      - {trigger: event, event_type: go, id: t_off, enabled: "off"}
+      - {trigger: event, event_type: go, id: t_zero, enabled: 0}
+      - {trigger: event, event_type: go, id: t_flag, enabled: "{{ flag }}"}
+      - {trigger: event, event_type: go, id: t_error, enabled: "{{ 1 / 0 }}"}
+      - {trigger: event, event_type: go, id: t_empty, enabled: "[]"}
+      - {trigger: event, event_type: go, id: t_yes, enabled: "Yes"}
+    actions:
+      - event: fired
+        event_data: {id: "{{ trigger.id }}"}
+  - id: cond_and_actions
+    triggers: [{trigger: event, event_type: go2}]
+    conditions: [{condition: template, value_template: "{{ false }}", enabled: "{{ 1 > 2 }}"}]
+    actions:
+      - {event: skipped, enabled: "{{ 1 == 2 }}"}
+      - {event: kept, enabled: "{{ 'x' }}"}
+      - parallel:
+          - sequence: [{event: branch_runs}]
+            enabled: "{{ false }}"
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: fire_event, event_type: fired, data: {id: t_yes}}]}
+  - {at: 2, send: {type: event, event_type: go2}, expect: [{type: automation_triggered}, {type: fire_event, event_type: kept}, {type: fire_event, event_type: branch_runs}]}

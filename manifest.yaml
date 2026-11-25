@@ -81,7 +81,8 @@ entries:
   lean:
   - HALean.Automation.decodeCondition
   status: translated
-  notes: only and/or/not/state/numeric_state/time/trigger; platform conditions and templates rejected
+  notes: 'and/or/not/state/numeric_state/time/trigger/template/zone/sun; enabled (cv.boolean or a limited
+    template with no variables) decided at load (isEnabled); platform conditions rejected'
   hash: 5e83164fc7ee0e01
 - python: helpers/condition.py::ConditionsChecker.async_check
   lean:
@@ -108,7 +109,8 @@ entries:
   lean:
   - HALean.Automation.step
   status: translated
-  notes: static enabled only; disabled steps are dropped at decode time
+  notes: 'enabled (cv.boolean, or a limited template rendered with no variables, so known at load) decided
+    at decode time and disabled steps dropped; a template that fails to render is rejected'
   hash: 5b9e5850ea530a66
 - python: helpers/script.py::_ScriptRun._handle_exception
   lean:
@@ -917,7 +919,9 @@ entries:
   - HALean.Automation.attachTriggers
   - HALean.Automation.initArmed
   status: translated
-  notes: trigger_data id/idx/alias come from triggerValue; disabled triggers are dropped at load
+  notes: 'trigger_data id/idx/alias come from triggerValue; enabled (cv.boolean, or a limited template
+    rendered with the static trigger_variables, an error skipping the trigger) decided at load, disabled
+    triggers dropped'
   hash: 65d58accf6d16244
 - python: helpers/script.py::_ScriptRun._async_step_parallel
   lean:
