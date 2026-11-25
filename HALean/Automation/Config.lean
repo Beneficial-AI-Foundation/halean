@@ -497,6 +497,26 @@ def LIMITED_UNSUPPORTED : List String :=
    "now", "utcnow", "today_at", "relative_time", "time_since", "time_until", "timedelta_string",
    "as_local", "as_datetime", "as_timestamp", "timestamp_local", "timestamp_custom", "strptime"]
 
+/-- `render_complex` of a JSON value: every template string (keys too) is
+replaced by what `render` gives it. -/
+partial def renderJsonTemplates (render : String → D Json) : Json → D Json
+  | .str s => if Template.isTemplateString s then render s else pure (.str s)
+  | .arr xs => do pure (.arr (← xs.toList.mapM (renderJsonTemplates render)).toArray)
+  | .obj kvs => do
+    let mut out := Json.mkObj []
+    for (k, x) in kvs.toList do
+      let k' ← match ← renderJsonTemplates render (.str k) with
+        | .str k' => pure k'
+        | kj => pure kj.compress
+      out := out.setObjVal! k' (← renderJsonTemplates render x)
+    pure out
+  | x => pure x
+
+partial def jsonHasList : Json → Bool
+  | .arr _ => true
+  | .obj m => m.toList.any fun (_, x) => jsonHasList x
+  | _ => false
+
 /-- `tvals`: the static trigger_variables, when the trigger attaches with
 them (an automation's triggers, not `wait_for_trigger`). -/
 def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
@@ -589,13 +609,47 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
       let s := if s.isNone && m.isSome then some (.exact 0) else s
       pure <| TriggerKind.timePattern (h.getD .any) (m.getD .any) (s.getD .any)
     | "event" => do
-      let types ← strList ((field? j "event_type").getD .null)
+      -- `render_complex(..., variables, limited=True)` when the trigger
+      -- attaches: the variables are the static trigger_variables, so the
+      -- result is known at load time
+      let limited (s : String) : D Template.Value := do
+        let some tv := tvals
+          | throw s!"templated event trigger '{s}' is not supported here"
+        let t ← compileTemplate s (tv.map (·.1))
+        for n in (t.nodes.map Template.nodeNames).flatMap (fun p => p.1.1 ++ p.1.2.1 ++ p.1.2.2) do
+          if LIMITED_UNSUPPORTED.contains n then
+            throw s!"'{n}' in a templated event trigger is not supported by HALean"
+        match Template.render t { states := [], vars := tv.map fun (k, x) => (k, Template.Value.ofJson x) } true with
+        | .ok v => pure v
+        | .error e => throw s!"templated event trigger '{s}' fails to render: {e}"
+      let renderJ := renderJsonTemplates fun s => do
+        match (← limited s).toJson with
+        | .ok j => pure j
+        | .error e => throw s!"templated event trigger '{s}': {e}"
+      -- `event_type`: `[cv.template]`; a type that renders to something other
+      -- than a string never matches
+      let types ← (ensureList ((field? j "event_type").getD .null)).filterMapM fun v => do
+        match v with
+        | .str s =>
+          if Template.isTemplateString s then
+            match ← limited s with
+            | .str r => pure (some r)
+            | _ => pure none
+          else pure (some s)
+        | .num _ | .bool _ => pure (some v.compress)
+        | v => throw s!"invalid event_type {v.compress}"
+      if types.isEmpty then throw "event trigger needs an event_type"
+      if types.contains "state_reported" then throw "Can't listen to state_reported in event trigger"
       let data ← match field? j "event_data" with
         | none => pure []
-        | some (.obj kvs) =>
+        | some d@(.obj _) =>
+          let .obj kvs ← renderJ d | throw "event_data must be a mapping"
           let kvs := kvs.toList
-          if kvs.any (fun (_, v) => match v with | .obj _ => true | _ => false) then
-            throw "nested event_data is not supported"
+          -- with a mapping among the values HA matches with a probatio schema,
+          -- where a list is a sequence validator, not a value
+          if kvs.any (fun (_, v) => match v with | .obj _ => true | _ => false) &&
+              kvs.any (fun (_, v) => jsonHasList v) then
+            throw "a list in nested event_data is not supported"
           pure kvs
         | some v => throw s!"invalid event_data {v.compress}"
       noTemplate j "context"

@@ -1357,13 +1357,25 @@ def onStateChanged (eid : String) (old new : Option EntityState) : EM Unit := do
   resumeRuns done
   resumeWoken
 
-/-- `event.py` (flat event_data: subset match) -/
+/-- `event.py`'s `event_data` test: every wanted key is present and its value
+equal by Python's `==` (`event_data_items <= event.data.items()`); a
+mapping among the wanted values is a nested schema (`probatio.Schema(...,
+extra=ALLOW_EXTRA, required=True)`): the event's value must be a mapping
+holding every wanted key, recursively. -/
+partial def eventDataMatches (want : List (String × Json)) (data : Json) : Bool :=
+  want.all fun (k, v) => match v, field? data k with
+    | .obj sub, some d@(.obj _) => eventDataMatches sub.toList d
+    | .obj _, _ => false
+    | _, some d => Template.pyEq (Template.Value.ofJson v) (Template.Value.ofJson d)
+    | _, none => false
+
+/-- `event.py` -/
 def onEvent (ty : String) (data : Json) : EM Unit := do
   for (o, trigs) in (← getE).owners do
     for t in trigs do
       if !(← getE).listening o then break
       if let .event types want := t.kind then
-        if types.contains ty && want.all (fun (k, v) => field? data k == some v) then
+        if types.contains ty && eventDataMatches want data then
           let ev : Template.Value := .pyobj "Event" [
             ("event_type", .str ty), ("data", Template.Value.ofJson data),
             ("origin", .opaque "event.origin"), ("time_fired", .opaque "datetime"),

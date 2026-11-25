@@ -1,0 +1,26 @@
+# event trigger: templated event_type and event_data (limited templates,
+# rendered when the trigger attaches, with trigger_variables), nested
+# event_data (a probatio schema: every key required, extra keys allowed) and
+# Python equality of values (1 == 1.0 == true)
+automations:
+  - id: tmpl_type
+    trigger_variables: {kind: go}
+    triggers: [{trigger: event, event_type: "{{ kind }}"}]
+    actions: [{event: fired_tmpl_type}]
+  - id: tmpl_data
+    trigger_variables: {who: alice}
+    triggers: [{trigger: event, event_type: ev, event_data: {user: "{{ who }}"}}]
+    actions: [{event: fired_tmpl_data}]
+  - id: nested
+    triggers: [{trigger: event, event_type: ev, event_data: {a: {b: 1}}}]
+    actions: [{event: fired_nested}]
+  - id: py_eq
+    triggers: [{trigger: event, event_type: ev, event_data: {n: 1}}]
+    actions: [{event: fired_py_eq}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: fire_event, event_type: fired_tmpl_type}]}
+  - {at: 2, send: {type: event, event_type: ev, data: {user: alice}}, expect: [{type: automation_triggered}, {type: fire_event, event_type: fired_tmpl_data}]}
+  - {at: 3, send: {type: event, event_type: ev, data: {user: bob, a: {b: 1, c: 2}}}, expect: [{type: automation_triggered}, {type: fire_event, event_type: fired_nested}]}
+  - {at: 4, send: {type: event, event_type: ev, data: {a: {b: 2}}}, expect: []}
+  - {at: 5, send: {type: event, event_type: ev, data: {a: 5, n: 1.0}}, expect: [{type: automation_triggered}, {type: fire_event, event_type: fired_py_eq}]}
+  - {at: 6, send: {type: event, event_type: ev, data: {n: true}}, expect: [{type: automation_triggered}, {type: fire_event, event_type: fired_py_eq}]}

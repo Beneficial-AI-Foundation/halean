@@ -58,11 +58,11 @@ private theorem forIn_skip {α β σ : Type} (l : List α) (f : α → β → St
 /-! ### Events (`event.py`) -/
 
 /-- An event that matches no event trigger (wrong type, or `event_data`
-that is not a subset of the event's data) changes nothing and sends
+the event's data does not match, `eventDataMatches`) changes nothing and sends
 nothing, whatever else is listening. -/
 theorem onEvent_no_match (ty : String) (data : Json) (e : Engine) (acc : List Cmd)
     (h : ∀ p ∈ e.owners, ∀ t ∈ p.2, ∀ types want, t.kind = .event types want →
-        (types.contains ty && want.all (fun kv => field? data kv.1 == some kv.2)) = false) :
+        (types.contains ty && eventDataMatches want data) = false) :
     (onEvent ty data).run (e, acc) = ((), (e, acc)) := by
   unfold onEvent
   simp only [StateT.run, getE, bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get, pure,
