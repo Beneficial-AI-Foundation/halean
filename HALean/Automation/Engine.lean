@@ -211,6 +211,10 @@ structure Engine where
   is the entity of `automations[i]`. Empty for automations. A call to one of
   their `script.*` services is handled here instead of by HA. -/
   scripts : List HALean.Script.ScriptEntity := []
+  /-- Runs of script entities that were added but have not started yet
+  (`_ScriptRun._started` is false): a `restart` start stops the other runs
+  first, and that can start the same script again. -/
+  starting : List Nat := []
   deriving Inhabited
 
 inductive Input where
@@ -745,7 +749,10 @@ def stopRunH (h : Handlers) (id : Nat) (release : Bool := true) : EM Unit := do
   setE (removeRun e id)
   for c in callees do h.stopRun c.id true
   writeEntity r.autoIdx
-  if let some c := r.caller then h.answer c (if stoppedQuietly r then .ok .none else .cancelled)
+  -- a run stopped before it started still runs, sees `_stop` before its
+  -- first step and returns `None`
+  if let some c := r.caller then
+    h.answer c (if stoppedQuietly r || e.starting.contains id then .ok .none else .cancelled)
   if release then h.releaseQueue r.autoIdx
 
 /-- `asyncio.CancelledError` raised in run `rid` where it waits for a call
@@ -800,12 +807,20 @@ def startScriptH (h : Handlers) (ai : Nat) (runVars : List (String × Template.V
                      frames := [.seq a.actions false], wait, caller, stack := stack ++ [ai] }
   setE { e with runs := e.runs ++ [run], nextRunId := e.nextRunId + 1 }
   if decision == .restart then
-    -- "first add the new run and then stop any other runs"
+    -- "first add the new run and then stop any other runs". Stopping them
+    -- can hand a queue on, and a run that then starts can start this script
+    -- again (a re-entrant restart), which stops this run before it started.
+    let e ← getE
+    setE { e with starting := e.starting ++ [run.id] }
     for old in existing do h.stopRun old.id false
+    let e ← getE
+    setE { e with starting := e.starting.filter (· != run.id) }
   let e ← getE
   setE { e with lastTriggered := (e.lastTriggered.filter (·.1 != ai)) ++ [(ai, (e.now.utc : Int) * 1000)] }
   writeEntity ai
-  if wait == .ready then h.drive run
+  -- a run stopped before it started does nothing (`if self._stop.done():
+  -- break` before the first step); its caller already has `None`
+  if wait == .ready && (← getE).runs.any (·.id == run.id) then h.drive run
   return .started run.id
 
 /-- Run the handler of a `script.*` service called by `c` (`planCall`).

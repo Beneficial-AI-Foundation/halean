@@ -70,6 +70,25 @@ script decoders now do the same (`maxRunsOf`, `pyIntOfJson?` in
 (checked by running `make_script_schema`). The script decoder had refused 2.5,
 which HA accepts as 2.
 
+With script entities (`scripts ≠ []`) the bound is not proved, and the
+invariant above does not hold at every point: a `restart` start adds its run
+before it stops the others (as HA does, "first add the new run and then stop
+any other runs"), so for a moment there are two. Looking at that case found a
+re-entrancy bug in HALean (`tests/script_scenarios/restart_reentry.yaml`, checked
+against HA 2026.10.4 by `tests/differential/test_scripts.py`). Script `x`
+(`restart`) waits on a service call, and script `c` (`queued`) calls `x`. Two
+calls to `c` are made, then an outside call to `x`. `x`'s restart stops its
+running run. That cancels `c`'s first run, which hands `c`'s lock to `c`'s
+second run, which calls `x` again. That second restart stops the outside
+call's run before the run has started. In HA, `_ScriptRun.async_stop` only
+sets `_stop` on a run that has not started. The run then breaks before its
+first step, so it makes no service call, and the outside call returns `None`.
+HALean drove the removed run anyway, so it made a second `test.work` call for
+a run that no longer existed, and it answered the outside call `cancelled`.
+Now `Engine.starting` holds runs that were added but have not started. `stopRun`
+answers their callers `None`, and `startScript` drives its run only if the run
+is still live.
+
 The proof needed the engine to be total. The ten mutually recursive run
 handlers take one another as a `Handlers` record, one level down; `handlers n`
 nests them `n` levels deep and `engine = handlers ENGINE_FUEL` (opaque, so the

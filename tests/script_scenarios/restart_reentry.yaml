@@ -1,0 +1,36 @@
+description: >
+  A re-entrant restart. x (restart) waits on a service call; c (queued)
+  calls x. An outside call to x adds its run and stops x's running one,
+  which cancels c's first run, which hands c's lock to c's second run, which
+  calls x again: that restart stops the outside call's run before it has
+  started. HA's run then sees `_stop` before its first step: it makes no
+  service call, and the outside call returns None (not cancelled). Only
+  c's second run's x makes a call.
+scripts:
+  x:
+    mode: restart
+    sequence:
+      - action: test.work
+  c:
+    mode: queued
+    sequence:
+      - action: script.x
+steps:
+  - at: 1
+    call: c
+  - at: 1
+    call: c
+    expect:
+      call_service: []
+  - at: 2
+    call: x
+    expect:
+      call_service: [[test, work, {}]]
+      call_done: [[0, false, cancelled], [2, true, null]]
+  - at: 3
+    result: 1
+    expect:
+      call_done: [[1, true, null]]
+  - at: 4
+    expect:
+      call_service: []
