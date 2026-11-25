@@ -454,8 +454,10 @@ entries:
   lean:
   - HALean.Template.parseResult
   - HALean.Template.isNumericStr
+  - HALean.Template.isNumericText
   status: translated
-  notes: fast numeric path
+  notes: fast numeric path; _IS_NUMERIC's \d and int()/float() take the decimal digits of every script
+    (Unicode 16 tables generated from CPython 3.14)
   hash: cd66900f121f5cca
   deps: ac6c35fa7fcfc344
 - python: helpers/template/__init__.py::_cached_parse_result
@@ -463,8 +465,9 @@ entries:
   - HALean.Template.parseResult
   - HALean.Template.literalEval
   status: translated
-  notes: ast.literal_eval translated for numbers, strings, True/False/None, lists, tuples, dicts; sets
-    become lists, bytes stay strings
+  notes: ast.literal_eval translated for numbers, strings, True/False/None, lists, tuples, dicts (equal
+    keys merged, unhashable keys rejected), one unary sign on a (parenthesized) number; sets are refused
+    (their order follows the hashes), bytes stay strings
   hash: 4acea10c6028c660
   deps: 2dc8f522305619fd
 - python: helpers/template/__init__.py::render_complex
@@ -538,15 +541,19 @@ entries:
 - python: helpers/template/extensions/type_cast.py::TypeCastExtension.forgiving_float
   lean:
   - HALean.Template.forgivingFloat
+  - HALean.Template.pyFloatStr
   status: translated
+  notes: float() of any text (Unicode spaces and digits mapped to ASCII); an int too large for a float
+    raises OverflowError
   hash: 508c79a95cec6154
   deps: 34f8c33230252bdf
 - python: helpers/template/extensions/type_cast.py::TypeCastExtension.forgiving_int
   lean:
   - HALean.Template.forgivingInt
   - HALean.Template.doInt
+  - HALean.Template.pyIntStr
   status: translated
-  notes: base other than 10 rejected
+  notes: base other than 10 rejected; int() of any text (Unicode spaces and digits mapped to ASCII)
   hash: 40c142d29952cac7
   deps: 34f8c33230252bdf
 - python: helpers/template/extensions/type_cast.py::TypeCastExtension.is_number
@@ -559,7 +566,8 @@ entries:
   - HALean.Template.forgivingRound
   - HALean.Template.pyRound
   status: translated
-  notes: Python's correctly rounded round() on the exact binary value
+  notes: Python's correctly rounded round() on the exact binary value; float(10**precision) first (an
+    OverflowError past 10**308), NaN caught (ValueError), infinities not (OverflowError)
   hash: 7e6dafcb33d77f8c
   deps: 2ffb994dbd91079e
 - python: helpers/template/extensions/functional.py::FunctionalExtension.iif
@@ -761,7 +769,10 @@ entries:
   lean:
   - HALean.Template.callV
   - HALean.Template.utcFromTimestamp
+  - HALean.Template.fromTimestampRaises
   status: translated
+  notes: a timestamp out of the year range falls through to parse_datetime (None for text, else the
+    default); OverflowError/OSError of fromtimestamp are not caught
   hash: 0871256a07cec3d0
   deps: bc64f26759b28657
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.as_local
@@ -787,14 +798,18 @@ entries:
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.timestamp_utc
   lean:
   - HALean.Template.callV
+  - HALean.Template.fromTimestampRaises
   status: translated
+  notes: like timestamp_local and timestamp_custom, a filter only (not a global); fromtimestamp's
+    OverflowError and OSError (year beyond struct tm on x86-64 Linux) are not caught
   hash: 4945cf0243379faf
   deps: bc64f26759b28657
 - python: util/dt.py::parse_datetime
   lean:
   - HALean.Template.parseDatetime
   status: translated
-  notes: DATETIME_RE translated; strings only ciso8601 would accept are errors
+  notes: DATETIME_RE translated; strings only ciso8601 would accept are errors, except hour 24
+    (24:00[:00[.0...]] in ciso8601's strict shape is the next midnight, an OverflowError past 9999)
   hash: dbd0af9665451de8
 - python: util/dt.py::parse_time
   lean:

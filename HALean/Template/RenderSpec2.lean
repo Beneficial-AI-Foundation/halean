@@ -704,7 +704,7 @@ theorem render_parsed (t : Tmpl) (ctx : Ctx) :
   unfold render renderString
   cases t.isStatic
   · simp only [Bool.false_eq_true, ite_false]
-    split <;> rfl
+    split <;> simp only [Except.map, bind, Except.bind, pure, Except.pure, ite_true]
   · rfl
 
 /-- `async_render_to_info` returns the same result as `async_render`. -/

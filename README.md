@@ -129,7 +129,8 @@ nested `condition` ends the whole run fails `nested_condition` against real HA.
 Every case in `tests/templates/*.yaml` is rendered by HA's own
 `Template.async_render` (or `condition.async_template`) and by `halean-template`.
 The result type and `repr()` must match, or both must raise. Cases marked
-`unsupported: true` must be rejected by HALean at load time; cases marked
+`unsupported: true` must be rejected by HALean at load time (with
+`ha_error: true`, HA must raise too: a syntax error rejected by both); cases marked
 `render_info: true` must also read the same entities and domains
 (`async_render_to_info`), which is what template triggers listen to.
 
@@ -271,7 +272,7 @@ go through HA's `_parse_result` (`"42"` becomes `42`, `"[1, 2]"` becomes a list,
 
 | Supported | Rejected at load, stays in HA |
 |---|---|
-| `{{ }}`, `{% if/elif/else %}`, `{% for %}` (with `if`, `else`, `loop.*`, `break`/`continue`), `{% set %}` (incl. tuples), `namespace()`, comments, `-` whitespace control; all operators, chained comparisons, `x if c else y`, slices; `states(...)`, `states.domain.entity` / `states['...']`, iterating `states` / `states.light` (in HA's insertion order), `range` (`state`, `attributes`, `name`, `domain`, `object_id`, `entity_id`), `is_state`, `state_attr`, `is_state_attr`, `has_value`, `float`, `int`, `bool`, `is_number`, `iif`, `dict`; filters `round`, `default`, `lower`, `upper`, `title`, `capitalize`, `trim`, `replace`, `length`, `first`, `last`, `join`, `list`, `string`, `abs`, `sum`, `map` (filter or `attribute=`), `select`, `reject`, `selectattr`, `rejectattr`, `reverse`; `this` (the automation's own state, as `state.as_dict()`); collections: `sort` (`reverse`, `case_sensitive`, dotted and comma-separated `attribute`), `min`/`max` (filters, and HA's globals over several arguments or one iterable), `unique`, `expand` (groups and zones, in HA's stack order, recording what it read for template triggers); dates and times: `now()`, `utcnow()`, `today_at`, `timedelta`, `as_timestamp`, `as_datetime`, `as_local`, `timestamp_local`/`_utc`/`_custom`, datetime attributes, `strftime`, `replace`, `isoformat`, datetime/timedelta arithmetic, `strptime` (CPython's `_strptime` in the C locale), `as_timedelta`, `relative_time`, `time_since`, `time_until`, `timedelta_string`, the `datetime` test, `last_changed`/`last_updated`, `trigger.now`, `trigger.for`; common tests; str methods `split`, `strip`, `replace`, `startswith`, ...; the `trigger` variable for every supported trigger platform | any other global, filter or test, macros, `include`, `raw` |
+| `{{ }}`, `{% if/elif/else %}`, `{% for %}` (with `if`, `else` (run unless an iteration reached the end of the body, as Jinja does), `loop.index`/`index0`/`revindex`/`revindex0`/`first`/`last`/`length`/`previtem`/`nextitem`/`depth`/`depth0`/`cycle`, `break`/`continue`), `{% set %}` (incl. tuples), `namespace()`, comments, `-` whitespace control; literals as Jinja's lexer reads them (`0x1F`, `0o17`, `0b101`, `1_000`, `007` and `.5` are syntax errors; string escapes as `unicode-escape` decodes them: `\n`, `\xhh`, `\uhhhh`, `\Uhhhhhhhh`, octal); all operators (Python's float `//` and `%`, signed zeros included; overflow to a float raises), chained comparisons, `x if c else y`, slices; dict displays merge equal keys (`{1: 'a', 1.0: 'b'}` is `{1: 'b'}`); `states(...)`, `states.domain.entity` / `states['...']`, iterating `states` / `states.light` (in HA's insertion order), `range` (`state`, `attributes`, `name`, `domain`, `object_id`, `entity_id`), `is_state`, `state_attr`, `is_state_attr`, `has_value`, `float`, `int`, `bool`, `is_number`, `iif`, `dict`; filters `round`, `default`, `lower`, `upper`, `title`, `capitalize`, `trim`, `replace`, `length`, `first`, `last`, `join`, `list`, `string`, `abs`, `sum`, `map` (filter or `attribute=`), `select`, `reject`, `selectattr`, `rejectattr`, `reverse`; `this` (the automation's own state, as `state.as_dict()`); collections: `sort` (`reverse`, `case_sensitive`, dotted and comma-separated `attribute`), `min`/`max` (filters, and HA's globals over several arguments or one iterable), `unique`, `expand` (groups and zones, in HA's stack order, recording what it read for template triggers); dates and times: `now()`, `utcnow()`, `today_at`, `timedelta`, `as_timestamp`, `as_datetime`, `as_local`, `timestamp_local`/`_utc`/`_custom`, datetime attributes, `strftime`, `replace`, `isoformat`, datetime/timedelta arithmetic, `strptime` (CPython's `_strptime` in the C locale), `as_timedelta`, `relative_time`, `time_since`, `time_until`, `timedelta_string`, the `datetime` test, `last_changed`/`last_updated`, `trigger.now`, `trigger.for`; common tests; str methods `split`, `strip`/`lstrip`/`rstrip`, `replace`, `startswith`/`endswith` (with `start`/`end`), `find`/`rfind`/`index`/`rindex`/`count`, `join`, `lower`/`upper`/`title`/`capitalize`, `isdigit`/`isdecimal`/`isnumeric`/`isalpha`/`isalnum`/`islower`/`isupper` (ASCII text), `isspace`, `isascii` (other str attributes that exist are errors, unknown ones Undefined, as in Jinja); list and tuple `count`/`index`; `dict.keys()`/`values()`/`items()` as views (`dict_keys([...])`); `sum` as Python 3.14 adds (exact ints, compensated float sums, `attribute=`); `int()`/`float()` of text with Unicode spaces and digits of any script, also in `_parse_result`; `repr()` escaping what `str.isprintable()` rejects (Unicode 16 tables from CPython 3.14, `tools/gen_unicode_tables.py`); the `trigger` variable for every supported trigger platform | any other global, filter or test, macros, `include`, `raw` |
 
 Some values are reachable but not modelled yet (`last_reported`, `tzinfo`,
 `strftime('%Z')`, `strptime`'s `%Z`, `%c`/`%x`/`%X`/`%r` and `%O` directives, `%z` offsets with
@@ -281,6 +282,21 @@ so it is never a silent wrong answer. Case-changing filters on non-ASCII text ar
 also errors for now, and so are case-insensitive `sort`/`min`/`max`/`unique` over
 non-ASCII strings (`str.lower()`) and sorting keys that are not totally ordered
 (NaN: the result would depend on timsort's exact comparisons).
+Also refused: `\N{...}` string escapes (they need the Unicode name database),
+`\ud800`-style lone surrogates (not a Lean `Char`), `loop.changed()` (state
+kept between calls), a rendered result that reads as a Python set (HA returns a
+`set`, printed in hash order), the `str` predicates (`isdigit`, `isalpha`, ...)
+and case changes on non-ASCII text, and the other `str` methods (`zfill`,
+`partition`, `splitlines`, ...).
+
+One known divergence where HA raises and HALean does not: Jinja's compiler
+folds constant subexpressions and writes the value back into the generated
+Python code with `repr()`, so a constant that folds to an infinite or NaN
+float (`{% set x = 'inf' | float %}{{ x + 1 }}`, `1e308 * 10` inside a larger
+expression) becomes the name `inf`/`nan` and raises `NameError` when that code
+runs. HALean evaluates such expressions normally. A whole `{{ }}` expression
+that is constant is printed at compile time, so `{{ 'inf' | float }}` works in
+both.
 
 Upstream behaviours the translation keeps exactly, each covered by a scenario
 in `tests/scenarios/`:
@@ -700,8 +716,11 @@ listeners before anything else is delivered).
   `partial`, so the proofs are about the leaf validators, not whole schemas.
 * Lean's JSON objects are sorted by key. Where HA depends on the written
   order (`variables`), the shell sends ordered `[key, value]` lists
-  (`bridge/protocol.py`). Elsewhere a dict printed by a template, such as
-  `{{ trigger.event.data }}`, lists its keys sorted, not in arrival order.
+  (`bridge/protocol.py`). Elsewhere a dict that arrives as JSON (event data,
+  attributes, variables passed to the template test driver) has its keys
+  sorted, not in arrival order: printing it (`{{ trigger.event.data }}`),
+  iterating it or `| list` follow the sorted order. Dicts a template builds
+  keep their order.
 * `expand` also expands entities that the `group` integration provides in other
   domains (light groups, ...), which HA knows from `entity_sources`. HALean
   does not: a non-group entity with an `entity_id` attribute is a render error.

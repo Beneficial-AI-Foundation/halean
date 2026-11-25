@@ -10,6 +10,8 @@
 import HALean.Core.Types
 import HALean.Template.Time
 import HALean.Template.PyInt
+import HALean.Template.CvBoolean
+import HALean.Template.Unicode
 open Lean
 
 namespace HALean.Template
@@ -193,8 +195,65 @@ def parseFloatStr (s : String) : Option Float := do
 
 /-- Python `int(s)` (base 10): whitespace, sign, underscores between digits.
 Proved against Python's grammar for ASCII text (`parseIntChars_iff`);
-non-ASCII digits and spaces, which Python also accepts, give `none`. -/
+non-ASCII digits and spaces, which Python also accepts, give `none` (callers
+first map them to ASCII with `pyNumText`). -/
 def parseIntStr (s : String) : Option Int := parseIntChars s.toList
+
+/-! ## Unicode tables (`Unicode.lean`, generated from CPython 3.14) -/
+
+def hexVal (c : Char) : Option Nat :=
+  if c.isDigit then some (c.toNat - '0'.toNat)
+  else if 'a' ≤ c.toLower && c.toLower ≤ 'f' then some (c.toLower.toNat - 'a'.toNat + 10)
+  else none
+
+def hexNat (s : String) : Nat := s.foldl (fun n c => n * 16 + (hexVal c).getD 0) 0
+
+def NONPRINTABLE : Array (Nat × Nat) :=
+  (NONPRINTABLE_TEXT.splitOn ",").foldl (fun acc p => match p.splitOn "-" with
+    | [a, b] => acc.push (hexNat a, hexNat b)
+    | _ => acc) #[]
+
+def ND_ZEROS : Array Nat :=
+  (ND_ZEROS_TEXT.splitOn ",").foldl (fun acc p => if p.isEmpty then acc else acc.push (hexNat p)) #[]
+
+/-- Whether `n` lies in one of the sorted, disjoint ranges (binary search). -/
+def inRanges (rs : Array (Nat × Nat)) (n : Nat) : Bool := Id.run do
+  let mut lo := 0
+  let mut hi := rs.size
+  for _ in [0:32] do
+    if lo ≥ hi then break
+    let mid := (lo + hi) / 2
+    let (a, b) := rs[mid]!
+    if n < a then hi := mid
+    else if n > b then lo := mid + 1
+    else return true
+  return false
+
+/-- `str.isprintable()` for one character (what `repr()` leaves alone). -/
+def isPrintable (c : Char) : Bool :=
+  if c.toNat < 128 then 32 ≤ c.toNat && c.toNat != 127 else !inRanges NONPRINTABLE c.toNat
+
+/-- The value of a decimal digit (category `Nd`, any script). -/
+def ndDigit? (c : Char) : Option Nat :=
+  if c.toNat < 128 then (if c.isDigit then some (c.toNat - '0'.toNat) else none)
+  else (ND_ZEROS.find? fun z => z ≤ c.toNat && c.toNat < z + 10).map (c.toNat - ·)
+
+/-- `_PyUnicode_TransformDecimalAndSpaceToASCII`, what `int()` and `float()`
+do to non-ASCII text before parsing it: Unicode spaces become `' '` and
+decimal digits of any script their ASCII digit; any other non-ASCII
+character makes the text invalid (`none`). ASCII text is unchanged. -/
+def pyNumText (s : String) : Option String :=
+  if s.toList.all (fun c => decide (c.toNat < 128)) then some s else
+  s.toList.foldlM (fun acc c =>
+    if c.toNat < 127 then some (acc.push c)
+    else if pyIsSpace c then some (acc.push ' ')
+    else (ndDigit? c).map fun d => acc.push (Char.ofNat ('0'.toNat + d))) ""
+
+/-- Python `int(s)` for any text. -/
+def pyIntStr (s : String) : Option Int := (pyNumText s).bind parseIntStr
+
+/-- Python `float(s)` for any text. -/
+def pyFloatStr (s : String) : Option Float := (pyNumText s).bind parseFloatStr
 
 /-- Text `int()` / `float()` read the same way in HALean as in Python: ASCII
 only (Python also takes other Unicode digits and spaces). -/
@@ -211,7 +270,19 @@ def floatToInt? (f : Float) : Option Int :=
 
 def hexDigit (n : Nat) : Char := "0123456789abcdef".toList.getD n '0'
 
-/-- `repr(str)`. -/
+/-- `n` as `w` lower-case hexadecimal digits. -/
+def hexPad (n w : Nat) : String :=
+  String.ofList ((List.range w).reverse.map fun i => hexDigit (n / 16 ^ i % 16))
+
+/-- How `repr()` escapes a character that is not printable: `\xhh`,
+`\uhhhh` or `\Uhhhhhhhh`. -/
+def escapeChar (c : Char) : String :=
+  if c.toNat < 0x100 then "\\x" ++ hexPad c.toNat 2
+  else if c.toNat < 0x10000 then "\\u" ++ hexPad c.toNat 4
+  else "\\U" ++ hexPad c.toNat 8
+
+/-- `repr(str)` (`unicode_repr`): quotes, `\\`, `\n \r \t`, and every
+character `str.isprintable()` rejects escaped. -/
 def strRepr (s : String) : String :=
   let q := if s.contains '\'' && !s.contains '"' then '"' else '\''
   let body := s.foldl (fun acc c =>
@@ -219,12 +290,16 @@ def strRepr (s : String) : String :=
     else if c == '\n' then acc ++ "\\n"
     else if c == '\r' then acc ++ "\\r"
     else if c == '\t' then acc ++ "\\t"
-    else if c.toNat < 0x20 || c.toNat == 0x7f then
-      acc ++ "\\x" ++ toString (hexDigit (c.toNat / 16)) ++ toString (hexDigit (c.toNat % 16))
+    else if !isPrintable c then acc ++ escapeChar c
     else acc.push c) ""
   toString q ++ body ++ toString q
 
 def boolStr (b : Bool) : String := if b then "True" else "False"
+
+/-- The views `dict.keys()`, `.values()` and `.items()` return, carried as a
+`gen` of that kind: unlike generators they print, have a length and are
+falsy when empty. -/
+def isDictView (k : String) : Bool := k == "dict_keys" || k == "dict_values" || k == "dict_items"
 
 mutual
 /-- `str(x)`; `none` when HALean cannot print `x` the way Python would. -/
@@ -238,7 +313,7 @@ def pyStr : Value → Except String String
 /-- `repr(x)` -/
 def pyRepr : Value → Except String String
   | .none => pure "None"
-  | .undef _ => pure ""
+  | .undef _ => pure "Undefined"
   | .bool b => pure (boolStr b)
   | .int i => pure (toString i)
   | .float f => pure (floatRepr f)
@@ -256,7 +331,9 @@ def pyRepr : Value → Except String String
   | .datetime .. => throw "repr() of a datetime is not supported by HALean"
   | .timedelta us => pure (tdRepr us)
   | .range a b c => pure (if c == 1 then s!"range({a}, {b})" else s!"range({a}, {b}, {c})")
-  | .gen k _ => throw s!"printing a {k} object is not supported by HALean"
+  | .gen k xs =>
+    if isDictView k then do pure (k ++ "([" ++ ", ".intercalate (← reprList xs) ++ "])")
+    else throw s!"printing a {k} object is not supported by HALean"
   | .pyobj c _ => throw s!"printing a {c} object is not supported by HALean"
   | .opaque w => throw s!"{w} values are not supported by HALean"
 
@@ -290,6 +367,7 @@ def truthy : Value → Bool
   | .timedelta us => us != 0
   -- `trigger.data` / `trigger.query` of a webhook: empty when it has no items
   | .pyobj "MultiDictProxy" fs => !fs.isEmpty
+  | .gen k xs => !isDictView k || !xs.isEmpty
   | _ => true
 
 /-- Numbers as Python sees them (`bool` is an `int`). -/
@@ -351,6 +429,9 @@ partial def pyEq : Value → Value → Bool
   | .datetime a (some _), .datetime b (some _) => a == b
   | .datetime a none, .datetime b none => a == b
   | .timedelta a, .timedelta b => a == b
+  -- key and item views compare like sets (`dict_values` only by identity)
+  | .gen "dict_keys" a, .gen "dict_keys" b | .gen "dict_items" a, .gen "dict_items" b =>
+    a.length == b.length && a.all fun x => b.any (pyEq x)
   | a, b => match a.num?, b.num? with
     | some x, some y => numEq x y
     | _, _ => false
