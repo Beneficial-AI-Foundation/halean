@@ -70,12 +70,10 @@ What `tests/differential/test_templates.py` cannot observe, or observes in a way
    exponent arrive as ints (TPL-26); `State`, `Event` and datetime objects cannot be passed as variables.
 6. **`render_info` is compared first and only on request.** A case with `render_info: true` fails on the info
    difference before the results are compared, so the assertion message can hide a result difference. `has_time`,
-   `exception` and the rate limit are not compared. Only 2 of the 361 shipped cases with states use it on
-   `states.<domain>` in a boolean position, which is where TPL-4 shows.
-7. **Results are compared by `repr`.** HALean's driver prints `pyRepr`; HA's side prints Python's `repr`. A value that
-   is equal but whose Lean `repr` is wrong (TPL-8: a list holding U+00A0) fails; that is a true finding about
-   `strRepr`, but the same mechanism cannot tell `1` from `True` inside equal-looking containers only if the reprs
-   coincide, which they do not, so no blind spot there.
+   `exception` and the rate limit are not compared.
+7. **Results are compared by `repr`.** HALean's driver prints `pyRepr`, HA's side Python's `repr`. A value that is
+   equal but whose Lean `repr` is wrong fails (TPL-8, case `val_repr_nbsp_result`: a list holding U+00A0). The
+   failure is about `strRepr`, not about the rendered value.
 8. **One fresh `hass` per case, compiled after the states are set.** Jinja's compile-time folding (TPL-38) therefore
    always sees the final states; a second render after a state change, where HA would return the stale folded value,
    is never made.

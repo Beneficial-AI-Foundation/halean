@@ -1,0 +1,15 @@
+# restart while the old run's parallel branches are scheduled but have not started: HA still runs
+# each branch up to its first wait (the sub-script task is created eagerly before `_stop` is looked at)
+automations:
+  - alias: rstpar
+    mode: restart
+    triggers: [{trigger: state, entity_id: sensor.a, id: first}, {trigger: state, entity_id: sensor.a, id: second}]
+    actions:
+      - parallel:
+          - {event: m_a, event_data: {id: "{{ trigger.id }}"}}
+          - sequence: [{event: m_b, event_data: {id: "{{ trigger.id }}"}}, {delay: 5}, {event: m_b_late}]
+      - {event: m_after}
+states: [{entity_id: sensor.a, state: "0"}]
+steps:
+  - {at: 1, set: [sensor.a, "1"]}
+  - {at: 8, send: {type: event, event_type: tick}}

@@ -1,0 +1,235 @@
+........FF....F................................................          [100%]
+=================================== FAILURES ===================================
+____________________ test_core[h_brace_in_names_not_found] _____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f71af351f50>
+engine = <function engine.<locals>.ask at 0x7f71ad6f5dd0>
+case = {'name': 'h_brace_in_names_not_found', 'ops': [{'blocking': True, 'domain': '{service}', 'op': 'call', 'service': 'x'}...': '{domain}', 'op': 'call', 'service': '{service}'}, {'blocking': True, 'domain': '{', 'op': 'call', 'service': '}'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+                    assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+                    lean["trace"] += settle["trace"]
+                assert op.get("domain", "x").lower() not in baseline
+    
+                freezer.move_to(EPOCH + timedelta(microseconds=now))
+                runner.trace.clear()
+                result = await runner.op(op)
+                if not manual:
+                    await hass.async_block_till_done()
+                ha = rename_ha({"result": result, "trace": list(runner.trace)})
+                lean = rename_lean(lean)
+                if ha != lean:
+>                   pytest.fail(_diff(i, op, ha, lean))
+E                   Failed: op 0 call: result differs
+E                   HA:     {'error': {'error_kind': 'ha_error', 'exception': 'ServiceNotFound', 'message': 'Action {service}.x not found', 'translation_domain': 'homeassistant', 'translation_key': 'service_not_found', 'translation_placeholders': {'domain': '{service}', 'service': 'x'}}}
+E                   HALean: {'error': {'error_kind': 'ha_error', 'exception': 'ServiceNotFound', 'message': 'Action x.x not found', 'translation_domain': 'homeassistant', 'translation_key': 'service_not_found', 'translation_placeholders': {'domain': '{service}', 'service': 'x'}}}
+
+harness/test_core.py:449: Failed
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-75' coro=<test_core() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_core.py:445> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 87744.891 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-75' coro=<test_core() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_core.py:445> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 87744.891 seconds
+___________________ test_core[h_brace_domain_in_script_call] ___________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f71af351550>
+engine = <function engine.<locals>.ask at 0x7f71ad75ee50>
+case = {'name': 'h_brace_domain_in_script_call', 'ops': [{'domain': 'test', 'handler': {'do': [{'call': {...}}]}, 'op': 'register', 'service': 'outer'}, {'blocking': True, 'domain': 'test', 'op': 'call', 'service': 'outer'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+                    assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+                    lean["trace"] += settle["trace"]
+                assert op.get("domain", "x").lower() not in baseline
+    
+                freezer.move_to(EPOCH + timedelta(microseconds=now))
+                runner.trace.clear()
+                result = await runner.op(op)
+                if not manual:
+                    await hass.async_block_till_done()
+                ha = rename_ha({"result": result, "trace": list(runner.trace)})
+                lean = rename_lean(lean)
+                if ha != lean:
+>                   pytest.fail(_diff(i, op, ha, lean))
+E                   Failed: op 1 call: trace entry 0 differs
+E                   HA:     {'call': 'c', 'error': {'error_kind': 'ha_error', 'exception': 'ServiceNotFound', 'message': 'Action {service}.y not found', 'translation_domain': 'homeassistant', 'translation_key': 'service_not_found', 'translation_placeholders': {'domain': '{service}', 'service': 'y'}}}
+E                   HALean: {'call': 'c', 'error': {'error_kind': 'ha_error', 'exception': 'ServiceNotFound', 'message': 'Action y.y not found', 'translation_domain': 'homeassistant', 'translation_key': 'service_not_found', 'translation_placeholders': {'domain': '{service}', 'service': 'y'}}}
+
+harness/test_core.py:449: Failed
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-83' coro=<test_core() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_core.py:445> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 87744.717 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-83' coro=<test_core() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_core.py:445> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 87744.717 seconds
+_______________ test_core[h_handler_spec_with_raise_and_return] ________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f71acdd6340>
+engine = <function engine.<locals>.ask at 0x7f71acc1d7a0>
+case = {'name': 'h_handler_spec_with_raise_and_return', 'ops': [{'domain': 'test', 'handler': {'message': 'v', 'raise': 'Valu...'register', 'service': 'both', ...}, {'blocking': True, 'domain': 'test', 'op': 'call', 'return_response': True, ...}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+                    assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+                    lean["trace"] += settle["trace"]
+                assert op.get("domain", "x").lower() not in baseline
+    
+                freezer.move_to(EPOCH + timedelta(microseconds=now))
+                runner.trace.clear()
+                result = await runner.op(op)
+                if not manual:
+                    await hass.async_block_till_done()
+                ha = rename_ha({"result": result, "trace": list(runner.trace)})
+                lean = rename_lean(lean)
+                if ha != lean:
+>                   pytest.fail(_diff(i, op, ha, lean))
+E                   Failed: op 1 call: result differs
+E                   HA:     {'error': {'error_kind': 'other', 'exception': 'ValueError', 'message': 'v'}}
+E                   HALean: {'ok': "{'a': 1}"}
+
+harness/test_core.py:449: Failed
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-125' coro=<test_core() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_core.py:445> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 87744.290 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-125' coro=<test_core() running at /home/user/halean/review/experiments/04-core-registry-hass/harness/test_core.py:445> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 87744.290 seconds
+=========================== short test summary info ============================
+FAILED harness/test_core.py::test_core[h_brace_in_names_not_found] - Failed: ...
+FAILED harness/test_core.py::test_core[h_brace_domain_in_script_call] - Faile...
+FAILED harness/test_core.py::test_core[h_handler_spec_with_raise_and_return]
+3 failed, 60 passed in 5.92s

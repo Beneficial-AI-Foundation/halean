@@ -200,8 +200,13 @@ for i in ids:
     else:
         r = byname[rep]
         where = f"`{case_file[rep]}::{rep}`"
-    ptxt = patch if patch.startswith("none") else patch + "; yes, with all patches"
-    w(f"| {i} | {where} | {res(r['ha']).replace('|', chr(92) + '|')} | {res(r['lean']).replace('|', chr(92) + '|')} | {kind} | {doc.replace('|', chr(92) + '|')} | {ptxt.replace('|', chr(92) + '|')} |")
+    ptxt = patch if patch.startswith("none") else patch + "; yes, tested with all patches applied: `patches/all-patches-shipped-differential.log`"
+    hres, lres = res(r["ha"]), res(r["lean"])
+    if r["cat"] == "info" and hres == lres:
+        d = sorted(classify.info_diff(r))
+        hres += "; info " + ", ".join(f"{k}={r['ha_info'][k]}" for k in d)
+        lres += "; info " + ", ".join(f"{k}={r['lean']['info'][k]}" for k in d)
+    w(f"| {i} | {where} | {hres.replace('|', chr(92) + '|')} | {lres.replace('|', chr(92) + '|')} | {kind} | {doc.replace('|', chr(92) + '|')} | {ptxt.replace('|', chr(92) + '|')} |")
 w("")
 
 w("## Details\n")
