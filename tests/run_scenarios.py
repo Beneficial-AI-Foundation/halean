@@ -74,10 +74,16 @@ def build(sc: dict) -> tuple[list[dict], list, list[bool]]:
             eid, val = st["set"]
             attrs = st.get("attributes", {})
             old = current.get(eid)
-            changed = now if old is None or old["state"] != val else old["last_changed"]
-            new = state(eid, val, attrs, changed)
-            msg = {"type": "state_changed", "entity_id": eid, "old_state": old, "new_state": new}
-            current[eid] = new
+            if old is not None and old["state"] == val and old["attributes"] == attrs:
+                # `async_set` with the same state and attributes fires no
+                # state_changed (only state_reported), so the engine gets
+                # nothing but the passing time
+                msg = {"type": "tick"}
+            else:
+                changed = now if old is None or old["state"] != val else old["last_changed"]
+                new = state(eid, val, attrs, changed)
+                msg = {"type": "state_changed", "entity_id": eid, "old_state": old, "new_state": new}
+                current[eid] = new
         elif st["send"]["type"] == "webhook":
             # the raw request (method, headers, body, query string), as the
             # shell turns it into the engine's input

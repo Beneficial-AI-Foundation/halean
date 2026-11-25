@@ -1787,6 +1787,24 @@ def initArmed : EM Unit := do
   for (a, ai) in (← getE).automations.zipIdx do
     attachTriggers (.auto ai) a.triggers
 
+/-- `ServiceRegistry.async_call` with `return_response=True`: a response
+that is not a dict raises `HomeAssistantError` (`service_reponse_invalid`)
+in the calling step. The shell reports the handler's outcome; HA's own
+WebSocket API already applies this check, a shell running handlers itself
+may not. -/
+def checkResponse (w : Wait) (ok : Bool) (kind : ErrKind) (msg : String) (resp : Json) :
+    Bool × ErrKind × String :=
+  match w, ok, resp with
+  | .service _ _ (some _), true, .obj _ => (ok, kind, msg)
+  | .service _ _ (some _), true, v =>
+    let ty := match v with
+      | .null => "NoneType" | .bool _ => "bool" | .str _ => "str" | .arr _ => "list"
+      | .num n => if n.exponent == 0 then "int" else "float"
+      | .obj _ => "dict"
+    (false, .haError,
+      s!"Failed to process the returned action response data, expected a dictionary, but got <class '{ty}'>.")
+  | _, _, _ => (ok, kind, msg)
+
 def handle : Input → EM Unit
   | .init autos sts now loc => do
     setE { automations := autos, states := sts.map (fun s => (s.entityId, s)),
@@ -1810,6 +1828,7 @@ def handle : Input → EM Unit
         | .service c .. => c == cid
         | _ => false) |
       return  -- run was stopped meanwhile (restart): ignore
+    let (ok, kind, msg) := checkResponse r.wait ok kind msg resp
     match resumeService r ok kind msg (Template.Value.ofJson resp) with
     | .next r' => setE (replaceRun e r'); drive r'
     | .blocked r' | .spawn r' .. => setE (replaceRun e r')  -- not produced by resumeService

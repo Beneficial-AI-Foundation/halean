@@ -1,0 +1,25 @@
+# A call that asks for a response (`response_variable`) and gets none, or
+# one that is not a dict, raises HomeAssistantError (`service_reponse_invalid`)
+# in the calling step: the run stops, unless the step has
+# `continue_on_error`. Review item T2.
+automations:
+  - id: strict
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - action: a.one
+        response_variable: r
+      - action: a.after_one
+  - id: lenient
+    triggers: [{trigger: event, event_type: go2}]
+    actions:
+      - action: a.two
+        response_variable: r
+        continue_on_error: true
+      - action: a.after_two
+        data: {defined: "{{ r is defined }}"}
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: call_service, service: one}]}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: true}, expect: []}
+  - {at: 3, send: {type: event, event_type: go2}, expect: [{type: automation_triggered}, {type: call_service, service: two}]}
+  - {at: 4, send: {type: service_result, call_id: 1, ok: true, response: [1, 2]},
+     expect: [{type: call_service, service: after_two, data: {defined: false}}]}
