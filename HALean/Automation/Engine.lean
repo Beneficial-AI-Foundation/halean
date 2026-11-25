@@ -1434,11 +1434,13 @@ def onEvent (ty : String) (data : Json) : EM Unit := do
       if !(← getE).listening o then break
       match t.kind with
       | .event types want =>
-        if types.contains ty && eventDataMatches want data then
-          fire o {
-            id := t.id, idx := t.idx, platform := "event",
-            description := s!"event '{ty}'",
-            value := triggerValue t "event" [("event", ev), ("description", .str s!"event '{ty}'")] }
+        -- one bus listener per listed type, so a type listed twice fires twice
+        for ty' in types do
+          if ty' == ty && eventDataMatches want data && (← getE).listening o then
+            fire o {
+              id := t.id, idx := t.idx, platform := "event",
+              description := s!"event '{ty}'",
+              value := triggerValue t "event" [("event", ev), ("description", .str s!"event '{ty}'")] }
       | .haStart =>
         -- `homeassistant/triggers/homeassistant.py`: `async_listen_once`
         let e ← getE

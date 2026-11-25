@@ -94,8 +94,25 @@ theorem onEvent_no_match (ty : String) (data : Json) (e : Engine) (acc : List Cm
       · have := h p hp t ht
         cases hk : t.kind <;> simp only [hk, IgnoresEvent] at this
         case event types want =>
-          simp only [this, Bool.false_eq_true, ite_false]
-          rfl
+          simp only
+          apply bind_state_inv
+          · apply forIn_state_inv
+            intro ty' hty' b''
+            apply bind_state_inv
+            · rfl
+            · intro d'
+              have hne : (ty' == ty && eventDataMatches want data) = false := by
+                cases hq : (ty' == ty)
+                · rfl
+                · have heq : ty' = ty := beq_iff_eq.mp hq
+                  subst heq
+                  have hc : types.contains ty' = true := by simpa using hty'
+                  have h3 := this
+                  rw [hc, Bool.true_and] at h3
+                  simp [h3]
+              simp only [hne, Bool.false_and, Bool.false_eq_true, ite_false]
+              rfl
+          · intro _; rfl
         case haStart =>
           have hb : (ty == "homeassistant_started") = false := by simpa using this
           simp only [hb, Bool.false_and, Bool.false_eq_true, ite_false]

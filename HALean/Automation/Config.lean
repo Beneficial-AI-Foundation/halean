@@ -925,6 +925,11 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
         | v => throw s!"invalid event_type {v.compress}"
       if types.isEmpty then throw "event trigger needs an event_type"
       if types.contains "state_reported" then throw "Can't listen to state_reported in event trigger"
+      -- HA delivers `state_changed` of every entity to such a trigger,
+      -- including the automation entities' own state writes, which the
+      -- engine does not see as events
+      if types.contains "state_changed" then
+        throw "an event trigger on state_changed is not supported by HALean (use a state trigger)"
       let data ← match field? j "event_data" with
         | none => pure []
         | some d@(.obj _) =>
