@@ -43,11 +43,12 @@ HALEAN_BIN=/tmp/claude-0/halean-copies/<copy>/.lake/build/bin /opt/havenv/bin/py
 | `harness/test_core_ha_only.py` | Review addition. Runs `cases/refused/*.yaml` on HA only (with the shipped `Runner`), asks the engine too, prints both. It asserts nothing. Used to get HA's answer for operations HALean answers `unsupported` (the shipped harness skips HA for those). |
 | `cases/services/registry_review.yaml` | 42 hand-written registry cases |
 | `cases/hass/*.yaml` | 63 hand-written joined-core cases (`nested_calls`, `registry_midcall`, `tasks`, `refusals`, `depth_chain`) |
-| `cases/refused/refused.yaml` | 7 cases for the HA-only runner |
+| `cases/refused/refused.yaml` | 8 cases for the HA-only runner |
 | `gen/gen_core.py`, `gen/gen_services.py` | seeded random generators (docstrings explain the design). Seeds: core 101, 202; services 11, 22. |
+| `gen/coverage.py` | replays generated core cases on the engine alone and counts trace entries by kind (`logs/run1-random-core-coverage.log`) |
 | `gen/out-run1/`, `gen/out-run2/` | the generated case files and their `*.summary.json` (counts, and how many operations the engine refused, per reason) |
 | `logs/` | every run log |
-| `patches/REG-1.patch`, `REG-2.patch`, `REG-3.patch` + `*.test.log` | patches tested in a throwaway copy, with the shipped suites `test_services.py`, `test_core.py`, `test_events.py`, `test_states.py` and the reproducers |
+| `patches/REG-1.patch`, `REG-2.patch`, `REG-3.patch`, `HASS-1.patch` + `*.test.log` | patches tested in a throwaway copy (`/tmp/claude-0/halean-copies/04-core-registry-hass-1`, deleted afterwards), with the shipped suites `test_services.py`, `test_core.py`, `test_events.py`, `test_states.py` and the reproducers. `patches/HASS-1-cases/depth.yaml`: the refused call chains without `unsupported: true`, used for the HASS-1 patch. |
 | `mutations/M1..M3-*.patch` + `*.test_core.log`, `M0-unmutated-baseline.test_core.log` | the three README scheduler claims |
 | `side-by-side.md` | reading comparison |
 | `FINDINGS.md` | result |
@@ -60,6 +61,11 @@ the core, a case is also cut where the model's `block_till_done` cannot return (
 are counted in `gen/out-run<n>/*/*.summary.json`. The pre-screen takes nothing else from the engine. It means a
 generated file depends on the engine binary as well as on the seed; `run_all.sh` regenerates on every run and
 `logs/run2-gen-diff.log` records that run 2 produced the same files as run 1.
+
+To reproduce a patch or mutation: `cp -a /home/user/halean /tmp/claude-0/halean-copies/<name>`, `git apply <patch>` there,
+`lake build halean-core halean-core-services`, then
+`/opt/havenv/bin/python -m pytest tests/differential/test_core.py -p no:cacheprovider -q` in the copy (mutations), or the four
+shipped suites plus `HALEAN_BIN=<copy>/.lake/build/bin pytest harness/... -k <reproducer>` (patches).
 
 `gen_core.py` keeps cases finite by ranking event types and services: a script only fires events and calls
 services of a higher rank than the one it is attached to. An engine answer that takes longer than 20 s drops the
