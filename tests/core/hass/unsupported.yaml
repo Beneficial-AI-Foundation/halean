@@ -11,6 +11,11 @@
     - {op: fire, event_type: x, time_fired: 1795710645000000, unsupported: true}
     - {op: set, entity_id: light.é, state: "on", unsupported: true}
     - {op: call, domain: tést, service: x, unsupported: true}
+    # probatio refuses AtLeastOne() with no keys when the schema is built
+    - {op: register, domain: test, service: s, handler: {return: null},
+       schema: {fields: [{key: a, value: {at_least_one: []}}]}, unsupported: true}
+    # repr() escapes U+200B (not printable); not modelled
+    - {op: call, domain: test, service: "x", data: {a: "a​b"}, unsupported: true}
     - op: listen
       id: a
       event_type: x

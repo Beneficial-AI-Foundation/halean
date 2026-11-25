@@ -23,6 +23,20 @@
     - {op: set, entity_id: light.a, state: "on", attributes: {brightness: 10}, expect: {deliveries: []}}
     - {op: set, entity_id: light.a, state: "off", now: 1795710646000000}
 
+- name: float_states_as_json_loads_reads_them
+  # review C1, C2: `1e+16` is a float and -0.0 keeps its sign, also when a
+  # listener sets the state
+  ops:
+    - op: listen
+      id: follow
+      event_type: state_changed
+      filter: {eq: {entity_id: sensor.a}}
+      react:
+        - set: {entity_id: sensor.b, state: -0.0}
+    - {op: set, entity_id: sensor.a, state: 1.0e+16}
+    - {op: get, entity_id: sensor.a}
+    - {op: get, entity_id: sensor.b}
+
 - name: chain_of_listeners
   # a -> b -> c, each step queued behind the dispatch of the previous change;
   # contexts are inherited along the chain

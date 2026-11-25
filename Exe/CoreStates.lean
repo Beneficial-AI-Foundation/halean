@@ -26,6 +26,7 @@
     {"unsupported": "..."}                            -- not translated: rejected
 -/
 import HALean.Core.StateMachine
+import HALean.Core.PyJson
 open Lean HALean HALean.Core HALean.Core.StateMachine
 
 def getStr (j : Json) (k : String) : Except String String :=
@@ -100,7 +101,10 @@ def inspectJson (s : State) : Json :=
 /-- The outcome of one operation: a result and events, or an error. -/
 abbrev Outcome := Except SMError (Json × StateMachine × List SMEvent)
 
-def runOp (sm : StateMachine) (j : Json) : Except String Outcome := do
+/-- `pv` is the same line as `json.loads` reads it (`HALean.Core.parsePyJson`):
+the new state of `set` comes from it, so `1e+16` stays a float and `-0.0`
+keeps its sign (Lean's `Json` has neither distinction). -/
+def runOp (sm : StateMachine) (pv : HALean.Template.Value) (j : Json) : Except String Outcome := do
   let op ← getStr j "op"
   let pureR (r : Except SMError Json) : Outcome := r.map fun v => (v, sm, [])
   match op with
@@ -112,7 +116,7 @@ def runOp (sm : StateMachine) (j : Json) : Except String Outcome := do
     let ctx ← getContext j
     let now ← getNow j
     if op == "set" then
-      let st ← (j.getObjVal? "state").mapError (fun _ => "'state' is required")
+      let some st := pv.get? "state" | throw "'state' is required"
       pure ((sm.asyncSet eid st attrs force ctx now).map fun (sm, ev) => (.null, sm, ev))
     else
       let st ← getStr j "state"
@@ -150,7 +154,7 @@ def runOp (sm : StateMachine) (j : Json) : Except String Outcome := do
   | _ => throw s!"unknown op '{op}'"
 
 def handleLine (sm : StateMachine) (line : String) : StateMachine × Json :=
-  match Json.parse line >>= runOp sm with
+  match (do runOp sm (← parsePyJson line) (← Json.parse line)) with
   | .error e => (sm, Json.mkObj [("unsupported", .str e)])
   | .ok (.error (.unsupported m)) => (sm, Json.mkObj [("unsupported", .str m)])
   | .ok (.error e) => (sm, Json.mkObj [("error", errorJson e), ("events", .arr #[])])

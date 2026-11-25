@@ -227,12 +227,14 @@ def validateState (state : String) : Except SMError Unit :=
 
 /-- `StateMachine.async_set`: `str(new_state)`, `validate_state`, then
 `async_set_internal` with the lower-cased id and `attributes or {}`.
-`timestamp` is `timestamp or time.time()`, chosen by the caller. -/
-def asyncSet (sm : StateMachine) (entityId : String) (newState : Json) (attributes : Option Json)
+`timestamp` is `timestamp or time.time()`, chosen by the caller. The new
+state is a Python value (`Value`, as `json.loads` reads it), so a float such
+as `1e+16` or `-0.0` prints as Python prints it. -/
+def asyncSet (sm : StateMachine) (entityId : String) (newState : Value) (attributes : Option Json)
     (forceUpdate : Bool) (context : Option Context) (timestamp : Int) :
     Except SMError (StateMachine × List SMEvent) := do
   checkAscii "entity_id" entityId
-  let state ← match pyStr (Value.ofJson newState) with
+  let state ← match pyStr newState with
     | .ok s => pure s
     | .error e => throw (.unsupported s!"str() of the new state: {e}")
   validateState state
