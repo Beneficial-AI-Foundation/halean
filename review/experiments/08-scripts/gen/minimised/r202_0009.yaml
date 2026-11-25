@@ -1,0 +1,47 @@
+description: random scenario seed=202 index=9
+scripts:
+  s0:
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+    - action: script.s1
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+  s2:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then: []
+      else:
+      - action: script.s1
+    - parallel:
+      - event: mark
+        event_data:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s2'') }}'
+          cur: '{{ state_attr(''script.s2'', ''current'') }}'
+steps:
+- at: 7
+  call: s2
+  data:
+    v: 1
+- at: 7
+  call: s0
+  return_response: true

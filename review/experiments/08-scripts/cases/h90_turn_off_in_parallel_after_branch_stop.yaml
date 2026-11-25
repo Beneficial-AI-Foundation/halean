@@ -1,0 +1,18 @@
+description: >
+  A parallel step: one branch is in a delay, the other already ended with `stop` and a response. The
+  script is turned off. HA's gather returns, and the finished branch's stop is raised: the caller gets
+  the response. (Minimised from random case r202_0074.)
+scripts:
+  p:
+    sequence:
+      - variables:
+          out: {v: 1}
+      - parallel:
+          - delay: 5
+          - stop: done
+            response_variable: out
+      - event: p_never
+steps:
+  - {at: 1, call: p, return_response: true}
+  - {at: 2, call: turn_off, data: {entity_id: script.p}}
+  - {at: 7}

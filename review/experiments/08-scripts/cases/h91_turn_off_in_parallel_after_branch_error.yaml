@@ -1,0 +1,15 @@
+description: >
+  A parallel step: one branch is in a delay, the other already failed in a service call. The script is
+  turned off. HA's gather returns, and the failed branch's error is raised to the caller.
+scripts:
+  p:
+    sequence:
+      - parallel:
+          - delay: 5
+          - action: test.fails
+      - event: p_never
+steps:
+  - {at: 1, call: p}
+  - {at: 2, result: 0, ok: false, error_kind: ha_error}
+  - {at: 3, call: turn_off, data: {entity_id: script.p}}
+  - {at: 8}

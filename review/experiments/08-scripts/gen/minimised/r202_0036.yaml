@@ -1,0 +1,29 @@
+description: random scenario seed=202 index=36
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - parallel:
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - sequence:
+        - action: test.m
+          data:
+            id: s0.2
+            v: '{{ v | default(0) }}'
+steps:
+- at: 7
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    - script.s2

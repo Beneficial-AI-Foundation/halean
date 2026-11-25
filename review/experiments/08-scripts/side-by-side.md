@@ -89,6 +89,11 @@ Covered in sections 3, 4 and 6. Summary of what the reading found and the cases 
   that were scheduled before the stop still run their first steps (case `h81`, SCR-5).
 * `stoppedQuietly` (`Engine.lean:550-553`) agrees with HA for delays, waits, `parallel`, nested sequences
   and queued runs (cases `h33`-`h36`, `h62`, `h63`), except SCR-6.
+* A run stopped in a top-level `parallel` step always ends quietly in HALean (`stoppedQuietly`, the
+  `.joinPar` case). Upstream `_async_step_parallel` (`helpers/script.py:714-731`) goes through the results
+  of `gather` after the stop and raises the first one that is an `Exception`: a branch that had already
+  ended with `stop` gives the run its response, a branch that had failed gives the caller its error (cases
+  `h90`, `h91`, SCR-19).
 * Performance, not behaviour: a parallel script that calls itself three times recurses until `max` runs
   exist (`perf/perf6.yaml`, `perf/perf8.yaml`; both sides agree on the result). With `max: 8` halean-script
   alone needs 4.0 s for 9841 `script_started` events and 0.12 s for 1093 with `max: 6`; the harness test

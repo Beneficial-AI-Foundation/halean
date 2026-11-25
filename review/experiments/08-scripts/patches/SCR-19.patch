@@ -1,0 +1,30 @@
+diff --git a/HALean/Automation/Engine.lean b/HALean/Automation/Engine.lean
+index 82637a7..0c06ecb 100644
+--- a/HALean/Automation/Engine.lean
++++ b/HALean/Automation/Engine.lean
+@@ -788,7 +788,24 @@ def stopRunH (h : Handlers) (id : Nat) (release : Bool := true) : EM Unit := do
+   -- a run stopped before it started still runs, sees `_stop` before its
+   -- first step and returns `None`
+   if let some c := r.caller then
+-    h.answer c (if stoppedQuietly r || e.starting.contains id then .ok .none else .cancelled)
++    -- a run stopped in a top-level `parallel`: `gather` returns, and the first
++    -- finished branch that raised re-raises (`for result in results: if
++    -- isinstance(result, Exception): raise result`): a `stop` gives its
++    -- response, an error goes to the caller unless `continue_on_error` takes it
++    let raised : Option RunEnd := match r.wait with
++      | .joinPar ids results _ =>
++        if r.frames.length ≤ 1 then
++          ids.findSome? fun i => (results.find? (·.1 == i)).bind fun (_, x) =>
++            if x.raises then some x else none
++        else none
++      | _ => none
++    let coe := match r.wait with | .joinPar _ _ c => c | _ => false
++    let res : CallRes := match raised with
++      | some (.stopped _ resp) => .ok resp
++      | some (.error k m) => if coe && k == .haError then .ok .none else .err k m
++      | some _ => .ok .none
++      | none => if stoppedQuietly r || e.starting.contains id then .ok .none else .cancelled
++    h.answer c res
+   if release then h.releaseQueue r.autoIdx
+ 
+ /-- `asyncio.CancelledError` raised in run `rid` where it waits for a call

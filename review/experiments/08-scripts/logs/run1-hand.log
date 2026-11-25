@@ -1,5 +1,5 @@
-.....FFF....F..F.FF.F...................F...........F.................E. [ 80%]
-..F.FFFFFFFFFFFF.                                                        [100%]
+.....FFF....F..F.FF.F...................F...........F.................E. [ 78%]
+..F.FFFFFFFFFFFF.FF                                                      [100%]
 ==================================== ERRORS ====================================
 ___ ERROR at teardown of test_script_scenario[h71_error_in_turned_on_script] ___
 harness/test_scripts.py:128: in handler
@@ -1234,6 +1234,94 @@ WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1768' co
 INFO     homeassistant.components.script.s:script.py:2301 s: Running script sequence
 WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1768' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
 ERROR    homeassistant.components.script.s:script.py:2301 s: Error executing script. Error for call_service at pos 1: Failed to process the returned action response data, expected a dictionary, but got <class 'NoneType'>
+_______ test_script_scenario[h90_turn_off_in_parallel_after_branch_stop] _______
+harness/test_scripts.py:240: in test_script_scenario
+    assert not diffs, "HA and HALean disagree:\n  " + "\n  ".join(diffs)
+E   AssertionError: HA and HALean disagree:
+E       step at=2
+E         HA:     {'call_service': [], 'fire_event': [], 'call_done': [[0, True, {'v': 1}], [1, True, None]], 'states': {'script.p': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'p'}]}}
+E         HALean: {'call_service': [], 'fire_event': [], 'call_done': [[0, True, {}], [1, True, None]], 'states': {'script.p': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'p'}]}}
+E   assert not ["step at=2\n    HA:     {'call_service': [], 'fire_event': [], 'call_done': [[0, True, {'v': 1}], [1, True, None]], '....p': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'p'}]}}"]
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded script from homeassistant.components.script
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.setup:Setting up script
+INFO:homeassistant.helpers.entity_registry:Registered new script.script entity: script.p
+WARNING:asyncio:Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.script.p:p: Running script sequence
+INFO:homeassistant.components.script.p:p: Parallel action at step 2: parallel 2: Stop script sequence: done
+WARNING:asyncio:Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded script from homeassistant.components.script
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.setup:setup.py:393 Setting up script
+INFO     homeassistant.helpers.entity_registry:entity_registry.py:1715 Registered new script.script entity: script.p
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.script.p:script.py:2301 p: Running script sequence
+INFO     homeassistant.components.script.p:script.py:2301 p: Parallel action at step 2: parallel 2: Stop script sequence: done
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1809' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+______ test_script_scenario[h91_turn_off_in_parallel_after_branch_error] _______
+harness/test_scripts.py:240: in test_script_scenario
+    assert not diffs, "HA and HALean disagree:\n  " + "\n  ".join(diffs)
+E   AssertionError: HA and HALean disagree:
+E       step at=3
+E         HA:     {'call_service': [], 'fire_event': [], 'call_done': [[0, False, 'ha_error'], [1, True, None]], 'states': {'script.p': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'p'}]}}
+E         HALean: {'call_service': [], 'fire_event': [], 'call_done': [[0, True, None], [1, True, None]], 'states': {'script.p': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'p'}]}}
+E   assert not ["step at=3\n    HA:     {'call_service': [], 'fire_event': [], 'call_done': [[0, False, 'ha_error'], [1, True, None]]....p': ['off', {'last_triggered': '2023-11-14T22:13:21+00:00', 'mode': 'single', 'current': 0, 'friendly_name': 'p'}]}}"]
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded script from homeassistant.components.script
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.setup:Setting up script
+INFO:homeassistant.helpers.entity_registry:Registered new script.script entity: script.p
+WARNING:asyncio:Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.script.p:p: Running script sequence
+WARNING:asyncio:Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+ERROR:homeassistant.components.script.p:p: Parallel action at step 1: parallel 2: Error executing script. Error for call_service at pos 1: failed
+WARNING:asyncio:Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+ERROR:homeassistant.components.script.p:p: Error executing script. Error for parallel at pos 1: failed
+WARNING:asyncio:Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded script from homeassistant.components.script
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.setup:setup.py:393 Setting up script
+INFO     homeassistant.helpers.entity_registry:entity_registry.py:1715 Registered new script.script entity: script.p
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.script.p:script.py:2301 p: Running script sequence
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+ERROR    homeassistant.components.script.p:script.py:2301 p: Parallel action at step 1: parallel 2: Error executing script. Error for call_service at pos 1: failed
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+ERROR    homeassistant.components.script.p:script.py:2301 p: Error executing script. Error for parallel at pos 1: failed
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-1834' coro=<test_script_scenario() running at /home/user/halean/review/experiments/08-scripts/harness/test_scripts.py:170> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
 =========================== short test summary info ============================
 FAILED harness/test_scripts.py::test_script_scenario[h06_turn_on_invalid_entity_id]
 FAILED harness/test_scripts.py::test_script_scenario[h07_turn_off_group_target]
@@ -1258,5 +1346,7 @@ FAILED harness/test_scripts.py::test_script_scenario[h85_stopped_inside_own_turn
 FAILED harness/test_scripts.py::test_script_scenario[h86_same_tick_nested_end_vs_turn_off]
 FAILED harness/test_scripts.py::test_script_scenario[h87_same_tick_two_delays_order]
 FAILED harness/test_scripts.py::test_script_scenario[h88_service_ok_without_response]
+FAILED harness/test_scripts.py::test_script_scenario[h90_turn_off_in_parallel_after_branch_stop]
+FAILED harness/test_scripts.py::test_script_scenario[h91_turn_off_in_parallel_after_branch_error]
 ERROR harness/test_scripts.py::test_script_scenario[h71_error_in_turned_on_script]
-23 failed, 65 passed, 1 error in 12.61s
+25 failed, 65 passed, 1 error in 13.16s
