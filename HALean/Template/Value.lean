@@ -288,6 +288,8 @@ def truthy : Value → Bool
   | .dict kvs => !kvs.isEmpty
   | .range a b c => !(rangeItems a b c).isEmpty
   | .timedelta us => us != 0
+  -- `trigger.data` / `trigger.query` of a webhook: empty when it has no items
+  | .pyobj "MultiDictProxy" fs => !fs.isEmpty
   | _ => true
 
 /-- Numbers as Python sees them (`bool` is an `int`). -/

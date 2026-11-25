@@ -292,6 +292,10 @@ def STR_METHODS : List String :=
   ["lower", "upper", "strip", "lstrip", "rstrip", "split", "startswith", "endswith", "replace",
    "title", "capitalize"]
 
+/-- The public methods of `multidict.MultiDictProxy`. -/
+def MULTIDICT_METHODS : List String :=
+  ["copy", "get", "getall", "getone", "items", "keys", "to_dict", "values"]
+
 def getattrV (ctx : Ctx) (v : Value) (a : String) : R Value := do
   if a.startsWith "_" then throw s!"access to attribute '{a}' is unsafe"
   match v with
@@ -313,7 +317,12 @@ def getattrV (ctx : Ctx) (v : Value) (a : String) : R Value := do
     let fields := (← get).heap.getD id []
     pure ((fields.find? (·.1 == a)).map (·.2) |>.getD (.undef s!"'Namespace' has no attribute '{a}'"))
   | .none => pure (.undef s!"'None' has no attribute '{a}'")
-  | .pyobj c fs => pure ((fs.find? (·.1 == a)).map (·.2) |>.getD (.undef s!"'{c}' has no attribute '{a}'"))
+  | .pyobj c fs =>
+    -- a webhook's `MultiDictProxy`: a key is read like `md[key]` (its first
+    -- value); its methods are not modelled
+    if c == "MultiDictProxy" && MULTIDICT_METHODS.contains a then
+      throw s!"MultiDictProxy.{a} is not supported by HALean"
+    pure ((fs.find? (·.1 == a)).map (·.2) |>.getD (.undef s!"'{c}' has no attribute '{a}'"))
   | .datetime us off =>
     let c := toCivil (wallOf us off)
     match a with
@@ -425,6 +434,7 @@ def iterV (ctx : Ctx) (v : Value) : R (List Value) :=
   | .dict kvs => pure (kvs.map (·.1))
   | .undef _ => pure []
   | .opaque w => throw s!"{w} values are not supported by HALean"
+  | .pyobj "MultiDictProxy" _ => throw "iterating a MultiDictProxy is not supported by HALean"
   | v => throw s!"'{typeName v}' object is not iterable"
 
 def lenV (ctx : Ctx) (v : Value) : R Int :=
@@ -437,6 +447,7 @@ def lenV (ctx : Ctx) (v : Value) : R Int :=
   | .dict kvs => pure kvs.length
   | .undef _ => pure 0
   | .opaque w => throw s!"{w} values are not supported by HALean"
+  | .pyobj "MultiDictProxy" _ => throw "len() of a MultiDictProxy is not supported by HALean"
   | v => throw s!"object of type '{typeName v}' has no len()"
 
 /-- Python `x in c` -/
@@ -447,6 +458,9 @@ def containsV (ctx : Ctx) (c x : Value) : R Bool := do
     | _ => throw s!"'in <string>' requires string as left operand, not {typeName x}"
   | .dict kvs => pure ((lookupKV kvs x).isSome)
   | .undef _ => pure false
+  | .pyobj "MultiDictProxy" fs => match x with
+    | .str k => pure (fs.any (·.1 == k))
+    | _ => pure false
   | c => do pure ((← iterV ctx c).any (pyEq · x))
 
 /-! ## Dates and times (`helpers/template/extensions/datetime.py`, `util/dt.py`) -/

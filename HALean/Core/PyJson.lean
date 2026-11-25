@@ -168,6 +168,19 @@ def parsePyJson (s : String) : Except String Value := do
   if st.pos < st.cs.size then throw "extra data after JSON value"
   return v
 
+/-- orjson's limits on a parsed value: an integer outside `i64`/`u64` is read
+as a float, and a float that overflows is an error. -/
+private partial def orjsonFix : Value → Except String Value
+  | .int i => if -(2 ^ 63 : Int) ≤ i && i ≤ (2 ^ 64 - 1 : Int) then pure (.int i) else pure (.float (intToFloat i))
+  | .float f => if f.isInf then throw "number out of range" else pure (.float f)
+  | .list xs => do pure (.list (← xs.mapM orjsonFix))
+  | .dict kvs => do pure (.dict (← kvs.mapM fun (k, v) => do pure (k, ← orjsonFix v)))
+  | v => pure v
+
+/-- `homeassistant.util.json.json_loads` (`orjson.loads`). -/
+def orjsonLoads (s : String) : Except String Value := do
+  orjsonFix (← parsePyJson s)
+
 /-- The string-keyed items of a dict value. -/
 def _root_.HALean.Template.Value.strItems? : Value → Option (List (String × Value))
   | .dict kvs => kvs.mapM fun (k, v) => match k with
