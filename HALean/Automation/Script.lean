@@ -365,13 +365,16 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
             | some (_, resp) => (.done (.stopped reason resp), [], ctx)
             | none => (.done (.aborted s!"Response variable '{v}' is not defined"), [], ctx)
           | none => (.done (.stopped reason), [], ctx)
-      | .event t data =>
-        -- `_async_step_event`: a template error is logged and the event is
-        -- fired with the data rendered so far (none).
-        match renderComplex env data with
-        | .ok dj => (.next r', [.fireEvent t dj], ctx)
-        | .error e => (.next r', [.log "error" s!"Error rendering event data template: {e}",
-                                  .fireEvent t (Json.mkObj [])], ctx)
+      | .event t datas =>
+        -- `_async_step_event`: `event_data`, then `event_data_template`, each
+        -- merged in; one that fails to render is logged and left out
+        let (dj, logs) := datas.foldl (fun (acc, logs) c =>
+          match renderComplex env c with
+          | .ok (.obj kvs) => (kvs.toList.foldl (fun a (k, x) => a.setObjVal! k x) acc, logs)
+          | .ok _ => (acc, logs)
+          | .error e => (acc, logs ++ [Cmd.log "error" s!"Error rendering event data template: {e}"]))
+          (Json.mkObj [], [])
+        (.next r', logs ++ [.fireEvent t dj], ctx)
       | .sequence body => (.next (push (.seq body coe) cur), [], ctx)
       | .parallel [] => (.next r', [], ctx)
       | .parallel branches => (.spawn r' branches coe, [], ctx)

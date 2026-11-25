@@ -1,0 +1,23 @@
+# `event` action: event_data then the legacy event_data_template, merged in
+# that order; a source that fails to render is logged and left out
+automations:
+  - id: merged
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - event: merged
+        event_data: {a: 1, b: 1}
+        event_data_template: {b: "{{ 2 }}", c: "{{ 1 + 2 }}"}
+  - id: broken_template
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - event: broken
+        event_data: {a: 1}
+        event_data_template: {b: "{{ 1 / 0 }}"}
+steps:
+  - at: 1
+    send: {type: event, event_type: go}
+    expect:
+      - {type: automation_triggered}
+      - {type: fire_event, event_type: merged, data: {a: 1, b: 2, c: 3}}
+      - {type: automation_triggered}
+      - {type: fire_event, event_type: broken, data: {a: 1}}

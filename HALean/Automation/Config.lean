@@ -170,7 +170,8 @@ inductive Action where
   | repeatUntil (conds : List Condition) (body : List Action)
   /-- `respVar`: the `response_variable` whose value the stop returns. -/
   | stop (reason : String) (error : Bool) (respVar : Option String)
-  | event (eventType : String) (data : Complex)
+  /-- `event_data` then `event_data_template`, merged in that order. -/
+  | event (eventType : String) (data : List Complex)
   | sequence (body : List Action)
   /-- `wait_template` with an optional `timeout` (`cv.positive_time_period_template`,
   rendered when the step runs) and `continue_on_timeout` (default true). -/
@@ -823,12 +824,13 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
     if err && rv.isSome then throw "'response_variable' cannot be used with 'error: true'"
     return wrap (.stop s err rv)
   if let some e := str? j "event" then
-    noTemplate j "event_data_template"
-    let data ← match field? j "event_data" with
-      | none => pure (Json.mkObj [])
-      | some d@(.obj _) => pure d
-      | some _ => throw "event_data must be a mapping"
-    return wrap (.event e (← decodeComplex data nm))
+    -- `event_data` / `event_data_template`: `probatio.All(dict, template_complex)`
+    let src (k : String) : D (List Complex) := do
+      match field? j k with
+      | none => pure []
+      | some d@(.obj _) => pure [← decodeComplex d nm]
+      | some _ => throw s!"{k} must be a mapping"
+    return wrap (.event e ((← src "event_data") ++ (← src "event_data_template")))
   if has j "sequence" then return wrap (.sequence (← seq "sequence"))
   if let some ps := field? j "parallel" then
     -- each item is a `sequence:` mapping (`_SCRIPT_SEQUENCE_SCHEMA`) or a
