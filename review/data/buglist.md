@@ -1,0 +1,103 @@
+| ID | Area | Bug | Kind | Patched |
+|---|---|---|---|---|
+| ST-1 | State machine | A JSON float of 1e16 or more is read as an int: state `1e+16` becomes `10000000000000000`, `1.5e+300` raises `InvalidStateError`, attribute equality is wrong both ways (`1e23` vs `10**23`). README 294-295 documents a narrower case. | Silent | no |
+| ST-2 | State machine | State `-0.0` becomes `"0.0"`. | Silent | no |
+| ST-3 | State machine | `async_set_internal` with a Unicode-digit id answers `InvalidEntityFormatError` (an HA error class) where HA creates the entity; the documented answer for non-ASCII ids is `unsupported`. | Refuses | yes |
+| ST-6 | State machine | Driver reads a non-bool `force_update` (`1`) as false. | Tooling | yes |
+| ST-10 | State machine | Lone surrogates become U+FFFD in the drivers, so different strings compare equal (state, attributes, event type). | Silent | no |
+| BUS-1 | Event bus | Generated-context numbering counts events only HA's own listeners saw (`#1` where the harness has `#0`). | Tooling | yes |
+| BUS-2 | Event bus | `Filter.eq` compares decimal text: `1e23 == 10**23` is true in HALean, false in Python. | Silent | no |
+| REG-1 | Service registry | `ServiceNotFound` message: a domain containing `{service}` is substituted twice. | Silent | yes |
+| REG-2 | Service registry | Driver keeps `Context(id="")` as id `''`; HA draws a fresh ULID. | Silent | yes |
+| REG-3 | Service registry | Handler spec with more than one of `return`/`echo`/`raise`: driver and shipped harness pick different ones. | Tooling | yes |
+| SCH-1 | Service schemas | `float()` of text with a huge exponent (`"1e9999999999"`) kills the engine process (`INTERNAL PANIC: Nat.pow exponent is too big`); HA returns `inf`. Same root cause as TPL-47. | Refuses | yes |
+| SCH-3 | Service schemas | After a schema's 50th validation probatio's generated code raises `OverflowError` for `Coerce(float)` of an int ≥ 2^1024; HALean says `expected float`. README 648-652 says the generated path behaves like the interpreted one. | Silent | no |
+| SCH-4 | Service schemas | `TypeError` text for a timedelta in `cv.entity_ids`: `'timedelta' object is not iterable` vs HA's `'datetime.timedelta' object is not iterable`. Theorem `pyIter_error` states the model's text. | Silent | yes |
+| SCH-6 | Service schemas | Decoder accepts `at_least_one: []`; `probatio.AtLeastOne()` raises `SchemaError`. | Accepts | yes |
+| TPL-1 | Templates | String escapes `\ooo`, `\u`, `\U`, `\N{}` are not decoded (Jinja literals and `literal_eval`). | Silent | partial |
+| TPL-2 | Templates | Dict keys: equal keys are not merged; unhashable keys are accepted. | Silent | yes |
+| TPL-3 | Templates | `dict.keys()/values()/items()` are lists (HA: `dict_keys(...)`). | Silent | no |
+| TPL-4 | Templates | `bool()` of `states` / `states.<domain>` is always true and records no lifecycle; the `if value:` guard of map/select is missing. | Silent | yes |
+| TPL-5 | Templates | `last` / `reverse` over states objects differ (HA: None or an error). | Silent | no |
+| TPL-6 | Templates | The case-insensitive entity-id fallback of `hass.states.get` is missing in `states()`, `is_state`, `state_attr`, `has_value`, `states[...]`. | Silent | yes |
+| TPL-7 | Templates | Float `sum` is not compensated (Python ≥ 3.12): `[0.1, 0.2, 0.3, 1e100, -1e100] \| sum` is 0.6 in HA, 0.0 in HALean. | Silent | yes |
+| TPL-9 | Templates | Undefined inside a printed container prints as `''`, not `Undefined`. | Silent | yes |
+| TPL-10 | Templates | Namespace `repr` differs. | Silent | no |
+| TPL-11 | Templates | `loop` is a dict: repr, mapping test, length, iteration, `depth` differ; `cycle`/`changed` are missing; it is assignable. | Silent | no |
+| TPL-12 | Templates | for-else: HA runs `else` unless an iteration reached the end of the body (break/continue); HALean does not. | Silent | yes |
+| TPL-13 | Templates | Generators can be consumed twice. | Silent | no |
+| TPL-14 | Templates | Generators are evaluated eagerly: errors and RenderInfo for unconsumed items. | Silent | no |
+| TPL-15 | Templates | Tests `sequence` / `iterable` are wrong for range, generators, states, Undefined. | Silent | yes |
+| TPL-16 | Templates | `float()` / `is_number`: whitespace (`\v`, `\f`, `\x1c`-`\x1f`, NBSP) and Unicode digits. | Silent | no |
+| TPL-17 | Templates | `_parse_result`: `\d` matches Unicode digits in HA. | Silent | no |
+| TPL-18 | Templates | Static templates are stripped with an ASCII-only `trim`. | Silent | no |
+| TPL-19 | Templates | `title` filter: word break on `\s` vs four whitespace characters. | Silent | yes |
+| TPL-20 | Templates | `str.split(None, maxsplit)` strips the remainder. | Silent | yes |
+| TPL-21 | Templates | Float `//` and `%` with infinite operands. | Silent | yes |
+| TPL-22 | Templates | `timestamp_custom` default format is `%Y-%m-%d` (HA: `%Y-%m-%d %H:%M:%S`). | Silent | yes |
+| TPL-23 | Templates | `as_datetime('…T24:00:00')` gives None (ciso8601 gives the next day). The patch turns it into a refusal. | Silent | yes |
+| TPL-24 | Templates | `strftime` `%Y` / `%F` are not zero-padded below year 1000. | Silent | yes |
+| TPL-26 | Templates | JSON numbers with an exponent (`1e+20`) become ints (variables, attributes). Same root cause as ST-1. | Silent | no |
+| TPL-28 | Templates | `literal_eval` results: set becomes a list; bytes, `...`, `set()` stay strings; a complex in a container is an error. | Silent | no |
+| TPL-29 | Templates | `literal_eval` accepts nested unary signs inside containers. | Silent | yes |
+| TPL-30 | Templates | Lexer accepts `.5` and `007`. | Accepts | yes |
+| TPL-31 | Templates | Parser accepts invalid Jinja: a conditional expression in an `if` test, assignment to `none`/`true`/`loop`, break/continue outside a loop. | Accepts | partial |
+| TPL-32 | Templates | `OverflowError` (int to float, float pow, round precision, timedelta range) and the 4300-digit int/str limit are not raised. | Accepts | partial |
+| TPL-33 | Templates | Argument counts and keywords are not checked (filters, tests, functions, methods); `startswith(x, start)` ignores `start` (a different value). | Accepts | no |
+| TPL-34 | Templates | A non-string / Undefined entity id returns False/None where HA raises. | Accepts | yes |
+| TPL-35 | Templates | `sum(start='')` over strings is accepted. | Accepts | yes |
+| TPL-36 | Templates | `timestamp_local/utc/custom` are accepted as global functions. | Accepts | yes |
+| TPL-37 | Templates | Errors HA does not catch (`OverflowError`/`OSError` of `fromtimestamp`, Undefined) are treated as "use default". | Accepts | no |
+| TPL-38 | Templates | Jinja compile-time constant folding: `'x' \| states` records no entity in HA; `'nan' \| float` in `set` is a NameError in HA. | Accepts | no |
+| TPL-47 | Templates | Huge float exponent: `'1e1000000000' \| float` takes 27 s; `1e4000000000` aborts the engine. Same root cause as SCH-1. | Refuses | yes |
+| AUT-1 | Automation engine | `restart` with a live run: HA starts the new run one loop iteration later; HALean starts it at once and runs extra actions. | Silent | partial |
+| AUT-2 | Automation engine | State trigger `to`/`from: "*"` is match-all in HA, literal text in HALean. | Silent | yes |
+| AUT-3 | Automation engine | Attribute values are compared by JSON equality, not Python `==` (`1 == True == 1.0`). | Silent | yes |
+| AUT-4 | Automation engine | Entity ids in triggers/conditions are not lower-cased or validated. | Silent | yes |
+| AUT-5 | Automation engine | A duplicate entry in `entity_id` / `at` / `event_type` fires twice in HA, once in HALean. | Silent | yes |
+| AUT-6 | Automation engine | Static float `repeat.count`: `2.5` runs 25 times, `3.0` 30 times (HA: 2, 3). | Silent | yes |
+| AUT-7 | Automation engine | `continue_on_error` / stop `error` given as `"true"` or `1` are false in HALean. | Silent | yes |
+| AUT-8 | Automation engine | Assigning `repeat` inside a loop leaks to the run variables (HA: loop-local). | Silent | no |
+| AUT-9 | Automation engine | A time / time_pattern trigger for the second the automations load in fires in HA, never in HALean. | Silent | no |
+| AUT-10 | Automation engine | `initial_state: false` is ignored: the automation triggers. | Silent | yes |
+| AUT-11 | Automation engine | HA caches condition checkers by `str()` of their values (`state: 1` and `state: "1"` share one); HALean evaluates each. | Silent | no |
+| AUT-12 | Automation engine | `numeric_state` reads `"1_1"` and non-ASCII digits as non-numbers. | Silent | partial |
+| AUT-14 | Automation engine | Configs HA's schemas reject are run: unknown keys, missing required keys, `trigger`+`triggers`, invalid condition forms, `above > below`, `from`+`not_from`, bad weekday, int trigger `id` (also seen for script actions: SCR-11). | Accepts | no |
+| AUT-15 | Automation engine | Static time periods use an ad-hoc parser: accepts `{secs: 1}`, `{}`, `"0.5:00"`, `{weeks: 1}`; refuses `delay: true`. | Accepts | yes |
+| AUT-16 | Automation engine | Two automations with the same `id` both run (HA ignores the second). | Accepts | no |
+| AUT-21 | Automation engine | Shipped harness merges `data` over `target` (HA: target wins). | Tooling | no |
+| AUT-22 | Automation engine | Harness `_walk_actions` misses mapping-form `action:` and list-form parallel branches (services unregistered, events unobserved). | Tooling | no |
+| AUT-23 | Automation engine | Harness fires HA timers due in one tick in heap order and up to 0.5 s early. README 675-677 mentions part of it. | Tooling | no |
+| AUT-24 | Automation engine | Scenario format lets a call with `response_variable` be answered `ok` without a response; HA raises. | Tooling | no |
+| AUT-25 | Automation engine | `tests/run_scenarios.py::build` sends `state_changed` for a `set` that changes nothing; HA fires none. | Tooling | no |
+| AUT-26 | Automation engine | A run restarted while its `parallel` branches are scheduled but not started: HA still runs each branch to its first wait; HALean drops them. | Silent | no |
+| MAN-8 | Automation engine | Time condition with a timestamp sensor whose state is a date only (`2023-11-14`): HA says true, HALean silently says false. | Silent | no |
+| MAN-17 | Automation engine | A call to a missing service with `continue_on_error: true`: HA ends the run (`ServiceNotFound` is in `CONFIGURATION_ERRORS`); the bridge reports `not_found` as `ha_error` and the engine goes on. The shipped live test asserts the HALean behaviour. | Silent | no |
+| MAN-80 | Automation engine | A static `target.entity_id` is sent as written (`"Light.A, light.b"`); HA normalises it to `['light.a', 'light.b']` and rejects an invalid id at load. | Silent | no |
+| SCR-1 | Scripts | `turn_on`/`turn_off`/`toggle` with an invalid `entity_id` fails with kind `other`; HA gives `invalid` (the kind decides whether `continue_on_error` applies). | Silent | yes |
+| SCR-3 | Scripts | `metadata` of any type is accepted by `turn_on`; HA requires a dict. | Accepts | yes |
+| SCR-4 | Scripts | `toggle` decides start/stop for every target before acting; HA reads `is_on` when each target's turn comes. | Silent | yes |
+| SCR-5 | Scripts | A stop (`turn_off`, `toggle`, `restart`) is complete at once; in HA it takes event-loop iterations (other order, missing events, an extra run). | Silent | partial |
+| SCR-6 | Scripts | A run stopped from inside its own `script.turn_on` step is reported cancelled; in HA it ends quietly and its caller goes on. | Silent | no |
+| SCR-7 | Scripts | After the caller of a queued, waiting run is cancelled, HA keeps `current` one too high until the next write; HALean writes the exact count. | Silent | no |
+| SCR-8 | Scripts | Reload is one atomic step; in HA a waiting script resumes mid-reload and its call of the changed script is `ServiceNotFound`. | Silent | no |
+| SCR-9 | Scripts | `last_action` is readable by listing `states.script.x.attributes`; the load check only looks for the word. README 506 documents only the direct use. | Silent | no |
+| SCR-15 | Scripts | A `script.*` service HALean does not own is sent to HA; the harness has no HA to answer. | Tooling | no |
+| SCR-17 | Scripts | Two delays ending in the same harness tick: outcome and order follow asyncio's timer heap in the harness. | Tooling | no |
+| SCR-18 | Scripts | A `result` step without `response` for a call that asked for one: the harness's HA handler returns `None` and HA raises. | Tooling | no |
+| SCR-19 | Scripts | A run stopped in a top-level `parallel` step ends quietly; HA re-raises a finished branch's `stop` (response) or error. | Silent | yes |
+| HLP-1 | Helpers | `entity_id: all` runs the service on the entities of every helper domain (`input_boolean.toggle` on `all` resets counters). | Silent | yes |
+| HLP-2 | Helpers | `input_number`: HA keeps `-0.0` when `0.0` is set; HALean replaces it and fires `state_changed`. | Silent | yes |
+| HLP-3 | Helpers | A state longer than 255 characters is `unknown` in HA; HALean writes it. | Silent | yes |
+| HLP-4 | Helpers | `input_select`: the duplicate-options warning of a valid item is lost when another item makes the config invalid. | Silent | no |
+| HLP-5 | Helpers | Pattern with a quantifier after `$` (`a$*`): Python raises, HALean accepts. | Accepts | yes |
+| HLP-6 | Helpers | Pattern `{m}` / `{m,n}` with nothing to repeat: Python raises, HALean reads literals. | Accepts | yes |
+| HLP-7 | Helpers | Pattern with a class escape before `-` in a set (`[\d-z]`): Python raises, HALean accepts. | Accepts | yes |
+| HLP-8 | Helpers | Pattern `[]-a]`: a leading `]` starting a range is parsed as three literals. | Silent | yes |
+| HLP-9 | Helpers | `\s` does not match U+001C..U+001F, which Python's `\s` matches. | Silent | yes |
+| HLP-10 | Helpers | `input_text`: a non-ASCII initial or restored value against `\d \w \s` is matched with ASCII classes; the entity is silently not added. README 551 claims a refusal. | Silent | yes |
+| HLP-11 | Helpers | `input_number` restore: `float()` of Unicode digits or `\x0b`/`\x0c` padding gives `min` instead of the value. | Silent | yes |
+| HLP-13 | Helpers | Timer: start/change whose end leaves `datetime`'s range raises `OverflowError` in HA; HALean starts the timer. | Accepts | yes |
+| HLP-14 | Helpers | Timer restore: a `last_transition` that is not a string is dropped; HA keeps it. | Silent | yes |
+| HLP-15 | Helpers | `input_select` duplicate warning prints `''` instead of `<unnamed>` for `name: ""`. | Silent | yes |
+| HLP-16 | Helpers | An empty config key `""`: HA adds no entity, HALean adds `input_boolean.`. | Accepts | yes |

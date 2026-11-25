@@ -1,0 +1,46 @@
+ST-4	State machine	A dict state prints with sorted keys.	Silent	documented	README 294, 653
+ST-5	State machine	`repr` of non-printable non-ASCII characters inside a list or dict state is not escaped (same root as SCH-2, TPL-8, HLP-25).	Silent	documented (in the registry section)	README 348-349
+ST-7	State machine	Instants after 2242-03-16 (2^33 s): HA's float timestamp rounds to another microsecond.	Silent	documented	README 290-291
+ST-8	State machine	`NaN`/`Infinity` attribute values answered `unsupported`.	Refuses	documented	README 288, 350
+ST-9	State machine	Non-ASCII ids and `str` domain filters answered `unsupported`.	Refuses	documented	README 288
+REG-4	Service registry	Falsy non-dict `data`/`target` (`[]`) refused.	Refuses	documented	README 339
+HASS-1	Joined core	Service calls nested deeper than 32 refused. The README's reason is wrong: HA returns normally at 33, 41 and 151 nested calls.	Refuses	documented (reason false)	README 429
+HASS-2	Joined core	Core driver refuses a context with an empty id; HA accepts it.	Refuses	undocumented explicit refusal	none
+HASS-3	Joined core	A future resolved twice is refused.	Refuses	documented	README 429
+HASS-4	Joined core	Two failed tasks freed by one `block_till_done` check are refused.	Refuses	documented	README 429
+SCH-2	Service schemas	`repr()` of non-printable non-ASCII characters not escaped.	Silent	documented	README 348-349
+SCH-5	Service schemas	`cv.slug` answers `unsupported` for any text with both `&` and `;`, although it holds no HTML entity.	Refuses	partly documented	README 335
+TPL-8	Templates	`repr(str)` does not escape non-printable non-ASCII characters.	Silent	documented for another area, not for templates	README 349
+TPL-25	Templates	Only the current UTC offset is used (DST, old dates).	Silent	documented	README 662-665
+TPL-27	Templates	Attribute and variable dict key order is sorted.	Order	documented	README 653-656
+TPL-39	Templates	Valid Jinja rejected at load: `0x`/`0o`/`0b` ints, `seq.0`, `+%}`, `\v`/`\f`, non-ASCII names, parenthesised targets, `recursive`, block set, `*args`.	Refuses	undocumented explicit refusal	none
+TPL-40	Templates	Python methods, attributes and operators not modelled (str/list/dict/int methods, `%` formatting, `tuple * int`).	Refuses	undocumented explicit refusal	manifest notes only
+TPL-41	Templates	Argument forms not modelled: `int(base=)`, `join`/`sum(attribute=)`, positional `dict()`/`namespace()`, big `**`, complex, range slicing.	Refuses	undocumented explicit refusal	manifest notes only
+TPL-42	Templates	datetime methods, `strftime` directives and flags, `isoformat(timespec=)`, naive timestamps.	Refuses	partly documented	README 248-249
+TPL-43	Templates	Date strings only ciso8601 parses (`2026-11-20`, compact, `z`, comma fraction).	Refuses	undocumented explicit refusal	manifest note only
+TPL-44	Templates	Printing state objects, `states`, functions, datetime inside containers.	Refuses	partly documented (generators only)	README 250-251
+TPL-45	Templates	HA gives Undefined or the default, HALean raises (first/last/reverse of Undefined, `as_datetime('nan')`, slicing an int).	Refuses	undocumented explicit refusal	none
+TPL-46	Templates	Non-ASCII case mapping is a render error.	Refuses	documented	README 252-254
+TPL-48	Templates	Step budget of 1,000,000 iterations per render (HA has none).	Refuses	undocumented explicit refusal	none
+AUT-13	Automation engine	A template using an undefined name (incl. `context`, `x | default(...)`) makes the automation `unsupported`.	Refuses	undocumented explicit refusal	none
+AUT-17	Automation engine	A `parallel` branch written as a list of actions is `unsupported`.	Refuses	undocumented explicit refusal	none
+AUT-18	Automation engine	`stop:` with null is `unsupported`.	Refuses	undocumented explicit refusal	none
+AUT-19	Automation engine	time_pattern values `" 26 "`, `"+27"`, `28.0` are `unsupported`.	Refuses	undocumented explicit refusal	none
+AUT-20	Automation engine	A nested `triggers:` list is `unsupported`.	Refuses	undocumented explicit refusal	none
+SCR-2	Scripts	Outside calls with `group.*`, `area_id` or `device_id` fail.	Refuses	partly documented	README 492
+SCR-10	Scripts	Values HA coerces (`alias: true`, `required: "yes"`, `stored_traces: "5"`, ...) are rejected at load.	Refuses	undocumented explicit refusal	none
+SCR-11	Scripts	An action with an extra key is loaded (same root cause as AUT-14).	Accepts	counted under AUT-14	none
+SCR-12	Scripts	Invalid field selectors are loaded.	Accepts	documented	README 515
+SCR-13	Scripts	`turn_on` of a script that does not start fails at once; HA waits.	Refuses	documented	README 510-512
+SCR-14	Scripts	The run variable `context` is a render error on any use.	Silent	documented	README 492
+SCR-16	Scripts	Reload compares config text.	Silent	documented	README 515-516
+HLP-12	Helpers	Counter restore with Unicode digits is refused; HA restores 42.	Refuses	partly documented	README 552
+HLP-17	Helpers	A pattern with a literal `{` after a repeat is refused; HA accepts it.	Refuses	undocumented explicit refusal	none
+HLP-18	Helpers	The JSON driver refuses `NaN`/`Infinity`.	Tooling	documented	README 350
+HLP-19	Helpers	Non-ASCII text read by a text-handling validator is refused.	Refuses	documented	README 335
+HLP-20	Helpers	Durations whose `timedelta` overflows or is NaN are refused.	Refuses	documented	README 335
+HLP-21	Helpers	Timers due in the same tick finish in entity order; HA finishes them in time order.	Order	documented	README 573
+HLP-22	Helpers	A second `setup` of a domain is refused; HA returns True.	Refuses	undocumented explicit refusal	none
+HLP-23	Helpers	A pattern Python rejects makes the whole setup refused; HA leaves only that entity out.	Refuses	documented loosely	README 551
+HLP-24	Helpers	Timer restore with a last state other than idle/paused/active is refused.	Refuses	partly documented	README 553
+HLP-25	Helpers	`repr()` of a non-printable non-ASCII character in attributes is not escaped.	Silent	documented	README 349
