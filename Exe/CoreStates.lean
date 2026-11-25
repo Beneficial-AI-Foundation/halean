@@ -55,10 +55,15 @@ def getContext (j : Json) : Except String (Option Context) :=
     pure (some { id, userId := ← optStr c "user_id", parentId := ← optStr c "parent_id" })
   | _ => throw "'context' must be an object"
 
-def getAttributes (j : Json) : Except String (Option Json) :=
-  match j.getObjVal? "attributes" with
-  | .ok .null | .error _ => pure none
-  | .ok a@(.obj _) => pure (some a)
+/-- The attributes as `json.loads` read them (`pv`, see `runOp`), as Json
+that keeps a float a float (`Value.toJson`), so `1e+16` is not read as an
+int. -/
+def getAttributes (pv : HALean.Template.Value) : Except String (Option Json) :=
+  match pv.get? "attributes" with
+  | none | some .none => pure none
+  | some a@(.dict _) => match a.toJson with
+    | .ok j => pure (some j)
+    | .error e => throw s!"attributes: {e}"
   | _ => throw "'attributes' must be a mapping or null"
 
 def getFilter (j : Json) : Except String DomainFilter :=
@@ -102,8 +107,9 @@ def inspectJson (s : State) : Json :=
 abbrev Outcome := Except SMError (Json × StateMachine × List SMEvent)
 
 /-- `pv` is the same line as `json.loads` reads it (`HALean.Core.parsePyJson`):
-the new state of `set` comes from it, so `1e+16` stays a float and `-0.0`
-keeps its sign (Lean's `Json` has neither distinction). -/
+the new state and the attributes of `set` come from it, so `1e+16` stays a
+float and a state of `-0.0` keeps its sign (Lean's `Json` reads `1e+16` as an
+int and has no negative zero). -/
 def runOp (sm : StateMachine) (pv : HALean.Template.Value) (j : Json) : Except String Outcome := do
   let op ← getStr j "op"
   let pureR (r : Except SMError Json) : Outcome := r.map fun v => (v, sm, [])
@@ -111,7 +117,7 @@ def runOp (sm : StateMachine) (pv : HALean.Template.Value) (j : Json) : Except S
   | "reset" => pure (.ok (.null, {}, []))
   | "set" | "set_internal" =>
     let eid ← getStr j "entity_id"
-    let attrs ← getAttributes j
+    let attrs ← getAttributes pv
     let force := match j.getObjVal? "force_update" with | .ok (.bool b) => b | _ => false
     let ctx ← getContext j
     let now ← getNow j
