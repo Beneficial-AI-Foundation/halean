@@ -5,7 +5,7 @@ function by function, so it can be formally verified and still track upstream.
 
 | Service | Lean | Executable | Status |
 |---|---|---|---|
-| Automation engine (triggers → conditions → actions, run modes) | `HALean/Automation/` | `halean-automation` | done, tested against real HA |
+| Automation engine (triggers → conditions → actions, run modes) | `HALean/Automation/` | `halean-automation` | subset done (see "What is translated" and "Known gaps"), tested against real HA |
 | Templates (Jinja) | `HALean/Template/` | `halean-template` (test driver) | subset done, used by automations, tested against real HA |
 | Scripts (`script.*` entities and services) | `HALean/Script/` | `halean-script` | subset done, tested against real HA, runs with the bridge (`--scripts`) |
 | Helpers (`input_boolean`, `input_number`, `input_select`, `input_text`, `counter`, `timer`) | `HALean/Helpers/` | `halean-helpers` (test driver) | YAML helpers and their services done, tested against real HA; not yet connected to the engine |
@@ -56,8 +56,12 @@ Home Assistant ──WebSocket──▶ bridge/bridge.py ──JSON lines──�
 * **`bridge/bridge.py`**: a thin shell that talks to a stock HA over its
   WebSocket API, the same way AppDaemon and Node-RED do. No fork is needed.
 * **`manifest.yaml` + `tools/drift.py`**: map each upstream Python function to
-  the Lean definitions that translate it, with an AST hash. After an upstream
-  pull this shows exactly which translations need revisiting.
+  the Lean definitions that translate it, with a hash of its syntax tree and a
+  hash of the module constants and unmapped helpers it uses (followed through
+  imports). After an upstream pull this lists the translations to revisit. It
+  does not follow methods called through `self` or an object, nor code
+  outside Home Assistant, so a clean run is strong evidence, not a proof,
+  that nothing a translation depends on changed.
 * **`protocol/schema.json`**: the versioned wire protocol.
 
 ## Setup
@@ -75,7 +79,13 @@ uv run tests/differential/run.py # scenarios + template cases through a real Hom
 uv run tests/bridge_e2e.py       # bridge against a fake HA WebSocket server
 uv run --with astral==2.2 tests/sun/compare.py  # sunrise/sunset vs astral, to the microsecond
 uv run tests/live/docker_e2e.py  # bridge + engine driving the pinned HA release in a throwaway Docker container
+lake env lean tools/Axioms.lean  # axiom audit of every HALean theorem
 ```
+
+The executables are not default targets: every `lean_exe` root declares a
+top-level `main`, so importing all of them into one environment (as tools
+that import the default targets do) cannot work (`lakefile.toml`). Build them
+by name, as above.
 
 ## Live test against Home Assistant in Docker
 
@@ -132,21 +142,24 @@ too (`upstream.jinja2`, 3.1.6), and the same test checks it.
 Releases are used instead of `dev` because `pytest-homeassistant-custom-component`
 is published only for releases.
 
-Upstream source (read-only, sparse checkout of the relevant files):
+Upstream source (read-only, sparse checkout of the mapped files and of the
+modules their constants and helpers come from):
 
 ```bash
 git clone --depth 1 --filter=blob:none --sparse --branch 2026.10.4 \
   https://github.com/home-assistant/core upstream/ha-core
-git -C upstream/ha-core sparse-checkout set --no-cone /homeassistant/components/automation/ \
-  /homeassistant/helpers/ /homeassistant/components/homeassistant/triggers/ \
-  /homeassistant/const.py /homeassistant/core.py /homeassistant/components/template/trigger.py \
-  /homeassistant/util/dt.py /homeassistant/util/__init__.py /homeassistant/util/location.py \
-  /homeassistant/components/zone/ /homeassistant/components/sun/ /homeassistant/components/script/ \
-  /homeassistant/components/input_boolean/ /homeassistant/components/input_number/ \
-  /homeassistant/components/input_select/ /homeassistant/components/input_text/ \
-  /homeassistant/components/counter/ /homeassistant/components/timer/ \
-  /homeassistant/components/number/ /homeassistant/components/select/ /homeassistant/components/text/
+c=/homeassistant/components
+git -C upstream/ha-core sparse-checkout set --no-cone '/homeassistant/*.py' \
+  /homeassistant/helpers/ /homeassistant/util/ /homeassistant/auth/ /homeassistant/generated/ \
+  $c/__init__.py $c/automation/ $c/blueprint/ $c/counter/ $c/device_automation/ \
+  $c/device_tracker/ $c/homeassistant/ $c/input_boolean/ $c/input_datetime/ $c/input_number/ \
+  $c/input_select/ $c/input_text/ $c/logger/ $c/mqtt/ $c/number/ $c/person/ $c/script/ \
+  $c/select/ $c/sensor/ $c/sun/ $c/tag/ $c/template/ $c/text/ $c/timer/ $c/trace/ \
+  $c/webhook/ $c/zone/
 ```
+
+`drift.py check` names any module a mapped function needs that the checkout
+lacks (and fails), so a later mapping that needs more files says which.
 
 ## Tracking upstream
 
@@ -168,6 +181,14 @@ uv run tools/drift.py coverage     # upstream functions in tracked files not map
 `uv run tools/drift.py compare --against <dir>/homeassistant` compares the
 mapped functions with any other copy of Home Assistant, e.g. a `dev` checkout,
 to see what the next release will change.
+
+An entry is stale when its function changed (`hash`) or when a module-level
+constant, enum member or unmapped helper function it reads changed (`deps`,
+followed transitively and through imports inside `homeassistant/`).
+`uv run tests/drift_deps.py` checks that this catches the two changes the
+external review used to show the blind spot of hashing functions alone:
+`MAX_LENGTH_STATE_STATE` 255 → 100 (const.py) and the `_` rules removed from
+the entity-id regex (core.py).
 
 ## Running against a real Home Assistant
 
@@ -211,8 +232,15 @@ Markdown are skipped.
    `v<version>` with `halean-demo.tar.gz`, the executable archives and
    `SHA256SUMS`.
 
-These builds run only after a merge to master; pull requests run just the Lean
-build (`lean_action_ci.yml`).
+These builds run only after a merge to master. Every push and pull request
+runs `lean_action_ci.yml`: the library and every executable, the axiom audit
+(`tools/Axioms.lean`: every theorem in a `HALean.*` module may use only
+`propext`, `Quot.sound` and `Classical.choice`, and every module under
+`HALean/` must be imported by `HALean.lean`), the scenario suites, the
+differential tests against the pinned Home Assistant release, the sun
+comparison with astral, and `drift.py check` (with `tests/drift_deps.py`)
+against a sparse checkout of the pinned tag. The Docker live test is not run
+in CI.
 
 The version is `<major>.<minor>` from `lakefile.toml` plus the workflow run
 number (`0.1.42`). Bump `version` in `lakefile.toml` to start a new line.
@@ -291,8 +319,11 @@ Known gaps: timestamps are whole microseconds (`timestamp = us / 1e6`, which
 the harness passes explicitly); HA's `as_dict()` is cached and keeps a stale
 `last_reported` after a report, where HALean's `asDict` is always fresh
 (`test_as_dict_cache_is_stale_after_report` pins the upstream behaviour);
-attribute dicts print with sorted keys; a JSON float written without a
-fraction or exponent sign (`1e16`) reads as an int.
+attribute dicts print with sorted keys; an attribute of `-0.0` is sent back
+as `0.0` (Lean's JSON has no negative zero; Python compares them equal). The
+new state and the attributes are read as `json.loads` reads them
+(`parsePyJson`), so `1e+16` stays a float (`str()`: `'1e+16'`) and a state of
+`-0.0` keeps its sign.
 ### Service registry (`HALean/Core/ServiceRegistry.lean`)
 
 `hass.services` (`ServiceRegistry` in `homeassistant/core.py`) as a pure model.
@@ -332,7 +363,7 @@ flattened `MultipleInvalid` leaves, so `Any` picks the deepest one exactly.
 
 | Supported (exact) | Rejected (`unsupported`) |
 |---|---|
-| keys: `Required`, `Optional`, `Exclusive` (with `required=`, group defaults), `Inclusive`, defaults (validated through the value schema); extra policies, inherited by nested mappings; types `int` (a `bool` is one), `float` (the numeric tower: an `int` becomes a float), `str`, `bool`, `object`, `list`, `dict`, `timedelta`; scalar literals; nested mappings; list schemas `[v, ...]` (one element schema, several (the last error), none); `All`; `Any` (first match; "expected a or b" when every branch has a label, else the deepest error, first on a tie; "no valid value found"); `In` / `NotIn` (Python `==`, sorted member list as `sorted()` gives it or insertion order when it raises, the 40-member cap, "did you mean"); `Range` (`min`/`max`, `min_included`/`max_included`, "invalid value or type" for non-numbers); `Clamp`; `Length`; `Coerce(int)`, `Coerce(float)`, `Coerce(str)` (Python's `int()`/`float()`/`str()`, incl. the 4300-digit limit); `Lower`; `Upper`; `EnsureList`; `Port`; `AtLeastOne`. `cv.string`, `cv.boolean` (all spellings; the message shows the lowered, stripped text), `cv.positive_int`, `cv.positive_float`, `cv.small_float`, `cv.byte`, `cv.port`, `cv.ensure_list`, `cv.entity_id`, `cv.entity_ids` (comma lists, dict keys; a `TypeError` for a scalar escapes the schema, as upstream), `cv.comp_entity_ids`, `cv.entity_domain` (a domain or a list), `cv.color_hex`, `cv.slug`, `cv.time_period` (`_str`, `_seconds`, `_dict`), `cv.positive_time_period`, `cv.positive_time_period_dict` | `msg=` on any validator or marker; `Match`/`cv.matches_regex` (Python regex semantics); `In(fold_case=, space=)`; `Coerce` of other types; non-scalar literals and `In` members; type or callable keys, `Extra`, `Remove`, `Forbidden`, `Alias`, `Secret`, nested `Schema` objects with their own policy (except `time_period_dict`'s); `cv.percentage` (not in HA's `cv`), `cv.time`, `cv.date`, `cv.template`, `cv.url`, `cv.icon` and every other `cv.*`; at call time, data a text-handling validator reads that is not printable ASCII (Python's `str.lower()`, `strip()` and `int()` are Unicode-aware), a `timedelta` that would overflow or be NaN, `util.slugify` of text with HTML entities |
+| keys: `Required`, `Optional`, `Exclusive` (with `required=`, group defaults), `Inclusive`, defaults (validated through the value schema); extra policies, inherited by nested mappings; types `int` (a `bool` is one), `float` (the numeric tower: an `int` becomes a float), `str`, `bool`, `object`, `list`, `dict`, `timedelta`; scalar literals; nested mappings; list schemas `[v, ...]` (one element schema, several (the last error), none); `All`; `Any` (first match; "expected a or b" when every branch has a label, else the deepest error, first on a tie; "no valid value found"); `In` / `NotIn` (Python `==`, sorted member list as `sorted()` gives it or insertion order when it raises, the 40-member cap, "did you mean"); `Range` (`min`/`max`, `min_included`/`max_included`, "invalid value or type" for non-numbers); `Clamp`; `Length`; `Coerce(int)`, `Coerce(float)`, `Coerce(str)` (Python's `int()`/`float()`/`str()`, incl. the 4300-digit limit); `Lower`; `Upper`; `EnsureList`; `Port`; `AtLeastOne` (with no keys: probatio's `SchemaError` when the schema is built, so nothing is registered). `cv.string`, `cv.boolean` (all spellings; the message shows the lowered, stripped text), `cv.positive_int`, `cv.positive_float`, `cv.small_float`, `cv.byte`, `cv.port`, `cv.ensure_list`, `cv.entity_id`, `cv.entity_ids` (comma lists, dict keys; a `TypeError` for a scalar escapes the schema, as upstream), `cv.comp_entity_ids`, `cv.entity_domain` (a domain or a list), `cv.color_hex`, `cv.slug`, `cv.time_period` (`_str`, `_seconds`, `_dict`; `timedelta`'s `ValueError` for a NaN and `OverflowError` for an infinity or for days beyond a C `int` or beyond ±999999999, also after `time_period_str` negates, as CPython raises them; probatio turns a `ValueError` out of a callable into "not a valid value: ..."), `cv.positive_time_period`, `cv.positive_time_period_dict` | `msg=` on any validator or marker; `Match`/`cv.matches_regex` (Python regex semantics); `In(fold_case=, space=)`; `Coerce` of other types; non-scalar literals and `In` members; type or callable keys, `Extra`, `Remove`, `Forbidden`, `Alias`, `Secret`, nested `Schema` objects with their own policy (except `time_period_dict`'s); `cv.percentage` (not in HA's `cv`), `cv.time`, `cv.date`, `cv.template`, `cv.url`, `cv.icon` and every other `cv.*`; at call time, data a text-handling validator reads that is not printable ASCII (Python's `str.lower()`, `strip()` and `int()` are Unicode-aware), text whose `repr()` would be printed (`Coerce(str)` of a container, an unknown key in an error path, and in the driver any input, since results are compared as `repr()`s) with characters outside ASCII and U+00A1..U+024F (Python escapes what `str.isprintable()` rejects; HALean has no Unicode table), other `timedelta` overflows, `util.slugify` of text with HTML entities |
 
 | Supported | Rejected (`unsupported`, nothing changes) |
 |---|---|
@@ -345,9 +376,8 @@ handler is a spec; handlers that set states, fire events or call services run
 in the joined core (below), where `async_call` is the same
 `Registry.prepareCall` / `finishCall` around a scripted handler; `Unauthorized` and cancellation in
 background calls; the thread-safe wrappers (`register`, `remove`, `call`,
-`services`) and `description_placeholders`; `repr()` of strings with
-non-printable non-ASCII characters (Python escapes them, HALean does not);
-`NaN`/`Infinity` in the input JSON.
+`services`) and `description_placeholders`; `NaN`/`Infinity` in the input
+JSON.
 
 ### Core (`HALean/Core/Hass.lean`)
 
@@ -576,10 +606,27 @@ Known gaps:
 
 ## Proved so far (`HALean/Automation/Proofs.lean`)
 
+All theorems use only Lean's standard axioms (`propext`, `Quot.sound`,
+`Classical.choice`), checked in CI by `tools/Axioms.lean`. In `manifest.yaml`
+an entry is `proven` only when a theorem characterises what the function
+returns (PROPERTIES.md, "Functions proved to compute what upstream
+computes"); entries with property theorems about them are `translated`, and
+their notes name those theorems as partial.
+
 `evalAnd_nil`, `evalOr_nil`, `evalCond_disabled`, `evalNot_disabled`,
 `evalAnd_all_disabled`, `checkAutomationConditions_nil`, `testConditions_nil`,
 `match_invert`, `match_all`, `single_exclusive`, `restart_never_rejects`,
-`admit_bounded` (queued/parallel never exceed `max`), `queued_waits`, `templateCond_static`.
+`admit_bounded` (for a run count within `max`, admitting a queued/parallel run
+never takes it above `max`; the engine-wide statement is
+`EngineBound.runs_bounded`: from `init` with `max ≥ 1` and no script
+entities, after any inputs, a queued/parallel automation has at most `max`
+live runs, and `max` is decoded as HA's `Coerce(int), Range(min=2)` does),
+`queued_waits`, `templateCond_static`. `HALean/Automation/ConditionSpec.lean`
+characterises the outcome of `and`/`or`/`not` (`evalAnd_true_iff`,
+`evalAnd_false_iff`, ...), the automation's condition check and
+`_test_conditions` exactly, in terms of the conditions' own outcomes. About
+whole runs of `Engine.step` there is the run bound and a few facts about
+`init` (`EngineSpec3`, `EngineSpec4`); what a run does is tested, not proved.
 
 `HALean/Core/StateSpec.lean` (functions proved to compute what upstream
 computes, see PROPERTIES.md): `validEntityId_iff`, `validDomain_iff`
@@ -615,8 +662,9 @@ lowercase).
 (`In` accepts exactly the members of its container, under Python `==`, and
 returns the value unchanged; `NotIn` exactly the non-members),
 `checkRange_ok` / `checkRange_min` / `checkRange_max` / `checkRange_not_number`
-(`Range` accepts only numbers within its bounds, unchanged, and never a string,
-`None`, list or dict), `ensureList_is_list` / `ensureList_list`,
+(`Range` with numeric bounds, the only ones the decoder accepts, accepts only
+numbers within its bounds, unchanged, and never a string, `None`, list or
+dict; probatio compares any bounds, so `Range(min="a")` accepts `"b"`), `ensureList_is_list` / `ensureList_list`,
 `checkCoerce_int` (`Coerce(int)` only produces ints), `checkPort_range`.
 
 `HALean/Core/EventBusProofs.lean` (event bus): `once_at_most_once` (over any

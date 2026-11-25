@@ -91,7 +91,7 @@ inductive Action
   /-- `raise <exception>(<message>)` -/
   | raise (exception message : String)
   /-- `hass.states.async_set(entity_id, state, attributes, force_update, context)` -/
-  | set (entityId : String) (state : Json) (attributes : Option Json) (forceUpdate : Bool)
+  | set (entityId : String) (state : Value) (attributes : Option Json) (forceUpdate : Bool)
       (context : CtxArg)
   /-- `hass.states.async_remove(entity_id, context)` -/
   | remove (entityId : String) (context : CtxArg)

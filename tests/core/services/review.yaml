@@ -1,0 +1,76 @@
+# Regression cases from the external review (faithfulness-and-coverage-review,
+# items S1-S4 and T3). Same format as registry.yaml.
+
+- name: review_s1_negated_time_period_overflows
+  # `offset *= -1` in cv.time_period_str: timedelta's range is not symmetric
+  # (-999999999 days .. 999999999 days 23:59:59.999999), so negating the
+  # largest periods raises OverflowError, which escapes the schema
+  ops:
+    - {op: register, domain: test_r, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: tp, value: {cv: time_period}}, {key: tps, value: {cv: time_period_str}}]}}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true,
+       data: {tp: "-23999999976:00:01"}}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true,
+       data: {tps: "-23999999976:00:01"}}
+    # the largest negatable period, and the most negative one
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true,
+       data: {tp: "-23999999976:00:00", tps: "+23999999999:59:59.999999"}}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true,
+       data: {tps: "-23999999999:59:59.999999"}}
+
+- name: review_s2_non_printable_text_in_reprs
+  # repr() escapes the characters str.isprintable() rejects (U+200B here);
+  # HALean does not model that table, so it refuses such text where a repr of
+  # it would be printed
+  ops:
+    - {op: register, domain: test_r, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: c, value: {coerce: str}}, {key: l, value: {list: [{coerce: str}]}},
+                         {key: a, type: int}]}}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true,
+       data: {c: ["a​b"]}, unsupported: true}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true,
+       data: {"x​y": 1}, unsupported: true}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true,
+       data: {l: ["a​b"]}, unsupported: true}
+    # printable ASCII is still modelled
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true,
+       data: {c: ["ab", 1], l: ["x"], "xy": 1}}
+
+- name: review_s3_at_least_one_without_keys
+  # conditional._require_keys: AtLeastOne() raises SchemaError when the
+  # schema is built, so the service is never registered
+  ops:
+    - {op: register, domain: test_r, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: alo, value: {at_least_one: []}}]}}
+    - {op: has, domain: test_r, service: v}
+    - {op: register, domain: test_r, service: w, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: d, value: {dict: [{key: e, value: {all: [int, {at_least_one: []}]}}]}}]}}
+    - {op: list}
+
+- name: review_s4_nan_seconds
+  # time_period_seconds: timedelta(seconds=nan) raises ValueError, which the
+  # validator turns into "Expected seconds, got ..."
+  ops:
+    - {op: register, domain: test_r, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: sec, value: {cv: time_period_seconds}}, {key: tp, value: {cv: time_period}}]}}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true, data: {sec: " NaN "}}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true, data: {sec: "nan"}}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true, data: {tp: "-nan"}}
+    # an infinity, or a period beyond a C int of days or beyond timedelta's
+    # range, raises OverflowError, which is not caught
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true, data: {sec: "inf"}}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true, data: {sec: "1e20"}}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true, data: {sec: 1.0e+15}}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true, data: {tp: "99999999999:00:00"}}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true, data: {tp: "0:0:inf"}}
+    # a NaN in time_period_str: probatio's _compile_callable turns the
+    # ValueError into "not a valid value: ..."
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true, data: {tp: "0:0:nan"}}
+
+- name: review_t3_26_digit_integer_is_not_a_context_id
+  # the test script used to rewrite any 26-character Crockford token on the
+  # HA side as a fresh context id
+  ops:
+    - {op: register, domain: test_r, service: v, handler: {return: {big: 10000000000000000000000000}},
+       supports_response: only}
+    - {op: call, domain: test_r, service: v, blocking: true, return_response: true}

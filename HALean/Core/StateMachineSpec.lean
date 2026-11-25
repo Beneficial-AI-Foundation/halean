@@ -105,9 +105,9 @@ theorem validateState_error (st : String) (e : SMError) (h : validateState st = 
 /-- `async_set` raises `InvalidStateError` for a state longer than 255
 characters, whatever is in the machine (unlike `async_set_internal`, which
 stores `unknown`). -/
-theorem asyncSet_too_long (sm : StateMachine) (eid st : String) (v : Json) (attrs : Option Json)
+theorem asyncSet_too_long (sm : StateMachine) (eid st : String) (v : Value) (attrs : Option Json)
     (force : Bool) (ctx : Option Context) (ts : Int)
-    (hasc : isAscii eid = true) (hstr : pyStr (Value.ofJson v) = .ok st)
+    (hasc : isAscii eid = true) (hstr : pyStr v = .ok st)
     (hlen : st.length > MAX_LENGTH_STATE_STATE) :
     ∃ m, sm.asyncSet eid v attrs force ctx ts = .error (.invalidState m) := by
   have h1 : checkAscii "entity_id" eid = .ok () := (checkAscii_ok_iff _ _).mpr hasc
@@ -121,7 +121,7 @@ theorem asyncSet_too_long (sm : StateMachine) (eid st : String) (v : Json) (attr
 
 /-- `async_set` on a non-ASCII id is outside the model, before anything else
 is looked at. -/
-theorem asyncSet_non_ascii (sm : StateMachine) (eid : String) (v : Json) (attrs : Option Json)
+theorem asyncSet_non_ascii (sm : StateMachine) (eid : String) (v : Value) (attrs : Option Json)
     (force : Bool) (ctx : Option Context) (ts : Int) (hasc : isAscii eid = false) :
     ∃ m, sm.asyncSet eid v attrs force ctx ts = .error (.unsupported m) := by
   unfold asyncSet checkAscii

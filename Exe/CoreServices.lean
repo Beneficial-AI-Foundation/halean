@@ -54,6 +54,10 @@ def step (r : Registry) (msg : Value) : Except String (Registry × Json) := do
     let service ← getName msg "service"
     let handler ← decodeHandler (msg.get? "handler")
     let schema ← decodeSchema (msg.get? "schema")
+    -- building the schema raises `SchemaError` (the harness builds it before
+    -- `async_register`, so nothing is registered)
+    if let some m := schema.bind SchemaSpec.buildError? then
+      return (r, reply (.error { exception := "SchemaError", message := m }))
     let sr ← match msg.get? "supports_response" with
       | none => pure SupportsResponse.none
       | some (.str s) => match SupportsResponse.ofString? s with
@@ -91,7 +95,11 @@ def step (r : Registry) (msg : Value) : Except String (Registry × Json) := do
 def processLine (r : Registry) (line : String) : Registry × Json :=
   match parsePyJson line with
   | .error e => (r, Json.mkObj [("type", .str "error"), ("message", .str s!"invalid JSON: {e}")])
-  | .ok msg => match step r msg with
+  | .ok msg =>
+    -- responses and event data are compared as `repr()`s
+    if !reprSafeValue msg then
+      (r, Json.mkObj [("unsupported", .str "text whose repr() HALean does not model (outside ASCII and U+00A1..U+024F)")])
+    else match step r msg with
     | .ok out => out
     | .error e => (r, Json.mkObj [("unsupported", .str e)])
 

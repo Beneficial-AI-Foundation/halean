@@ -33,7 +33,7 @@ In `HALean/Automation/Proofs.lean` and `HALean/Template/Proofs.lean`:
 |---|---|
 | `single_exclusive` | `single` mode admits a new run only when none is running |
 | `restart_never_rejects` | `restart` mode never rejects a trigger |
-| `admit_bounded` | `queued` / `parallel` admission never exceeds `max` |
+| `admit_bounded` | `queued` / `parallel` admission, given a run count already within `max`, never takes it above `max` (about `admit` alone; the engine-wide bound is `runs_bounded` below) |
 | `queued_waits` | `queued` with a run in flight queues instead of running in parallel |
 | `evalAnd_nil`, `evalOr_nil`, `evalNot_disabled`, `evalAnd_all_disabled`, ... | edge cases of HA's three-valued conditions (true / false / `None` for disabled) |
 | `match_invert`, `match_all` | `not_to` is exactly the complement of `to`; no `from`/`to` matches everything |
@@ -43,7 +43,7 @@ In `HALean/Automation/Proofs.lean` and `HALean/Template/Proofs.lean`:
 | `call_none_return_response_errors`, `call_only_needs_return_response`, `call_return_response_needs_blocking` | the `return_response` rules of `async_call`: each violation raises `ServiceValidationError` before the schema, the event or the handler |
 | `wf_register`, `wf_remove` | every reachable registry has only lowercase domain and service keys (the invariant the call theorems assume) |
 | `checkIn_ok_iff`, `checkNotIn_ok_iff` (`HALean/Core/ProbatioProofs.lean`) | a schema's `In` accepts exactly the members of its container (Python `==`, so `True` is a member of `[1]`) and returns the value unchanged; `NotIn` exactly the non-members |
-| `checkRange_ok`, `checkRange_min`, `checkRange_max`, `checkRange_not_number` | `Range` never accepts a number outside its bounds (inclusive or exclusive), nor a value that is not a number, and returns what it accepts unchanged |
+| `checkRange_ok`, `checkRange_min`, `checkRange_max`, `checkRange_not_number` | `Range` with numeric bounds never accepts a number outside them (inclusive or exclusive), nor a value that is not a number, and returns what it accepts unchanged. Numeric bounds are the only ones the schema decoder accepts; probatio compares any bounds (`Range(min="a")` accepts `"b"`), so the last theorem says nothing about those |
 | `ensureList_is_list`, `checkCoerce_int`, `checkPort_range` | `EnsureList` always yields a list; `Coerce(int)` only yields ints; `Port` only ints from 1 to 65535 |
 
 These are about single functions (e.g. the admission decision `admit`). The
@@ -133,8 +133,11 @@ The theorems above are properties. These go further: for a whole function,
 what the upstream Python returns is written down as a Lean predicate (a
 regex clause by clause, a string method's documented result), and the
 translation is proved to decide exactly that predicate. The manifest marks
-these entries `proven`. The remaining trust is in the predicate matching
-Python, which is short enough to check by eye.
+these entries `proven`, and only these: an entry with theorems that state
+properties of the function (a bound, an invariant, an edge case) but do not
+determine its result stays `translated`, and its notes name the theorems as
+partial. The remaining trust is in the predicate matching Python, which is
+short enough to check by eye.
 
 | Upstream function | Theorem (`HALean/Core/StateSpec.lean`) | Spec |
 |---|---|---|
@@ -145,6 +148,10 @@ Python, which is short enough to check by eye.
 | `util/dt.py::parse_time` (`cv.time`: time triggers, time conditions, templates) | `parseTimeSeconds_iff` (`HALean/Template/ParseTimeSpec.lean`) | `str.split(":")`, `int()` of the first two or three parts (later ones ignored), `datetime.time`'s ranges |
 | `helpers/template/__init__.py::is_template_string` (decides which config strings are templates) | `isTemplateString_iff` (`HALean/Template/SyntaxSpec.lean`) | `"{" in s and ("{%" in s or "{{" in s or "{#" in s)` |
 | `helpers/config_validation.py::boolean` on strings (service schemas, template trigger results) | `cvBooleanText_iff` (`HALean/Template/CvBooleanSpec.lean`) | `value.lower().strip()` is one of the true / false words; `str.isspace` is the exact Unicode set |
+| `helpers/condition.py::AndConditionChecker._async_check`, `OrConditionChecker`, `NotConditionChecker`, `DisabledConditionChecker` | `evalAnd_true_iff`, `evalAnd_false_iff`, `evalAnd_ne_none`, `evalOr_*_iff`, `evalNot_eq_negate_evalOr`, `evalCond_disabled` (`HALean/Automation/ConditionSpec.lean`, `Proofs.lean`) | `and` is false when a condition is false, else raises when one raised, else true (disabled conditions skipped); `or` dually; `not` is the negated `or`; a disabled condition returns `None` |
+| `helpers/condition.py::ConditionsChecker.async_check`, `helpers/script.py::_ScriptRun._test_conditions` | `checkAutomationConditions_iff`, `testConditions_true_iff`, `testConditions_false_iff` | true exactly when no condition raises and none is false; `_test_conditions` false at the first false condition after passing ones, `None` at an error |
+| `core.py::States.domain_entity_ids` | `domainEntityIds_zip_domainStates` (`HALean/Core/StateMachineSpec.lean`) | the main dict filtered by domain, in dict order |
+| `input_boolean` `async_turn_on` / `async_turn_off`, `ToggleEntity.async_toggle` | `state_turnOn`, `state_turnOff`, `state_toggle` (`HALean/Helpers/Proofs.lean`) | the state is `on` / `off` / the other one |
 | `helpers/config_validation.py::slug` (what it accepts) | `slugify_fixed_iff` (`HALean/Automation/SlugifySpec.lean`) | `""`, or non-empty `[0-9a-z_]` text without a leading, trailing or double `_`. Relative to `util.slugify` transcribed step by step from python-slugify's legacy pipeline (`slugifyChars`); also `slugifyChars_valid` (every non-empty slugify result is such a slug) |
 
 `\d` is read as the ASCII digits; Python's class also has other Unicode

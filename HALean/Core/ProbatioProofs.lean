@@ -67,7 +67,9 @@ theorem checkRange_max (mn : Option Value) (m : Value) (minIncl maxIncl : Bool) 
   exact hok.2
 
 /-- A value that is not a number (a string, `None`, a list, a dict) is never
-in range. -/
+in range. This is `Range` with numeric bounds, the only ones the schema
+decoder accepts: probatio compares whatever bounds it is given, so
+`Range(min="a")` accepts `"b"`. -/
 theorem checkRange_not_number (mn mx : Option Value) (minIncl maxIncl : Bool) (v : Value)
     (hb : mn.isSome ∨ mx.isSome) (hv : v.num? = none) :
     checkRange mn mx minIncl maxIncl v = .error (inv "invalid value or type") := by

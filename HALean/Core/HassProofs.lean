@@ -551,7 +551,7 @@ when nothing is dispatching): its `state_changed` (or `state_reported`)
 reaches exactly the `deliverable` listeners of the snapshot taken when it is
 fired, once each, before anything else is delivered: a listener that sets
 another state, fires an event or calls a service only queues what follows. -/
-theorem set_delivers_first (n : Nat) (env : Env) (h : Hass) (eid : String) (st : Lean.Json)
+theorem set_delivers_first (n : Nat) (env : Env) (h : Hass) (eid : String) (st : HALean.Template.Value)
     (attrs : Option Lean.Json) (force : Bool) (c : CtxArg) (ctx : Context)
     (sm : StateMachine) (ev : SMEvent)
     (hd : h.bus.dispatching = false) (hc : resolveCtx env c = some ctx)

@@ -44,6 +44,7 @@ ENGINE = ROOT / ".lake" / "build" / "bin" / "halean-core-services"
 T0 = datetime(2026, 11, 20, 16, 30, 45, tzinfo=UTC)
 EVENTS = {"service_registered", "service_removed", "call_service"}
 ULID = re.compile(r"\b[0-9A-HJKMNP-TV-Z]{26}\b")
+CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 EXCEPTIONS = {
     "HomeAssistantError": HomeAssistantError,
@@ -54,9 +55,28 @@ EXCEPTIONS = {
 }
 
 
+def _ulid_ms(ulid: str) -> int:
+    """The millisecond timestamp in the first 10 characters of a ULID."""
+    n = 0
+    for ch in ulid[:10]:
+        n = n * 32 + CROCKFORD.index(ch)
+    return n
+
+
+# ULIDs HA draws carry a millisecond timestamp, the frozen clock or (in some
+# tasks) the real one: a plausible one is between 2000 and 2100. A 26-digit
+# integer also matches `ULID`, but its first digit alone puts it past the
+# year 3000, so it is data, not an id.
+ULID_MS_RANGE = (946684800000, 4102444800000)
+
+
+def is_ulid(tok: str) -> bool:
+    return ULID_MS_RANGE[0] <= _ulid_ms(tok) < ULID_MS_RANGE[1]
+
+
 def _fresh(s: str) -> str:
     """HA's random context ids (ULIDs) compare as `new`."""
-    return ULID.sub("new", s)
+    return ULID.sub(lambda m: "new" if is_ulid(m.group(0)) else m.group(0), s)
 
 
 def make_handler(spec: dict):

@@ -117,15 +117,31 @@ def jsonable(x):
     return x
 
 
-class Renamer:
-    """Rename random context ids `ctx#<n>` in order of first appearance."""
+CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
-    def __init__(self, pattern: re.Pattern) -> None:
+
+def ulid_ms(ulid: str) -> int:
+    """The millisecond timestamp in the first 10 characters of a ULID."""
+    n = 0
+    for ch in ulid[:10]:
+        n = n * 32 + CROCKFORD.index(ch)
+    return n
+
+
+class Renamer:
+    """Rename random context ids `ctx#<n>` in order of first appearance.
+    `is_id` tells an id from data that happens to match the pattern (a
+    26-digit integer looks like a ULID)."""
+
+    def __init__(self, pattern: re.Pattern, is_id=lambda tok: True) -> None:
         self.pattern = pattern
+        self.is_id = is_id
         self.names: dict[str, str] = {}
 
     def __call__(self, obj):
         def sub(m: re.Match) -> str:
+            if not self.is_id(m.group(0)):
+                return m.group(0)
             return self.names.setdefault(m.group(0), f"ctx#{len(self.names)}")
         return json.loads(self.pattern.sub(sub, json.dumps(obj, sort_keys=True)))
 
@@ -414,7 +430,10 @@ async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
     loop = asyncio.get_running_loop()
     test_handler = loop.get_exception_handler()
     loop.set_exception_handler(ha_runner._async_loop_exception_handler)
-    rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+    # a ULID HA draws carries the frozen clock or (in some tasks) the real
+    # one: between 2000 and 2100. A 26-digit integer is past the year 3000.
+    rename_ha = Renamer(HA_ULID, lambda tok: 946684800000 <= ulid_ms(tok) < 4102444800000)
+    rename_lean = Renamer(LEAN_ULID)
     manual = case.get("manual", False)
     ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
     try:

@@ -15,4 +15,34 @@ jobs:
         with:
           # the library (default target) plus every executable, so pull
           # requests still compile the Exe/ roots
-          build-args: HALean halean-automation halean-script halean-template halean-sun-grid halean-core halean-core-states halean-core-services halean-core-events
+          build-args: HALean halean-automation halean-script halean-template halean-sun-grid halean-core halean-core-states halean-core-services halean-core-events halean-helpers
+      - name: Axiom audit (only propext, Quot.sound, Classical.choice)
+        run: lake env lean tools/Axioms.lean
+      - uses: astral-sh/setup-uv@v10.4.0
+      - name: Scenario suites (engine only)
+        run: |
+          uv run tests/run_scenarios.py
+          uv run tests/run_script_scenarios.py
+      - name: Differential tests against the pinned Home Assistant release
+        # in-process HA from pytest-homeassistant-custom-component (pinned in
+        # tests/differential/run.py), against every executable built above
+        run: uv run tests/differential/run.py
+      - name: Sunrise/sunset against astral
+        run: uv run --with astral==2.2 tests/sun/compare.py
+      - name: Upstream checkout (README, "Upstream source")
+        run: |
+          tag=$(sed -n 's/^  tag: //p' manifest.yaml)
+          git clone --depth 1 --filter=blob:none --sparse --branch "$tag" \
+            https://github.com/home-assistant/core upstream/ha-core
+          c=/homeassistant/components
+          git -C upstream/ha-core sparse-checkout set --no-cone '/homeassistant/*.py' \
+            /homeassistant/helpers/ /homeassistant/util/ /homeassistant/auth/ /homeassistant/generated/ \
+            $c/__init__.py $c/automation/ $c/blueprint/ $c/counter/ $c/device_automation/ \
+            $c/device_tracker/ $c/homeassistant/ $c/input_boolean/ $c/input_datetime/ $c/input_number/ \
+            $c/input_select/ $c/input_text/ $c/logger/ $c/mqtt/ $c/number/ $c/person/ $c/script/ \
+            $c/select/ $c/sensor/ $c/sun/ $c/tag/ $c/template/ $c/text/ $c/timer/ $c/trace/ \
+            $c/webhook/ $c/zone/
+      - name: Manifest is current with the pinned release (drift)
+        run: |
+          uv run tools/drift.py check
+          uv run tests/drift_deps.py

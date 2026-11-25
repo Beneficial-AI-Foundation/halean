@@ -142,9 +142,8 @@ def decodeSet (v : Value) (inScript : Bool) : Except String Action := do
     | none | some .none => pure none
     | some a@(.dict _) => pure (some (← toJ a))
     | _ => throw "attributes must be a dict or null"
-  let st ← match v.get? "state" with
-    | some s => toJ s
-    | none => throw "missing 'state'"
+  -- the state as `json.loads` read it (`str()` of `-0.0` is `-0.0`)
+  let some st := v.get? "state" | throw "missing 'state'"
   return .set (← getEntityId v) st attrs (← getBool v "force_update" false) (← decodeCtxArg v inScript)
 
 /-- Where a script runs: a `@callback` listener's `react`, or a coroutine (an
@@ -176,8 +175,11 @@ partial def decodeRegister (v : Value) : Except String Action := do
     | _ => throw "'do' must be a list"
   let result ← if (h.get? "return").isSome || (h.get? "echo").isSome || (h.get? "raise").isSome
     then decodeHandler (some h) else pure (HandlerSpec.ret .none)
+  let schema ← decodeSchema (v.get? "schema")
+  if let some m := schema.bind SchemaSpec.buildError? then
+    throw s!"probatio raises SchemaError ({m}) building this schema"
   return .register (← getName v "domain") (← getName v "service") body result
-    (← decodeSchema (v.get? "schema")) (← decodeSupports v)
+    schema (← decodeSupports v)
 
 /-- One action of a script. -/
 partial def decodeAction (v : Value) (kind : ScriptKind) : Except String Action := do
@@ -257,7 +259,11 @@ def resultJson (isCall : Bool) : Except PyError Hass.Result → Json
     | .bool b => .bool b)]
 
 def handleLine (h : Hass) (line : String) : Hass × Json :=
-  match parsePyJson line >>= decodeOp with
+  -- call results are compared as `repr()`s
+  let guard (v : Value) : Except String Value :=
+    if reprSafeValue v then pure v
+    else throw "text whose repr() HALean does not model (outside ASCII and U+00A1..U+024F)"
+  match parsePyJson line >>= guard >>= decodeOp with
   | .error e => (h, Json.mkObj [("unsupported", .str e)])
   | .ok (now, op) =>
     let (h', out, res) := step now h op

@@ -84,6 +84,17 @@
     - {op: all}
     - {op: set, entity_id: sensor.i, state: "5", now: "2026-11-20T16:31:00+00:00"}   # same as str(5): a report
 
+- name: float_states_as_json_loads_reads_them
+  # review C1, C2: json.dumps writes 1e16 as `1e+16`, which json.loads reads
+  # as a float (str: '1e+16'), and -0.0 keeps its sign (str: '-0.0')
+  ops:
+    - {op: set, entity_id: sensor.big, state: 1.0e+16}
+    - {op: set, entity_id: sensor.negzero, state: -0.0}
+    - {op: set, entity_id: sensor.small, state: 1.0e-07, attributes: {big: 1.0e+16, neg: -0.0, n: [2.0e+20]}}
+    - {op: get, entity_id: sensor.big}
+    - {op: get, entity_id: sensor.negzero}
+    - {op: get, entity_id: sensor.small}
+
 - name: names
   ops:
     - {op: set, entity_id: light.living_room_lamp, state: "on"}
