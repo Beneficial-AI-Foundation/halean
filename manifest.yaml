@@ -148,7 +148,8 @@ entries:
   - HALean.Automation.REPEAT_TERMINATE_ITERATIONS
   status: translated
   notes: count (Coerce(int), else a template whose result int() reads), for_each, while, until; the
-    `repeat` variable is local to its loop (currentRepeat)
+    `repeat` variable is local to its loop (currentRepeat); while and until yield (asyncio.sleep(0)) between
+    iterations, so the run goes on after the current callbacks
   hash: 8ae3b200144a1124
 - python: helpers/script.py::_ScriptRun._async_step_stop
   lean:
@@ -188,10 +189,14 @@ entries:
   lean:
   - HALean.Automation.admit
   - HALean.Automation.triggerAutomation
+  - HALean.Automation.restartRun
+  - HALean.Automation.resumeWoken
   - HALean.Automation.startScript
   status: proven
   notes: theorems single_exclusive, restart_never_rejects, admit_bounded, queued_waits; a top-level run's
-    `context` is set over its variables (contextValue)
+    `context` is set over its variables (contextValue); an automation's restart with runs awaits their stop,
+    so started_action, last_triggered and the new run come after the current callbacks (pendingStarts);
+    a script entity's restart likewise (StartRes.deferred, scheduled once callLocal answered its caller)
   hash: de80e422d227b5fe
 - python: helpers/script.py::_QueuedScriptRun.async_run
   lean:
@@ -202,7 +207,9 @@ entries:
 - python: helpers/script.py::_QueuedScriptRun._finish
   lean:
   - HALean.Automation.finishRun
+  - HALean.Automation.releaseQueue
   status: translated
+  notes: the lock's release wakes the next run's task, which goes on after the current callbacks (woken)
   hash: b1588007b28a8988
 - python: helpers/event.py::process_state_match
   lean:
@@ -1070,7 +1077,8 @@ entries:
   - HALean.Automation.resumeWoken
   status: translated
   notes: 'gather: branches start after the current callbacks, all run to the end, then the first branch
-    (in order) that raised re-raises in the parent, which also resumes later'
+    (in order) that raised re-raises in the parent, which also resumes later; a disabled branch is an empty
+    one (its task still runs)'
   hash: 8651899477a8fa0e
 - python: helpers/script.py::Script._async_prep_parallel_scripts
   lean:
@@ -1710,7 +1718,8 @@ entries:
   - HALean.Automation.callLocal
   - HALean.Automation.continueNow
   status: translated
-  notes: 'script_stack: copied for wait=True, fresh for turn_on'
+  notes: 'script_stack: copied for wait=True, fresh for turn_on; turn_on of a restart that must stop runs
+    first returns before the new run starts (the old run''s Script.async_run calls _changed() when cancelled)'
   hash: f8b34c1450b62023
 - python: components/script/__init__.py::ScriptEntity._async_run
   lean:

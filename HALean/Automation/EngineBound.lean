@@ -79,15 +79,15 @@ theorem Inv.branches {e e' : Engine} (h : Inv e) (kids : List Run)
     rw [hr, this]; exact Nat.le_refl _
 
 /-- A record update of anything but runs, automations and scripts. -/
-theorem Inv.mk {e : Engine} (h : Inv e) {st now pend armed nri nci npi ls tt lt per wt wk loc sun te sg hs mr} :
-    Inv ⟨e.automations, st, now, pend, armed, e.runs, nri, nci, npi, ls, tt, lt, per, wt, wk, loc, sun,
+theorem Inv.mk {e : Engine} (h : Inv e) {st now pend armed nri nci npi ls tt lt per wt wk ps loc sun te sg hs mr} :
+    Inv ⟨e.automations, st, now, pend, armed, e.runs, nri, nci, npi, ls, tt, lt, per, wt, wk, ps, loc, sun,
       te, e.scripts, sg, hs, mr⟩ :=
   h.upd rfl rfl rfl
 
 /-- A record update that adds `parallel` branches. -/
 theorem Inv.mkBranches {e : Engine} (h : Inv e) {kids : List Run} (hp : ∀ k ∈ kids, k.parent ≠ none)
-    {st now pend armed nri nci npi ls tt lt per wt wk loc sun te sg hs mr} :
-    Inv ⟨e.automations, st, now, pend, armed, e.runs ++ kids, nri, nci, npi, ls, tt, lt, per, wt, wk, loc,
+    {st now pend armed nri nci npi ls tt lt per wt wk ps loc sun te sg hs mr} :
+    Inv ⟨e.automations, st, now, pend, armed, e.runs ++ kids, nri, nci, npi, ls, tt, lt, per, wt, wk, ps, loc,
       sun, te, e.scripts, sg, hs, mr⟩ :=
   h.branches kids rfl rfl rfl hp
 
@@ -353,14 +353,6 @@ theorem admit_room {a : Automation} {n : Nat} (hmax : 1 ≤ a.maxRuns) (hn : n �
       · exact (hd "Maximum number of runs exceeded" (by simp [hx])).elim
       · omega
 
-/-- A `restart` admission only happens in `restart` mode. -/
-theorem admit_restart {a : Automation} {n : Nat} (h : (admit a.mode a.maxRuns n == .restart) = true) :
-    a.mode = .restart := by
-  have h' := Admit.eq_restart h
-  unfold admit at h'
-  cases hm : a.mode <;> by_cases h0 : n = 0 <;> simp [hm, h0] at h' ⊢
-  all_goals (split at h' <;> simp at h')
-
 theorem runsOf_append_run (e e' : Engine) (run : Run) (hr : e'.runs = e.runs ++ [run])
     (hrp : run.parent = none) (ai : Nat) :
     runsOf e' ai = if run.autoIdx = ai then runsOf e ai ++ [run] else runsOf e ai := by
@@ -390,76 +382,33 @@ theorem Inv.admitted {e : Engine} {ai : Nat} {a : Automation} (h : Inv e)
     exact admit_room h1 h2 hd hnr
   · simp only [hx, ↓reduceIte]; exact h2
 
-/-- `l` is a sublist of `A ++ B` with nothing from `A`: a sublist of `B`. -/
-theorem sublist_of_append_not_mem {α : Type} {l A B : List α} (h : l.Sublist (A ++ B))
-    (hn : ∀ x ∈ l, x ∉ A) : l.Sublist B := by
-  induction A generalizing l with
-  | nil => simpa using h
-  | cons a A ih =>
-    cases h with
-    | cons _ h => exact ih h fun x hx hA => hn x hx (List.mem_cons_of_mem _ hA)
-    | cons_cons _ h => exact absurd (List.mem_cons_self) (hn a (List.mem_cons_self))
+theorem Pres.stopRun (id : Nat) (b : Bool) : Pres (stopRun id b) := HPres.engine.stopRun id b
 
-theorem mem_familyOf_self (e : Engine) (id : Nat) : id ∈ familyOf e id := by
-  unfold familyOf familyOfF; exact List.mem_cons_self
-
-/-- Removing runs one by one: what is left is a sublist, without any of the
-removed ids; automations and scripts stay. -/
-theorem foldl_removeRun (olds : List Run) (e : Engine) :
-    (olds.foldl (fun b a => HALean.Automation.removeRun b a.id) e).runs.Sublist e.runs ∧
-    (∀ r ∈ (olds.foldl (fun b a => HALean.Automation.removeRun b a.id) e).runs, ∀ o ∈ olds, r.id ≠ o.id) ∧
-    (olds.foldl (fun b a => HALean.Automation.removeRun b a.id) e).automations = e.automations ∧
-    (olds.foldl (fun b a => HALean.Automation.removeRun b a.id) e).scripts = e.scripts := by
-  induction olds generalizing e with
-  | nil => simp
-  | cons o olds ih =>
-    obtain ⟨ih1, ih2, ih3, ih4⟩ := ih (removeRun e o.id)
-    simp only [List.foldl_cons]
-    refine ⟨ih1.trans (removeRun_runs_sublist e o.id), fun r hr o' ho' => ?_,
-      ih3.trans (removeRun_rest e o.id).1, ih4.trans (removeRun_rest e o.id).2.2.2.2.2.2.2.2⟩
-    rcases List.mem_cons.1 ho' with rfl | ho'
-    · intro hid
-      have hr' := ih1.subset hr
-      exact removeRun_family_gone e o'.id r hr' (hid ▸ mem_familyOf_self e o'.id)
-    · exact ih2 r hr o' ho'
-
-/-- Admission with `restart`: the new run is added, then every old run of the
-automation is removed; one run is left. -/
-theorem Inv.restarted {e : Engine} {ai : Nat} {a : Automation} (h : Inv e)
-    (ha : e.automations[ai]? = some a)
-    (hrs : (admit a.mode a.maxRuns (runsOf e ai).length == .restart) = true)
-    (run : Run) {e' : Engine} (hr : e'.runs = e.runs ++ [run]) (hrai : run.autoIdx = ai)
-    (hrp : run.parent = none) (ha' : e'.automations = e.automations) (hs' : e'.scripts = e.scripts) :
-    Inv ((runsOf e ai).foldl (fun b a => HALean.Automation.removeRun b a.id) e') := by
-  obtain ⟨f1, f2, f3, f4⟩ := foldl_removeRun (runsOf e ai) e'
-  generalize (runsOf e ai).foldl (fun b a => HALean.Automation.removeRun b a.id) e' = ef at f1 f2 f3 f4
-  refine ⟨f4.trans (hs'.trans h.1), fun ai' a' hai' => ?_⟩
-  rw [f3, ha'] at hai'
-  obtain ⟨h1, h2⟩ := h.2 ai' a' hai'
-  refine ⟨h1, ?_⟩
-  have hsub : (runsOf ef ai').Sublist (runsOf e' ai') := f1.filter _
-  rw [runsOf_append_run e e' run hr hrp] at hsub
-  by_cases hx : run.autoIdx = ai'
-  · simp only [hx, ↓reduceIte] at hsub
-    subst hrai; subst hx
-    rw [ha] at hai'; cases hai'
-    have hcap : cap a = 1 := by unfold cap; rw [admit_restart hrs]
-    rw [hcap]
-    have hB := sublist_of_append_not_mem hsub fun x hx hA =>
-      f2 x ((List.filter_sublist).subset hx) x hA rfl
-    simpa using hB.length_le
-  · simp only [hx, ↓reduceIte] at hsub
-    exact Nat.le_trans hsub.length_le h2
-
-theorem Pres.triggerAutomation (ai : Nat) (tv : TriggerVars) : Pres (triggerAutomation ai tv) := by
-  unfold HALean.Automation.triggerAutomation
-  simp only [List.forIn_pure_yield_eq_foldl, pure_bind]
-  pres [Pres.drive]
+/-- `restart` stops the other runs first, then admits the new run again
+(`start`, as none is left). -/
+theorem Pres.restartRun (ai : Nat) (tv : TriggerVars) (vs : List (String × Template.Value))
+    (existing : List Run) : Pres (restartRun ai tv vs existing) := by
+  unfold HALean.Automation.restartRun
+  pres [Pres.stopRun]
   all_goals
     apply Pres.setE
-    first
-    | (apply Inv.restarted <;> first | assumption | rfl)
-    | (apply Inv.admitted <;> first | assumption | rfl)
+    apply Inv.admitted <;> first
+      | assumption
+      | rfl
+      | (intro why hw; simp_all)
+      | (simp_all; decide)
+
+/-- `queued` and `parallel` admit below `max`. -/
+theorem Pres.triggerAutomation (ai : Nat) (tv : TriggerVars) : Pres (triggerAutomation ai tv) := by
+  unfold HALean.Automation.triggerAutomation
+  pres [Pres.drive, Pres.restartRun]
+  all_goals
+    apply Pres.setE
+    apply Inv.admitted <;> first
+      | assumption
+      | rfl
+      | (intro why hw; simp_all)
+      | (simp_all; decide)
 
 /-! ## Triggers, timers and inputs -/
 
@@ -468,7 +417,7 @@ theorem Pres.fire (o : Owner) (tv : TriggerVars) : Pres (fire o tv) := by
 
 theorem Pres.resumeWokenF : ∀ n, Pres (resumeWokenF n)
   | 0 => by unfold HALean.Automation.resumeWokenF; pres
-  | n + 1 => by unfold HALean.Automation.resumeWokenF; pres [Pres.drive, Pres.resumeWokenF n]
+  | n + 1 => by unfold HALean.Automation.resumeWokenF; pres [Pres.drive, Pres.resumeWokenF n, Pres.writeEntity]
 
 theorem Pres.resumeWoken : Pres resumeWoken := Pres.resumeWokenF _
 

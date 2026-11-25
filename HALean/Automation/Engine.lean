@@ -174,6 +174,19 @@ structure WaitTrig where
   hasTimeout : Bool
   deriving Repr, Inhabited
 
+/-- A `restart` run that waits for the stop of the other runs (`await
+self.async_stop(spare=run)` in `Script.async_run`). When it is woken,
+`started_action()` runs (an automation's `automation_triggered`),
+`last_triggered` is set and the state written, and the run starts, unless
+it was stopped meanwhile. -/
+structure PendingStart where
+  runId : Nat
+  autoIdx : Nat
+  /-- An automation's trigger description (for `automation_triggered`);
+  `none` for a script entity. -/
+  trigger : Option String := none
+  deriving Inhabited
+
 structure Engine where
   automations : List Automation := []
   states : States := []
@@ -199,6 +212,9 @@ structure Engine where
   /-- Runs whose wait completed during the current input; they continue
   once its callbacks are done. -/
   woken : List Nat := []
+  /-- `restart` runs that wait for the stop of the other runs of their
+  automation or script (`PendingStart`). -/
+  pendingStarts : List PendingStart := []
   /-- HA's location (`hass.config` latitude, longitude, elevation), for the
   `sun` trigger. -/
   location : Option Sun.Observer := none
@@ -572,6 +588,9 @@ def ErrKind.str : ErrKind → String
 /-- How `Script.async_run` answered a request to start a run. -/
 inductive StartRes where
   | started (runId : Nat)
+  /-- A `restart`: added, but it starts once the other runs are stopped
+  (`PendingStart`). -/
+  | deferred (runId : Nat)
   /-- Not started (mode, `max` or a disallowed recursion): returns `None`. -/
   | rejected
   /-- Raised (a `TemplateError` rendering the script's variables). -/
@@ -654,6 +673,10 @@ def driveH (h : Handlers) (r : Run) : EM Unit := do
       h.callLocal (.run r'.id cid) ops
       return
     match r'.wait with
+    -- `await asyncio.sleep(0)`: the run goes on after the current callbacks
+    | .ready =>
+      let e ← getE
+      setE { e with woken := e.woken ++ [r'.id] }
     | .waitTmpl t _ _ => setupWait r' t
     | .waitTrig trigs vars deadline _ =>
       let e ← getE
@@ -690,15 +713,16 @@ def finishRunH (h : Handlers) (r : Run) (end_ : RunEnd) : EM Unit := do
   h.releaseQueue r.autoIdx
 
 /-- `_QueuedScriptRun._finish` releases the FIFO lock: the oldest waiting
-run starts once no run holds it. -/
-def releaseQueueH (h : Handlers) (ai : Nat) : EM Unit := do
+run gets it once no run holds it. `asyncio.Lock.release` wakes the
+waiter's task, which goes on after the current callbacks (`woken`). -/
+def releaseQueueH (_h : Handlers) (ai : Nat) : EM Unit := do
   let e ← getE
   let a := e.automations.getD ai default
   if a.mode == .queued then
     if (runsOf e ai).all (·.wait == .queued) then
       if let some nxt := (runsOf e ai).head? then
-        setE (replaceRun e { nxt with wait := .ready })
-        h.drive { nxt with wait := .ready }
+        let e := replaceRun e { nxt with wait := .ready }
+        setE { e with woken := if e.woken.contains nxt.id then e.woken else e.woken ++ [nxt.id] }
 
 /-- A `parallel` branch ended. Once all have, `gather` returns and the
 first branch (in order) that raised re-raises in the parent; an error is
@@ -849,14 +873,17 @@ def startScriptH (h : Handlers) (ai : Nat) (runVars : List (String × Template.V
                      frames := [.seq a.actions false], wait, caller, stack := stack ++ [ai] }
   setE { e with runs := e.runs ++ [run], nextRunId := e.nextRunId + 1 }
   if decision == .restart then
-    -- "first add the new run and then stop any other runs". Stopping them
-    -- can hand a queue on, and a run that then starts can start this script
-    -- again (a re-entrant restart), which stops this run before it started.
+    -- "first add the new run and then stop any other runs", and await that:
+    -- the run starts after the current callbacks (`PendingStart`). Until
+    -- then it is `starting`: another restart (also a re-entrant one, from a
+    -- queue the stops hand on) stops it before it started.
     let e ← getE
     setE { e with starting := e.starting ++ [run.id] }
     for old in existing do h.stopRun old.id false
+    -- `callLocal` schedules it (`woken`) once the call is answered
     let e ← getE
-    setE { e with starting := e.starting.filter (· != run.id) }
+    setE { e with pendingStarts := e.pendingStarts ++ [{ runId := run.id, autoIdx := ai }] }
+    return .deferred run.id
   let e ← getE
   setE { e with lastTriggered := (e.lastTriggered.filter (·.1 != ai)) ++ [(ai, (e.now.utc : Int) * 1000)] }
   writeEntity ai
@@ -871,6 +898,8 @@ started; `turn_off` (and `toggle` of a running script) awaits the stop,
 so a calling run resumes after the current callbacks. -/
 def callLocalH (h : Handlers) (c : Caller) (ops : List HALean.Script.LocalOp) : EM Unit := do
   let mut yielded := false
+  -- restarts waiting for their old runs to stop: scheduled after the answer
+  let mut deferred : List Nat := []
   for op in ops do
     match op with
     | .fail k m =>
@@ -886,6 +915,7 @@ def callLocalH (h : Handlers) (c : Caller) (ops : List HALean.Script.LocalOp) : 
         | .external .. => []
       match ← h.startScript ai vars (some c) stack with
       | .started _ => pure ()
+      | .deferred id => let e ← getE; setE { e with woken := e.woken ++ [id] }
       | .rejected => h.answer c (.ok .none)
       | .failed k m => h.answer c (.err k m)
       h.continueNow c
@@ -894,6 +924,10 @@ def callLocalH (h : Handlers) (c : Caller) (ops : List HALean.Script.LocalOp) : 
       -- a fresh `script_stack`
       match ← h.startScript ai vars none [] with
       | .started _ => pure ()
+      -- `await self._changed.wait()` returns once the old runs' tasks have
+      -- seen their stop (`Script.async_run` calls `_changed()` when its
+      -- awaited run is cancelled), which is before the new run starts
+      | .deferred id => deferred := deferred ++ [id]; yielded := true
       | _ =>
         -- HA's `await self._changed.wait()` then waits for the script's
         -- next state write, whenever that comes; HALean does not model it
@@ -909,6 +943,8 @@ def callLocalH (h : Handlers) (c : Caller) (ops : List HALean.Script.LocalOp) : 
       yielded := true
   h.answer c (.ok .none)
   if !yielded then h.continueNow c
+  let e ← getE
+  setE { e with woken := e.woken ++ deferred }
 
 /-- One level more: every handler, calling the ones of `h`. -/
 def Handlers.next (h : Handlers) : Handlers where
@@ -965,6 +1001,29 @@ def thisValue (e : Engine) (ai : Nat) (a : Automation) (eid : String) : Template
     ("last_updated", .opaque "this.last_updated"), ("context", .opaque "this.context")].map
     fun (k, v) => (.str k, v))
 
+/-- `restart` when the automation has runs: `Script.async_run` adds the
+new run, then stops the others and awaits that (`await
+self.async_stop(spare=run)`). Their tasks need loop iterations to end, so
+`started_action` (`automation_triggered`), `last_triggered` and the new run
+itself come after the current callbacks (`woken`, `pendingStarts`);
+another trigger of the automation meanwhile stops the new run before it
+starts. Stopping a run stops the scripts it waits for. (The others are
+stopped before the new run is added: nothing outside the engine can tell,
+and the run count stays within `max`.) -/
+def restartRun (ai : Nat) (tv : TriggerVars) (runVars : List (String × Template.Value))
+    (existing : List Run) : EM Unit := do
+  for old in existing do stopRun old.id
+  let e ← getE
+  let some a := e.automations[ai]? | return
+  match admit a.mode a.maxRuns (runsOf e ai).length with
+  | .start =>
+    let run : Run := { id := e.nextRunId, autoIdx := ai, triggerId := tv.id, vars := runVars,
+                       frames := [.seq a.actions false] }
+    setE { e with runs := e.runs ++ [run], nextRunId := e.nextRunId + 1,
+                  pendingStarts := e.pendingStarts ++ [{ runId := run.id, autoIdx := ai, trigger := some tv.description }],
+                  woken := e.woken ++ [run.id] }
+  | _ => pure ()  -- not reached: no run of the automation is left
+
 /-- `Script.async_run` admission + `AutomationEntity.async_trigger`. -/
 def triggerAutomation (ai : Nat) (tv : TriggerVars) : EM Unit := do
   let e ← getE
@@ -999,20 +1058,19 @@ def triggerAutomation (ai : Nat) (tv : TriggerVars) : EM Unit := do
   if let .reject why := decision then
     emit [.log "warning" s!"{a.alias}: {why}"]
     return
-  let wait : Wait := if decision == .enqueue then .queued else .ready
   -- `Script.async_run` (top level): `variables["context"] = context`, over
   -- any automation variable of that name
-  let run : Run := { id := e.nextRunId, autoIdx := ai, triggerId := tv.id,
-                     vars := setVar vars "context" contextValue,
+  let runVars := setVar vars "context" contextValue
+  if decision == .restart then
+    restartRun ai tv runVars existing
+    return
+  let wait : Wait := if decision == .enqueue then .queued else .ready
+  let run : Run := { id := e.nextRunId, autoIdx := ai, triggerId := tv.id, vars := runVars,
                      frames := [.seq a.actions false], wait }
   -- `self.last_triggered = utcnow()` once the run is added (queued or not)
-  let mut e := { e with
+  setE { e with
     runs := e.runs ++ [run], nextRunId := e.nextRunId + 1
     lastTriggered := (e.lastTriggered.filter (·.1 != ai)) ++ [(ai, (e.now.utc : Int) * 1000)] }
-  if decision == .restart then
-    -- "first add the new run and then stop any other runs"
-    for old in existing do e := removeRun e old.id
-  setE e
   emit [.automationTriggered a.id a.alias tv.description]
   if wait == .ready then drive run
 
@@ -1041,8 +1099,10 @@ def LOOP_OUT_MSG : String := "HALean: too many timers or wake-ups within one inp
 
 /-- Run what is scheduled for after the current callbacks, in order: runs
 whose `wait_for_trigger` completed (their triggers are removed first),
-`parallel` branches, and parents whose branches are all done. Runs started
-here can schedule more. -/
+`parallel` branches, parents whose branches are all done, runs that
+yielded (`asyncio.sleep(0)` in a `repeat`), queued runs that got the lock,
+and `restart` runs whose other runs are stopped. Runs started here can
+schedule more. -/
 def resumeWokenF : Nat → EM Unit
   | 0 => emit [.log "error" LOOP_OUT_MSG]
   | fuel + 1 => do
@@ -1050,6 +1110,18 @@ def resumeWokenF : Nat → EM Unit
     if ws.isEmpty then return
     setE { (← getE) with woken := [] }
     for rid in ws do
+      -- a `restart` run whose stop of the others is done: `started_action()`,
+      -- `last_triggered = utcnow()`, then the run (unless it was stopped)
+      let pend := (← getE).pendingStarts.find? (·.runId == rid)
+      if let some ps := pend then
+        let e ← getE
+        let ai := ps.autoIdx
+        let a := e.automations.getD ai default
+        setE { e with pendingStarts := e.pendingStarts.filter (·.runId != rid),
+                      starting := e.starting.filter (· != rid),
+                      lastTriggered := (e.lastTriggered.filter (·.1 != ai)) ++ [(ai, (e.now.utc : Int) * 1000)] }
+        if let some desc := ps.trigger then emit [.automationTriggered a.id a.alias desc]
+        writeEntity ai
       setE (cleanupWait (← getE) rid)
       if let some r := (← getE).runs.find? (·.id == rid) then
         if r.wait == .ready then drive r

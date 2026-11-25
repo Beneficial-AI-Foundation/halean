@@ -477,6 +477,9 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
     if testConditions env cs != some true then (.next { r with frames := rest }, [], ctx)
     else if it > REPEAT_TERMINATE_ITERATIONS then
       (.done (.aborted s!"While condition terminated because it looped {REPEAT_TERMINATE_ITERATIONS} times"), [], ctx)
+    -- from the second iteration on, `await asyncio.sleep(0)` before the body:
+    -- the run yields (`blocked` while `ready`) and goes on later
+    else if it > 1 then (.blocked (push (.seq body false) (.repeatWhile it cs body c none :: rest)), [], ctx)
     else (.next (push (.seq body false) (.repeatWhile it cs body c none :: rest)), [], ctx)
   | .repeatUntil i cs body c _ :: rest =>
     if i == 0 then (.next (push (.seq body false) (.repeatUntil 1 cs body c none :: rest)), [], ctx)
@@ -485,7 +488,8 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
       if testConditions env cs != some false then (.next { r with frames := rest }, [], ctx)
       else if i ≥ REPEAT_TERMINATE_ITERATIONS then
         (.done (.aborted s!"Until condition terminated because it looped {REPEAT_TERMINATE_ITERATIONS} times"), [], ctx)
-      else (.next (push (.seq body false) (.repeatUntil (i + 1) cs body c none :: rest)), [], ctx)
+      -- `await asyncio.sleep(0)` before the next iteration: the run yields
+      else (.blocked (push (.seq body false) (.repeatUntil (i + 1) cs body c none :: rest)), [], ctx)
 
 /-- Safety net for nested loops (HA would hang the event loop instead). -/
 def STEP_FUEL : Nat := 1000000

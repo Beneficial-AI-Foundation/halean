@@ -1,0 +1,35 @@
+# A `restart` automation with a run adds the new run, then stops the old
+# one and awaits that (`Script.async_run`): `automation_triggered` and the
+# new run come after the other callbacks of the event, and a second
+# trigger of the same automation meanwhile stops the new run before it
+# starts (its `automation_triggered` still fires). Review items A11 and
+# A13 (restart between two automations).
+automations:
+  - id: r
+    mode: restart
+    triggers: [{trigger: event, event_type: go}, {trigger: event, event_type: go}]
+    actions: [{action: a.one, data: {t: "{{ trigger.idx }}"}}]
+  - id: b
+    mode: parallel
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: b.one}]
+steps:
+  - at: 1
+    send: {type: event, event_type: go}
+    expect:
+      - {type: automation_triggered, id: r}
+      - {type: call_service, service: one, data: {t: 0}}
+      - {type: automation_triggered, id: b}
+      - {type: call_service, domain: b, service: one}
+      - {type: automation_triggered, id: r}
+      - {type: call_service, service: one, data: {t: 1}}
+  - at: 2
+    send: {type: event, event_type: go}
+    expect:
+      - {type: automation_triggered, id: b}
+      - {type: call_service, domain: b, service: one}
+      - {type: automation_triggered, id: r}
+      - {type: automation_triggered, id: r}
+      - {type: call_service, service: one, data: {t: 1}}
+  # results for stopped runs are ignored
+  - {at: 3, send: {type: service_result, call_id: 0, ok: true}, expect: []}

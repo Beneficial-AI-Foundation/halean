@@ -1203,14 +1203,16 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
   if let some ps := field? j "parallel" then
     -- each item is a `sequence:` mapping (`_SCRIPT_SEQUENCE_SCHEMA`) or a
     -- single action (`_parallel_sequence_action`); a disabled branch is
-    -- skipped (`_async_run_script` with `enabled: false`)
+    -- skipped (`_async_run_script` with `enabled: false`), but it is still
+    -- one of the tasks `asyncio.gather` waits for, so it stays as an empty
+    -- branch
     let branches ← (ensureList ps).mapM fun b => do
       if has b "sequence" && !(has b "action" || has b "service") then
         if !(← isEnabled b .truthy) then return []
         seqOf ((field? b "sequence").getD .null)
       else
         return (← decodeAction b nm).toList
-    return wrap (.parallel (branches.filter (!·.isEmpty)))
+    return wrap (.parallel branches)
   if let some w := field? j "wait_template" then
     let .str src := w | throw s!"wait_template must be a template, got {w.compress}"
     return wrap (.waitTemplate (← compileTemplate src nm) (← timeout? j nm) (← continueOnTimeout? j))

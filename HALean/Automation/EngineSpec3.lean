@@ -180,8 +180,10 @@ theorem triggerAutomation_start (ai : Nat) (tv : TriggerVars) (e : Engine) (acc 
   cases hE : a.entityId <;> simp [hE] at hv <;>
   em_simp [triggerAutomation, ha, hown, hE, hv, hc, hr, h1, h2, h3, withRun, newRun]
 
-/-- `restart`: the new run is added first, then every older run of the
-automation is removed, and only then is the new one driven. -/
+/-- `restart` (the automation has runs): the trigger itself announces and
+drives nothing; it stops the other runs and schedules the new one
+(`restartRun`), which fires `automation_triggered` and starts after the
+current callbacks. -/
 theorem triggerAutomation_restart (ai : Nat) (tv : TriggerVars) (e : Engine) (acc : List Cmd)
     (a : Automation) (vars : List (String × Template.Value))
     (ha : e.automations[ai]? = some a)
@@ -191,18 +193,14 @@ theorem triggerAutomation_restart (ai : Nat) (tv : TriggerVars) (e : Engine) (ac
     (hc : checkAutomationConditions (condEnvOf e tv vars) a.conditions = true)
     (hr : admit a.mode a.maxRuns (runsOf e ai).length = .restart) :
     (triggerAutomation ai tv).run (e, acc) =
-      (drive (newRun e ai a tv vars .ready)).run
-        ((runsOf e ai).foldl (fun e old => removeRun e old.id)
-            (withRun e ai (newRun e ai a tv vars .ready)),
-         acc ++ [.automationTriggered a.id a.alias tv.description]) := by
+      (restartRun ai tv (setVar vars "context" contextValue) (runsOf e ai)).run (e, acc) := by
   unfold trigEnv at hv
   unfold ownEnv ownVars at hown
   unfold condEnvOf at hc
   have h1 : (Admit.restart == Admit.restart) = true := by decide
-  have h3 : (Admit.restart == Admit.enqueue) = false := by decide
-  have h2 : (Wait.ready == Wait.ready) = true := by rfl
   cases hE : a.entityId <;> simp [hE] at hv <;>
-  em_simp [triggerAutomation, ha, hown, hE, hv, hc, hr, h1, h2, h3, withRun, newRun, forIn_pure_yield]
+  em_simp [triggerAutomation, ha, hown, hE, hv, hc, hr, h1] <;>
+  (generalize restartRun _ _ _ _ (e, acc) = x; rcases x with ⟨⟨⟩, _⟩; rfl)
 
 /-- `single` really is single, one trigger at a time: while the automation
 has a run, a trigger never changes the engine (it can only log). -/
