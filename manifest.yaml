@@ -9,28 +9,28 @@ entries:
   lean:
   - HALean.Automation.evalAnd
   status: proven
-  notes: errors are collected and raised only if no condition returned False; theorems evalAnd_nil, evalAnd_all_disabled
+  notes: 'errors are collected and raised only if no condition returned False; theorems evalAnd_false_iff, evalAnd_true_iff, evalAnd_ne_none (ConditionSpec: the outcome exactly, from the conditions'' outcomes); also evalAnd_nil, evalAnd_all_disabled'
   hash: 53c6a7358f42a0ab
   deps: 73ca1e149c7e48ba
 - python: helpers/condition.py::OrConditionChecker._async_check
   lean:
   - HALean.Automation.evalOr
   status: proven
-  notes: theorem evalOr_nil
+  notes: 'theorems evalOr_true_iff, evalOr_false_iff, evalOr_ne_none (ConditionSpec: the outcome exactly); also evalOr_nil'
   hash: 73f2bc1cc881a29f
   deps: 73ca1e149c7e48ba
 - python: helpers/condition.py::NotConditionChecker._async_check
   lean:
   - HALean.Automation.evalNot
   status: proven
-  notes: truthiness test, so None (disabled) counts as false; theorem evalNot_disabled
+  notes: 'truthiness test, so None (disabled) counts as false; theorems evalNot_eq_negate_evalOr, evalNot_true_iff, evalNot_false_iff (ConditionSpec: the outcome exactly); also evalNot_disabled'
   hash: f860a47a4f8cb9a1
   deps: 73ca1e149c7e48ba
 - python: helpers/condition.py::DisabledConditionChecker._async_check
   lean:
   - HALean.Automation.evalCond
   status: proven
-  notes: returns None (ok none); theorem evalCond_disabled
+  notes: 'returns None (ok none); theorem evalCond_disabled (that is all it does)'
   hash: ebbb1fbb2d69c186
 - python: helpers/condition.py::state
   lean:
@@ -99,13 +99,13 @@ entries:
   lean:
   - HALean.Automation.checkAutomationConditions
   status: proven
-  notes: errors count as False; theorem checkAutomationConditions_nil
+  notes: 'errors count as False; theorem checkAutomationConditions_iff (ConditionSpec: true exactly when no condition raises and none is false); also checkAutomationConditions_nil'
   hash: e5f40a144d81ca95
 - python: helpers/script.py::_ScriptRun._test_conditions
   lean:
   - HALean.Automation.testConditions
   status: proven
-  notes: stops at first error and returns None; theorem testConditions_nil
+  notes: 'stops at first error and returns None; theorems testConditions_true_iff, testConditions_false_iff (ConditionSpec: the outcome exactly; None otherwise); also testConditions_nil'
   hash: 2ab1cd9bdeedaed1
   deps: b1e5bd6eeff68023
 - python: helpers/script.py::_ScriptRun.async_run
@@ -209,8 +209,8 @@ entries:
   - HALean.Automation.admit
   - HALean.Automation.triggerAutomation
   - HALean.Automation.startScript
-  status: proven
-  notes: theorems single_exclusive, restart_never_rejects, admit_bounded, queued_waits
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): single_exclusive, restart_never_rejects, admit_bounded, queued_waits (the admission decision admit) and EngineBound.runs_bounded (the engine-wide run bound); the run itself (restart, queueing, stopping) is not specified'
   hash: de80e422d227b5fe
   deps: 452617cc552dc4a0
 - python: helpers/script.py::_QueuedScriptRun.async_run
@@ -227,8 +227,8 @@ entries:
 - python: helpers/event.py::process_state_match
   lean:
   - HALean.Automation.StateMatch.matches
-  status: proven
-  notes: theorems match_invert, match_all
+  status: translated
+  notes: 'theorem stateMatch_matches_iff characterises StateMatch.matches exactly, but over Json equality, where upstream uses Python == and set membership (20 == 20.0, 1 == True); also match_invert, match_all'
   hash: dfe501b7ee7ebfd0
   deps: a66c7803c75068d8
 - python: helpers/event.py::async_track_same_state
@@ -1381,8 +1381,7 @@ entries:
   lean:
   - HALean.Core.StateMachine.domainEntityIds
   status: proven
-  notes: the domain index lists a domain's entities in the main dict's order, so it is a filter of the
-    dict; theorem mem_domainEntityIds
+  notes: 'the domain index lists a domain''s entities in the main dict''s order, so it is a filter of the dict; theorems domainEntityIds_zip_domainStates (StateMachineSpec: the dict filtered by domain, in order), mem_domainEntityIds'
   hash: e373ba89e83722e6
 - python: core.py::States.domain_states
   lean:
@@ -1417,16 +1416,15 @@ entries:
   - HALean.Core.StateMachine.asyncRemove
   - HALean.Core.Hass.runAction
   - HALean.Core.Hass.smQueued
-  status: proven
-  notes: theorems remove_then_get_none, remove_then_lookup_none, remove_keys; in the joined core its event
-    goes through the bus model with the given context or none
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): remove_then_get_none, remove_then_lookup_none, remove_keys, asyncRemove_events; in the joined core its event goes through the bus model with the given context or none'
   hash: b96d7c0813c83f16
   deps: 6f669f65dfc92ade
 - python: core.py::StateMachine.async_reserve
   lean:
   - HALean.Core.StateMachine.asyncReserve
-  status: proven
-  notes: theorem reserve_then_unavailable
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): reserve_then_unavailable'
   hash: 6cefddf984973ac1
   deps: 73ca1e149c7e48ba
 - python: core.py::StateMachine.async_available
@@ -1450,9 +1448,8 @@ entries:
   - HALean.Core.StateMachine.attrsEq
   - HALean.Core.Hass.runAction
   - HALean.Core.Hass.smQueued
-  status: proven
-  notes: state_info not modelled; theorems set_same_only_reports, set_same_state_keeps_last_changed, set_frame,
-    set_keys; in the joined core its events go through the bus model (Hass.runAction, theorem set_delivers_first)
+  status: translated
+  notes: 'state_info not modelled; partial theorems (properties, not a specification of the function): set_same_only_reports, set_same_state_keeps_last_changed, set_frame, set_keys, set_cases, asyncSetInternal_events, asyncSetInternal_force_changed, asyncSetInternal_new_entity; in the joined core its events go through the bus model (Hass.runAction, theorem set_delivers_first)'
   hash: f5eef30edc4da775
   deps: 414e57713a54f079
 - python: core.py::SupportsResponse
@@ -1490,8 +1487,8 @@ entries:
 - python: core.py::ServiceRegistry.has_service
   lean:
   - HALean.Core.Registry.hasService
-  status: proven
-  notes: theorems has_after_register, has_after_remove; str.lower() modelled for ASCII names only
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): has_after_register, has_after_remove, hasService_eq_asyncServicesForDomain; str.lower() modelled for ASCII names only'
   hash: 151ab10768e81f06
 - python: core.py::ServiceRegistry.supports_response
   lean:
@@ -1511,9 +1508,8 @@ entries:
   - HALean.Core.Registry.register
   - HALean.Core.Hass.runAction
   - HALean.Core.Hass.firedQueued
-  status: proven
-  notes: theorem has_after_register (case-insensitive); in the joined core service_registered goes through
-    the bus model
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): has_after_register (case-insensitive), wf_register, asyncServices_after_register; in the joined core service_registered goes through the bus model'
   hash: 0ae8830ee181c4b6
   deps: 3e04eabd4d6e1369
 - python: core.py::ServiceRegistry.async_remove
@@ -1527,9 +1523,8 @@ entries:
   - HALean.Core.Registry.remove
   - HALean.Core.Hass.runAction
   - HALean.Core.Hass.firedQueued
-  status: proven
-  notes: theorems has_after_remove, call_after_remove_not_found; in the joined core service_removed goes
-    through the bus model
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): has_after_remove, call_after_remove_not_found, wf_remove; in the joined core service_removed goes through the bus model'
   hash: 2558fcbc0d59e76a
   deps: 444a615e740eebc4
 - python: core.py::ServiceRegistry.async_call
@@ -1549,13 +1544,8 @@ entries:
   - HALean.Core.Hass.callService
   - HALean.Core.Hass.resume
   - HALean.Core.Hass.Frame
-  status: proven
-  notes: theorems call_none_return_response_errors, call_only_needs_return_response, call_return_response_needs_blocking,
-    call_after_remove_not_found; for script.* services the engine merges the target into the data and
-    requires a dict response (mergeTarget, callResponse); split into prepareCall/finishCall; the joined
-    core (Hass.callService) fires call_service through the bus and runs scripted handlers; a handler that
-    suspends suspends a blocking caller (Frame.handlerRet) and runs in its own task for a non-blocking
-    one
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): call_none_return_response_errors, call_only_needs_return_response, call_return_response_needs_blocking, call_after_remove_not_found; for script.* services the engine merges the target into the data and requires a dict response (mergeTarget, callResponse); split into prepareCall/finishCall; the joined core (Hass.callService) fires call_service through the bus and runs scripted handlers; a handler that suspends suspends a blocking caller (Frame.handlerRet) and runs in its own task for a non-blocking one'
   hash: 7744c175387f8dfc
   deps: 09e582b1fbe7e041
 - python: core.py::ServiceRegistry._run_service_call_catch_exceptions
@@ -1655,8 +1645,8 @@ entries:
   - HALean.Core.Hass.useOnce
   - HALean.Core.Hass.runJob
   - HALean.Core.Hass.runListener
-  status: proven
-  notes: theorem once_at_most_once
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): once_at_most_once'
   hash: aa61852d36a4e2bc
   deps: 73ca1e149c7e48ba
 - python: core.py::_verify_event_type_length_or_raise
@@ -1713,11 +1703,8 @@ entries:
   - HALean.Core.EventBus.filterPasses
   - HALean.Core.Hass.dispatchLoop
   - HALean.Core.Hass.runListener
-  status: proven
-  notes: 'theorems snapshot_match_all, snapshot_excluded, gone_silent; theorems dispatchLoop_deliveries,
-    runListener_deliveries (joined core: a coroutine listener''s synchronous prefix runs in the dispatch,
-    its task is parked and the dispatch goes on); a task done at once is dropped, so its exception is
-    logged there (gcLog)'
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): dispatchLoop_deliveries and runListener_deliveries specify exactly which listeners receive the event, once each, in snapshot order (joined core: a coroutine listener''s synchronous prefix runs in the dispatch, its task is parked and the dispatch goes on); snapshot_match_all, snapshot_excluded, gone_silent; error logging and what listeners queue are not specified; a task done at once is dropped, so its exception is logged there (gcLog)'
   hash: 8d8cde5261ec0c08
   deps: eecc428ba68b28ce
 - python: core.py::EventBus.async_listen
@@ -1747,9 +1734,8 @@ entries:
   lean:
   - HALean.Core.EventBus.asyncRemoveListener
   - HALean.Core.Hass.removeListener
-  status: proven
-  notes: the defaultdict access re-creates an empty list on a double removal; theorems unsub_gone, unsub_gone_reachable
-    (no side conditions on reachable buses), unsub_silent
+  status: translated
+  notes: 'the defaultdict access re-creates an empty list on a double removal; partial theorems (properties, not a specification of the function): unsub_gone, unsub_gone_reachable (no side conditions on reachable buses), unsub_silent'
   hash: f7a8cd4f4b95f0f4
   deps: b4466887d69cf3b9
 - python: core.py::HomeAssistant.async_run_hass_job
@@ -2000,10 +1986,8 @@ entries:
   - HALean.Core.Hass.Hass.park
   - HALean.Core.Hass.TaskRec
   - HALean.Core.Hass.Handle
-  status: proven
-  notes: coroutine functions only (create_eager_task, then _tasks / _background_tasks with the done callback);
-    callback jobs never reach it in the model (async_run_hass_job runs them); executor jobs are not modelled;
-    theorems runListener_deliveries (eager start), keeps (only appends to the ready queue)
+  status: translated
+  notes: 'coroutine functions only (create_eager_task, then _tasks / _background_tasks with the done callback); callback jobs never reach it in the model (async_run_hass_job runs them); executor jobs are not modelled; partial theorems (properties, not a specification of the function): runListener_deliveries (eager start), keeps (only appends to the ready queue)'
   hash: 38c5d0642a60a8e9
   deps: 73ca1e149c7e48ba
 - python: core.py::HomeAssistant.async_block_till_done
@@ -2015,12 +1999,8 @@ entries:
   - HALean.Core.Hass.startRound
   - HALean.Core.Hass.runLoop
   - HALean.Core.Hass.drive
-  status: proven
-  notes: await asyncio.sleep(0), then rounds of asyncio.wait over _tasks (wait_background_tasks=False;
-    no background tasks exist in the model); the tasks list keeps failed tasks alive until the next check
-    (endRound), and two such exceptions would be logged in set order (rejected); a round that never ends
-    is rejected (loop fuel, or nothing left to run); the debug logging of blocked tasks is not modelled;
-    theorem blockTillDone_no_tasks
+  status: translated
+  notes: 'await asyncio.sleep(0), then rounds of asyncio.wait over _tasks (wait_background_tasks=False; no background tasks exist in the model); the tasks list keeps failed tasks alive until the next check (endRound), and two such exceptions would be logged in set order (rejected); a round that never ends is rejected (loop fuel, or nothing left to run); the debug logging of blocked tasks is not modelled; partial theorems (properties, not a specification of the function): blockTillDone_no_tasks (no task is left when it returns), runHandle_fifo, resume_main_fifo'
   hash: d969365a73403d63
   deps: c5894fbffcf0e8e6
 - python: core.py::HomeAssistant._await_and_log_pending
@@ -2435,7 +2415,7 @@ entries:
   lean:
   - HALean.Helpers.InputBoolean.toggle
   status: proven
-  notes: theorems toggle_toggle, state_toggle
+  notes: 'theorems state_toggle (the state flips: on and off are the only states), toggle_toggle'
   hash: 79eb5479bd97e758
 - python: helpers/entity.py::ToggleEntity.state
   lean:
@@ -2484,13 +2464,13 @@ entries:
   lean:
   - HALean.Helpers.InputBoolean.turnOn
   status: proven
-  notes: theorems turnOn_idem, state_turnOn
+  notes: 'theorems state_turnOn (the state is on), turnOn_idem'
   hash: 0dede2687bf9b2e8
 - python: components/input_boolean/__init__.py::InputBoolean.async_turn_off
   lean:
   - HALean.Helpers.InputBoolean.turnOff
   status: proven
-  notes: theorems turnOff_idem, state_turnOff
+  notes: 'theorems state_turnOff (the state is off), turnOff_idem'
   hash: e5b6f639f3c2fc3d
 - python: components/input_number/__init__.py::_cv_input_number
   lean:
@@ -2535,22 +2515,22 @@ entries:
 - python: components/input_number/__init__.py::InputNumber.async_set_native_value
   lean:
   - HALean.Helpers.InputNumber.setValue
-  status: proven
-  notes: theorems setValue_bounded, setValue_error (NaN passes the check, as upstream)
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): setValue_bounded, setValue_error (NaN passes the check, as upstream)'
   hash: 35e0fc98a0859454
 - python: components/input_number/__init__.py::InputNumber.async_increment
   lean:
   - HALean.Helpers.InputNumber.increment
   - HALean.Helpers.InputNumber.pyMin
-  status: proven
-  notes: theorem increment_bounded
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): increment_bounded'
   hash: d8e812bba9799d15
 - python: components/input_number/__init__.py::InputNumber.async_decrement
   lean:
   - HALean.Helpers.InputNumber.decrement
   - HALean.Helpers.InputNumber.pyMax
-  status: proven
-  notes: theorem decrement_bounded
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): decrement_bounded'
   hash: 60f88163bea5fd37
 - python: components/number/__init__.py::NumberEntity.capability_attributes
   lean:
@@ -2598,15 +2578,15 @@ entries:
 - python: components/input_select/__init__.py::InputSelect.__init__
   lean:
   - HALean.Helpers.InputSelect.Entity.create
-  status: proven
-  notes: theorem create_valid
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): create_valid'
   hash: 2905a66c697af18d
   deps: b0b63d7b62db7276
 - python: components/input_select/__init__.py::InputSelect.async_added_to_hass
   lean:
   - HALean.Helpers.InputSelect.Entity.create
-  status: proven
-  notes: theorem create_valid
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): create_valid'
   hash: b3d033d856ff6693
 - python: components/input_select/__init__.py::InputSelect.extra_state_attributes
   lean:
@@ -2617,21 +2597,21 @@ entries:
 - python: components/input_select/__init__.py::InputSelect.async_select_option
   lean:
   - HALean.Helpers.InputSelect.selectOption
-  status: proven
-  notes: theorem selectOption_valid
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): selectOption_valid'
   hash: c2218e62c8032efb
 - python: components/input_select/__init__.py::InputSelect.async_set_options
   lean:
   - HALean.Helpers.InputSelect.setOptions
-  status: proven
-  notes: theorem setOptions_valid
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): setOptions_valid'
   hash: bec325d06d642a17
   deps: 81643d0c98ac3750
 - python: components/select/__init__.py::SelectEntity.state
   lean:
   - HALean.Helpers.InputSelect.Entity.state
-  status: proven
-  notes: theorem state_of_valid
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): state_of_valid (the current option, for a valid entity)'
   hash: 6c90a9214e05e423
 - python: components/select/__init__.py::SelectEntity.capability_attributes
   lean:
@@ -2642,39 +2622,39 @@ entries:
 - python: components/select/__init__.py::SelectEntity.async_first
   lean:
   - HALean.Helpers.InputSelect.selectIndex
-  status: proven
-  notes: theorem selectIndex_valid
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): selectIndex_valid'
   hash: da7174cb7d0fb7da
 - python: components/select/__init__.py::SelectEntity.async_last
   lean:
   - HALean.Helpers.InputSelect.selectIndex
-  status: proven
-  notes: theorem selectIndex_valid
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): selectIndex_valid'
   hash: 224525dcb60a4873
 - python: components/select/__init__.py::SelectEntity.async_next
   lean:
   - HALean.Helpers.InputSelect.offsetIndex
-  status: proven
-  notes: theorem offsetIndex_valid
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): offsetIndex_valid'
   hash: 9661c88436d89a08
 - python: components/select/__init__.py::SelectEntity.async_previous
   lean:
   - HALean.Helpers.InputSelect.offsetIndex
-  status: proven
-  notes: theorem offsetIndex_valid
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): offsetIndex_valid'
   hash: f84a984be6f0b826
 - python: components/select/__init__.py::SelectEntity._async_offset_index
   lean:
   - HALean.Helpers.InputSelect.offsetIndex
-  status: proven
-  notes: theorem offsetIndex_valid
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): offsetIndex_valid'
   hash: e46ea0bf1b34874d
 - python: components/select/__init__.py::SelectEntity._async_select_index
   lean:
   - HALean.Helpers.InputSelect.selectIndex
   - HALean.Helpers.InputSelect.atMod
-  status: proven
-  notes: theorem selectIndex_valid
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): selectIndex_valid'
   hash: 3f82dd7fc2dac9c8
 - python: components/input_text/__init__.py::_cv_input_text
   lean:
@@ -2780,8 +2760,8 @@ entries:
 - python: components/counter/__init__.py::Counter.compute_next_state
   lean:
   - HALean.Helpers.Counter.clamp
-  status: proven
-  notes: theorems clamp_le_max, min_le_clamp
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): clamp_le_max, min_le_clamp'
   hash: 2918760431d9da71
   deps: c49e1a23762e014e
 - python: components/counter/__init__.py::Counter.async_added_to_hass
@@ -2794,29 +2774,29 @@ entries:
 - python: components/counter/__init__.py::Counter.async_increment
   lean:
   - HALean.Helpers.Counter.increment
-  status: proven
-  notes: theorem increment_inBounds
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): increment_inBounds'
   hash: 87e098939ced2efa
   deps: 4d93053f46a74968
 - python: components/counter/__init__.py::Counter.async_decrement
   lean:
   - HALean.Helpers.Counter.decrement
-  status: proven
-  notes: theorem decrement_inBounds
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): decrement_inBounds'
   hash: 11d90155e0fc878a
   deps: 4d93053f46a74968
 - python: components/counter/__init__.py::Counter.async_reset
   lean:
   - HALean.Helpers.Counter.reset
-  status: proven
-  notes: theorem reset_inBounds
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): reset_inBounds'
   hash: f4ed92adb56dde9c
   deps: da713832e09dd28f
 - python: components/counter/__init__.py::Counter.async_set_value
   lean:
   - HALean.Helpers.Counter.setValue
-  status: proven
-  notes: theorem setValue_inBounds; step 0 raises ZeroDivisionError
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): setValue_inBounds (a successful set stores exactly the value, within the bounds); step 0 raises ZeroDivisionError'
   hash: b973fc3f4b51f2c6
   deps: 376d9daf70b8279c
 - python: components/timer/__init__.py::_format_timedelta
@@ -2877,23 +2857,23 @@ entries:
   lean:
   - HALean.Helpers.Timer.cancel
   - HALean.Helpers.Timer.toIdle
-  status: proven
-  notes: theorem toIdle_idle
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): toIdle_idle'
   hash: 13d283db2c806ce9
   deps: c2177ab049b16030
 - python: components/timer/__init__.py::Timer.async_finish
   lean:
   - HALean.Helpers.Timer.finish
   - HALean.Helpers.Timer.toIdle
-  status: proven
-  notes: theorem toIdle_idle
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): toIdle_idle'
   hash: 45afe66cbb74e8a5
   deps: 00a5342312150c7e
 - python: components/timer/__init__.py::Timer._async_finished
   lean:
   - HALean.Helpers.Timer.finished
-  status: proven
-  notes: theorem toIdle_not_due
+  status: translated
+  notes: 'partial theorems (properties, not a specification of the function): toIdle_not_due'
   hash: 7c64aa8194c21aff
   deps: a80df176980c4908
 - python: components/timer/__init__.py::Timer._fire_event_and_write_state

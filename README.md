@@ -5,7 +5,7 @@ function by function, so it can be formally verified and still track upstream.
 
 | Service | Lean | Executable | Status |
 |---|---|---|---|
-| Automation engine (triggers → conditions → actions, run modes) | `HALean/Automation/` | `halean-automation` | done, tested against real HA |
+| Automation engine (triggers → conditions → actions, run modes) | `HALean/Automation/` | `halean-automation` | subset done (see "What is translated" and "Known gaps"), tested against real HA |
 | Templates (Jinja) | `HALean/Template/` | `halean-template` (test driver) | subset done, used by automations, tested against real HA |
 | Scripts (`script.*` entities and services) | `HALean/Script/` | `halean-script` | subset done, tested against real HA, runs with the bridge (`--scripts`) |
 | Helpers (`input_boolean`, `input_number`, `input_select`, `input_text`, `counter`, `timer`) | `HALean/Helpers/` | `halean-helpers` (test driver) | YAML helpers and their services done, tested against real HA; not yet connected to the engine |
@@ -319,8 +319,11 @@ Known gaps: timestamps are whole microseconds (`timestamp = us / 1e6`, which
 the harness passes explicitly); HA's `as_dict()` is cached and keeps a stale
 `last_reported` after a report, where HALean's `asDict` is always fresh
 (`test_as_dict_cache_is_stale_after_report` pins the upstream behaviour);
-attribute dicts print with sorted keys; a JSON float written without a
-fraction or exponent sign (`1e16`) reads as an int.
+attribute dicts print with sorted keys; an attribute of `-0.0` is sent back
+as `0.0` (Lean's JSON has no negative zero; Python compares them equal). The
+new state and the attributes are read as `json.loads` reads them
+(`parsePyJson`), so `1e+16` stays a float (`str()`: `'1e+16'`) and a state of
+`-0.0` keeps its sign.
 ### Service registry (`HALean/Core/ServiceRegistry.lean`)
 
 `hass.services` (`ServiceRegistry` in `homeassistant/core.py`) as a pure model.
@@ -360,7 +363,7 @@ flattened `MultipleInvalid` leaves, so `Any` picks the deepest one exactly.
 
 | Supported (exact) | Rejected (`unsupported`) |
 |---|---|
-| keys: `Required`, `Optional`, `Exclusive` (with `required=`, group defaults), `Inclusive`, defaults (validated through the value schema); extra policies, inherited by nested mappings; types `int` (a `bool` is one), `float` (the numeric tower: an `int` becomes a float), `str`, `bool`, `object`, `list`, `dict`, `timedelta`; scalar literals; nested mappings; list schemas `[v, ...]` (one element schema, several (the last error), none); `All`; `Any` (first match; "expected a or b" when every branch has a label, else the deepest error, first on a tie; "no valid value found"); `In` / `NotIn` (Python `==`, sorted member list as `sorted()` gives it or insertion order when it raises, the 40-member cap, "did you mean"); `Range` (`min`/`max`, `min_included`/`max_included`, "invalid value or type" for non-numbers); `Clamp`; `Length`; `Coerce(int)`, `Coerce(float)`, `Coerce(str)` (Python's `int()`/`float()`/`str()`, incl. the 4300-digit limit); `Lower`; `Upper`; `EnsureList`; `Port`; `AtLeastOne`. `cv.string`, `cv.boolean` (all spellings; the message shows the lowered, stripped text), `cv.positive_int`, `cv.positive_float`, `cv.small_float`, `cv.byte`, `cv.port`, `cv.ensure_list`, `cv.entity_id`, `cv.entity_ids` (comma lists, dict keys; a `TypeError` for a scalar escapes the schema, as upstream), `cv.comp_entity_ids`, `cv.entity_domain` (a domain or a list), `cv.color_hex`, `cv.slug`, `cv.time_period` (`_str`, `_seconds`, `_dict`), `cv.positive_time_period`, `cv.positive_time_period_dict` | `msg=` on any validator or marker; `Match`/`cv.matches_regex` (Python regex semantics); `In(fold_case=, space=)`; `Coerce` of other types; non-scalar literals and `In` members; type or callable keys, `Extra`, `Remove`, `Forbidden`, `Alias`, `Secret`, nested `Schema` objects with their own policy (except `time_period_dict`'s); `cv.percentage` (not in HA's `cv`), `cv.time`, `cv.date`, `cv.template`, `cv.url`, `cv.icon` and every other `cv.*`; at call time, data a text-handling validator reads that is not printable ASCII (Python's `str.lower()`, `strip()` and `int()` are Unicode-aware), a `timedelta` that would overflow or be NaN, `util.slugify` of text with HTML entities |
+| keys: `Required`, `Optional`, `Exclusive` (with `required=`, group defaults), `Inclusive`, defaults (validated through the value schema); extra policies, inherited by nested mappings; types `int` (a `bool` is one), `float` (the numeric tower: an `int` becomes a float), `str`, `bool`, `object`, `list`, `dict`, `timedelta`; scalar literals; nested mappings; list schemas `[v, ...]` (one element schema, several (the last error), none); `All`; `Any` (first match; "expected a or b" when every branch has a label, else the deepest error, first on a tie; "no valid value found"); `In` / `NotIn` (Python `==`, sorted member list as `sorted()` gives it or insertion order when it raises, the 40-member cap, "did you mean"); `Range` (`min`/`max`, `min_included`/`max_included`, "invalid value or type" for non-numbers); `Clamp`; `Length`; `Coerce(int)`, `Coerce(float)`, `Coerce(str)` (Python's `int()`/`float()`/`str()`, incl. the 4300-digit limit); `Lower`; `Upper`; `EnsureList`; `Port`; `AtLeastOne` (with no keys: probatio's `SchemaError` when the schema is built, so nothing is registered). `cv.string`, `cv.boolean` (all spellings; the message shows the lowered, stripped text), `cv.positive_int`, `cv.positive_float`, `cv.small_float`, `cv.byte`, `cv.port`, `cv.ensure_list`, `cv.entity_id`, `cv.entity_ids` (comma lists, dict keys; a `TypeError` for a scalar escapes the schema, as upstream), `cv.comp_entity_ids`, `cv.entity_domain` (a domain or a list), `cv.color_hex`, `cv.slug`, `cv.time_period` (`_str`, `_seconds`, `_dict`; `timedelta`'s `ValueError` for a NaN and `OverflowError` for an infinity or for days beyond a C `int` or beyond ±999999999, also after `time_period_str` negates, as CPython raises them; probatio turns a `ValueError` out of a callable into "not a valid value: ..."), `cv.positive_time_period`, `cv.positive_time_period_dict` | `msg=` on any validator or marker; `Match`/`cv.matches_regex` (Python regex semantics); `In(fold_case=, space=)`; `Coerce` of other types; non-scalar literals and `In` members; type or callable keys, `Extra`, `Remove`, `Forbidden`, `Alias`, `Secret`, nested `Schema` objects with their own policy (except `time_period_dict`'s); `cv.percentage` (not in HA's `cv`), `cv.time`, `cv.date`, `cv.template`, `cv.url`, `cv.icon` and every other `cv.*`; at call time, data a text-handling validator reads that is not printable ASCII (Python's `str.lower()`, `strip()` and `int()` are Unicode-aware), text whose `repr()` would be printed (`Coerce(str)` of a container, an unknown key in an error path, and in the driver any input, since results are compared as `repr()`s) with characters outside ASCII and U+00A1..U+024F (Python escapes what `str.isprintable()` rejects; HALean has no Unicode table), other `timedelta` overflows, `util.slugify` of text with HTML entities |
 
 | Supported | Rejected (`unsupported`, nothing changes) |
 |---|---|
@@ -373,9 +376,8 @@ handler is a spec; handlers that set states, fire events or call services run
 in the joined core (below), where `async_call` is the same
 `Registry.prepareCall` / `finishCall` around a scripted handler; `Unauthorized` and cancellation in
 background calls; the thread-safe wrappers (`register`, `remove`, `call`,
-`services`) and `description_placeholders`; `repr()` of strings with
-non-printable non-ASCII characters (Python escapes them, HALean does not);
-`NaN`/`Infinity` in the input JSON.
+`services`) and `description_placeholders`; `NaN`/`Infinity` in the input
+JSON.
 
 ### Core (`HALean/Core/Hass.lean`)
 
@@ -604,10 +606,27 @@ Known gaps:
 
 ## Proved so far (`HALean/Automation/Proofs.lean`)
 
+All theorems use only Lean's standard axioms (`propext`, `Quot.sound`,
+`Classical.choice`), checked in CI by `tools/Axioms.lean`. In `manifest.yaml`
+an entry is `proven` only when a theorem characterises what the function
+returns (PROPERTIES.md, "Functions proved to compute what upstream
+computes"); entries with property theorems about them are `translated`, and
+their notes name those theorems as partial.
+
 `evalAnd_nil`, `evalOr_nil`, `evalCond_disabled`, `evalNot_disabled`,
 `evalAnd_all_disabled`, `checkAutomationConditions_nil`, `testConditions_nil`,
 `match_invert`, `match_all`, `single_exclusive`, `restart_never_rejects`,
-`admit_bounded` (queued/parallel never exceed `max`), `queued_waits`, `templateCond_static`.
+`admit_bounded` (for a run count within `max`, admitting a queued/parallel run
+never takes it above `max`; the engine-wide statement is
+`EngineBound.runs_bounded`: from `init` with `max ≥ 1` and no script
+entities, after any inputs, a queued/parallel automation has at most `max`
+live runs, and `max` is decoded as HA's `Coerce(int), Range(min=2)` does),
+`queued_waits`, `templateCond_static`. `HALean/Automation/ConditionSpec.lean`
+characterises the outcome of `and`/`or`/`not` (`evalAnd_true_iff`,
+`evalAnd_false_iff`, ...), the automation's condition check and
+`_test_conditions` exactly, in terms of the conditions' own outcomes. About
+whole runs of `Engine.step` there is the run bound and a few facts about
+`init` (`EngineSpec3`, `EngineSpec4`); what a run does is tested, not proved.
 
 `HALean/Core/StateSpec.lean` (functions proved to compute what upstream
 computes, see PROPERTIES.md): `validEntityId_iff`, `validDomain_iff`
@@ -643,8 +662,9 @@ lowercase).
 (`In` accepts exactly the members of its container, under Python `==`, and
 returns the value unchanged; `NotIn` exactly the non-members),
 `checkRange_ok` / `checkRange_min` / `checkRange_max` / `checkRange_not_number`
-(`Range` accepts only numbers within its bounds, unchanged, and never a string,
-`None`, list or dict), `ensureList_is_list` / `ensureList_list`,
+(`Range` with numeric bounds, the only ones the decoder accepts, accepts only
+numbers within its bounds, unchanged, and never a string, `None`, list or
+dict; probatio compares any bounds, so `Range(min="a")` accepts `"b"`), `ensureList_is_list` / `ensureList_list`,
 `checkCoerce_int` (`Coerce(int)` only produces ints), `checkPort_range`.
 
 `HALean/Core/EventBusProofs.lean` (event bus): `once_at_most_once` (over any
