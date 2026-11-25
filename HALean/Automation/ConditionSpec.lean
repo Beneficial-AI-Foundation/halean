@@ -280,7 +280,7 @@ theorem isInputEntityId_parts (s : String) (h : isInputEntityId s = true) :
 /-! ### `stateOne`, `resolveBound`, `numericStateOf`, `numericStateOne` -/
 
 /-- A `state` condition on an entity that does not exist raises. -/
-theorem stateOne_unknown (env : CondEnv) (eid : String) (req : List Json) (forMs : Option Nat)
+theorem stateOne_unknown (env : CondEnv) (eid : String) (req : List Json) (forMs : Option ForPeriod)
     (attr : Option String) (h : env.states.get? eid = none) :
     stateOne env eid req forMs attr = .error s!"unknown entity {eid}" := by
   simp [stateOne, h, bind, Except.bind, throw, throwThe, MonadExceptOf.throw]
@@ -619,14 +619,14 @@ theorem evalCond_time_ne_none (env : CondEnv) (b a : Option TimeBound) (wd : Opt
 
 /-- `state` and `numeric_state` conditions never return `None`. -/
 theorem evalCond_state_ne_none (env : CondEnv) (eids : List String) (req : List Json)
-    (forMs : Option Nat) (attr : Option String) (matchAny : Bool) :
+    (forMs : Option ForPeriod) (attr : Option String) (matchAny : Bool) :
     evalCond env (.state eids req forMs attr matchAny) ≠ .ok none := by
   simp only [evalCond]
   exact entityLoop_ne_none _ _ _
 
 /-- A `state` condition on no entities: true for match-all, false for
 `match: any`. -/
-theorem evalCond_state_no_entities (env : CondEnv) (req : List Json) (forMs : Option Nat)
+theorem evalCond_state_no_entities (env : CondEnv) (req : List Json) (forMs : Option ForPeriod)
     (attr : Option String) (matchAny : Bool) :
     evalCond env (.state [] req forMs attr matchAny) = .ok (some (!matchAny)) := by
   simp only [evalCond, entityLoop_eq_spec]

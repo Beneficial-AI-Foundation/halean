@@ -1,0 +1,39 @@
+# state condition with a templated `for` (rendered when the condition is
+# checked, with the run's variables), and the schema checks on `for`
+automations:
+  - id: held_tmpl
+    alias: held_tmpl
+    variables: {hold: 10}
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: state, entity_id: switch.s, state: "on", for: "{{ hold }}"}]
+    actions: [{event: held_tmpl}]
+  - id: held_dict
+    alias: held_dict
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: state, entity_id: switch.s, state: "on", for: {seconds: "{{ 3 * 2 }}"}}]
+    actions: [{event: held_dict}]
+  - id: held_bad
+    alias: held_bad      # renders to something that is not a period: the condition errors
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: state, entity_id: switch.s, state: "on", for: "{{ 'soon' }}"}]
+    actions: [{event: held_bad}]
+  - id: for_attribute
+    alias: for_attribute # refused by HA's schema: `for` with an attribute
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: state, entity_id: switch.s, attribute: a, state: "on", for: 5}]
+    actions: [{event: for_attribute}]
+  - id: for_input
+    alias: for_input     # refused: `for` with a state read from an input entity
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: state, entity_id: switch.s, state: input_text.wanted, for: 5}]
+    actions: [{event: for_input}]
+expect_init:
+  - {type: unsupported, id: for_attribute, reason: "Cannot use 'for' with an attribute"}
+  - {type: unsupported, id: for_input, reason: "Cannot use 'for' with a state referencing an entity"}
+states:
+  - {entity_id: switch.s, state: "on", attributes: {a: "on"}}
+  - {entity_id: input_text.wanted, state: "on"}
+steps:
+  - {at: 5, send: {type: event, event_type: go}, expect: []}
+  - {at: 7, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: fire_event, event_type: held_dict}]}
+  - {at: 11, send: {type: event, event_type: go}, expect: [{type: automation_triggered}, {type: fire_event, event_type: held_tmpl}, {type: automation_triggered}, {type: fire_event, event_type: held_dict}]}

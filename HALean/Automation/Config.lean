@@ -39,13 +39,34 @@ inductive TimeBound where
   | entity (eid : String)
   deriving Repr, Inhabited
 
+/-- `cv.INPUT_ENTITY_ID`:
+`^input_(?:select|text|number|boolean|datetime)\.(?!.+__)(?!_)[\da-z_]+(?<!_)$` -/
+def isInputEntityId (s : String) : Bool :=
+  match s.splitOn "." with
+  | [dom, obj] =>
+    ["input_select", "input_text", "input_number", "input_boolean", "input_datetime"].contains dom
+      && !obj.isEmpty
+      && obj.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'z') || c == '_')
+      && !obj.startsWith "_" && !obj.endsWith "_"
+      -- `(?!.+__)`; a leading "__" is already excluded by `(?!_)`
+      && (obj.splitOn "__").length == 1
+  | _ => false
+
+/-- A `for:` period (`cv.positive_time_period_template`): static, or a
+template rendered when it is needed. -/
+inductive ForPeriod where
+  | fixed (ms : Nat)
+  | tmpl (c : Complex)
+  deriving Repr, Inhabited
+
 /-- Conditions. Mirrors `helpers/condition`. -/
 inductive Condition where
   | and (cs : List Condition)
   | or (cs : List Condition)
   | not (cs : List Condition)
-  /-- `match: any` is `matchAny = true`. `forMs` is the static `for:` period. -/
-  | state (entityIds : List String) (states : List Json) (forMs : Option Nat)
+  /-- `match: any` is `matchAny = true`. `forP` is the `for:` period, rendered
+  when the condition is checked if it is a template. -/
+  | state (entityIds : List String) (states : List Json) (forP : Option ForPeriod)
       (attr : Option String) (matchAny : Bool)
   | numericState (entityIds : List String) (below above : Option Bound)
       (attr : Option String) (valueTemplate : Option Template.Tmpl := none)
@@ -78,11 +99,6 @@ inductive Pattern where
 /-- A trigger's `for:` (`cv.positive_time_period_template`): a static
 period, or a template string / a mapping holding templates, rendered when
 the trigger's condition is met. -/
-inductive ForPeriod where
-  | fixed (ms : Nat)
-  | tmpl (c : Complex)
-  deriving Repr, Inhabited
-
 inductive TriggerKind where
   /-- `matchAll` is true iff none of from/not_from/to/not_to was *present*
   in the config (`to: ~` is present-but-null and so is not match-all). -/
@@ -406,9 +422,17 @@ partial def decodeCondition (j : Json) (nm : List String := TEMPLATE_VARS) : D C
     noTemplate j "value_template"
     let ids ← entityIds j
     let states := ensureList ((field? j "state").getD .null)
-    let forMs ← optDuration j "for"
+    let forP ← forPeriod? j "for" nm
+    -- `STATE_CONDITION_SCHEMA`: `key_dependency("for", "state")`, and `for`
+    -- is anchored to the entity's `last_changed`
+    if forP.isSome then
+      if !has j "state" then
+        throw "dependency violation - key \"for\" requires key \"state\" to exist"
+      if has j "attribute" then throw "Cannot use 'for' with an attribute"
+      if states.any (fun v => match v with | .str x => isInputEntityId x | _ => false) then
+        throw "Cannot use 'for' with a state referencing an entity"
     let matchAny := str? j "match" == some "any"
-    return .state ids states forMs (str? j "attribute") matchAny
+    return .state ids states forP (str? j "attribute") matchAny
   | "numeric_state" =>
     return .numericState (← entityIds j) (← bound? j "below") (← bound? j "above")
       (str? j "attribute") (← valueTemplate? j nm)

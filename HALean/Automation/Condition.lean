@@ -8,6 +8,7 @@
     * `err msg`      – the checker raised `ConditionError`
 -/
 import HALean.Automation.Config
+import HALean.Automation.TimePeriod
 import HALean.Automation.Location
 import HALean.Automation.Sun
 open Lean
@@ -119,21 +120,8 @@ def normalizeTarget (j : Json) : Except String Json := do
         if !Template.validEntityId e then throw s!"Template rendered invalid entity IDs: {e}"
       pure (j.setObjVal! "entity_id" (.arr (ids.map Json.str).toArray))
 
-/-- `cv.INPUT_ENTITY_ID`:
-`^input_(?:select|text|number|boolean|datetime)\.(?!.+__)(?!_)[\da-z_]+(?<!_)$` -/
-def isInputEntityId (s : String) : Bool :=
-  match s.splitOn "." with
-  | [dom, obj] =>
-    ["input_select", "input_text", "input_number", "input_boolean", "input_datetime"].contains dom
-      && !obj.isEmpty
-      && obj.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'z') || c == '_')
-      && !obj.startsWith "_" && !obj.endsWith "_"
-      -- `(?!.+__)`; a leading "__" is already excluded by `(?!_)`
-      && (obj.splitOn "__").length == 1
-  | _ => false
-
 /-- `conditions.state` for a single entity. -/
-def stateOne (env : CondEnv) (eid : String) (req : List Json) (forMs : Option Nat)
+def stateOne (env : CondEnv) (eid : String) (req : List Json) (forP : Option ForPeriod)
     (attr : Option String) : Except String Bool := do
   let some ent := env.states.get? eid | throw s!"unknown entity {eid}"
   if let some a := attr then
@@ -150,12 +138,20 @@ def stateOne (env : CondEnv) (eid : String) (req : List Json) (forMs : Option Na
         sv := .str se.state
     isState := value == sv
     if isState then break
-  match forMs with
+  match forP with
   | none => return isState
   | some p =>
     if !isState then return false
+    -- `cv.positive_time_period(render_complex(for_period, variables))`
+    let us ← match p with
+      | .fixed ms => pure ((ms : Int) * 1000)
+      | .tmpl c => match renderComplexV env c with
+        | .error e => throw s!"template error: {e}"
+        | .ok v => match cvPositiveTimePeriod v with
+          | .error e => throw s!"schema error: {e}"
+          | .ok us => pure us
     -- `duration = utcnow() - for_period; duration > entity.last_changed`
-    return (env.now.utc : Int) - p > ent.lastChanged
+    return (env.now.utc : Int) * 1000 - us > (ent.lastChanged : Int) * 1000
 
 /-- Resolve a numeric `below`/`above` bound. `none` = the Python code returns
 False early (entity unavailable/unknown). -/
