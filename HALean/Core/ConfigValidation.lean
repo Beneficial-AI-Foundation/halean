@@ -127,13 +127,50 @@ def cvIcon (v : Value) : VResult := do
   if s.contains ':' then return .str s
   throw (inv "Icons should be specified in the form \"prefix:name\"")
 
-/-- `timedelta(...)` (`HALean.Automation.timedeltaNew`); a NaN, an infinity or
-an overflow, where CPython raises `ValueError` or `OverflowError` with
-messages HALean does not reproduce, is unsupported. -/
+/-- The range of a C `int` (`PyLong_AsInt`). -/
+def C_INT_MIN : Int := -2147483648
+def C_INT_MAX : Int := 2147483647
+
+/-- `_datetimemodule.c::microseconds_to_delta_ex` on a result of `days`
+whole days: the exception (class, message) it raises, if any. The days must
+fit a C `int` (`PyLong_AsInt`), then `check_delta_day_range` bounds them by
+`timedelta.max.days`. -/
+def deltaDaysRaise? (days : Int) : Option (String × String) :=
+  if days < C_INT_MIN || days > C_INT_MAX then
+    some ("OverflowError", "Python int too large to convert to C int")
+  else if days.natAbs > HALean.Automation.MAX_DELTA_DAYS then
+    some ("OverflowError", s!"days={days}; must have magnitude <= {HALean.Automation.MAX_DELTA_DAYS}")
+  else none
+
+/-- A `timedelta` of `us` microseconds, or the error
+`microseconds_to_delta_ex` raises for it. -/
+def deltaOfUs (us : Int) : VResult :=
+  match deltaDaysRaise? (Int.fdiv us HALean.Automation.US_PER_DAY) with
+  | some (x, m) => throw (.raise x m)
+  | none => pure (.timedelta us)
+
+/-- The exception `timedelta(...)` raises, from `timedeltaNew`'s error:
+`ValueError` for a NaN, `OverflowError` for an infinity or for days out of
+range (`deltaDaysRaise?`); `none` for a failure HALean does not reproduce. -/
+def timedeltaRaise? (e : String) : Option (String × String) :=
+  let nan := "cannot convert float NaN to integer"
+  let inf := "cannot convert float infinity to integer"
+  let daysPrefix := "OverflowError: days="
+  if e == "ValueError: " ++ nan then some ("ValueError", nan)
+  else if e == "OverflowError: " ++ inf then some ("OverflowError", inf)
+  else if e.startsWith daysPrefix then
+    (String.ofList ((e.toList.drop daysPrefix.length).takeWhile (· != ';'))).toInt?.bind
+      deltaDaysRaise?
+  else none
+
+/-- `timedelta(...)` (`HALean.Automation.timedeltaNew`), raising what CPython
+raises (`timedeltaRaise?`). -/
 def timedeltaV (args : List (Nat × HALean.Automation.TdArg)) : VResult :=
   match HALean.Automation.timedeltaNew args with
   | .ok us => pure (.timedelta us)
-  | .error e => throw (.unsupported s!"timedelta(...) raises ({e})")
+  | .error e => match timedeltaRaise? e with
+    | some (x, m) => throw (.raise x m)
+    | none => throw (.unsupported s!"timedelta(...) raises ({e})")
 
 /-- `config_validation.TIME_PERIOD_ERROR` -/
 def timePeriodError (v : String) : String :=
@@ -161,13 +198,23 @@ def cvTimePeriodStr (v : Value) : VResult := do
     let .timedelta us ← timedeltaV [(HALean.Automation.US_PER_SECOND, sec),
         (HALean.Automation.US_PER_MINUTE, .int m), (HALean.Automation.US_PER_HOUR, .int h)]
       | throw (.unsupported "timedelta")
-    -- `offset *= -1` (symmetric, so it cannot overflow)
-    return .timedelta (if neg then -us else us)
+    -- `offset *= -1` (`delta_multiply`): timedelta's range is not symmetric
+    -- (-999999999 days .. 999999999 days 23:59:59.999999), so the product
+    -- can overflow
+    if neg then deltaOfUs (-us) else return .timedelta us
   | v => throw (inv (timePeriodError (← strOf v)))
 
-/-- `cv.time_period_seconds`: `timedelta(seconds=float(value))`; the
-`ValueError`/`TypeError` of `float()` is "Expected seconds, got ..."; an int
-too large for a float raises `OverflowError`, which is not caught. -/
+/-- `timedelta(seconds=f)` in `cv.time_period_seconds`, whose `ValueError` (a
+NaN) is "Expected seconds, got <value>". -/
+def secondsDelta (v : Value) (f : Float) : VResult :=
+  match timedeltaV [(HALean.Automation.US_PER_SECOND, .float f)] with
+  | .error (.raise "ValueError" _) => do throw (inv s!"Expected seconds, got {← strOf v}")
+  | r => r
+
+/-- `cv.time_period_seconds`: `timedelta(seconds=float(value))`; a
+`ValueError`/`TypeError` of `float()` or of `timedelta()` (a NaN) is
+"Expected seconds, got ..."; an int too large for a float, an infinity or an
+out-of-range period raises `OverflowError`, which is not caught. -/
 def cvTimePeriodSeconds (v : Value) : VResult := do
   let f ← match v with
     | .int i =>
@@ -177,7 +224,8 @@ def cvTimePeriodSeconds (v : Value) : VResult := do
       match ← pyFloat? v with
       | some f => pure f
       | none => throw (inv s!"Expected seconds, got {← strOf v}")
-  timedeltaV [(HALean.Automation.US_PER_SECOND, .float f)]
+  secondsDelta v f
+
 
 /-- `lambda value: timedelta(**value)` after `time_period_dict`'s schema:
 the five units, as floats. -/
@@ -200,7 +248,7 @@ def cvPositiveTimedelta (v : Value) : VResult := do
   | .timedelta us => if us < 0 then throw (inv "Time period should be positive") else return v
   | _ => throw (.unsupported "positive_timedelta of a non-timedelta")
 
-/-- Run a `cv.*` function. -/
+/-- Run a `cv.*` function (bare; `Validator.run` adds `_compile_callable`). -/
 def CvFn.run : CvFn → Value → VResult
   | .string, v => cvString v
   | .boolean, v => cvBoolean v
@@ -214,5 +262,18 @@ def CvFn.run : CvFn → Value → VResult
   | .timePeriodSeconds, v => cvTimePeriodSeconds v
   | .timedeltaKwargs, v => cvTimedeltaKwargs v
   | .positiveTimedelta, v => cvPositiveTimedelta v
+
+end HALean.Core
+
+namespace HALean.Core
+
+/-- `_compile._compile_callable`: a `ValueError` out of a callable validator
+becomes `Invalid` ("not a valid value", with the exception's text when it has
+one); other exceptions pass. -/
+def compileCallable (r : VResult) : VResult :=
+  match r with
+  | .error (.raise "ValueError" msg) =>
+    throw (inv (if msg.isEmpty then "not a valid value" else s!"not a valid value: {msg}"))
+  | r => r
 
 end HALean.Core

@@ -401,24 +401,47 @@ theorem cvPositiveTimedelta_negative (us : Int) (h : us < 0) :
     cvPositiveTimedelta (.timedelta us) = .error (inv "Time period should be positive") := by
   simp [cvPositiveTimedelta, h, throw, throwThe, MonadExceptOf.throw]
 
-/-- `timedelta(...)` returns a timedelta or is unsupported; it never raises
-`Invalid`. -/
+/-- `timedelta(...)` returns a timedelta, raises (`ValueError`,
+`OverflowError`) or is unsupported; it never raises `Invalid`. -/
 theorem timedeltaV_ok (args : List (Nat × HALean.Automation.TdArg)) (w : Value)
     (h : timedeltaV args = .ok w) :
     ∃ us, w = .timedelta us ∧ HALean.Automation.timedeltaNew args = .ok us := by
   unfold timedeltaV at h
   cases ht : HALean.Automation.timedeltaNew args with
-  | error e => rw [ht] at h; cases h
+  | error e => rw [ht] at h; simp only [] at h; split at h <;> cases h
   | ok us => rw [ht] at h; cases h; exact ⟨us, rfl, rfl⟩
 
+/-- A product `timedelta` (`microseconds_to_delta_ex`) that does not raise
+is the timedelta of its microseconds. -/
+theorem deltaOfUs_ok (us : Int) (w : Value) (h : deltaOfUs us = .ok w) : w = .timedelta us := by
+  unfold deltaOfUs at h
+  split at h
+  · cases h
+  · cases h; rfl
+
 theorem timedeltaV_error (args : List (Nat × HALean.Automation.TdArg)) (e : VErr)
-    (h : timedeltaV args = .error e) : ∃ why, e = .unsupported why := by
+    (h : timedeltaV args = .error e) : ∀ errs, e ≠ .invalid errs := by
+  intro errs he
+  subst he
   unfold timedeltaV at h
   cases ht : HALean.Automation.timedeltaNew args with
-  | error e' => rw [ht] at h; cases h; exact ⟨_, rfl⟩
   | ok us => rw [ht] at h; cases h
+  | error e' =>
+    rw [ht] at h
+    simp only [] at h
+    cases hr : timedeltaRaise? e' with
+    | none => rw [hr] at h; cases h
+    | some p => rw [hr] at h; cases h
 
 /-! ## `cv.time_period_seconds`, `timedelta(**value)`, `cv.time_period_str` -/
+
+theorem secondsDelta_ok (v : Value) (f : Float) (w : Value) (h : secondsDelta v f = .ok w) :
+    ∃ us, w = .timedelta us := by
+  unfold secondsDelta at h
+  split at h
+  · obtain ⟨_, _, h⟩ := bind_ok h; cases h
+  · obtain ⟨us, hw, _⟩ := timedeltaV_ok _ _ h
+    exact ⟨us, hw⟩
 
 /-- `cv.time_period_seconds` returns a timedelta. -/
 theorem cvTimePeriodSeconds_ok (v w : Value) (h : cvTimePeriodSeconds v = .ok w) :
@@ -426,9 +449,7 @@ theorem cvTimePeriodSeconds_ok (v w : Value) (h : cvTimePeriodSeconds v = .ok w)
   unfold cvTimePeriodSeconds at h
   simp only [] at h
   peel
-  all_goals
-    obtain ⟨us, hw, _⟩ := timedeltaV_ok _ _ h
-    exact ⟨us, hw⟩
+  all_goals exact secondsDelta_ok _ _ _ h
 
 /-- `timedelta(**value)` returns a timedelta. -/
 theorem cvTimedeltaKwargs_ok (v w : Value) (h : cvTimedeltaKwargs v = .ok w) :
@@ -472,6 +493,7 @@ theorem cvTimePeriodStr_ok (v w : Value) (h : cvTimePeriodStr v = .ok w) :
     peel2
     all_goals first
       | (cases h; done)
+      | exact ⟨_, deltaOfUs_ok _ _ h⟩
       | (simp only [pure, Except.pure, Except.ok.injEq] at h; exact ⟨_, h.symm⟩)
   | int i =>
     have e : cvTimePeriodStr (.int i) = .error (inv "Make sure you wrap time values in quotes") := rfl

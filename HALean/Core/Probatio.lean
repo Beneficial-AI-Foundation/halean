@@ -247,6 +247,20 @@ def requireSafe (v : Value) : Except VErr Unit :=
   if safeValue v then pure ()
   else throw (.unsupported "text outside printable ASCII in a value a text-handling validator reads")
 
+/-- Characters whose `repr()` HALean prints as Python does: Python escapes
+what `str.isprintable()` rejects, and `strRepr` escapes only the ASCII control
+characters, so outside ASCII only U+00A1..U+024F (Latin-1 and Latin
+Extended-A/B, all printable but the soft hyphen U+00AD) are modelled. -/
+def reprSafeChar (c : Char) : Bool :=
+  c.toNat < 128 || (0xA1 ≤ c.toNat && c.toNat ≤ 0x24F && c.toNat != 0xAD)
+
+/-- Every string in the value (keys included) is made of `reprSafeChar`s. -/
+partial def reprSafeValue : Value → Bool
+  | .str s => s.toList.all reprSafeChar
+  | .list xs => xs.all reprSafeValue
+  | .dict kvs => kvs.all fun (k, v) => reprSafeValue k && reprSafeValue v
+  | _ => true
+
 /-- `str(v)` (also what `f"{v}"` prints), for text the model handles. -/
 def strOf (v : Value) : Except VErr String := do
   requireSafe v
@@ -377,6 +391,24 @@ structure SchemaSpec where
   fields : List Field
   extra : Extra := .prevent
   deriving Inhabited
+
+mutual
+/-- The `SchemaError` probatio raises while a validator is built (before any
+data is seen): `conditional._require_keys` refuses `AtLeastOne()` with no
+keys. -/
+partial def Validator.buildError? : Validator → Option String
+  | .atLeastOne [] => some "needs at least one key"
+  | .dict fs => fieldsBuildError? fs
+  | .schema fs _ => fieldsBuildError? fs
+  | .seq vs | .all vs | .any vs => vs.findSome? Validator.buildError?
+  | _ => none
+
+partial def fieldsBuildError? (fs : List Field) : Option String :=
+  fs.findSome? (·.value.buildError?)
+end
+
+/-- `SchemaError` raised by `probatio.Schema(...)` for this spec, if any. -/
+def SchemaSpec.buildError? (s : SchemaSpec) : Option String := fieldsBuildError? s.fields
 
 /-- `combinators._branch_label`: a type's name, `None`, or a scalar literal's
 repr; `none` for a validator branch. -/
@@ -559,6 +591,21 @@ def pyFloat? : Value → Except VErr (Option Float)
   | .str s => do requireSafe (.str s); pure (parseFloatStr s)
   | _ => pure none
 
+/-- `str(value)` for `Coerce(str)`, where it is not a `str` already: the
+`repr()` of a container's items, so text whose `repr()` is not modelled is
+unsupported. -/
+def coerceNonStr (v : Value) : VResult :=
+  if !reprSafeValue v then
+    throw (.unsupported "repr() of text with characters outside the modelled printable set")
+  else match pyStr v with
+    | .ok s => pure (.str s)
+    | .error e => throw (.unsupported e)
+
+/-- `str(value)` for `Coerce(str)`. -/
+def coerceStr : Value → VResult
+  | .str s => pure (.str s)
+  | v => coerceNonStr v
+
 /-- `Coerce(int|float|str).__call__`: `type(value)`, or `CoerceInvalid`
 ("expected <type>"; no suggestion, the target is not an `Enum`). -/
 def checkCoerce (t : CoerceType) (v : Value) : VResult := do
@@ -570,10 +617,7 @@ def checkCoerce (t : CoerceType) (v : Value) : VResult := do
   | .float => match ← pyFloat? v with
     | some f => pure (.float f)
     | none => fail
-  | .str =>
-    match pyStr v with
-    | .ok s => pure (.str s)
-    | .error e => throw (.unsupported e)
+  | .str => coerceStr v
 
 /-- `strings.Lower` / `strings.Upper`: `str(value).lower()` / `.upper()`. -/
 def checkLower (v : Value) : VResult := do

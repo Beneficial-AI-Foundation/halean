@@ -776,15 +776,28 @@ theorem checkCoerce_float (v w : Value) (h : checkCoerce .float v = .ok w) : ∃
 /-- `Coerce(float)` leaves a float alone. -/
 theorem checkCoerce_float_float (f : Float) : checkCoerce .float (.float f) = .ok (.float f) := rfl
 
-/-- `Coerce(str)` is `str(v)`. -/
+/-- `Coerce(str)` is `str(v)`; for a non-string (whose `str()` is a `repr()`)
+only when every character is one whose `repr()` is modelled. -/
 theorem checkCoerce_str_iff (v w : Value) :
-    checkCoerce .str v = .ok w ↔ ∃ s, pyStr v = .ok s ∧ w = .str s := by
-  unfold checkCoerce
-  cases pyStr v <;> simp [pure, Except.pure, throw, throwThe, MonadExceptOf.throw, eq_comm]
+    checkCoerce .str v = .ok w ↔
+      ∃ s, pyStr v = .ok s ∧ w = .str s ∧ ((∃ t, v = .str t) ∨ reprSafeValue v = true) := by
+  have hn : (∀ t, v ≠ .str t) → checkCoerce .str v = coerceNonStr v := by
+    intro h; cases v <;> first | rfl | exact absurd rfl (h _)
+  by_cases hs : ∃ t, v = .str t
+  · obtain ⟨t, rfl⟩ := hs
+    have e : checkCoerce .str (.str t) = .ok (.str t) := rfl
+    have hp : pyStr (.str t) = .ok t := rfl
+    rw [e, hp]
+    constructor
+    · intro h; cases h; exact ⟨t, rfl, rfl, Or.inl ⟨t, rfl⟩⟩
+    · rintro ⟨s, hs, rfl, _⟩; cases hs; rfl
+  · rw [hn (fun t h => hs ⟨t, h⟩)]
+    unfold coerceNonStr
+    cases hr : reprSafeValue v <;> cases hp : pyStr v <;>
+      simp [hs, pure, Except.pure, throw, throwThe, MonadExceptOf.throw, eq_comm]
 
 /-- `Coerce(str)` leaves a string alone. -/
-theorem checkCoerce_str_str (s : String) : checkCoerce .str (.str s) = .ok (.str s) := by
-  simp [checkCoerce, pyStr, pure, Except.pure]
+theorem checkCoerce_str_str (s : String) : checkCoerce .str (.str s) = .ok (.str s) := rfl
 
 /-- `Coerce(int)` and `Coerce(float)` fail only with "expected <type>" or as
 unsupported text; they never let another exception escape. -/

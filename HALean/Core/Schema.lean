@@ -49,7 +49,7 @@ partial def Validator.run (extra : Extra) : Validator → Value → VResult
   | .ensureList, v => pure (ensureList v)
   | .port, v => checkPort v
   | .atLeastOne ks, v => checkAtLeastOne ks v
-  | .cv f, v => f.run v
+  | .cv f, v => compileCallable (f.run v)
 
 /-- `All.__call__`: each validator in turn, the output chained forward; the
 first failure is raised (a lone `Invalid` wrapped in `MultipleInvalid`). -/
@@ -138,7 +138,11 @@ partial def runMapping (extra : Extra) (fields : List Field) (v : Value) : VResu
       | .remove => pure ()
       | .prevent =>
         match k with
-        | .str s => errors := errors.push (extraKeyError names s)
+        | .str s =>
+          -- the error's path prints `repr(key)`
+          if !reprSafeValue (.str s) then
+            throw (VErr.unsupported "repr() of a key with characters outside the modelled printable set")
+          errors := errors.push (extraKeyError names s)
         | _ => throw (VErr.unsupported "a non-string mapping key")
   -- `_finalize`
   for (i, f) in indexed do
