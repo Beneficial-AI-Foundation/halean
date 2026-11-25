@@ -1,0 +1,26 @@
+name: Live test against Home Assistant in Docker
+
+# The real bridge + Lean engine driving the pinned Home Assistant release in a
+# throwaway container on its real clock (tests/live/docker_e2e.py). Slow and
+# network-heavy (it pulls the HA image), so it runs on demand and weekly, not
+# on every push.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: leanprover/lean-action@v1
+        with:
+          build-args: halean-automation halean-script
+      - uses: astral-sh/setup-uv@v10.4.0
+      - name: Pull the pinned Home Assistant image
+        run: |
+          tag=$(sed -n 's/^  tag: //p' manifest.yaml)
+          docker pull "ghcr.io/home-assistant/home-assistant:$tag"
+      - name: Live end-to-end test
+        run: uv run tests/live/docker_e2e.py
