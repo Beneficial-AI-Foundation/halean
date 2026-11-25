@@ -11,18 +11,21 @@ entries:
   status: proven
   notes: errors are collected and raised only if no condition returned False; theorems evalAnd_nil, evalAnd_all_disabled
   hash: 53c6a7358f42a0ab
+  deps: 73ca1e149c7e48ba
 - python: helpers/condition.py::OrConditionChecker._async_check
   lean:
   - HALean.Automation.evalOr
   status: proven
   notes: theorem evalOr_nil
   hash: 73f2bc1cc881a29f
+  deps: 73ca1e149c7e48ba
 - python: helpers/condition.py::NotConditionChecker._async_check
   lean:
   - HALean.Automation.evalNot
   status: proven
   notes: truthiness test, so None (disabled) counts as false; theorem evalNot_disabled
   hash: f860a47a4f8cb9a1
+  deps: 73ca1e149c7e48ba
 - python: helpers/condition.py::DisabledConditionChecker._async_check
   lean:
   - HALean.Automation.evalCond
@@ -36,12 +39,14 @@ entries:
   status: translated
   notes: a templated 'for' is rendered when the condition is checked (render_complex, then cv.positive_time_period)
   hash: 504e153b6d897736
+  deps: e8a0ceb3b224733b
 - python: helpers/config_validation.py::STATE_CONDITION_SCHEMA
   lean:
   - HALean.Automation.decodeCondition
   status: translated
   notes: 'key_dependency("for", "state"); `for` with an attribute or with a state naming an input entity is refused'
   hash: e76a36ce71c6f701
+  deps: 18eedf0d57c50675
 - python: helpers/condition.py::async_numeric_state
   lean:
   - HALean.Automation.numericStateOf
@@ -51,6 +56,7 @@ entries:
   notes: value_template rendered with `state` and the run variables; None/unavailable/unknown results
     are False
   hash: 374d77c1a17c5957
+  deps: 61173cd8ac8659df
 - python: helpers/condition.py::time
   lean:
   - HALean.Automation.timeCond
@@ -60,23 +66,27 @@ entries:
     dates only ciso8601 would parse raise 'unsupported'; a time entity is read with the template engine's
     strptime(state, "%H:%M:%S")
   hash: 75942a34ea3c0149
+  deps: 2d9eec3ec53eec3c
 - python: helpers/condition.py::state_from_config
   lean:
   - HALean.Automation.entityLoop
   - HALean.Automation.evalCond
   status: translated
   hash: 214edb196fddd388
+  deps: 1a1070d2fc200e4a
 - python: helpers/condition.py::async_numeric_state_from_config
   lean:
   - HALean.Automation.entityLoop
   - HALean.Automation.evalCond
   status: translated
   hash: da9ee6ddc8bdee13
+  deps: d07dcde81d1293f7
 - python: helpers/condition.py::async_trigger_from_config
   lean:
   - HALean.Automation.evalCond
   status: translated
   hash: 0f4ad0c1ab198c8d
+  deps: 0be335b5bf2d47e5
 - python: helpers/condition.py::async_from_config
   lean:
   - HALean.Automation.decodeCondition
@@ -84,6 +94,7 @@ entries:
   notes: 'and/or/not/state/numeric_state/time/trigger/template/zone/sun; enabled (cv.boolean or a limited
     template with no variables) decided at load (isEnabled); platform conditions rejected'
   hash: 5e83164fc7ee0e01
+  deps: 91f4477bf02efec4
 - python: helpers/condition.py::ConditionsChecker.async_check
   lean:
   - HALean.Automation.checkAutomationConditions
@@ -96,6 +107,7 @@ entries:
   status: proven
   notes: stops at first error and returns None; theorem testConditions_nil
   hash: 2ab1cd9bdeedaed1
+  deps: b1e5bd6eeff68023
 - python: helpers/script.py::_ScriptRun.async_run
   lean:
   - HALean.Automation.exec
@@ -105,6 +117,7 @@ entries:
   status: translated
   notes: sub-scripts re-raise everything but _ConditionFail (RunEnd.raises)
   hash: f846f0d9db5311a4
+  deps: e461bfa85b6beb2b
 - python: helpers/script.py::_ScriptRun._async_step
   lean:
   - HALean.Automation.step
@@ -112,12 +125,14 @@ entries:
   notes: 'enabled (cv.boolean, or a limited template rendered with no variables, so known at load) decided
     at decode time and disabled steps dropped; a template that fails to render is rejected'
   hash: 5b9e5850ea530a66
+  deps: 09a087b4c7903f1e
 - python: helpers/script.py::_ScriptRun._handle_exception
   lean:
   - HALean.Automation.unwindError
   - HALean.Automation.resumeService
   status: translated
   hash: cac9da09de931b4e
+  deps: 3a0db9aa142d68c8
 - python: helpers/script.py::_ScriptRun._async_run_script
   lean:
   - HALean.Automation.step
@@ -125,21 +140,25 @@ entries:
   status: translated
   notes: every sub-script is a seq frame
   hash: 2dcf98873b00f951
+  deps: fdcdc65b2cbbe955
 - python: helpers/script.py::_ScriptRun._async_step_choose
   lean:
   - HALean.Automation.step
   status: translated
   hash: b88406514489fe07
+  deps: 8ebc7d0d4e7d4f62
 - python: helpers/script.py::_ScriptRun._async_step_condition
   lean:
   - HALean.Automation.step
   status: translated
   hash: 8b81a5479454f422
+  deps: 492750e5d45b587c
 - python: helpers/script.py::_ScriptRun._async_step_if
   lean:
   - HALean.Automation.step
   status: translated
   hash: d1471f6f8c9ebc2c
+  deps: 8ebc7d0d4e7d4f62
 - python: helpers/script.py::_ScriptRun._async_do_step_repeat
   lean:
   - HALean.Automation.step
@@ -147,12 +166,14 @@ entries:
   status: translated
   notes: count (incl. templated), for_each, while, until; the `repeat` variable is local to its loop (currentRepeat)
   hash: 8ae3b200144a1124
+  deps: ae96343dfe5263cb
 - python: helpers/script.py::_ScriptRun._async_step_stop
   lean:
   - HALean.Automation.step
   status: translated
   notes: a response_variable that is not defined aborts the run
   hash: a51acb4f9a47c972
+  deps: c55975b8930ec6b9
 - python: helpers/script.py::_ScriptRun._async_step_call_service
   lean:
   - HALean.Automation.step
@@ -161,24 +182,28 @@ entries:
   notes: 'response_variable: the shell asks for the response (return_response) and reports a response-support
     mismatch as a configuration error'
   hash: 2c9a2006b53f8036
+  deps: 616a5c1087686591
 - python: helpers/script.py::_ScriptRun._async_step_event
   lean:
   - HALean.Automation.step
   status: translated
   notes: event_data then event_data_template rendered and merged; one that fails to render is logged and left out
   hash: 85634df408825aaf
+  deps: ba05673c97616eee
 - python: helpers/script.py::_ScriptRun._async_step_delay
   lean:
   - HALean.Automation.step
   - HALean.Automation.fireDue
   status: translated
   hash: e45905c85861f687
+  deps: 3721eb71ff7689ed
   notes: a templated delay is rendered when the step runs; an error aborts the run
 - python: helpers/script.py::_ScriptRun._async_step_sequence
   lean:
   - HALean.Automation.step
   status: translated
   hash: 2c821ef801a93386
+  deps: 5532945386de9546
 - python: helpers/script.py::Script.async_run
   lean:
   - HALean.Automation.admit
@@ -187,6 +212,7 @@ entries:
   status: proven
   notes: theorems single_exclusive, restart_never_rejects, admit_bounded, queued_waits
   hash: de80e422d227b5fe
+  deps: 452617cc552dc4a0
 - python: helpers/script.py::_QueuedScriptRun.async_run
   lean:
   - HALean.Automation.triggerAutomation
@@ -204,6 +230,7 @@ entries:
   status: proven
   notes: theorems match_invert, match_all
   hash: dfe501b7ee7ebfd0
+  deps: a66c7803c75068d8
 - python: helpers/event.py::async_track_same_state
   lean:
   - HALean.Automation.PendingFor
@@ -211,6 +238,7 @@ entries:
   - HALean.Automation.fireDue
   status: translated
   hash: add0e1dcbce0c789
+  deps: 3c9f2128a7318a24
 - python: components/homeassistant/triggers/state.py::async_attach_trigger
   lean:
   - HALean.Automation.addPeriodPending
@@ -221,6 +249,7 @@ entries:
   notes: 'templated ''for'' rejected; matchAll is by key presence (so an explicit null ''to'' works as
     upstream); templated for: rendered when the trigger matches (cv.positive_time_period_template)'
   hash: 5e5087a8dc6161d9
+  deps: 94196e4b95aa58ff
 - python: components/homeassistant/triggers/numeric_state.py::async_attach_trigger
   lean:
   - HALean.Automation.addPeriodPending
@@ -231,6 +260,7 @@ entries:
   notes: 'value_template sees `state` and a trigger dict (platform, entity_id, below, above, attribute);
     templated for: rendered when the trigger matches (cv.positive_time_period_template)'
   hash: baa5c01dbce8b082
+  deps: 8684bdda3b65dc82
 - python: components/homeassistant/triggers/time.py::async_attach_trigger
   lean:
   - HALean.Automation.fireTimeTriggers
@@ -245,6 +275,7 @@ entries:
     that are not a valid at); an error in update_entity_trigger is logged (at attach, HA would fail to
     attach the trigger); the local time zone is the current UTC offset
   hash: 6f3973d45d42a3d4
+  deps: e6ba685492bfa5ff
 - python: components/homeassistant/triggers/time_pattern.py::async_attach_trigger
   lean:
   - HALean.Automation.fireTimeTriggers
@@ -252,6 +283,7 @@ entries:
   - HALean.Automation.decodeTrigger
   status: translated
   hash: 61270e2f0e6c06ac
+  deps: fdfef72653ee8883
 - python: components/homeassistant/triggers/event.py::async_attach_trigger
   lean:
   - HALean.Automation.onEvent
@@ -260,6 +292,7 @@ entries:
     compared by Python ==, nested mappings as a schema (eventDataMatches); a list in nested event_data and
     the context filter are rejected (events carry no context in the protocol)'
   hash: 87152f92fcbc896a
+  deps: ca9978cd67821363
 - python: components/homeassistant/triggers/homeassistant.py::async_attach_trigger
   lean:
   - HALean.Automation.attachTriggers
@@ -268,6 +301,7 @@ entries:
   notes: 'start: armed when attached (Engine.haStart), fires once on homeassistant_started; shutdown is
     rejected (a shutdown job, which the protocol does not report)'
   hash: c5a3bb6ac0034512
+  deps: 4b927b64cd052581
 - python: components/tag/trigger.py::async_attach_trigger
   lean:
   - HALean.Automation.onEvent
@@ -275,6 +309,7 @@ entries:
   notes: 'tag_scanned: tag_id (and device_id, when given) must be one of the configured strings; no
     composite device id expansion (no device registry)'
   hash: c22926f7f41c3019
+  deps: 8991c7a71ab11285
 - python: components/mqtt/trigger.py::async_attach_trigger
   lean:
   - HALean.Automation.decodeTrigger
@@ -286,6 +321,7 @@ entries:
     trigger_variables); encodings other than UTF-8 are refused (the protocol carries text); qos is
     validated, the delivered qos comes with the message
   hash: e9f27bfee783ef76
+  deps: 1de147d68ba7a0ba
 - python: components/mqtt/util.py::valid_topic
   lean:
   - HALean.Automation.mqttValidTopic
@@ -302,12 +338,14 @@ entries:
   status: translated
   notes: a static topic is validated as written, a templated one after it renders
   hash: 5d5c181f393830c2
+  deps: 0e166b8d03b6a273
 - python: components/mqtt/models.py::MqttCommandTemplate.async_render
   lean:
   - HALean.Automation.decodeTrigger
   status: translated
   notes: the wanted payload, rendered with value = None and the trigger variables (no entity)
   hash: 56a057cff0330eb7
+  deps: 7a7989bb92e6f2fb
 - python: components/mqtt/models.py::convert_outgoing_mqtt_payload
   lean:
   - HALean.Automation.decodeTrigger
@@ -321,6 +359,7 @@ entries:
   notes: no entity and no variables (the trigger passes none); a render error gives the default
     sentinel, which matches nothing
   hash: 17f6b29d015167ef
+  deps: 4fc08f5f1005795f
 - python: helpers/template/__init__.py::Template.async_render_with_possible_json_value
   lean:
   - HALean.Automation.mqttPayloadMatches
@@ -328,6 +367,7 @@ entries:
   status: translated
   notes: value_json from json_loads (orjson, HALean.Core.orjsonLoads); a static template returns its text
   hash: 180f6e427a888133
+  deps: 29b94893e780d7b3
 - python: components/mqtt/client.py::MQTT._async_mqtt_on_message
   lean:
   - HALean.Automation.onMqtt
@@ -335,6 +375,7 @@ entries:
   notes: the retained-message filter (_retained_topics, per subscription and topic) and the dispatch
     to the triggers; payloads arrive decoded as UTF-8, so the per-subscription decode is the shell's
   hash: 6fac5ac070108eae
+  deps: 48d0c61f834b181c
 - python: components/mqtt/client.py::MQTT._matching_subscriptions
   lean:
   - HALean.Automation.onMqtt
@@ -359,6 +400,7 @@ entries:
     trigger_variables); the first attached trigger with an id registers the handler, so its
     allowed_methods and local_only count; a wait's trigger is registered only while it waits
   hash: fd0560684171db2e
+  deps: c3823cdebc1e1b28
 - python: components/webhook/trigger.py::_handle_webhook
   lean:
   - HALean.Automation.onWebhook
@@ -368,6 +410,7 @@ entries:
     are MultiDictProxy objects (a key reads its first value; their methods, iteration and printing
     are render errors)
   hash: e694f0c3987da194
+  deps: 65c30ffd8ff91a59
 - python: components/webhook/__init__.py::async_handle_webhook
   lean:
   - HALean.Automation.onWebhook
@@ -376,12 +419,14 @@ entries:
     and remote requests to a local_only webhook are logged; whether the request is local is the
     shell's (the protocol's local field); a JSON error is logged and nothing runs
   hash: 018c5a1c37c8aa6c
+  deps: 0e62a1aec9cfb92e
 - python: components/webhook/__init__.py::async_register
   lean:
   - HALean.Automation.onWebhook
   status: translated
   notes: only automation triggers register webhooks, so an id is never taken by another integration
   hash: 33426df420458864
+  deps: e719c1f164ad011e
 - python: components/automation/__init__.py::AutomationEntity.async_trigger
   lean:
   - HALean.Automation.thisValue
@@ -390,6 +435,7 @@ entries:
   notes: automation variables rendered before conditions (an error stops the trigger); conditions checked
     before mode admission; `this` captured before the run is admitted (not in trigger templates)
   hash: 66efc46d16ebe326
+  deps: 3e4368263ab73217
 - python: helpers/template/__init__.py::Template.__init__
   lean:
   - HALean.Template.compile
@@ -403,6 +449,7 @@ entries:
   status: translated
   notes: output stripped, MAX_TEMPLATE_OUTPUT enforced; limited/strict modes not modelled
   hash: 154a643a16a1e83e
+  deps: fe4f7ade5bfc477d
 - python: helpers/template/__init__.py::_parse_result
   lean:
   - HALean.Template.parseResult
@@ -410,6 +457,7 @@ entries:
   status: translated
   notes: fast numeric path
   hash: cd66900f121f5cca
+  deps: ac6c35fa7fcfc344
 - python: helpers/template/__init__.py::_cached_parse_result
   lean:
   - HALean.Template.parseResult
@@ -418,6 +466,7 @@ entries:
   notes: ast.literal_eval translated for numbers, strings, True/False/None, lists, tuples, dicts; sets
     become lists, bytes stay strings
   hash: 4acea10c6028c660
+  deps: 2dc8f522305619fd
 - python: helpers/template/__init__.py::render_complex
   lean:
   - HALean.Automation.renderComplex
@@ -436,12 +485,14 @@ entries:
   - HALean.Template.getattrV
   status: translated
   hash: 2fe0b454dcd80b05
+  deps: 3ed4c36c9d50a445
 - python: helpers/template/states.py::AllStates.__call__
   lean:
   - HALean.Template.callV
   status: translated
   notes: rounded/with_unit rejected
   hash: a94feb304402393b
+  deps: 59524daab73f97b4
 - python: helpers/template/states.py::DomainStates.__getattr__
   lean:
   - HALean.Template.getattrV
@@ -453,36 +504,43 @@ entries:
   status: translated
   notes: 'last_changed/last_updated/context are opaque: using them is a render error'
   hash: 11b17b4224967abf
+  deps: b3be4486f8fa9a3e
 - python: helpers/template/states.py::_get_state_if_valid
   lean:
   - HALean.Template.stateIfValid
   status: translated
   hash: a2bd423e61b7c4a2
+  deps: 9cf98bfa18b52624
 - python: helpers/template/extensions/state.py::StateExtension.is_state
   lean:
   - HALean.Template.isState
   status: translated
   hash: c9ca1f55904ec368
+  deps: 3c5701bafc897403
 - python: helpers/template/extensions/state.py::StateExtension.is_state_attr
   lean:
   - HALean.Template.callV
   status: translated
   hash: 172bc64421c760af
+  deps: c98845dabcc077cf
 - python: helpers/template/extensions/state.py::StateExtension.state_attr
   lean:
   - HALean.Template.stateAttrFn
   status: translated
   hash: b0e626156b9889c7
+  deps: 3c5701bafc897403
 - python: helpers/template/extensions/state.py::StateExtension.has_value
   lean:
   - HALean.Template.hasValue
   status: translated
   hash: c30874eac0cba910
+  deps: f8c2850bd2536f87
 - python: helpers/template/extensions/type_cast.py::TypeCastExtension.forgiving_float
   lean:
   - HALean.Template.forgivingFloat
   status: translated
   hash: 508c79a95cec6154
+  deps: 34f8c33230252bdf
 - python: helpers/template/extensions/type_cast.py::TypeCastExtension.forgiving_int
   lean:
   - HALean.Template.forgivingInt
@@ -490,6 +548,7 @@ entries:
   status: translated
   notes: base other than 10 rejected
   hash: 40c142d29952cac7
+  deps: 34f8c33230252bdf
 - python: helpers/template/extensions/type_cast.py::TypeCastExtension.is_number
   lean:
   - HALean.Template.isNumber
@@ -502,11 +561,13 @@ entries:
   status: translated
   notes: Python's correctly rounded round() on the exact binary value
   hash: 7e6dafcb33d77f8c
+  deps: 2ffb994dbd91079e
 - python: helpers/template/extensions/functional.py::FunctionalExtension.iif
   lean:
   - HALean.Template.iif
   status: translated
   hash: f411ee7f2dcdc9f0
+  deps: dac694110a0c2c2a
 - python: helpers/template/helpers.py::forgiving_boolean
   lean:
   - HALean.Template.forgivingBool
@@ -524,11 +585,13 @@ entries:
   status: translated
   notes: render without parse_result, then value.lower() == 'true'
   hash: c754645aac65b90f
+  deps: 31338a2748daad0b
 - python: helpers/condition.py::async_template_from_config
   lean:
   - HALean.Automation.evalCond
   status: translated
   hash: 30b5004c3b120964
+  deps: 297cbc6dd7bf103e
 - python: helpers/service.py::async_prepare_call_from_config
   lean:
   - HALean.Automation.step
@@ -539,6 +602,7 @@ entries:
     compEntityIds) written into the target last; templated entity_id normalised like comp_entity_ids_or_uuids
     (no registry UUIDs)'
   hash: bacbd2c6d576e1d4
+  deps: ab900a67d827e48a
 - python: helpers/config_validation.py::service
   lean:
   - HALean.Automation.decodeAction
@@ -551,11 +615,13 @@ entries:
   status: translated
   notes: '`service` is the old name of `action`; both together is an error'
   hash: 1ea52171546cae2f
+  deps: bfa856f3da425cdd
 - python: helpers/config_validation.py::template_complex
   lean:
   - HALean.Automation.decodeComplex
   status: translated
   hash: 64e9ed0ed50afea7
+  deps: 0e166b8d03b6a273
 - python: helpers/config_validation.py::boolean
   lean:
   - HALean.Template.cvBooleanText
@@ -578,6 +644,7 @@ entries:
     `$` before one final newline); \d read as ASCII digits (Python''s class is Unicode-aware; callers reject
     non-ASCII ids). The template engine uses the same function.'
   hash: c35f0c404975c6ca
+  deps: e81fc2820b7e478a
 - python: core.py::valid_domain
   lean:
   - HALean.Core.validDomain
@@ -586,6 +653,7 @@ entries:
   notes: 'theorem validDomain_iff: accepts exactly the strings VALID_DOMAIN matches (DomainRe); \d read as
     ASCII digits'
   hash: 5711c45cc3274624
+  deps: f3560ee5b9d19055
 - python: components/template/trigger.py::async_attach_trigger
   lean:
   - HALean.Automation.onTemplateTrigger
@@ -594,6 +662,7 @@ entries:
   notes: 'static for: only; trigger templates may not use variables (trigger_variables unsupported); templated
     for: supported'
   hash: 30211567f29b293d
+  deps: 92eedbcc779c1faa
 - python: helpers/event.py::TrackTemplateResultInfo._render_template_if_ready
   lean:
   - HALean.Automation.onTemplateTrigger
@@ -602,12 +671,14 @@ entries:
   notes: re-renders only for changes the last render info lets through, honouring the rate limit; listener
     only on a changed parsed result (first re-render always, error->error never)
   hash: a9582098d045a9c1
+  deps: b9256388d8a4cf79
 - python: helpers/template/states.py::_state_generator
   lean:
   - HALean.Template.statesOf
   status: translated
   notes: insertion order (States.set updates in place)
   hash: b6336d35c02b8d4a
+  deps: 9b3973530495cae6
 - python: helpers/template/states.py::DomainStates.__iter__
   lean:
   - HALean.Template.iterV
@@ -629,12 +700,14 @@ entries:
   status: translated
   notes: in order, existing keys skipped; trigger_variables merged first (re-rendered at each trigger)
   hash: 9d93bdeb927a4441
+  deps: 96463e10d751f537
 - python: helpers/script_variables.py::ScriptVariables.async_simple_render
   lean:
   - HALean.Automation.step
   status: translated
   notes: used by the variables action
   hash: 74e02c308ccc7948
+  deps: 96463e10d751f537
 - python: helpers/script_variables.py::ScriptRunVariables._assign
   lean:
   - HALean.Automation.setVar
@@ -647,6 +720,7 @@ entries:
   status: translated
   notes: 'a render error is a TemplateError, one of CONFIGURATION_ERRORS: never swallowed by continue_on_error'
   hash: 4351feef0ed1ee0e
+  deps: a86b674e042326e0
 - python: components/automation/__init__.py::AutomationEntity._async_attach_triggers
   lean:
   - HALean.Automation.tmplCtxOf
@@ -654,23 +728,27 @@ entries:
   notes: 'trigger_variables rendered limited at load (decodeAutomation, limitedRenderJson), starting from
     `this` (a key named this is skipped); templates using `this`, states or the clock are rejected'
   hash: 25c556f4d61cb7e3
+  deps: ff0b7c7de8aa2b71
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.now
   lean:
   - HALean.Template.callV
   status: translated
   notes: the engine's clock; sets has_time, so template triggers re-render every minute
   hash: 8c9d33dbc1a0e2ca
+  deps: 83b10d0d9dd57dfc
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.utcnow
   lean:
   - HALean.Template.callV
   status: translated
   hash: c3d062546fae06cc
+  deps: f81d3fc6db010b2b
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.today_at
   lean:
   - HALean.Template.callV
   - HALean.Template.parseTime
   status: translated
   hash: caf3c0f1287a6de0
+  deps: ad6efcd8b9a8a39e
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.as_timestamp
   lean:
   - HALean.Template.callV
@@ -678,12 +756,14 @@ entries:
   status: translated
   notes: naive datetimes (system time zone) are errors
   hash: 45cbfc21353d16e1
+  deps: e8032e6a88c0926a
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.as_datetime
   lean:
   - HALean.Template.callV
   - HALean.Template.utcFromTimestamp
   status: translated
   hash: 0871256a07cec3d0
+  deps: bc64f26759b28657
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.as_local
   lean:
   - HALean.Template.asLocal
@@ -697,16 +777,19 @@ entries:
   status: translated
   notes: glibc strftime in the C locale; %Z and unlisted directives are errors
   hash: fd7c68af59d39103
+  deps: e6877ac9a75e92a4
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.timestamp_local
   lean:
   - HALean.Template.callV
   status: translated
   hash: 12d3d5006d808b85
+  deps: bc64f26759b28657
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.timestamp_utc
   lean:
   - HALean.Template.callV
   status: translated
   hash: 4945cf0243379faf
+  deps: bc64f26759b28657
 - python: util/dt.py::parse_datetime
   lean:
   - HALean.Template.parseDatetime
@@ -728,11 +811,13 @@ entries:
   - HALean.Template.asLocal
   status: translated
   hash: b18e2c5d9add66cb
+  deps: e5a6b728010dc9cf
 - python: util/dt.py::start_of_local_day
   lean:
   - HALean.Template.callV
   status: translated
   hash: 7bc33bebe33bb820
+  deps: c8a1a93b708e933c
 - python: util/dt.py::as_timestamp
   lean:
   - HALean.Template.timestampOf
@@ -745,6 +830,7 @@ entries:
   notes: HA picks a random 50-500 ms offset per tracker; HALean uses 500 ms for trigger.now and runs at
     the whole-second tick
   hash: 30ef42fef2de827b
+  deps: 0a7a27965fa805ce
 - python: helpers/template/render_info.py::RenderInfo._freeze
   lean:
   - HALean.Template.RInfo.rateLimit
@@ -752,11 +838,13 @@ entries:
   - HALean.Template.RInfo.filterLifecycle
   status: translated
   hash: 239c2e688ccd42f1
+  deps: dc57503d06fef1b2
 - python: helpers/template/__init__.py::Template.async_render_to_info
   lean:
   - HALean.Template.renderWithInfo
   status: translated
   hash: 2f6575bf889de341
+  deps: a4152a80ea1379b7
 - python: helpers/template/states.py::TemplateStateBase._collect_state
   lean:
   - HALean.Template.collect
@@ -764,22 +852,26 @@ entries:
   status: translated
   notes: iterated states and variables (trigger.to_state) do not collect
   hash: 0ed6950d46c915e1
+  deps: ad6efcd8b9a8a39e
 - python: helpers/event.py::_event_triggers_rerender
   lean:
   - HALean.Automation.onTemplateTrigger
   status: translated
   hash: cef8c8090f19cf14
+  deps: 73ca1e149c7e48ba
 - python: helpers/event.py::_rate_limit_for_event
   lean:
   - HALean.Automation.onTemplateTrigger
   status: translated
   hash: 224cc71866066fe3
+  deps: 73ca1e149c7e48ba
 - python: helpers/event.py::_render_infos_to_track_states
   lean:
   - HALean.Template.RInfo.listens
   status: translated
   notes: domain/all listeners suppressed while a rate-limit timer is pending (_suppress_domain_all_in_render_info)
   hash: 94c250d779bfe5f8
+  deps: a904cacdae922336
 - python: helpers/event.py::TrackTemplateResultInfo._refresh
   lean:
   - HALean.Automation.onTemplateTrigger
@@ -787,12 +879,14 @@ entries:
   status: translated
   notes: single template, no super template
   hash: 2886a76d6014dfd6
+  deps: 66b1d8598eee9aae
 - python: helpers/event.py::TrackTemplateResultInfo._setup_time_listener
   lean:
   - HALean.Automation.fireTimeTriggers
   status: translated
   notes: re-render at second 0 of every UTC minute while the last render used the clock
   hash: c141fc80eaae0715
+  deps: 73ca1e149c7e48ba
 - python: helpers/ratelimit.py::KeyedRateLimit.async_schedule_action
   lean:
   - HALean.Automation.onTemplateTrigger
@@ -800,6 +894,7 @@ entries:
   status: translated
   notes: one timer at a time, replaying the first deferred change
   hash: 24dd1e8302cf401e
+  deps: efa983f67401ebaf
 - python: helpers/template/extensions/math.py::MathExtension.min_max_from_filter
   lean:
   - HALean.Template.minOrMax
@@ -824,6 +919,7 @@ entries:
     errors (HALean has no entity sources); an unavailable group-integration entity is returned as-is where
     HA drops it
   hash: da3a6eb94d83baf5
+  deps: 97f70f5e8742ccfc
 - python: core.py::StateMachine.get
   lean:
   - HALean.Template.hassStatesGet
@@ -838,6 +934,7 @@ entries:
   status: translated
   notes: CPython _strptime in the C locale; %Z, locale directives and non-ASCII input are errors
   hash: feb841d18bffded8
+  deps: e8032e6a88c0926a
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.as_timedelta
   lean:
   - HALean.Template.callDateTime
@@ -849,6 +946,7 @@ entries:
   - HALean.Template.datetimeAsString
   status: translated
   hash: cda2b171d93a5750
+  deps: 83b10d0d9dd57dfc
 - python: helpers/template/extensions/datetime.py::DateTimeExtension.relative_time
   lean:
   - HALean.Template.callDateTime
@@ -880,6 +978,7 @@ entries:
   status: translated
   notes: STANDARD/ISO8601/POSTGRES duration regexes translated (Regex.lean)
   hash: 46ff33292e5c7108
+  deps: 10a98211728ebf56
 - python: util/dt.py::_get_timestring
   lean:
   - HALean.Template.getTimestring
@@ -891,12 +990,14 @@ entries:
   - HALean.Template.getTimestring
   status: translated
   hash: ab0706195faa38d0
+  deps: c8a1a93b708e933c
 - python: util/dt.py::get_time_remaining
   lean:
   - HALean.Template.roundedSeconds
   - HALean.Template.getTimestring
   status: translated
   hash: 20378caebd72c18d
+  deps: c8a1a93b708e933c
 - python: util/dt.py::timedelta_string
   lean:
   - HALean.Template.getTimestring
@@ -907,17 +1008,20 @@ entries:
   - HALean.Automation.thisValue
   status: translated
   hash: 4a7b3f7aea7617b4
+  deps: c1d597fcd28288b8
 - python: components/automation/__init__.py::BaseAutomationEntity.capability_attributes
   lean:
   - HALean.Automation.thisValue
   status: translated
   hash: cd7e7e6c5d24159f
+  deps: c00ea94f4e08a202
 - python: components/automation/__init__.py::_automation_name
   lean:
   - HALean.Automation.automationName
   status: translated
   notes: 'no alias: ''automation <n>'''
   hash: bbe5e519a9bb6012
+  deps: e6211824eed9ba9b
 - python: util/__init__.py::slugify
   lean:
   - HALean.Automation.slugify?
@@ -935,6 +1039,7 @@ entries:
   status: translated
   notes: collisions with other automations and initial states only
   hash: d25d5ffaadda79df
+  deps: 9141266d46f52b12
 - python: helpers/entity_platform.py::EntityPlatform._async_add_entity
   lean:
   - HALean.Automation.automationEntityIds
@@ -950,12 +1055,14 @@ entries:
   notes: also translates the schema assignments positive_time_period_template, positive_time_period and
     time_period_dict (vol.Any/vol.All, not functions, so not hashed)
   hash: b006eef142a076fb
+  deps: 736e17274c452d59
 - python: helpers/config_validation.py::time_period_str
   lean:
   - HALean.Automation.timePeriodStr
   - HALean.Core.cvTimePeriodStr
   status: translated
   hash: 3cecd2ee5dde4a98
+  deps: 9f93408a5a6cbffc
 - python: helpers/config_validation.py::time_period_seconds
   lean:
   - HALean.Automation.timePeriodSeconds
@@ -972,11 +1079,13 @@ entries:
   notes: the woken run resumes after the callbacks of the same state change; wait.remaining after a wake-up
     with a timeout is read from the event-loop clock, an error in HALean
   hash: c70282d56ea1a1b5
+  deps: 838c3e1b2eb9df23
 - python: helpers/script.py::_ScriptRun._get_timeout_seconds_from_action
   lean:
   - HALean.Automation.step
   status: translated
   hash: 23daabb9a67767aa
+  deps: 6a4000c4559c66e5
 - python: helpers/script.py::_ScriptRun._get_pos_time_period_template
   lean:
   - HALean.Automation.step
@@ -984,12 +1093,14 @@ entries:
   status: translated
   notes: timeouts and delays
   hash: ab863185e9be5ce6
+  deps: 08deed73c826de90
 - python: helpers/script.py::_ScriptRun._async_handle_timeout
   lean:
   - HALean.Automation.step
   - HALean.Automation.fireDue
   status: translated
   hash: 48a862b01fd9a9a3
+  deps: 38cfabec32db9ac5
 - python: helpers/script.py::_ScriptRun._async_wait_with_optional_timeout
   lean:
   - HALean.Automation.fireDue
@@ -1011,6 +1122,7 @@ entries:
   status: translated
   notes: fires on a true result whose previous result was not true (or an error)
   hash: 90932f7d42fe1ce5
+  deps: 7836cb2c01ee297c
 - python: helpers/script.py::_ScriptRun._async_step_wait_for_trigger
   lean:
   - HALean.Automation.step
@@ -1022,6 +1134,7 @@ entries:
   notes: the triggers are attached with dict(self._variables) taken before wait is set; a second trigger
     firing before the run resumes overwrites wait.trigger
   hash: 344fb7f3d54bbf35
+  deps: bde4f537ce5e2dc1
 - python: helpers/trigger/__init__.py::async_initialize_triggers
   lean:
   - HALean.Automation.attachTriggers
@@ -1031,6 +1144,7 @@ entries:
     rendered with the static trigger_variables, an error skipping the trigger) decided at load, disabled
     triggers dropped'
   hash: 65d58accf6d16244
+  deps: 9decfb037837de70
 - python: helpers/script.py::_ScriptRun._async_step_parallel
   lean:
   - HALean.Automation.step
@@ -1041,12 +1155,14 @@ entries:
   notes: 'gather: branches start after the current callbacks, all run to the end, then the first branch
     (in order) that raised re-raises in the parent, which also resumes later'
   hash: 8651899477a8fa0e
+  deps: 08c449ea45a5ca23
 - python: helpers/script.py::Script._async_prep_parallel_scripts
   lean:
   - HALean.Automation.decodeAction
   status: translated
   notes: a disabled branch is dropped (its run would be skipped)
   hash: ee32b304ec2239b2
+  deps: 56324a864a3bf07b
 - python: helpers/script_variables.py::ScriptRunVariables.enter_scope
   lean:
   - HALean.Automation.syncFamily
@@ -1067,11 +1183,13 @@ entries:
   - HALean.Automation.onZoneTrigger
   status: translated
   hash: 2e003d00b487e4ce
+  deps: 311a2d5fffa5621b
 - python: components/zone/trigger.py::_state_has_zone_info
   lean:
   - HALean.Automation.stateHasZoneInfo
   status: translated
   hash: fb41ae6e80ee8beb
+  deps: 1c04c5c1b7ca4bc7
 - python: components/zone/condition.py::zone
   lean:
   - HALean.Automation.zoneCondition
@@ -1080,17 +1198,20 @@ entries:
   notes: an exception other than ConditionErrorMessage (a non-numeric coordinate) is a condition error
     in HALean, where HA would raise it
   hash: e8a18aa54404759d
+  deps: 54543ef51c306a91
 - python: components/zone/__init__.py::in_zone
   lean:
   - HALean.Automation.inZone
   status: translated
   hash: ac7a831c52785503
+  deps: 887e1b30f364b159
 - python: components/zone/helpers.py::get_in_zones_attribute
   lean:
   - HALean.Automation.inZonesAttribute
   status: translated
   notes: the attribute is in_zones for both domains
   hash: db673df679755661
+  deps: afadc4c2504ac1d2
 - python: util/location.py::vincenty
   lean:
   - HALean.Automation.vincenty
@@ -1098,6 +1219,7 @@ entries:
   notes: same libm functions as CPython on the same host; agrees with HA at the float next to a 100 m
     radius
   hash: 25819494cb2aabb6
+  deps: d5412f94f70988dd
 - python: util/location.py::distance
   lean:
   - HALean.Automation.distance
@@ -1108,12 +1230,14 @@ entries:
   - HALean.Automation.hasLocation
   status: translated
   hash: dd0be37ed1fe766f
+  deps: bb43f35e40273f00
 - python: helpers/trigger/__init__.py::_async_attach_trigger_cls
   lean:
   - HALean.Automation.triggerValue
   status: translated
   notes: 'trigger payload: trigger_data, platform, description, then the trigger''s own fields'
   hash: a5ae38b9432c3245
+  deps: 641d46fb99dbb6f2
 - python: components/sun/trigger.py::SunEventTrigger.async_attach_runner
   lean:
   - HALean.Automation.attachTriggers
@@ -1122,6 +1246,7 @@ entries:
   notes: the next event is scheduled before the action runs; it fires at the first whole-second tick at
     or after the event
   hash: 617bbf5eea17267a
+  deps: f243d81c8d783b75
 - python: components/sun/trigger.py::LegacySunTrigger._action_payload
   lean:
   - HALean.Automation.fireSun
@@ -1134,18 +1259,21 @@ entries:
   notes: legacy configs have no offset_type, so the offset is used as given; offset is cv.time_period
     (an assignment, not hashed), translated as cvTimePeriod
   hash: 89e9f79559fe1cf3
+  deps: d112bd528f4550a2
 - python: helpers/sun.py::get_observer_astral_event_next
   lean:
   - HALean.Automation.Sun.nextEvent
   status: translated
   notes: astral itself (2.2, not HA code) is translated in HALean/Automation/Sun.lean and checked by tests/sun/compare.py
   hash: 95a47e16d0b7a48d
+  deps: 95c51511a1fa23c4
 - python: helpers/sun.py::get_astral_observer
   lean:
   - HALean.Automation.decodeInput
   status: translated
   notes: the shell sends hass.config latitude/longitude/elevation in init
   hash: 59b52e8f43b0357e
+  deps: 73ca1e149c7e48ba
 - python: components/zone/condition.py::ZoneCondition._async_check
   lean:
   - HALean.Automation.zoneCond
@@ -1156,6 +1284,7 @@ entries:
   - HALean.Automation.sunCond
   status: translated
   hash: 98a36ee4c42b2e80
+  deps: ab597566f198ccef
 - python: components/sun/condition.py::SunCondition._async_check
   lean:
   - HALean.Automation.sunCond
@@ -1167,6 +1296,7 @@ entries:
   - HALean.Automation.Sun.sunEvent
   status: translated
   hash: 5a4601882dbc512f
+  deps: 84d9e1110492e50a
 - python: core.py::split_entity_id
   lean:
   - HALean.Core.splitEntityId
@@ -1175,11 +1305,13 @@ entries:
   notes: 'theorem splitEntityId_some: some (d, o) exactly when the id is d ++ "." ++ o with no dot in d and
     both non-empty (str.partition(".")); none is the ValueError'
   hash: c2f1fff7221fbf32
+  deps: 0770c5750f096199
 - python: core.py::validate_state
   lean:
   - HALean.Core.StateMachine.validateState
   status: translated
   hash: c5135f07fe4bac76
+  deps: 4de14a698efa3c94
 - python: core.py::Context._as_dict
   lean:
   - HALean.Core.Context.asDict
@@ -1193,11 +1325,13 @@ entries:
   notes: state_info and last_updated_timestamp are not modelled (timestamps are whole microseconds); theorem
     State.new_ok
   hash: 3d0f1fe02ff4d223
+  deps: a6cb3cad53845dce
 - python: core.py::State.name
   lean:
   - HALean.Core.State.name
   status: translated
   hash: 6d1a365b87df0ccc
+  deps: 5c423f2e032124ba
 - python: core.py::State.last_changed_timestamp
   lean:
   - HALean.Core.State.lastChangedTimestamp
@@ -1225,6 +1359,7 @@ entries:
   - HALean.Core.State.asCompressedState
   status: translated
   hash: 63e3840fb027799c
+  deps: 060078f87e9735b6
 - python: core.py::State.expire
   lean:
   - HALean.Core.StateMachine.asyncSetInternal
@@ -1259,16 +1394,19 @@ entries:
   - HALean.Core.StateMachine.asyncEntityIds
   status: translated
   hash: a240d313569efac9
+  deps: 73ca1e149c7e48ba
 - python: core.py::StateMachine.async_entity_ids_count
   lean:
   - HALean.Core.StateMachine.asyncEntityIdsCount
   status: translated
   hash: b4ae4450a4409c37
+  deps: 73ca1e149c7e48ba
 - python: core.py::StateMachine.async_all
   lean:
   - HALean.Core.StateMachine.asyncAll
   status: translated
   hash: 92a1dd07fb25b784
+  deps: 73ca1e149c7e48ba
 - python: core.py::StateMachine.is_state
   lean:
   - HALean.Core.StateMachine.isState
@@ -1283,17 +1421,20 @@ entries:
   notes: theorems remove_then_get_none, remove_then_lookup_none, remove_keys; in the joined core its event
     goes through the bus model with the given context or none
   hash: b96d7c0813c83f16
+  deps: 6f669f65dfc92ade
 - python: core.py::StateMachine.async_reserve
   lean:
   - HALean.Core.StateMachine.asyncReserve
   status: proven
   notes: theorem reserve_then_unavailable
   hash: 6cefddf984973ac1
+  deps: 73ca1e149c7e48ba
 - python: core.py::StateMachine.async_available
   lean:
   - HALean.Core.StateMachine.asyncAvailable
   status: translated
   hash: 3fa5b6c7f6bdc202
+  deps: 73ca1e149c7e48ba
 - python: core.py::StateMachine.async_set
   lean:
   - HALean.Core.StateMachine.asyncSet
@@ -1302,6 +1443,7 @@ entries:
   notes: timestamp (or time.time()) is the caller's `now`, in whole microseconds; str() of the state via
     the template service's pyStr
   hash: 17b7323a17517268
+  deps: 73ca1e149c7e48ba
 - python: core.py::StateMachine.async_set_internal
   lean:
   - HALean.Core.StateMachine.asyncSetInternal
@@ -1312,6 +1454,7 @@ entries:
   notes: state_info not modelled; theorems set_same_only_reports, set_same_state_keeps_last_changed, set_frame,
     set_keys; in the joined core its events go through the bus model (Hass.runAction, theorem set_delivers_first)
   hash: f5eef30edc4da775
+  deps: 414e57713a54f079
 - python: core.py::SupportsResponse
   lean:
   - HALean.Core.SupportsResponse
@@ -1324,6 +1467,7 @@ entries:
   status: translated
   notes: the job is a HandlerSpec (return a value / echo the call / raise); job types are not modelled
   hash: 094284df366e0a38
+  deps: ee23b5c7e2cb621f
 - python: core.py::ServiceCall
   lean:
   - HALean.Core.ServiceCall
@@ -1335,12 +1479,14 @@ entries:
   - HALean.Core.Registry.asyncServices
   status: translated
   hash: 953cffd8407fc1d9
+  deps: 73ca1e149c7e48ba
 - python: core.py::ServiceRegistry.async_services_for_domain
   lean:
   - HALean.Core.Registry.asyncServicesForDomain
   status: translated
   notes: the domain is not lowercased (upstream quirk, kept)
   hash: e4f782a8b6a72900
+  deps: 73ca1e149c7e48ba
 - python: core.py::ServiceRegistry.has_service
   lean:
   - HALean.Core.Registry.hasService
@@ -1353,11 +1499,13 @@ entries:
   status: translated
   notes: a missing domain or service raises KeyError
   hash: 11dbbe48615b6248
+  deps: ee23b5c7e2cb621f
 - python: core.py::ServiceRegistry.async_register
   lean:
   - HALean.Core.Registry.register
   status: translated
   hash: 157be28562db570c
+  deps: 5c4dfb3ec43574ab
 - python: core.py::ServiceRegistry._async_register
   lean:
   - HALean.Core.Registry.register
@@ -1367,11 +1515,13 @@ entries:
   notes: theorem has_after_register (case-insensitive); in the joined core service_registered goes through
     the bus model
   hash: 0ae8830ee181c4b6
+  deps: 3e04eabd4d6e1369
 - python: core.py::ServiceRegistry.async_remove
   lean:
   - HALean.Core.Registry.remove
   status: translated
   hash: 17f146a0b07506ea
+  deps: 73ca1e149c7e48ba
 - python: core.py::ServiceRegistry._async_remove
   lean:
   - HALean.Core.Registry.remove
@@ -1381,6 +1531,7 @@ entries:
   notes: theorems has_after_remove, call_after_remove_not_found; in the joined core service_removed goes
     through the bus model
   hash: 2558fcbc0d59e76a
+  deps: 444a615e740eebc4
 - python: core.py::ServiceRegistry.async_call
   lean:
   - HALean.Core.Registry.asyncCall
@@ -1406,6 +1557,7 @@ entries:
     suspends suspends a blocking caller (Frame.handlerRet) and runs in its own task for a non-blocking
     one
   hash: 7744c175387f8dfc
+  deps: 09e582b1fbe7e041
 - python: core.py::ServiceRegistry._run_service_call_catch_exceptions
   lean:
   - HALean.Core.Registry.asyncCall
@@ -1416,6 +1568,7 @@ entries:
   notes: Unauthorized and CancelledError are not modelled (handlers cannot raise them); after a suspension
     the error is logged when the task resumes and raises (Frame.handlerRet, finishCall)
   hash: cffaa1470685a01a
+  deps: 358975796a234b3b
 - python: core.py::ServiceRegistry._execute_service
   lean:
   - HALean.Core.runHandler
@@ -1424,6 +1577,7 @@ entries:
   - HALean.Core.Hass.Frame
   status: translated
   hash: 86419bad1cbb5b7b
+  deps: f7fc0f0abc3d236f
   notes: coroutine-function handlers (scripted, may suspend); @callback and executor handlers are not
     modelled
 - python: exceptions.py::HomeAssistantError
@@ -1433,6 +1587,7 @@ entries:
   - HALean.Core.errorKind
   status: translated
   hash: 07f150568abd2218
+  deps: 55cad92f6bf67b39
 - python: exceptions.py::ServiceValidationError
   lean:
   - HALean.Core.serviceValidationError
@@ -1450,6 +1605,7 @@ entries:
   status: translated
   notes: English strings of components/homeassistant/strings.json for the five registry errors
   hash: 4be9bf62769f1c82
+  deps: 7fec9c2b6ffd54c9
 - python: util/__init__.py::repr_helper
   lean:
   - HALean.Core.reprHelper
@@ -1479,6 +1635,7 @@ entries:
   notes: data or {}; time_fired_timestamp or time.time() (resolved in mkQueued); without a context, Context(id=ulid_at_time(ts))
     gets the symbolic id ulid@<int(ts*1000)>#<n>
   hash: 9e46d45176ccd8a9
+  deps: af3c27c90ab4fe9e
 - python: core.py::Event.time_fired
   lean:
   - HALean.Core.EventBus.Event.timeFiredIso
@@ -1486,6 +1643,7 @@ entries:
   status: translated
   notes: datetime.fromtimestamp on the float (modf, fraction rounded half-even to µs)
   hash: b440bdb7debbba6d
+  deps: af680f2f30ce150a
 - python: core.py::Event._as_dict
   lean:
   - HALean.Core.EventBus.Event.asDict
@@ -1500,6 +1658,7 @@ entries:
   status: proven
   notes: theorem once_at_most_once
   hash: aa61852d36a4e2bc
+  deps: 73ca1e149c7e48ba
 - python: core.py::_verify_event_type_length_or_raise
   lean:
   - HALean.Core.EventBus.asyncFire
@@ -1507,17 +1666,20 @@ entries:
   status: translated
   notes: length in code points
   hash: b16d8504a527547f
+  deps: ce6222bfa3e9e0b0
 - python: core.py::EventBus.__init__
   lean:
   - HALean.Core.EventBus.Bus.new
   status: translated
   notes: the logging_changed listener is an opaque system job
   hash: 33bba6c27cac3ff2
+  deps: 5bf872fb9f50d778
 - python: core.py::EventBus.async_listeners
   lean:
   - HALean.Core.EventBus.asyncListeners
   status: translated
   hash: e4f6c609aa473dd6
+  deps: 73ca1e149c7e48ba
 - python: core.py::EventBus.async_fire
   lean:
   - HALean.Core.EventBus.asyncFire
@@ -1526,6 +1688,7 @@ entries:
   status: translated
   notes: the thread check is not modelled (no threads)
   hash: 51ce6e2cede8140c
+  deps: 27c4a2993c318ac2
 - python: core.py::EventBus.async_fire_internal
   lean:
   - HALean.Core.EventBus.asyncFire
@@ -1541,6 +1704,7 @@ entries:
     is enough (not proved yet); the joined core's fireInternal runs scripted listeners over the whole
     core (theorems quiet, fireInternal_first)
   hash: 2674dec492745b7d
+  deps: 08adb8cbddcfb94c
 - python: core.py::EventBus._async_dispatch
   lean:
   - HALean.Core.EventBus.dispatch
@@ -1555,6 +1719,7 @@ entries:
     its task is parked and the dispatch goes on); a task done at once is dropped, so its exception is
     logged there (gcLog)'
   hash: 8d8cde5261ec0c08
+  deps: eecc428ba68b28ce
 - python: core.py::EventBus.async_listen
   lean:
   - HALean.Core.EventBus.asyncListen
@@ -1563,11 +1728,13 @@ entries:
   notes: run_immediately is reported with ReportBehavior.ERROR for every caller, so passing it raises
     RuntimeError
   hash: c0ca20f0c3632cdd
+  deps: c9a65ea8e313cb1c
 - python: core.py::EventBus._async_listen_filterable_job
   lean:
   - HALean.Core.EventBus.listenFilterableJob
   status: translated
   hash: 897c48f4f958f469
+  deps: 73ca1e149c7e48ba
 - python: core.py::EventBus.async_listen_once
   lean:
   - HALean.Core.EventBus.asyncListenOnce
@@ -1575,6 +1742,7 @@ entries:
   status: translated
   notes: no event_filter parameter (TypeError)
   hash: 72566737d3e90782
+  deps: 8b665d594ea6cdd8
 - python: core.py::EventBus._async_remove_listener
   lean:
   - HALean.Core.EventBus.asyncRemoveListener
@@ -1583,6 +1751,7 @@ entries:
   notes: the defaultdict access re-creates an empty list on a double removal; theorems unsub_gone, unsub_gone_reachable
     (no side conditions on reachable buses), unsub_silent
   hash: f7a8cd4f4b95f0f4
+  deps: b4466887d69cf3b9
 - python: core.py::HomeAssistant.async_run_hass_job
   lean:
   - HALean.Core.EventBus.runJob
@@ -1594,6 +1763,7 @@ entries:
   notes: callback jobs run at once; coroutine-function listeners go through _async_add_hass_job (eager
     task); executor jobs (threads) are not modelled; theorem runListener_deliveries (eager start)
   hash: e6a860ed9b453a87
+  deps: 73ca1e149c7e48ba
 - python: components/script/config.py::_async_validate_config_item
   lean:
   - HALean.Script.decodeScript
@@ -1606,12 +1776,14 @@ entries:
     last_triggered other than this.attributes.last_triggered, templates using names that are not fields,
     variables or passed by other scripts. Selectors are not validated'
   hash: 7efb00d1a6f51373
+  deps: 98962b14510e53b2
 - python: components/script/config.py::async_validate_config
   lean:
   - HALean.Script.decodeAll
   - HALean.Script.passedNames
   status: translated
   hash: ef7bd5c5d9982295
+  deps: 5b8f6cce86f5f309
 - python: components/script/__init__.py::async_setup.turn_on_service
   lean:
   - HALean.Script.planCall
@@ -1620,12 +1792,14 @@ entries:
   notes: a script that does not start (mode, max, a variables error) makes HA wait for its next state
     write; HALean fails the call instead (logged)
   hash: 2a331ea2dd98f904
+  deps: 489cd324db625cc1
 - python: components/script/__init__.py::async_setup.turn_off_service
   lean:
   - HALean.Script.planCall
   - HALean.Automation.callLocal
   status: translated
   hash: 973b52f0ca0f14a4
+  deps: 93f1b9dcf5daa0fd
 - python: components/script/__init__.py::async_setup.toggle_service
   lean:
   - HALean.Script.planCall
@@ -1638,6 +1812,7 @@ entries:
   status: translated
   notes: the shell sends the new scripts.yaml as a reload input
   hash: 494a53751f8dfbf8
+  deps: 8a9a1d9e06c0d2a1
 - python: components/script/__init__.py::_async_process_config
   lean:
   - HALean.Script.reloadScripts
@@ -1645,11 +1820,13 @@ entries:
   - HALean.Script.Service.step
   status: translated
   hash: 45ee0d798b6066b6
+  deps: 884e68d7641b8995
 - python: components/script/__init__.py::ScriptEntity.__init__
   lean:
   - HALean.Script.decodeScript
   status: translated
   hash: e768330910cee9d1
+  deps: 2624b42b0a2e69e5
 - python: components/script/__init__.py::ScriptEntity.extra_state_attributes
   lean:
   - HALean.Script.entityAttributes
@@ -1657,6 +1834,7 @@ entries:
   status: translated
   notes: last_action is not modelled (opaque in this, left out of the written state)
   hash: 4dc35356e4ae6abe
+  deps: 2ab7b56273b6f0df
 - python: components/script/__init__.py::ScriptEntity.is_on
   lean:
   - HALean.Script.entityState
@@ -1668,6 +1846,7 @@ entries:
   status: translated
   notes: written at run start, end and stop; HA also writes on every step (last_action only)
   hash: 35261bd05d05b134
+  deps: 73ca1e149c7e48ba
 - python: components/script/__init__.py::ScriptEntity.async_turn_on
   lean:
   - HALean.Automation.callLocal
@@ -1681,12 +1860,14 @@ entries:
   status: translated
   notes: 'script_stack: copied for wait=True, fresh for turn_on'
   hash: f8b34c1450b62023
+  deps: bdac6da04faa9958
 - python: components/script/__init__.py::ScriptEntity._async_run
   lean:
   - HALean.Automation.startScript
   - HALean.Script.scriptThis
   status: translated
   hash: 0ffae8c2d1bd3c80
+  deps: 4bbfa2839c621b0f
 - python: components/script/__init__.py::ScriptEntity.async_turn_off
   lean:
   - HALean.Automation.callLocal
@@ -1707,17 +1888,20 @@ entries:
   status: translated
   notes: last_triggered is restored from the state HA had (init) or the removed entity (reload)
   hash: d68285853143d032
+  deps: 7583d2f8a8f2bcee
 - python: components/script/__init__.py::ScriptEntity.async_will_remove_from_hass
   lean:
   - HALean.Script.reloadScripts
   status: translated
   hash: 086cdb4776f6f321
+  deps: 6711cbe3daea1a45
 - python: helpers/script.py::Script.async_stop
   lean:
   - HALean.Automation.callLocal
   - HALean.Automation.stopRun
   status: translated
   hash: 63fc0f26c17bdf9e
+  deps: 93f1b9dcf5daa0fd
 - python: helpers/script.py::_ScriptRun.async_stop
   lean:
   - HALean.Automation.stopRun
@@ -1727,6 +1911,7 @@ entries:
     a delay, wait or parallel step (_async_futures_with_timeout includes the stop future), CancelledError
     elsewhere
   hash: 977e3352673aea31
+  deps: 4d54b069bfa57ed2
 - python: helpers/script.py::_ScriptRun._finish
   lean:
   - HALean.Automation.finishRun
@@ -1757,6 +1942,7 @@ entries:
   - HALean.Script.supportsMax
   status: translated
   hash: 0cd1b746590deb79
+  deps: f39ee206dbad66dd
 - python: helpers/service.py::async_extract_entities
   lean:
   - HALean.Script.extractTargets
@@ -1764,21 +1950,25 @@ entries:
   status: translated
   notes: group entity ids are not expanded (an error)
   hash: c771763722bd568a
+  deps: 01ea001da56837c1
 - python: helpers/entity.py::Entity.__async_remove_impl
   lean:
   - HALean.Script.reloadScripts
   status: translated
   hash: 05fde65c70ce2bf8
+  deps: 102ecb192245f450
 - python: helpers/entity_registry.py::RegistryEntry.write_unavailable_state
   lean:
   - HALean.Script.unavailableAttributes
   status: translated
   hash: fcf81cfed5d984d5
+  deps: 232f2791f4ba7793
 - python: helpers/restore_state.py::RestoreStateData.async_restore_entity_removed
   lean:
   - HALean.Script.reloadScripts
   status: translated
   hash: 7b50fac7c0bb194c
+  deps: 50c669bc347a5124
 - python: core.py::HomeAssistant.async_create_task
   lean:
   - HALean.Core.Hass.runAction
@@ -1789,6 +1979,7 @@ entries:
     the handler suspends, the call goes on in that task (frames ending in callAct, which records the outcome
     and swallows the error)'
   hash: 48bbbb4fd49b6cdc
+  deps: 73ca1e149c7e48ba
 - python: core.py::HomeAssistant.async_create_task_internal
   lean:
   - HALean.Core.Hass.runAction
@@ -1801,6 +1992,7 @@ entries:
     exception is logged as it is freed); suspended, it is added to _tasks with the done callback _tasks.remove
     (Handle.done); eager_start=False is never used by the modelled paths'
   hash: d7fb8bc29e8f1fa4
+  deps: 43187d254732b992
 - python: core.py::HomeAssistant._async_add_hass_job
   lean:
   - HALean.Core.Hass.runListener
@@ -1813,6 +2005,7 @@ entries:
     callback jobs never reach it in the model (async_run_hass_job runs them); executor jobs are not modelled;
     theorems runListener_deliveries (eager start), keeps (only appends to the ready queue)
   hash: 38c5d0642a60a8e9
+  deps: 73ca1e149c7e48ba
 - python: core.py::HomeAssistant.async_block_till_done
   lean:
   - HALean.Core.Hass.step
@@ -1829,6 +2022,7 @@ entries:
     is rejected (loop fuel, or nothing left to run); the debug logging of blocked tasks is not modelled;
     theorem blockTillDone_no_tasks
   hash: d969365a73403d63
+  deps: c5894fbffcf0e8e6
 - python: core.py::HomeAssistant._await_and_log_pending
   lean:
   - HALean.Core.Hass.startRound
@@ -1837,6 +2031,7 @@ entries:
   notes: 'one asyncio.wait round (BLOCK_LOG_TIMEOUT never elapses on the frozen clock): _on_completion
     per task (Handle.onc), the waiter wakes the main task when the counter reaches 0'
   hash: 80a12bd30bba5473
+  deps: 7843ef8d628d074e
 - python: core.py::HassJobType
   lean:
   - HALean.Core.Hass.Hass
@@ -1852,6 +2047,7 @@ entries:
   notes: 'a scripted listener is an async def (async: true) or a @callback; partials and executor callables
     are not modelled'
   hash: bd4cb85c2ed15f5d
+  deps: 6142deb336befe6f
 - python: probatio:schema.py::Schema.__call__
   lean:
   - HALean.Core.SchemaSpec.validate
@@ -1859,6 +2055,7 @@ entries:
   status: translated
   notes: a lone Invalid is wrapped in MultipleInvalid; the top level is always a mapping (probatio 0.13.0)
   hash: c2a9739bc64fa383
+  deps: ed9a77f2aa508fa4
 - python: probatio:_compile.py::_make_candidate
   lean:
   - HALean.Core.ServicesJson.decodeField
@@ -1868,6 +2065,7 @@ entries:
   notes: literal string keys with Required/Optional/Exclusive/Inclusive and defaults; type and callable
     keys, Remove, Forbidden, Alias, Secret, Extra and msg= are rejected (probatio 0.13.0)
   hash: dc43eb30915bddd9
+  deps: 52931b20f201833b
 - python: probatio:_compile.py::_TypeCheck.__call__
   lean:
   - HALean.Core.checkType
@@ -1900,6 +2098,7 @@ entries:
   notes: nested mappings inherit the schema extra policy (compile ctx and combinator rebinding) (probatio
     0.13.0)
   hash: ff6a8d28aa6c70f0
+  deps: 2f4d8200052f63cc
 - python: probatio:_engine.py::_MappingValidator._collect
   lean:
   - HALean.Core.runMapping
@@ -1913,6 +2112,7 @@ entries:
   status: translated
   notes: (probatio 0.13.0)
   hash: 8713d19ffb439e41
+  deps: ce4d82b141a8ecec
 - python: probatio:_engine.py::_MappingValidator._extra_key_error
   lean:
   - HALean.Core.extraKeyError
@@ -1962,6 +2162,7 @@ entries:
   status: translated
   notes: the typed and float-superset fast paths decide like _run_any; no msg= (probatio 0.13.0)
   hash: 3bf55061949076fc
+  deps: fd06f1bf77d4293a
 - python: probatio:validators/combinators.py::_run_any
   lean:
   - HALean.Core.runAny
@@ -2052,18 +2253,21 @@ entries:
   status: translated
   notes: theorem checkPort_range (probatio 0.13.0)
   hash: 66cf69ac126b7433
+  deps: 55f05ab1a8520adf
 - python: probatio:validators/conditional.py::AtLeastOne.__call__
   lean:
   - HALean.Core.checkAtLeastOne
   status: translated
   notes: no msg= (probatio 0.13.0)
   hash: bdff50a2523885be
+  deps: f04e241680979917
 - python: probatio:error.py::render_path
   lean:
   - HALean.Core.renderPath
   status: translated
   notes: str keys, list indices and group components (probatio 0.13.0)
   hash: cf2f22446292c744
+  deps: 06d723f4e9c9a0d6
 - python: probatio:error.py::_format_candidates
   lean:
   - HALean.Core.formatCandidates
@@ -2077,6 +2281,7 @@ entries:
   status: translated
   notes: (probatio 0.13.0)
   hash: 40964530facf0fda
+  deps: ee2e88ed80ae1e55
 - python: probatio:error.py::MultipleInvalid.__str__
   lean:
   - HALean.Core.multipleInvalidStr
@@ -2095,6 +2300,7 @@ entries:
   status: translated
   notes: (probatio 0.13.0)
   hash: f378bd05a599ea20
+  deps: c734b454942cbecf
 - python: helpers/config_validation.py::string
   lean:
   - HALean.Core.cvString
@@ -2113,6 +2319,7 @@ entries:
   status: translated
   notes: allow_uuid=False only (entity_ids); iterating a scalar raises TypeError
   hash: 7965187b5a15af43
+  deps: 7bcdf3065281b350
 - python: helpers/config_validation.py::entity_ids
   lean:
   - HALean.Core.cvEntityIds
@@ -2134,6 +2341,7 @@ entries:
   - HALean.Core.cvColorHex
   status: translated
   hash: 75953f21a90fc817
+  deps: c64a4ec8134f40d5
 - python: helpers/config_validation.py::slug
   lean:
   - HALean.Core.cvSlug
@@ -2169,18 +2377,21 @@ entries:
   status: translated
   notes: 'Remove(''metadata''): a dict is dropped, anything else is an unmatched (extra) key'
   hash: 1da5a4296f81bb01
+  deps: 6ca38bf5cfc0c0b2
 - python: probatio:_engine.py::_MappingValidator._apply
   lean:
   - HALean.Helpers.validateEntityCall
   status: translated
   notes: only the Remove branch (metadata of entity services)
   hash: 12ad488220465193
+  deps: 2f4d8200052f63cc
 - python: helpers/service.py::entity_service_call
   lean:
   - HALean.Helpers.Helpers.call
   status: translated
   notes: 'the entity method''s errors: all targets run (gather), the first error is raised'
   hash: 40812739824046d9
+  deps: 8c5cb197112fc022
 - python: helpers/service.py::_resolve_entity_service_call_entities
   lean:
   - HALean.Helpers.targetOf
@@ -2189,18 +2400,21 @@ entries:
   notes: no users/permissions; device/area/floor/label targets are unsupported (no registries); missing
     entities are not logged
   hash: 9fb8f7182794817e
+  deps: 01ea001da56837c1
 - python: helpers/service.py::_get_permissible_entity_candidates
   lean:
   - HALean.Helpers.selectTargets
   status: translated
   notes: 'explicit ids run in the order given (HA iterates a set: hash order)'
   hash: ed57a2e58d601be6
+  deps: b6ab53ab36da91f7
 - python: helpers/service.py::_async_handle_entity_calls
   lean:
   - HALean.Helpers.Helpers.call
   status: translated
   notes: 'gather(return_exceptions=True): every entity runs, the first exception in entity order is raised'
   hash: 8d7216179cd75307
+  deps: 93f1b9dcf5daa0fd
 - python: helpers/entity.py::Entity._stringify_state
   lean:
   - HALean.Helpers.stringifyState
@@ -2208,6 +2422,7 @@ entries:
   status: translated
   notes: f'{state:.15}' reproduced digit for digit (exact rounding of the binary value)
   hash: 13649b0312988975
+  deps: 90d9962f26ad83fe
 - python: helpers/entity.py::Entity.__async_calculate_state
   lean:
   - HALean.Helpers.tailAttrs
@@ -2215,6 +2430,7 @@ entries:
   notes: capability, state, extra attributes, then unit_of_measurement, icon, friendly_name (no registry
     overrides)
   hash: a5f57aa304bfb598
+  deps: a15765661bb76824
 - python: helpers/entity.py::ToggleEntity.async_toggle
   lean:
   - HALean.Helpers.InputBoolean.toggle
@@ -2226,6 +2442,7 @@ entries:
   - HALean.Helpers.InputBoolean.Entity.state
   status: translated
   hash: c104c60f3ce1d45c
+  deps: 015c219c806f1e08
 - python: helpers/event.py::_TrackPointUTCTime.__call__
   lean:
   - HALean.Helpers.Timer.Entity.due
@@ -2234,6 +2451,7 @@ entries:
   notes: the callback runs at the first clock at or after the point (and right after a call that scheduled
     it in the past)
   hash: 94e28a39288316d0
+  deps: f4fd21792e13af31
 - python: components/input_boolean/__init__.py::async_setup
   lean:
   - HALean.Helpers.InputBoolean.decodeConfig
@@ -2242,22 +2460,26 @@ entries:
   status: translated
   notes: YAML items only (no storage collection, no reload)
   hash: c286a0fa2d1bdc68
+  deps: 724e35fc0d310f15
 - python: components/input_boolean/__init__.py::InputBoolean.__init__
   lean:
   - HALean.Helpers.InputBoolean.Entity.create
   status: translated
   hash: 291ff79226d94115
+  deps: 5915b37c3a5de440
 - python: components/input_boolean/__init__.py::InputBoolean.async_added_to_hass
   lean:
   - HALean.Helpers.InputBoolean.Entity.create
   status: translated
   notes: restore when no initial
   hash: dc296396bafcb430
+  deps: d3bce7a2d54e3c49
 - python: components/input_boolean/__init__.py::InputBoolean.extra_state_attributes
   lean:
   - HALean.Helpers.InputBoolean.Entity.attrs
   status: translated
   hash: 42c5f663cec0f704
+  deps: f82c28432283b32c
 - python: components/input_boolean/__init__.py::InputBoolean.async_turn_on
   lean:
   - HALean.Helpers.InputBoolean.turnOn
@@ -2276,6 +2498,7 @@ entries:
   status: translated
   notes: keeps upstream's swapped bounds in the message
   hash: 501fec40abc9f04f
+  deps: 2014b8d2b3f92e6b
 - python: components/input_number/__init__.py::async_setup
   lean:
   - HALean.Helpers.InputNumber.decodeConfig
@@ -2284,16 +2507,19 @@ entries:
   status: translated
   notes: YAML items only (no storage collection, no reload)
   hash: 555ff4ead6d6e020
+  deps: 2fc907f8117bedc7
 - python: components/input_number/__init__.py::InputNumber.__init__
   lean:
   - HALean.Helpers.InputNumber.Entity.create
   status: translated
   hash: 40beb0c321ae48f8
+  deps: 79d85d035dd5d489
 - python: components/input_number/__init__.py::InputNumber._update_config_attributes
   lean:
   - HALean.Helpers.InputNumber.Entity.attrs
   status: translated
   hash: 888f49769213f1c0
+  deps: 9dcd168ba8b05a49
 - python: components/input_number/__init__.py::InputNumber.async_added_to_hass
   lean:
   - HALean.Helpers.InputNumber.Entity.create
@@ -2305,6 +2531,7 @@ entries:
   - HALean.Helpers.InputNumber.Entity.attrs
   status: translated
   hash: 4971fa69e30a7213
+  deps: 99384ce36955f47a
 - python: components/input_number/__init__.py::InputNumber.async_set_native_value
   lean:
   - HALean.Helpers.InputNumber.setValue
@@ -2331,6 +2558,7 @@ entries:
   status: translated
   notes: no device class, so no unit conversion
   hash: ef342532a0283f17
+  deps: 7adf21214573f008
 - python: components/number/__init__.py::NumberEntity.state
   lean:
   - HALean.Helpers.InputNumber.Entity.state
@@ -2342,12 +2570,14 @@ entries:
   status: translated
   notes: an input number always has native_step
   hash: 1109d4499c1dd330
+  deps: 71986b86722906fe
 - python: components/input_select/__init__.py::_cv_input_select
   lean:
   - HALean.Helpers.InputSelect.decode
   status: translated
   notes: initial checked before duplicates are removed
   hash: 42ebb52ad3b1e6c5
+  deps: 4c2d83a31b2053a7
 - python: components/input_select/__init__.py::_remove_duplicates
   lean:
   - HALean.Helpers.InputSelect.dedup
@@ -2355,6 +2585,7 @@ entries:
   status: translated
   notes: with its warning
   hash: f43c6785f07d3953
+  deps: 81643d0c98ac3750
 - python: components/input_select/__init__.py::async_setup
   lean:
   - HALean.Helpers.InputSelect.decodeConfig
@@ -2363,12 +2594,14 @@ entries:
   status: translated
   notes: YAML items only (no storage collection, no reload)
   hash: 4e946af9f3665ead
+  deps: 5ed4cb678d113916
 - python: components/input_select/__init__.py::InputSelect.__init__
   lean:
   - HALean.Helpers.InputSelect.Entity.create
   status: proven
   notes: theorem create_valid
   hash: 2905a66c697af18d
+  deps: b0b63d7b62db7276
 - python: components/input_select/__init__.py::InputSelect.async_added_to_hass
   lean:
   - HALean.Helpers.InputSelect.Entity.create
@@ -2380,6 +2613,7 @@ entries:
   - HALean.Helpers.InputSelect.Entity.attrs
   status: translated
   hash: 3167503a344797f8
+  deps: 6ba4b6c3218b0eb8
 - python: components/input_select/__init__.py::InputSelect.async_select_option
   lean:
   - HALean.Helpers.InputSelect.selectOption
@@ -2392,6 +2626,7 @@ entries:
   status: proven
   notes: theorem setOptions_valid
   hash: bec325d06d642a17
+  deps: 81643d0c98ac3750
 - python: components/select/__init__.py::SelectEntity.state
   lean:
   - HALean.Helpers.InputSelect.Entity.state
@@ -2403,6 +2638,7 @@ entries:
   - HALean.Helpers.InputSelect.Entity.attrs
   status: translated
   hash: 842d1a4d4cd90c63
+  deps: 8ca9ac501f148406
 - python: components/select/__init__.py::SelectEntity.async_first
   lean:
   - HALean.Helpers.InputSelect.selectIndex
@@ -2446,6 +2682,7 @@ entries:
   status: translated
   notes: keeps upstream's swapped bounds in the message
   hash: 1a5419482d8ab9fd
+  deps: 1dc407ecb70153d9
 - python: components/input_text/__init__.py::async_setup
   lean:
   - HALean.Helpers.InputText.decodeConfig
@@ -2455,16 +2692,19 @@ entries:
   notes: YAML items only (no storage collection, no reload); patterns outside HALean.Helpers.Pattern are
     refused
   hash: 30a0bcaa1ae7ce41
+  deps: 11a91c0aa4e930ad
 - python: components/input_text/__init__.py::InputText.__init__
   lean:
   - HALean.Helpers.InputText.Entity.create
   status: translated
   hash: 2b7967d04504a879
+  deps: 5aaf7fabb0b7bc0f
 - python: components/input_text/__init__.py::InputText._update_config_attributes
   lean:
   - HALean.Helpers.InputText.Entity.attrs
   status: translated
   hash: a7d094d72ff83cf9
+  deps: 2bb2989908fb5656
 - python: components/input_text/__init__.py::InputText.async_added_to_hass
   lean:
   - HALean.Helpers.InputText.Entity.create
@@ -2476,6 +2716,7 @@ entries:
   - HALean.Helpers.InputText.Entity.attrs
   status: translated
   hash: 282802b3f9732d75
+  deps: 964e5c6a2607794a
 - python: components/input_text/__init__.py::InputText.async_set_value
   lean:
   - HALean.Helpers.InputText.setValue
@@ -2483,6 +2724,7 @@ entries:
   status: translated
   notes: 'wrong length: warning, no write'
   hash: 0e18fee63deedfd2
+  deps: aac7aa25fd5ee3b1
 - python: components/text/__init__.py::TextEntity.state
   lean:
   - HALean.Helpers.InputText.Entity.state
@@ -2494,6 +2736,7 @@ entries:
   - HALean.Helpers.InputText.Entity.attrs
   status: translated
   hash: 665f2cedb7c7ec94
+  deps: 03f02aece1a7c542
 - python: components/text/__init__.py::TextEntity.min
   lean:
   - HALean.Helpers.InputText.Entity.minLen
@@ -2504,6 +2747,7 @@ entries:
   - HALean.Helpers.InputText.Entity.maxLen
   status: translated
   hash: deb22d2d2dcf08a7
+  deps: 4de14a698efa3c94
 - python: components/text/__init__.py::TextEntity.pattern_cmp
   lean:
   - HALean.Helpers.Pattern.parse
@@ -2519,53 +2763,62 @@ entries:
   status: translated
   notes: YAML items only (no storage collection)
   hash: 31cc4e67251842b4
+  deps: 27535c260ed45aca
 - python: components/counter/__init__.py::Counter.__init__
   lean:
   - HALean.Helpers.Counter.Entity.create
   status: translated
   notes: initial is not clamped (as upstream)
   hash: 40e298d8a5d2ded3
+  deps: c0fd6f7c703ec368
 - python: components/counter/__init__.py::Counter.extra_state_attributes
   lean:
   - HALean.Helpers.Counter.Entity.attrs
   status: translated
   hash: 11e63db364ae19e0
+  deps: 630e3bb7c34ea04e
 - python: components/counter/__init__.py::Counter.compute_next_state
   lean:
   - HALean.Helpers.Counter.clamp
   status: proven
   notes: theorems clamp_le_max, min_le_clamp
   hash: 2918760431d9da71
+  deps: c49e1a23762e014e
 - python: components/counter/__init__.py::Counter.async_added_to_hass
   lean:
   - HALean.Helpers.Counter.Entity.create
   status: translated
   notes: a last state int() cannot read is unsupported
   hash: 3f7c84fb97f8f02c
+  deps: 5616191c1d98a042
 - python: components/counter/__init__.py::Counter.async_increment
   lean:
   - HALean.Helpers.Counter.increment
   status: proven
   notes: theorem increment_inBounds
   hash: 87e098939ced2efa
+  deps: 4d93053f46a74968
 - python: components/counter/__init__.py::Counter.async_decrement
   lean:
   - HALean.Helpers.Counter.decrement
   status: proven
   notes: theorem decrement_inBounds
   hash: 11d90155e0fc878a
+  deps: 4d93053f46a74968
 - python: components/counter/__init__.py::Counter.async_reset
   lean:
   - HALean.Helpers.Counter.reset
   status: proven
   notes: theorem reset_inBounds
   hash: f4ed92adb56dde9c
+  deps: da713832e09dd28f
 - python: components/counter/__init__.py::Counter.async_set_value
   lean:
   - HALean.Helpers.Counter.setValue
   status: proven
   notes: theorem setValue_inBounds; step 0 raises ZeroDivisionError
   hash: b973fc3f4b51f2c6
+  deps: 376d9daf70b8279c
 - python: components/timer/__init__.py::_format_timedelta
   lean:
   - HALean.Helpers.Timer.formatTd
@@ -2580,6 +2833,7 @@ entries:
   status: translated
   notes: YAML items only (no storage collection, no reload)
   hash: 1a976eb13b5a62be
+  deps: eab2bfbf552a62d9
 - python: components/timer/__init__.py::Timer.__init__
   lean:
   - HALean.Helpers.Timer.Entity.create
@@ -2587,32 +2841,38 @@ entries:
   status: translated
   notes: the duration goes through _format_timedelta and back
   hash: 7ab2bd28d6163c69
+  deps: d69fa1b91cc26d0a
 - python: components/timer/__init__.py::Timer.async_added_to_hass
   lean:
   - HALean.Helpers.Timer.Entity.create
   status: translated
   notes: idle last state only; paused/active are unsupported
   hash: 4cff164aeb779a9b
+  deps: 0d0cc86a537fe1d0
 - python: components/timer/__init__.py::Timer.extra_state_attributes
   lean:
   - HALean.Helpers.Timer.Entity.attrs
   status: translated
   hash: b0d9daeac8f0a4a9
+  deps: afaf4a7bc06a86dc
 - python: components/timer/__init__.py::Timer.async_start
   lean:
   - HALean.Helpers.Timer.start
   status: translated
   hash: c676bbcace5bfc7a
+  deps: cc4e9205886f5fc3
 - python: components/timer/__init__.py::Timer.async_change
   lean:
   - HALean.Helpers.Timer.change
   status: translated
   hash: b2a2bd28ff2f9f7d
+  deps: a7d00cafacf6bc12
 - python: components/timer/__init__.py::Timer.async_pause
   lean:
   - HALean.Helpers.Timer.pause
   status: translated
   hash: 836e247913985e6a
+  deps: 8d58aac4bbb9e8e0
 - python: components/timer/__init__.py::Timer.async_cancel
   lean:
   - HALean.Helpers.Timer.cancel
@@ -2620,6 +2880,7 @@ entries:
   status: proven
   notes: theorem toIdle_idle
   hash: 13d283db2c806ce9
+  deps: c2177ab049b16030
 - python: components/timer/__init__.py::Timer.async_finish
   lean:
   - HALean.Helpers.Timer.finish
@@ -2627,15 +2888,18 @@ entries:
   status: proven
   notes: theorem toIdle_idle
   hash: 45afe66cbb74e8a5
+  deps: 00a5342312150c7e
 - python: components/timer/__init__.py::Timer._async_finished
   lean:
   - HALean.Helpers.Timer.finished
   status: proven
   notes: theorem toIdle_not_due
   hash: 7c64aa8194c21aff
+  deps: a80df176980c4908
 - python: components/timer/__init__.py::Timer._fire_event_and_write_state
   lean:
   - HALean.Helpers.Timer.fireAndWrite
   status: translated
   notes: 'force_update: every write fires state_changed'
   hash: d9b49544828f26d0
+  deps: 822e93079fe593e1

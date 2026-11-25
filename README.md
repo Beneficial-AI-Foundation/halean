@@ -56,8 +56,12 @@ Home Assistant ──WebSocket──▶ bridge/bridge.py ──JSON lines──�
 * **`bridge/bridge.py`**: a thin shell that talks to a stock HA over its
   WebSocket API, the same way AppDaemon and Node-RED do. No fork is needed.
 * **`manifest.yaml` + `tools/drift.py`**: map each upstream Python function to
-  the Lean definitions that translate it, with an AST hash. After an upstream
-  pull this shows exactly which translations need revisiting.
+  the Lean definitions that translate it, with a hash of its syntax tree and a
+  hash of the module constants and unmapped helpers it uses (followed through
+  imports). After an upstream pull this lists the translations to revisit. It
+  does not follow methods called through `self` or an object, nor code
+  outside Home Assistant, so a clean run is strong evidence, not a proof,
+  that nothing a translation depends on changed.
 * **`protocol/schema.json`**: the versioned wire protocol.
 
 ## Setup
@@ -132,21 +136,24 @@ too (`upstream.jinja2`, 3.1.6), and the same test checks it.
 Releases are used instead of `dev` because `pytest-homeassistant-custom-component`
 is published only for releases.
 
-Upstream source (read-only, sparse checkout of the relevant files):
+Upstream source (read-only, sparse checkout of the mapped files and of the
+modules their constants and helpers come from):
 
 ```bash
 git clone --depth 1 --filter=blob:none --sparse --branch 2026.10.4 \
   https://github.com/home-assistant/core upstream/ha-core
-git -C upstream/ha-core sparse-checkout set --no-cone /homeassistant/components/automation/ \
-  /homeassistant/helpers/ /homeassistant/components/homeassistant/triggers/ \
-  /homeassistant/const.py /homeassistant/core.py /homeassistant/components/template/trigger.py \
-  /homeassistant/util/dt.py /homeassistant/util/__init__.py /homeassistant/util/location.py \
-  /homeassistant/components/zone/ /homeassistant/components/sun/ /homeassistant/components/script/ \
-  /homeassistant/components/input_boolean/ /homeassistant/components/input_number/ \
-  /homeassistant/components/input_select/ /homeassistant/components/input_text/ \
-  /homeassistant/components/counter/ /homeassistant/components/timer/ \
-  /homeassistant/components/number/ /homeassistant/components/select/ /homeassistant/components/text/
+c=/homeassistant/components
+git -C upstream/ha-core sparse-checkout set --no-cone '/homeassistant/*.py' \
+  /homeassistant/helpers/ /homeassistant/util/ /homeassistant/auth/ /homeassistant/generated/ \
+  $c/__init__.py $c/automation/ $c/blueprint/ $c/counter/ $c/device_automation/ \
+  $c/device_tracker/ $c/homeassistant/ $c/input_boolean/ $c/input_datetime/ $c/input_number/ \
+  $c/input_select/ $c/input_text/ $c/logger/ $c/mqtt/ $c/number/ $c/person/ $c/script/ \
+  $c/select/ $c/sensor/ $c/sun/ $c/tag/ $c/template/ $c/text/ $c/timer/ $c/trace/ \
+  $c/webhook/ $c/zone/
 ```
+
+`drift.py check` names any module a mapped function needs that the checkout
+lacks (and fails), so a later mapping that needs more files says which.
 
 ## Tracking upstream
 
@@ -168,6 +175,14 @@ uv run tools/drift.py coverage     # upstream functions in tracked files not map
 `uv run tools/drift.py compare --against <dir>/homeassistant` compares the
 mapped functions with any other copy of Home Assistant, e.g. a `dev` checkout,
 to see what the next release will change.
+
+An entry is stale when its function changed (`hash`) or when a module-level
+constant, enum member or unmapped helper function it reads changed (`deps`,
+followed transitively and through imports inside `homeassistant/`).
+`uv run tests/drift_deps.py` checks that this catches the two changes the
+external review used to show the blind spot of hashing functions alone:
+`MAX_LENGTH_STATE_STATE` 255 → 100 (const.py) and the `_` rules removed from
+the entity-id regex (core.py).
 
 ## Running against a real Home Assistant
 
