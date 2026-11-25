@@ -1,0 +1,16 @@
+description: >
+  toggle of two scripts; the second is running and the first, once started, turns it off. HA gets to
+  the second while its stop is still pending: it is still on, so it is turned off (not started again).
+  (Minimised from random case r202_0229. HALean agrees here; with patch SCR-4 alone it does not.)
+scripts:
+  first:
+    sequence:
+      - action: script.turn_off
+        target: {entity_id: script.second}
+  second:
+    sequence:
+      - action: test.second
+steps:
+  - {at: 1, call: second}
+  - {at: 2, call: toggle, data: {entity_id: [script.first, script.second]}}
+  - {at: 3}

@@ -34,12 +34,13 @@ COPY=/tmp/claude-0/halean-copies/08-scripts-2 patches/test_patch.sh SCR-5 SCR-4 
 
 | Path | What |
 |---|---|
-| `cases/h*.yaml` | 87 hand-written scenarios in the shipped format (`tests/run_script_scenarios.py`), one behaviour each. No `expect:` keys: the differential harness compares HA with HALean. |
+| `cases/h*.yaml` | 88 hand-written scenarios in the shipped format (`tests/run_script_scenarios.py`), one behaviour each. No `expect:` keys: the differential harness compares HA with HALean. |
 | `config/matrix.yaml` | 110 single-script configs for the load-time comparison. `expect:` is the verdict this review found with the unpatched build (absent = `agree`). |
 | `gen/gen_scripts.py` | Seeded random generator (`<seed> <count> <outdir>`). Seeds used: 101 and 202, 300 scenarios each. |
 | `gen/out/seed101/`, `gen/out/seed202/` | The generated scenarios (kept, so the runs can be repeated without the generator). |
 | `gen/triage.py` | Reads a pytest log of the harness copy; per failed case the first differing step and a signature. |
 | `gen/minimise.py` | Greedy one-deletion minimiser for a failing scenario (helper; reproducers in `cases/` were then rewritten by hand). |
+| `gen/minimised/` | What the minimiser made of random failures (`m<index>.yaml`: seed 101, against the build with all patches; `p0229.yaml`: r202_0229 against the build with SCR-4 and SCR-5). |
 | `harness/test_scripts.py`, `harness/run_script_scenarios.py`, `harness/pytest.ini` | The harness copy. Changes: the case directory (`HALEAN_CASES`), the engine directory (`HALEAN_BIN`), and where `bridge/protocol.py` and the copied runner are imported from. Comparison logic unchanged (`diff` against `tests/differential/test_scripts.py` and `tests/run_script_scenarios.py` shows only those lines). |
 | `harness/test_config_matrix.py` | New, not a copy: loads each matrix entry alone into HA and into `halean-script` and compares "loaded / not loaded" and the first state. The shipped harness cannot do this (it asserts that HALean rejects nothing). |
 | `harness/show.sh` | Runs named cases and prints the verdict with the HA / HALean lines. |

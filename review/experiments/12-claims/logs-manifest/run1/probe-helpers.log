@@ -1,0 +1,90 @@
+=== M-342: input_number min >= max: message with swapped bounds
+  > {"op": "setup", "domain": "input_number", "config": {"n": {"min": 5, "max": 1}}, "restore": [], "now": 1763656245000000}
+  < {"error":"Maximum (5.0) is not greater than minimum (1.0) at 'input_number.n'","logs":[],"ok":false,"outs":[],"states":[]}
+=== M-346: input_number restore: in range, out of range, not a number
+  > {"op": "setup", "domain": "input_number", "config": {"a": {"min": 0, "max": 10}, "b": {"min": 0, "max": 10}, "c": {"min": 2, "max": 10}}, "restore": [["input_number.a", "7.5", {}], ["input_number.b", "11", {}], ["input_number.c", "abc", {}]], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","input_number.a","7.5","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"],["state_changed","input_number.b","0.0","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"],["state_changed","input_number.c","2.0","{'min': 2.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"]],"states":[["input_number.a","7.5","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"],["input_number.b","0.0","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"],["input_number.c","2.0","{'min': 2.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': F…
+=== M-354/M-355: input_select: initial checked before duplicates are removed; duplicates removed with a warning
+  > {"op": "setup", "domain": "input_select", "config": {"s": {"options": ["a", "b", "a"], "initial": "a"}}, "restore": [], "now": 1763656245000000}
+  < {"logs":[["warning","Input select '<unnamed>' with options ['a', 'b', 'a'] had duplicated options, the duplicates have been removed"]],"ok":true,"outs":[["state_changed","input_select.s","a","{'options': ['a', 'b'], 'editable': False}"]],"states":[["input_select.s","a","{'options': ['a', 'b'], 'editable': False}"]]}
+  > {"op": "setup", "domain": "input_select", "config": {"t": {"options": ["a", "b"], "initial": "z"}}, "restore": [], "now": 1763656245000000}
+  < {"error":"initial state z is not part of the options: a,b at 'input_select.t'","logs":[],"ok":false,"outs":[],"states":[]}
+=== M-370/M-371: input_text: swapped bounds message; a pattern outside the subset is refused
+  > {"op": "setup", "domain": "input_text", "config": {"t": {"min": 5, "max": 1}}, "restore": [], "now": 1763656245000000}
+  < {"error":"Max len (5) is not greater than min len (1) at 'input_text.t'","logs":[],"ok":false,"outs":[],"states":[]}
+  > {"op": "setup", "domain": "input_text", "config": {"p": {"pattern": "a+?"}}, "restore": [], "now": 1763656245000000}
+  < {"unsupported":"the pattern 'a+?' is outside the modelled regex subset (lazy and possessive quantifiers are not supported)"}
+  > {"op": "setup", "domain": "input_text", "config": {"q": {"pattern": "(?i)a"}}, "restore": [], "now": 1763656245000000}
+  < {"unsupported":"the pattern '(?i)a' is outside the modelled regex subset (group extensions other than (?:...) are not supported)"}
+=== M-374/M-376/M-377: input_text: restore 'unknown' of allowed length; set_value wrong length: warning, no write; initial not matching: ValueError
+  > {"op": "setup", "domain": "input_text", "config": {"t": {"min": 0, "max": 10}, "u": {"min": 0, "max": 3}}, "restore": [["input_text.t", "unknown", {}], ["input_text.u", "toolong", {}]], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","input_text.t","unknown","{'mode': 'text', 'min': 0, 'max': 10, 'pattern': None, 'editable': False}"],["state_changed","input_text.u","unknown","{'mode': 'text', 'min': 0, 'max': 3, 'pattern': None, 'editable': False}"]],"states":[["input_text.t","unknown","{'mode': 'text', 'min': 0, 'max': 10, 'pattern': None, 'editable': False}"],["input_text.u","unknown","{'mode': 'text', 'min': 0, 'max': 3, 'pattern': None, 'editable': False}"]]}
+  > {"op": "call", "domain": "input_text", "service": "set_value", "data": {"entity_id": "input_text.t", "value": "xxxxxxxxxxx"}, "now": 1763656245000000}
+  < {"error":null,"logs":[["warning","Invalid value: xxxxxxxxxxx (length range 0 - 10)"]],"outs":[],"states":[["input_text.t","unknown","{'mode': 'text', 'min': 0, 'max': 10, 'pattern': None, 'editable': False}"],["input_text.u","unknown","{'mode': 'text', 'min': 0, 'max': 3, 'pattern': None, 'editable': False}"]]}
+  > {"op": "setup", "domain": "input_text", "config": {"v": {"pattern": "[0-9]+", "initial": "abc"}}, "restore": [], "now": 1763656245000000}
+  < {"logs":[["error","Error adding entity input_text.v for domain input_text with platform input_text: ValueError: Entity input_text.v provides state abc which does not match expected pattern [0-9]+"]],"ok":true,"outs":[],"states":[]}
+=== M-383/M-386: counter: initial outside min/max is not clamped; a last state int() cannot read
+  > {"op": "setup", "domain": "counter", "config": {"c": {"initial": 50, "maximum": 10}}, "restore": [], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","counter.c","50","{'editable': False, 'initial': 50, 'step': 1, 'maximum': 10}"]],"states":[["counter.c","50","{'editable': False, 'initial': 50, 'step': 1, 'maximum': 10}"]]}
+  > {"op": "setup", "domain": "counter", "config": {"d": {"restore": true}}, "restore": [["counter.d", "abc", {}]], "now": 1763656245000000}
+  < {"unsupported":"counter.d: the last state is not an integer (int() raises ValueError)"}
+  > {"op": "setup", "domain": "counter", "config": {"e": {}}, "restore": [["counter.e", " 7 ", {}]], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","counter.e","7","{'editable': False, 'initial': 0, 'step': 1}"]],"states":[["counter.e","7","{'editable': False, 'initial': 0, 'step': 1}"]]}
+=== M-391/M-393: timer: duration formatting, exact microseconds
+  > {"op": "setup", "domain": "timer", "config": {"t": {"duration": "25:01:01"}, "u": {"duration": 5e-07}, "v": {"duration": {"days": 1, "milliseconds": 1}}}, "restore": [], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","timer.t","idle","{'duration': '25:01:01', 'editable': False, 'last_transition': None}"],["state_changed","timer.u","idle","{'duration': '0:00:00', 'editable': False, 'last_transition': None}"],["state_changed","timer.v","idle","{'duration': '24:00:00', 'editable': False, 'last_transition': None}"]],"states":[["timer.t","idle","{'duration': '25:01:01', 'editable': False, 'last_transition': None}"],["timer.u","idle","{'duration': '0:00:00', 'editable': False, 'last_transition': None}"],["timer.v","idle","{'duration': '24:00:00', 'editable': False, 'last_transition': None}"]]}
+=== M-394: timer restore: idle; paused; active; unavailable
+  > {"op": "setup", "domain": "timer", "config": {"t": {"restore": true}}, "restore": [["timer.t", "idle", {"last_transition": "finished"}]], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","timer.t","idle","{'duration': '0:00:00', 'editable': False, 'last_transition': 'finished', 'restore': True}"]],"states":[["timer.t","idle","{'duration': '0:00:00', 'editable': False, 'last_transition': 'finished', 'restore': True}"]]}
+  > {"op": "setup", "domain": "timer", "config": {"t": {"restore": true}}, "restore": [["timer.t", "paused", {"remaining": "0:00:05"}]], "now": 1763656245000000}
+  < {"unsupported":"timer.t: restoring a paused or active timer is not supported"}
+  > {"op": "setup", "domain": "timer", "config": {"t": {"restore": true}}, "restore": [["timer.t", "unavailable", {}]], "now": 1763656245000000}
+  < {"unsupported":"timer.t: restoring a paused or active timer is not supported"}
+  > {"op": "setup", "domain": "timer", "config": {"t": {}}, "restore": [["timer.t", "paused", {"remaining": "0:00:05"}]], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","timer.t","idle","{'duration': '0:00:00', 'editable': False, 'last_transition': None}"]],"states":[["timer.t","idle","{'duration': '0:00:00', 'editable': False, 'last_transition': None}"]]}
+=== M-402/M-335: timer: every write fires state_changed (force_update); the finish runs at the first clock at or after the end
+  > {"op": "setup", "domain": "timer", "config": {"t": {"duration": 5}}, "restore": [], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","timer.t","idle","{'duration': '0:00:05', 'editable': False, 'last_transition': None}"]],"states":[["timer.t","idle","{'duration': '0:00:05', 'editable': False, 'last_transition': None}"]]}
+  > {"op": "call", "domain": "timer", "service": "start", "data": {"entity_id": "timer.t"}, "now": 1763656245000000}
+  < {"error":null,"logs":[],"outs":[["state_changed","timer.t","active","{'duration': '0:00:05', 'editable': False, 'last_transition': 'started', 'finishes_at': '2025-11-20T16:30:50+00:00', 'remaining': '0:00:05'}"],["event","timer.started","{'entity_id': 'timer.t'}"]],"states":[["timer.t","active","{'duration': '0:00:05', 'editable': False, 'last_transition': 'started', 'finishes_at': '2025-11-20T16:30:50+00:00', 'remaining': '0:00:05'}"]]}
+  > {"op": "call", "domain": "timer", "service": "start", "data": {"entity_id": "timer.t"}, "now": 1763656246000000}
+  < {"error":null,"logs":[],"outs":[["state_changed","timer.t","active","{'duration': '0:00:05', 'editable': False, 'last_transition': 'restarted', 'finishes_at': '2025-11-20T16:30:51+00:00', 'remaining': '0:00:05'}"],["event","timer.restarted","{'entity_id': 'timer.t'}"]],"states":[["timer.t","active","{'duration': '0:00:05', 'editable': False, 'last_transition': 'restarted', 'finishes_at': '2025-11-20T16:30:51+00:00', 'remaining': '0:00:05'}"]]}
+  > {"op": "tick", "now": 1763656250999999}
+  < {"logs":[],"outs":[],"states":[["timer.t","active","{'duration': '0:00:05', 'editable': False, 'last_transition': 'restarted', 'finishes_at': '2025-11-20T16:30:51+00:00', 'remaining': '0:00:05'}"]]}
+  > {"op": "tick", "now": 1763656251000000}
+  < {"logs":[],"outs":[["state_changed","timer.t","idle","{'duration': '0:00:05', 'editable': False, 'last_transition': 'finished'}"],["event","timer.finished","{'entity_id': 'timer.t', 'finished_at': '2025-11-20T16:30:51+00:00'}"]],"states":[["timer.t","idle","{'duration': '0:00:05', 'editable': False, 'last_transition': 'finished'}"]]}
+=== M-327/M-329/M-330: entity service on several targets: order given; every entity runs; first error raised
+  > {"op": "setup", "domain": "input_number", "config": {"a": {"min": 0, "max": 10}, "b": {"min": 0, "max": 100}, "c": {"min": 0, "max": 10}}, "restore": [], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","input_number.a","0.0","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"],["state_changed","input_number.b","0.0","{'min': 0.0, 'max': 100.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"],["state_changed","input_number.c","0.0","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"]],"states":[["input_number.a","0.0","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"],["input_number.b","0.0","{'min': 0.0, 'max': 100.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"],["input_number.c","0.0","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable':…
+  > {"op": "call", "domain": "input_number", "service": "set_value", "data": {"entity_id": ["input_number.c", "input_number.b", "input_number.a"], "value": 50}, "now": 1763656245000000}
+  < {"error":{"message":"Invalid value for input_number.c: 50.0 (range 0.0 - 10.0)","type":"Invalid"},"logs":[],"outs":[["state_changed","input_number.b","50.0","{'min': 0.0, 'max': 100.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"]],"states":[["input_number.a","0.0","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"],["input_number.b","50.0","{'min': 0.0, 'max': 100.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"],["input_number.c","0.0","{'min': 0.0, 'max': 10.0, 'step': 1.0, 'mode': 'slider', 'initial': None, 'editable': False}"]]}
+=== M-328: device/area targets unsupported; missing entity not logged
+  > {"op": "setup", "domain": "input_boolean", "config": {"a": null}, "restore": [], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","input_boolean.a","off","{'editable': False}"]],"states":[["input_boolean.a","off","{'editable': False}"]]}
+  > {"op": "call", "domain": "input_boolean", "service": "turn_on", "data": {"area_id": "kitchen"}, "now": 1763656245000000}
+  < {"unsupported":"'area_id' targets are not supported (HALean has no device/area/floor/label registry)"}
+  > {"op": "call", "domain": "input_boolean", "service": "turn_on", "data": {"entity_id": "input_boolean.nope"}, "now": 1763656245000000}
+  < {"error":null,"logs":[],"outs":[],"states":[["input_boolean.a","off","{'editable': False}"]]}
+=== M-324: schema_with_slug_keys: first bad key raises; value errors collected in key order
+  > {"op": "setup", "domain": "input_boolean", "config": {"Bad Key": null, "also bad": null}, "restore": [], "now": 1763656245000000}
+  < {"error":"invalid slug Bad Key (try bad_key) at 'input_boolean'","logs":[],"ok":false,"outs":[],"states":[]}
+  > {"op": "setup", "domain": "input_boolean", "config": {"b": {"initial": "zz"}, "a": {"icon": "noc"}}, "restore": [], "now": 1763656245000000}
+  < {"error":"invalid boolean value zz at 'input_boolean.b.initial'","logs":[],"ok":false,"outs":[],"states":[]}
+=== M-325/M-326: Remove('metadata'): a dict is dropped, another value is an extra key
+  > {"op": "setup", "domain": "input_boolean", "config": {"a": null}, "restore": [], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","input_boolean.a","off","{'editable': False}"]],"states":[["input_boolean.a","off","{'editable': False}"]]}
+  > {"op": "call", "domain": "input_boolean", "service": "turn_on", "data": {"entity_id": "input_boolean.a", "metadata": {"x": 1}}, "now": 1763656245000000}
+  < {"error":null,"logs":[],"outs":[["state_changed","input_boolean.a","on","{'editable': False}"]],"states":[["input_boolean.a","on","{'editable': False}"]]}
+  > {"op": "call", "domain": "input_boolean", "service": "turn_off", "data": {"entity_id": "input_boolean.a", "metadata": 5}, "now": 1763656245000000}
+  < {"error":{"message":"not a valid option at 'metadata'","type":"MultipleInvalid"},"logs":[],"outs":[],"states":[["input_boolean.a","on","{'editable': False}"]]}
+=== M-336: no reload service
+  > {"op": "setup", "domain": "input_boolean", "config": {"a": null}, "restore": [], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","input_boolean.a","off","{'editable': False}"]],"states":[["input_boolean.a","off","{'editable': False}"]]}
+  > {"op": "call", "domain": "input_boolean", "service": "reload", "data": {}, "now": 1763656245000000}
+  < {"unsupported":"input_boolean.reload re-reads configuration.yaml, which HALean does not model"}
+=== M-338: input_boolean: restore when no initial
+  > {"op": "setup", "domain": "input_boolean", "config": {"a": null, "b": {"initial": false}}, "restore": [["input_boolean.a", "on", {}], ["input_boolean.b", "on", {}]], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","input_boolean.a","on","{'editable': False}"],["state_changed","input_boolean.b","off","{'editable': False}"]],"states":[["input_boolean.a","on","{'editable': False}"],["input_boolean.b","off","{'editable': False}"]]}
+=== M-331: input_number state formatting f'{v:.15}'
+  > {"op": "setup", "domain": "input_number", "config": {"a": {"min": 0, "max": 1e+18, "initial": 0.30000000000000004}, "b": {"min": 0, "max": 1e+18, "initial": 1e+16}, "c": {"min": 0, "max": 1e+18, "initial": 123456789012345678}}, "restore": [], "now": 1763656245000000}
+  < {"logs":[],"ok":true,"outs":[["state_changed","input_number.a","0.3","{'min': 0.0, 'max': 1e+18, 'step': 1.0, 'mode': 'slider', 'initial': 0.30000000000000004, 'editable': False}"],["state_changed","input_number.b","1e+16","{'min': 0.0, 'max': 1e+18, 'step': 1.0, 'mode': 'slider', 'initial': 1e+16, 'editable': False}"],["state_changed","input_number.c","1.23456789012346e+17","{'min': 0.0, 'max': 1e+18, 'step': 1.0, 'mode': 'slider', 'initial': 1.2345678901234568e+17, 'editable': False}"]],"states":[["input_number.a","0.3","{'min': 0.0, 'max': 1e+18, 'step': 1.0, 'mode': 'slider', 'initial': 0.30000000000000004, 'editable': False}"],["input_number.b","1e+16","{'min': 0.0, 'max': 1e+18, 'step': 1.0, 'mode': 'slider', 'initial': 1e+16, 'editable': False}"],["input_number.c","1.23456789012346e…

@@ -1,0 +1,59 @@
+=== M-274 [halean-core] HassJobType: 'Executor is rejected' - is there a refusal for an executor job? (unknown key 'executor')
+  > {"op": "listen", "id": "l", "event_type": "e", "executor": true, "job_type": "Executor", "now": 1763656245123456}
+  < {"result":{"ok":null},"trace":[]}
+  > {"op": "fire", "event_type": "e", "now": 1763656245123457}
+  < {"result":{"ok":null},"trace":[{"delivery":"l","event":{"context":{"id":"ulid@1763656245123#0","parent_id":null,"user_id":null},"data":{},"event_type":"e","origin":"LOCAL","time_fired":"2025-11-20T16:30:45.123457+00:00"}}]}
+=== M-274/M-275/M-239 [halean-core] async listener (coroutine function) and @callback listener
+  > {"op": "listen", "id": "a", "event_type": "e", "async": true, "react": [{"sleep": 0}, {"fire": {"event_type": "after_sleep"}}], "now": 1763656245123456}
+  < {"result":{"ok":null},"trace":[]}
+  > {"op": "listen", "id": "c", "event_type": "e", "now": 1763656245123456}
+  < {"result":{"ok":null},"trace":[]}
+  > {"op": "listen", "id": "x", "event_type": "after_sleep", "now": 1763656245123456}
+  < {"result":{"ok":null},"trace":[]}
+  > {"op": "fire", "event_type": "e", "now": 1763656245123457}
+  < {"result":{"ok":null},"trace":[{"delivery":"a","event":{"context":{"id":"ulid@1763656245123#0","parent_id":null,"user_id":null},"data":{},"event_type":"e","origin":"LOCAL","time_fired":"2025-11-20T16:30:45.123457+00:00"}},{"delivery":"c","event":{"context":{"id":"ulid@1763656245123#0","parent_id":null,"user_id":null},"data":{},"event_type":"e","origin":"LOCAL","time_fired":"2025-11-20T16:30:45.123457+00:00"}}]}
+  > {"op": "block_till_done", "now": 1763656245123458}
+  < {"result":{"ok":null},"trace":[{"delivery":"x","event":{"context":{"id":"ulid@1763656245123#1","parent_id":null,"user_id":null},"data":{},"event_type":"after_sleep","origin":"LOCAL","time_fired":"2025-11-20T16:30:45.123458+00:00"}}]}
+=== M-182/M-223 [halean-core-states] fresh context of the state machine is ulid:<n>; a given id is kept
+  > {"op": "set", "entity_id": "light.a", "state": "on", "now": 1763656245123456}
+  < {"events": [{"context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.a", "new_state": {"attributes": {}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.a", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}, "old_state": null}, "event_type": "state_changed", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123456+00:00"}], "result": null}
+  > {"op": "set", "entity_id": "light.b", "state": "on", "context": {"id": "abc", "user_id": "u"}, "now": 1763656245123456}
+  < {"events": [{"context": {"id": "abc", "parent_id": null, "user_id": "u"}, "data": {"entity_id": "light.b", "new_state": {"attributes": {}, "context": {"id": "abc", "parent_id": null, "user_id": "u"}, "entity_id": "light.b", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}, "old_state": null}, "event_type": "state_changed", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123456+00:00"}], "result": null}
+=== M-223/M-225 [halean-core-events] event without context: ulid@<ms>#<n>
+  > {"op": "listen", "id": "l", "event_type": "e", "now": 1763656245123456}
+  < {"deliveries":[],"logs":[],"result":{"ok":true}}
+  > {"op": "fire", "event_type": "e", "now": 1763656245123456}
+  < {"deliveries":[{"event":{"context":{"id":"ulid@1763656245123#0","parent_id":null,"user_id":null},"data":{},"event_type":"e","origin":"LOCAL","time_fired":"2025-11-20T16:30:45.123456+00:00"},"listener":"l"}],"logs":[],"result":{"ok":true}}
+=== M-223 [halean-core-services] registry: a call without context gets the symbolic id 'new'
+  > {"op": "register", "domain": "d", "service": "s", "handler": {"echo": true}, "now": 1763656245123456}
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 'd', 'service': 's'}","event_type":"service_registered","time_fired":1763656245123456}],"logs":[],"ok":true,"result":null}
+  > {"op": "call", "domain": "d", "service": "s", "data": {}, "blocking": true, "return_response": false, "now": 1763656245123456}
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 'd', 'service': 's', 'service_data': {}}","event_type":"call_service","time_fired":1763656245123456}],"logs":[],"ok":true,"result":"None"}
+=== M-188 [halean-core-states] as_dict is the fresh value after a report (last_reported moves)
+  > {"op": "set", "entity_id": "light.a", "state": "on", "now": 1763656245123456}
+  < {"events": [{"context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.a", "new_state": {"attributes": {}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.a", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}, "old_state": null}, "event_type": "state_changed", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123456+00:00"}], "result": null}
+  > {"op": "set", "entity_id": "light.a", "state": "on", "now": 1763656246123456}
+  < {"events": [{"context": {"id": "ulid:1", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.a", "last_reported": "2025-11-20T16:30:46.123456+00:00", "new_state": {"attributes": {}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.a", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:46.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}, "old_last_reported": "2025-11-20T16:30:45.123456+00:00"}, "event_type": "state_reported", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:46.123456+00:00"}], "result": null}
+  > {"op": "get", "entity_id": "light.a"}
+  < {"events": [], "result": {"attributes": {}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.a", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:46.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "on"}}
+=== M-202 [halean-core-states] async_set: str() of a non-string state
+  > {"op": "set", "entity_id": "light.a", "state": 5, "now": 1763656245123456}
+  < {"events": [{"context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.a", "new_state": {"attributes": {}, "context": {"id": "ulid:0", "parent_id": null, "user_id": null}, "entity_id": "light.a", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "5"}, "old_state": null}, "event_type": "state_changed", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123456+00:00"}], "result": null}
+  > {"op": "set", "entity_id": "light.b", "state": true, "now": 1763656245123456}
+  < {"events": [{"context": {"id": "ulid:1", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.b", "new_state": {"attributes": {}, "context": {"id": "ulid:1", "parent_id": null, "user_id": null}, "entity_id": "light.b", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "True"}, "old_state": null}, "event_type": "state_changed", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123456+00:00"}], "result": null}
+  > {"op": "set", "entity_id": "light.c", "state": null, "now": 1763656245123456}
+  < {"events": [{"context": {"id": "ulid:2", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.c", "new_state": {"attributes": {}, "context": {"id": "ulid:2", "parent_id": null, "user_id": null}, "entity_id": "light.c", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "None"}, "old_state": null}, "event_type": "state_changed", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123456+00:00"}], "result": null}
+  > {"op": "set", "entity_id": "light.d", "state": 1.5, "now": 1763656245123456}
+  < {"events": [{"context": {"id": "ulid:3", "parent_id": null, "user_id": null}, "data": {"entity_id": "light.d", "new_state": {"attributes": {}, "context": {"id": "ulid:3", "parent_id": null, "user_id": null}, "entity_id": "light.d", "last_changed": "2025-11-20T16:30:45.123456+00:00", "last_reported": "2025-11-20T16:30:45.123456+00:00", "last_updated": "2025-11-20T16:30:45.123456+00:00", "state": "1.5"}, "old_state": null}, "event_type": "state_changed", "origin": "LOCAL", "time_fired": "2025-11-20T16:30:45.123456+00:00"}], "result": null}
+=== M-235/M-237 [halean-core-events] run_immediately raises RuntimeError; listen_once with a filter is TypeError
+  > {"op": "listen", "id": "l", "event_type": "e", "run_immediately": true, "now": 1763656245123456}
+  < {"deliveries":[],"logs":[],"result":{"error":"RuntimeError"}}
+  > {"op": "listen_once", "id": "m", "event_type": "e", "filter": true, "now": 1763656245123456}
+  < {"deliveries":[],"logs":[],"result":{"error":"TypeError"}}
+=== M-208/M-210 [halean-core-services] supports_response: KeyError for a missing domain, then for a missing service (the domain test for services_for_domain is in ../logs/core-probes.log, group V4)
+  > {"op": "register", "domain": "D", "service": "S", "handler": {"return": null}, "now": 1763656245123456}
+  < {"events":[{"context":{"id":"new","parent_id":null,"user_id":null},"data":"{'domain': 'd', 'service': 's'}","event_type":"service_registered","time_fired":1763656245123456}],"logs":[],"ok":true,"result":null}
+  > {"op": "supports_response", "domain": "nope", "service": "s", "now": 1763656245123456}
+  < {"error":{"error_kind":"other","exception":"KeyError","message":"'nope'"},"events":[],"logs":[],"ok":false}
+  > {"op": "supports_response", "domain": "d", "service": "nope", "now": 1763656245123456}
+  < {"error":{"error_kind":"other","exception":"KeyError","message":"'nope'"},"events":[],"logs":[],"ok":false}

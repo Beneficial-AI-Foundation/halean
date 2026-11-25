@@ -1,0 +1,46 @@
+description: random scenario seed=101 index=42
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s1
+        - script.s3
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+  s1:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s3'') }}'
+        cur: '{{ state_attr(''script.s3'', ''current'') }}'
+  s2:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+steps:
+- at: 16
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+- at: 17
+  call: s2
+- at: 20

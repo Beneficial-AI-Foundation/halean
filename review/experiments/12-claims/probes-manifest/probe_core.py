@@ -30,9 +30,8 @@ G = [
  ("M-235/M-237", "halean-core-events", "run_immediately raises RuntimeError; listen_once with a filter is TypeError",
   [{"op": "listen", "id": "l", "event_type": "e", "run_immediately": True, "now": N},
    {"op": "listen_once", "id": "m", "event_type": "e", "filter": True, "now": N}]),
- ("M-208/M-210", "halean-core-services", "services_for_domain does not lowercase; supports_response KeyError",
+ ("M-208/M-210", "halean-core-services", "supports_response: KeyError for a missing domain, then for a missing service (the domain test for services_for_domain is in ../logs/core-probes.log, group V4)",
   [{"op": "register", "domain": "D", "service": "S", "handler": {"return": None}, "now": N},
-   {"op": "services_for_domain", "domain": "D", "now": N}, {"op": "services_for_domain", "domain": "d", "now": N},
    {"op": "supports_response", "domain": "nope", "service": "s", "now": N}, {"op": "supports_response", "domain": "d", "service": "nope", "now": N}]),
 ]
 log = open(__file__.rsplit("/", 2)[0] + "/logs-manifest/probe-core.log", "w")

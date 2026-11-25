@@ -1,0 +1,90 @@
+description: random scenario seed=101 index=249
+scripts:
+  s0:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s2'') }}'
+        cur: '{{ state_attr(''script.s2'', ''current'') }}'
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - action: test.m
+        data:
+          id: s0.3
+          v: '{{ v | default(0) }}'
+        response_variable: r
+        continue_on_error: true
+      else:
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - event: mark
+          event_data:
+            id: s0.4
+            v: '{{ v | default(0) }}'
+        else:
+        - event: mark
+          event_data:
+            id: s0.5
+      - delay: 1
+    - action: test.m
+      data:
+        id: s0.6
+        v: '{{ v | default(0) }}'
+      response_variable: r
+  s2:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - delay: 3
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s3
+    - action: test.m
+      data:
+        id: s2.7
+        v: '{{ v | default(0) }}'
+  s3:
+    alias: Script 3 B
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+steps:
+- at: 1
+  call: s0
+  data:
+    v: 0
+- at: 3
+  call: s2
+  return_response: true
+- at: 6

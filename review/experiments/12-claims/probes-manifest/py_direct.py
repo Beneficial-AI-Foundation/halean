@@ -11,6 +11,7 @@ def show(mid, what, f):
     try: r = repr(f())
     except BaseException as e: r = f"raises {type(e).__module__}.{type(e).__name__}: {e}"
     s = f"{mid} | {what}\n    -> {r}"; print(s); print(s, file=out)
+show("all probatio notes", "installed versions: probatio, python-slugify, homeassistant", lambda: {n: __import__("importlib.metadata").metadata.version(n) for n in ("probatio", "python-slugify", "homeassistant")})
 show("M-281", "cv.time_period_str('0:0:nan') called directly (does a translated cv function raise ValueError?)", lambda: cv.time_period_str("0:0:nan"))
 show("M-281", "the same under probatio.Schema({'t': cv.time_period_str})", lambda: probatio.Schema({"t": cv.time_period_str})({"t": "0:0:nan"}))
 show("M-281", "cv.positive_timedelta / time_period_dict with NaN: probatio.Schema({'t': cv.time_period_dict})({'t': {'seconds': nan}})", lambda: probatio.Schema({"t": cv.time_period_dict})({"t": {"seconds": float("nan")}}))
@@ -20,6 +21,8 @@ show("M-316", "cv.entity_ids(timedelta) (SCH-4)", lambda: cv.entity_ids(dt.timed
 show("M-107", "dt_util.parse_datetime('2023-11-14') (ciso8601 path)", lambda: dt_util.parse_datetime("2023-11-14"))
 show("M-107", "dt_util.parse_datetime('2023-11-14T24:00:00') (TPL-23)", lambda: dt_util.parse_datetime("2023-11-14T24:00:00"))
 show("M-107", "the name parse_datetime in util/dt.py: number of definitions and the first one's decorators", lambda: __import__("ast").unparse([n for n in __import__("ast").parse(open(dt_util.__file__).read()).body if getattr(n, "name", "") == "parse_datetime"][0]))
+show("M-104", "CPython strftime('%Y') for year 999 (glibc's own strftime gives '999'; TPL-24)", lambda: dt.datetime(999, 1, 2).strftime("%Y|%G|%C"))
+show("M-104", "the same through libc directly: time.strftime('%Y', (999, 1, 2, 0, 0, 0, 0, 2, 0))", lambda: __import__("time").strftime("%Y", (999, 1, 2, 0, 0, 0, 0, 2, 0)))
 show("M-342", "input_number _cv_input_number message with swapped bounds", lambda: __import__("homeassistant.components.input_number", fromlist=["x"])._cv_input_number({"min": 5.0, "max": 1.0}))
 show("M-370", "input_text _cv_input_text message with swapped bounds", lambda: __import__("homeassistant.components.input_text", fromlist=["x"])._cv_input_text({"min": 5, "max": 1}))
 show("M-391", "timer _format_timedelta(timedelta(days=1, seconds=3661, microseconds=500000))", lambda: __import__("homeassistant.components.timer", fromlist=["x"])._format_timedelta(dt.timedelta(days=1, seconds=3661, microseconds=500000)))

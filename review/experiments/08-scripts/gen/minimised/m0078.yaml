@@ -1,0 +1,32 @@
+description: random scenario seed=101 index=78
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+  s2:
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then: []
+      else:
+      - action: script.s0
+steps:
+- at: 10
+  call: s2
+  data:
+    v: 1
+- at: 11
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s0
