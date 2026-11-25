@@ -57,7 +57,9 @@ AUTOMATIONS = [
      "triggers": [{"trigger": "state", "entity_id": "input_boolean.a", "to": "on"}],
      "actions": [{"action": "input_boolean.turn_on", "target": {"entity_id": "input_boolean.b"}},
                  {"event": "halean_done", "event_data": {"step": "copy"}}]},
-    {"id": "error_then_continue", "alias": "error then continue",
+    # ServiceNotFound is one of script.py's CONFIGURATION_ERRORS:
+    # continue_on_error does not swallow it, so the run stops
+    {"id": "missing_service_stops", "alias": "missing service stops",
      "triggers": [{"trigger": "state", "entity_id": "input_boolean.c", "to": "on"}],
      "actions": [{"action": "nope.missing_service", "continue_on_error": True},
                  {"action": "input_boolean.turn_off", "target": {"entity_id": "input_boolean.a"}}]},
@@ -189,10 +191,13 @@ async def run_test(token: str) -> list[str]:
             assert ev["data"] == {"step": "copy"}, ev
             results.append(f"PASS state trigger -> input_boolean.b on in {dt:.2f}s, event fired")
 
-            # 2. failing service with continue_on_error, then the next action runs
+            # 2. a missing service stops the run despite continue_on_error
+            #    (HA's websocket reports `not_found`, the bridge passes it on as
+            #    a configuration error), so the next action does not run
             await turn("turn_on", "input_boolean.c")
-            dt = await c.wait_state("input_boolean.a", "off", 10)
-            results.append(f"PASS continue_on_error past a missing service -> a off in {dt:.2f}s")
+            await asyncio.sleep(3)
+            assert await c.state("input_boolean.a") == "on", "the run went on past ServiceNotFound"
+            results.append("PASS a missing service stops the run despite continue_on_error")
 
             # 3. `for: 2s` on the real clock (timer driven by the bridge's ticks)
             assert await c.state("input_boolean.d") == "off"

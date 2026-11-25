@@ -1,0 +1,45 @@
+# A `variables` action that assigns `repeat` inside a loop writes to the
+# loop's own scope (`ScriptRunVariables._assign`: the nearest scope that
+# defines the name): later steps of the iteration and an `until` test see
+# it, the next iteration defines `repeat` afresh, and after the loop it is
+# gone. Review item A9.
+automations:
+  - id: r
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - repeat:
+          count: 2
+          sequence:
+            - event: a
+              event_data: {i: "{{ repeat.index }}"}
+            - variables: {repeat: {index: 7, first: false}}
+            - event: b
+              event_data: {i: "{{ repeat.index }}"}
+      - event: after
+        event_data: {defined: "{{ repeat is defined }}"}
+      - repeat:
+          until: "{{ repeat.index == 99 }}"
+          sequence:
+            - variables: {repeat: {index: 99}}
+            - event: u
+      - repeat:
+          count: 2
+          sequence:
+            - repeat:
+                count: 1
+                sequence: [{variables: {repeat: {index: 5}}}]
+            - event: outer
+              event_data: {i: "{{ repeat.index }}"}
+steps:
+  - at: 1
+    send: {type: event, event_type: go}
+    expect:
+      - {type: automation_triggered}
+      - {type: fire_event, event_type: a, data: {i: 1}}
+      - {type: fire_event, event_type: b, data: {i: 7}}
+      - {type: fire_event, event_type: a, data: {i: 2}}
+      - {type: fire_event, event_type: b, data: {i: 7}}
+      - {type: fire_event, event_type: after, data: {defined: false}}
+      - {type: fire_event, event_type: u}
+      - {type: fire_event, event_type: outer, data: {i: 1}}
+      - {type: fire_event, event_type: outer, data: {i: 2}}

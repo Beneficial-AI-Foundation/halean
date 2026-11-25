@@ -250,14 +250,49 @@ def strList (j : Json) : D (List String) :=
     | .str s => pure s
     | _ => throw s!"expected string, got {v.compress}"
 
+/-- `cv.entity_id` on one item: `cv.string`, lower-cased, then
+`valid_entity_id`. Python lower-cases all of Unicode (the Kelvin sign
+becomes `k`), HALean only ASCII, so other text is refused. -/
+def cvEntityIdStr (s : String) : D String := do
+  if !s.toList.all (fun c => c.toNat < 128) then
+    throw s!"non-ASCII entity id '{s}' is not supported by HALean"
+  let l := s.toLower
+  if Template.validEntityId l then pure l else throw s!"Entity ID {s} is an invalid entity ID"
+
+/-- `cv.entity_ids` / `cv.entity_ids_or_uuids`: `ensure_list_csv` (a
+string is split at commas and each piece stripped; a list is taken as it
+is), then `cv.entity_id` on each item. An entity registry id (uuid) needs
+the registry, which HALean does not have; it is refused like an invalid id. -/
+def cvEntityIds (v : Json) : D (List String) := do
+  let items : List Json := match v with
+    | .str s => (s.splitOn ",").map fun x => Json.str x.trim
+    | v => ensureList v
+  items.mapM fun x => match x with
+    | .str s => cvEntityIdStr s
+    | x => throw s!"Entity ID {x.compress} is an invalid entity ID"
+
 def entityIds (j : Json) : D (List String) :=
   match field? j "entity_id" with
-  | some v => do
-    -- `entity_id: "a.b, c.d"` is accepted by cv.entity_ids
-    let xs ← strList v
-    pure (xs.flatMap fun s => (s.splitOn ",").map String.trim |>.filter (· ≠ ""))
+  | some .null => throw "Entity IDs can not be None"
+  | some v => cvEntityIds v
   | none => throw "missing entity_id"
 
+
+/-- Python's `int(value)` for a JSON value: an int as is, a float truncated
+toward zero, a string read as an integer literal, `True`/`False` as 1/0;
+`none` where Python raises. -/
+def pyIntOfJson? (v : Json) : Option Int :=
+  match v with
+  | .num _ => match Template.Value.ofJson v with
+    | .int i => some i
+    | .float f => Template.floatToInt? f
+    | _ => none
+  | .str s => Template.parseIntStr s
+  | .bool b => some (if b then 1 else 0)
+  | _ => none
+
+/-- Python's `==` on two JSON values (`20 == 20.0`, `1 == True`). -/
+def pyJsonEq (a b : Json) : Bool := Template.pyEq (Template.Value.ofJson a) (Template.Value.ofJson b)
 
 def jsonNumToFloat (v : Json) : Option Float :=
   match v with
@@ -265,33 +300,20 @@ def jsonNumToFloat (v : Json) : Option Float :=
   | .str s => parsePyFloatStr s
   | _ => none
 
-/-- `cv.time_period`: "HH:MM[:SS[.fff]]", seconds, or a dict. Returns ms. -/
+/-- A static `cv.positive_time_period` (`time_period_str`,
+`time_period_seconds` or `time_period_dict`, then `positive_timedelta`),
+in ms (rounded up, like the engine's other periods). -/
 def durationMs (v : Json) : D Nat := do
-  let ofSec (f : Float) : D Nat :=
-    if f < 0 then throw "negative time period" else pure (f * 1000).round.toUInt64.toNat
   match v with
-  | .num n => ofSec n.toFloat
+  | .null | .arr _ => throw s!"invalid time period: {v.compress}"
   | .str s =>
-    if Template.isTemplateString s then throw s!"templated durations are not supported here: {s}" else
-    let (neg, s) := if s.startsWith "-" then (true, s.dropS 1) else (false, s)
-    if neg then throw "negative time period" else
-    let parts := s.splitOn ":"
-    let nums := parts.map parsePyFloatStr
-    match nums with
-    | [some h, some m] => ofSec (h * 3600 + m * 60)
-    | [some h, some m, some sec] => ofSec (h * 3600 + m * 60 + sec)
-    | [some sec] => ofSec sec
-    | _ => throw s!"invalid time period: {s}"
-  | .obj _ => do
-    let g (k : String) : D Float := match field? v k with
-      | none => pure 0
-      | some x => match jsonNumToFloat x with
-        | some f => pure f
-        | none => throw s!"invalid {k} in time period"
-    let d ← g "days"; let h ← g "hours"; let m ← g "minutes"
-    let sec ← g "seconds"; let ms ← g "milliseconds"
-    ofSec (d * 86400 + h * 3600 + m * 60 + sec + ms / 1000)
-  | _ => throw s!"invalid time period: {v.compress}"
+    if Template.isTemplateString s then throw s!"templated durations are not supported here: {s}"
+  | _ => pure ()
+  match cvTimePeriod (Template.Value.ofJson v) with
+  | .error e => throw s!"invalid time period {v.compress}: {e}"
+  | .ok us =>
+    if us < 0 then throw "negative time period"
+    pure ((us + 999) / 1000).toNat
 
 def optDuration (j : Json) (k : String) : D (Option Nat) :=
   match field? j k with
@@ -468,6 +490,13 @@ def orderedMapping (what : String) : Json → D (List (String × Json))
     | _ => throw s!"{what}: expected [key, value] pairs"
   | _ => throw s!"{what} must be a mapping"
 
+/-- `attribute`: HALean reads an attribute by its name, a string. HA takes
+any key (`cv.match_all` for triggers), which then names no attribute. -/
+def attrKey (j : Json) : D Unit :=
+  match field? j "attribute" with
+  | none | some (.str _) => pure ()
+  | some v => throw s!"a non-string attribute name {v.compress} is not supported by HALean"
+
 def noTemplate (j : Json) (k : String) : D Unit :=
   if has j k then throw s!"'{k}' (templates) is not supported" else pure ()
 
@@ -505,7 +534,25 @@ partial def decodeCondition (j : Json) (nm : List String := TEMPLATE_VARS) : D C
       if has j "attribute" then throw "Cannot use 'for' with an attribute"
       if states.any (fun v => match v with | .str x => isInputEntityId x | _ => false) then
         throw "Cannot use 'for' with a state referencing an entity"
-    let matchAny := str? j "match" == some "any"
+    -- `STATE_CONDITION_STATE_SCHEMA`: `state: Any(str, [str])` without an
+    -- attribute; `match_all` with one
+    if !has j "attribute" then
+      match field? j "state" with
+      | some (.str _) => pure ()
+      | some (.arr xs) =>
+        if !xs.all (fun x => match x with | .str _ => true | _ => false) then
+          throw "expected str for dictionary value @ data['state']"
+      | some _ => throw "expected str for dictionary value @ data['state']"
+      | none => throw "required key not provided @ data['state']"
+    attrKey j
+    -- `match`: `probatio.All(probatio.Lower, probatio.Any("all", "any"))`
+    let matchAny ← match field? j "match" with
+      | none => pure false
+      | some (.str m) => match m.toLower with
+        | "all" => pure false
+        | "any" => pure true
+        | _ => throw s!"value must be one of ['all', 'any'] for dictionary value @ data['match']"
+      | some v => throw s!"value must be one of ['all', 'any'] for dictionary value @ data['match']: {v.compress}"
     return .state ids states forP (str? j "attribute") matchAny
   | "numeric_state" =>
     return .numericState (← entityIds j) (← bound? j "below") (← bound? j "above")
@@ -518,9 +565,9 @@ partial def decodeCondition (j : Json) (nm : List String := TEMPLATE_VARS) : D C
     | _ => throw "template condition needs a value_template string"
   | "zone" =>
     -- `zone: cv.entity_ids` (a list or a comma-separated string)
-    let zones := (← strList ((field? j "zone").getD .null)).flatMap fun s =>
-      (s.splitOn ",").map String.trim |>.filter (· ≠ "")
-    if zones.isEmpty then throw "zone condition needs a zone"
+    let zones ← match field? j "zone" with
+      | none | some .null => throw "zone condition needs a zone"
+      | some v => cvEntityIds v
     return .zone (← entityIds j) zones
   | "sun" =>
     let ev (k : String) : D (Option Bool) := match field? j k with
@@ -542,13 +589,38 @@ partial def decodeCondition (j : Json) (nm : List String := TEMPLATE_VARS) : D C
     return .sun before after (← off "before_offset") (← off "after_offset")
   | other => throw s!"condition '{other}' is not supported"
 
+/-- `process_state_match(parameter, invert)`: `None` and `MATCH_ALL`
+(`"*"`) match everything (`not invert`); a string or any other
+non-iterable is compared with `==`; a list by membership; a mapping
+iterates over its keys. -/
+def processStateMatch (v : Json) (invert : Bool) : StateMatch :=
+  match v with
+  | .null | .str "*" => { invert }
+  | .arr xs => { values := some xs.toList, invert }
+  | .obj kvs => { values := some (kvs.toList.map fun (k, _) => Json.str k), invert }
+  | v => { values := some [v], invert }
+
+/-- `if (from_state := config.get(CONF_FROM)) is not None: ... elif
+(not_from_state := config.get(CONF_NOT_FROM)) is not None: ... else
+MATCH_ALL`. -/
 def stateMatch (j : Json) (pos neg : String) : StateMatch :=
   match field? j pos with
   | some .null | none =>
     match field? j neg with
     | some .null | none => {}
-    | some v => { values := some (ensureList v), invert := true }
-  | some v => { values := some (ensureList v) }
+    | some v => processStateMatch v true
+  | some v => processStateMatch v false
+
+/-- `probatio.Any(str, [str], None)`: the state trigger's `from`, `to`,
+`not_from` and `not_to` without an `attribute` ("These are str on purpose.
+Want to catch YAML conversions"). -/
+def strOrStrListOrNone (j : Json) (k : String) : D Unit :=
+  match field? j k with
+  | none | some .null | some (.str _) => pure ()
+  | some (.arr xs) =>
+    if xs.all (fun x => match x with | .str _ => true | _ => false) then pure ()
+    else throw s!"expected str at '{k}'"
+  | some _ => throw s!"expected str at '{k}'"
 
 /-- `render_complex` of a JSON value: every template string (keys too) is
 replaced by what `render` gives it. -/
@@ -723,9 +795,14 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
       (← orderedMapping "variables" v).foldlM (init := []) fun acc (k, x) => do
         pure (acc ++ [(k, ← decodeComplex x (["trigger"] ++ acc.map (·.1)))])
   let kind ← match platform with
-    | "state" =>
+    | "state" => do
       let ids ← entityIds j
       let keys := ["from", "not_from", "to", "not_to"]
+      -- `TRIGGER_STATE_SCHEMA` without an attribute, `TRIGGER_ATTRIBUTE_SCHEMA`
+      -- (`cv.match_all`) with one
+      if !has j "attribute" then
+        for k in keys do strOrStrListOrNone j k
+      attrKey j
       pure <| TriggerKind.state ids (stateMatch j "from" "not_from") (stateMatch j "to" "not_to")
         (keys.all fun k => !has j k) (str? j "attribute") (← forPeriod? j "for" (tnm ++ ["trigger"]))
         (has j "from" && !has j "to")
@@ -782,21 +859,32 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
       let ents := items.filterMap fun x => match x with | .inr e => some e | _ => none
       pure <| TriggerKind.time ats ents (← weekday? j)
     | "time_pattern" => do
-      let pat (k : String) (mx : Nat) : D (Option Pattern) :=
+      -- `TimePattern(maximum)`: `"*"`; `"/n"` with `int(n)` in 1..maximum;
+      -- else `int(value)` in 0..maximum
+      let pat (k : String) (mx : Nat) : D (Option Pattern) := do
+        let inRange (n : Int) : D Nat :=
+          if 0 ≤ n && n ≤ mx then pure n.toNat
+          else throw s!"must be a value between 0 and {mx} at '{k}'"
+        let intText (t : String) : D Int := do
+          if !Template.numberTextModelled t then
+            throw s!"non-ASCII time_pattern value '{t}' is not supported by HALean"
+          match Template.parseIntStr t with
+          | some n => pure n
+          | none => throw s!"invalid time_pattern value at '{k}'"
         match field? j k with
         | none => pure none
         | some (.str "*") => pure (some .any)
         | some (.str s) =>
-          if s.startsWith "/" then
-            match (s.dropS 1).toNat? with
-            | some n => if n == 0 || n > mx then throw s!"bad {k}" else pure (some (.every n))
-            | none => throw s!"bad {k}"
-          else match s.toNat? with
-            | some n => if n > mx then throw s!"bad {k}" else pure (some (.exact n))
-            | none => throw s!"bad {k}"
-        | some (.num n) => match n.mantissa.toNat with
-          | m => if n.exponent == 0 && m ≤ mx then pure (some (.exact m)) else throw s!"bad {k}"
-        | some _ => throw s!"bad {k}"
+          if s.startsWith "/" then do
+            let n ← intText (s.dropS 1)
+            if n == 0 then throw s!"must be a value between 1 and {mx} at '{k}'"
+            pure (some (.every (← inRange n)))
+          else pure (some (.exact (← inRange (← intText s))))
+        | some v@(.num _) => match pyIntOfJson? v with
+          | some n => pure (some (.exact (← inRange n)))
+          | none => throw s!"invalid time_pattern value at '{k}'"
+        | some (.bool b) => pure (some (.exact (if b then 1 else 0)))
+        | some v => throw s!"invalid time_pattern value {v.compress} at '{k}'"
       let h ← pat "hours" 23
       let m ← pat "minutes" 59
       let s ← pat "seconds" 59
@@ -837,6 +925,11 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
         | v => throw s!"invalid event_type {v.compress}"
       if types.isEmpty then throw "event trigger needs an event_type"
       if types.contains "state_reported" then throw "Can't listen to state_reported in event trigger"
+      -- HA delivers `state_changed` of every entity to such a trigger,
+      -- including the automation entities' own state writes, which the
+      -- engine does not see as events
+      if types.contains "state_changed" then
+        throw "an event trigger on state_changed is not supported by HALean (use a state trigger)"
       let data ← match field? j "event_data" with
         | none => pure []
         | some d@(.obj _) =>
@@ -865,6 +958,7 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
       pure <| TriggerKind.template t (← forPeriod? j "for" (tnm ++ ["trigger"]))
     | "zone" => do
       let some z := str? j "zone" | throw "zone trigger needs a zone entity id"
+      let z ← cvEntityIdStr z
       let enter ← match field? j "event" with
         | none | some (.str "enter") => pure true
         | some (.str "leave") => pure false
@@ -1055,7 +1149,11 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
     | some (.tmpl c) => return wrap (.delayT c)
     | some (.fixed ms) => return wrap (.delay ms)
     | none => throw "delay needs a period"
-  if has j "condition" then return wrap (.condition (← decodeCondition j nm))
+  if has j "condition" then
+    -- `CONDITION_ACTION_SCHEMA` has no `continue_on_error`
+    if has j "continue_on_error" then
+      throw "extra keys not allowed @ data['continue_on_error']"
+    return wrap (.condition (← decodeCondition j nm))
   if let some opts := field? j "choose" then
     let options ← (ensureList opts).mapM fun o => do
       pure ((← conds ((field? o "conditions").getD .null)), (← seqOf ((field? o "sequence").getD .null)))
@@ -1071,13 +1169,17 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
   if let some r := field? j "repeat" then
     let body ← seqOf ((field? r "sequence").getD .null)
     if let some c := field? r "count" then
+      -- `probatio.Any(probatio.Coerce(int), cv.template)`: `int(count)`
+      -- (`2.0` and `2.5` are 2, `true` is 1); text `int()` cannot read is
+      -- a template, rendered and passed to `int()` when the step runs
       match c with
-      | .num n => return wrap (.repeatCount n.mantissa.toNat body)
+      | .num _ | .bool _ => match pyIntOfJson? c with
+        | some n => return wrap (.repeatCount n.toNat body)
+        | none => throw s!"invalid repeat count {c.compress}"
       | .str s =>
-        if Template.isTemplateString s then return wrap (.repeatCountT (← compileTemplate s nm) body)
-        match s.toNat? with
-        | some n => return wrap (.repeatCount n body)
-        | none => throw s!"invalid repeat count {s}"
+        if !Template.isTemplateString s && Template.numberTextModelled s then do
+          if let some n := Template.parseIntStr s then return wrap (.repeatCount n.toNat body)
+        return wrap (.repeatCountT (← compileTemplate s nm) body)
       | _ => throw s!"invalid repeat count {c.compress}"
     if let some c := field? r "while" then return wrap (.repeatWhile (← conds c) body)
     if let some c := field? r "until" then return wrap (.repeatUntil (← conds c) body)
@@ -1101,14 +1203,16 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
   if let some ps := field? j "parallel" then
     -- each item is a `sequence:` mapping (`_SCRIPT_SEQUENCE_SCHEMA`) or a
     -- single action (`_parallel_sequence_action`); a disabled branch is
-    -- skipped (`_async_run_script` with `enabled: false`)
+    -- skipped (`_async_run_script` with `enabled: false`), but it is still
+    -- one of the tasks `asyncio.gather` waits for, so it stays as an empty
+    -- branch
     let branches ← (ensureList ps).mapM fun b => do
       if has b "sequence" && !(has b "action" || has b "service") then
         if !(← isEnabled b .truthy) then return []
         seqOf ((field? b "sequence").getD .null)
       else
         return (← decodeAction b nm).toList
-    return wrap (.parallel (branches.filter (!·.isEmpty)))
+    return wrap (.parallel branches)
   if let some w := field? j "wait_template" then
     let .str src := w | throw s!"wait_template must be a template, got {w.compress}"
     return wrap (.waitTemplate (← compileTemplate src nm) (← timeout? j nm) (← continueOnTimeout? j))
@@ -1176,19 +1280,6 @@ def automationEntityIds (raw : List Json) (taken : List String) : List (Option S
       known := false
       out := out ++ [none]
   return out
-
-/-- Python's `int(value)` for a JSON value: an int as is, a float truncated
-toward zero, a string read as an integer literal, `True`/`False` as 1/0;
-`none` where Python raises. -/
-def pyIntOfJson? (v : Json) : Option Int :=
-  match v with
-  | .num _ => match Template.Value.ofJson v with
-    | .int i => some i
-    | .float f => Template.floatToInt? f
-    | _ => none
-  | .str s => Template.parseIntStr s
-  | .bool b => some (if b then 1 else 0)
-  | _ => none
 
 /-- `max` of an automation or a script (`helpers/script.py`
 `make_script_schema`): `probatio.All(probatio.Coerce(int),

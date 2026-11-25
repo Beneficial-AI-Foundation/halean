@@ -1,0 +1,48 @@
+# Configurations HA refuses: each automation is disabled on its own, the
+# others run. Review items A2 (`to: 20` without an attribute), A15.
+automations:
+  - id: max1           # `max: Range(min=2)`
+    mode: queued
+    max: 1
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{event: max1}]
+  - id: neg_pattern    # `TimePattern(59)`: -5 is out of range
+    triggers: [{trigger: time_pattern, seconds: -5}]
+    actions: [{event: neg_pattern}]
+  - id: bad_period     # `time_period_dict` knows no `minute`
+    triggers: [{trigger: state, entity_id: light.k, to: "on", for: {minute: 5}}]
+    actions: [{event: bad_period}]
+  - id: cond_coe       # a condition action has no `continue_on_error`
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - condition: template
+        value_template: "{{ true }}"
+        continue_on_error: true
+      - event: cond_coe
+  - id: int_to         # "These are str on purpose. Want to catch YAML conversions"
+    triggers: [{trigger: state, entity_id: sensor.n, to: 20}]
+    actions: [{event: int_to}]
+  - id: bad_match
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: state, entity_id: light.k, state: "off", match: some}]
+    actions: [{event: bad_match}]
+  - id: ok             # still runs
+    mode: queued
+    max: 2.0
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{event: ok}]
+states:
+  - {entity_id: light.k, state: "off"}
+  - {entity_id: sensor.n, state: "1"}
+expect_init:
+  - {type: unsupported, id: max1}
+  - {type: unsupported, id: neg_pattern}
+  - {type: unsupported, id: bad_period}
+  - {type: unsupported, id: cond_coe}
+  - {type: unsupported, id: int_to}
+  - {type: unsupported, id: bad_match}
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered, id: ok}, {type: fire_event, event_type: ok}]}
+  - {at: 2, set: [light.k, "on"], expect: []}
+  - {at: 3, set: [sensor.n, "20"], expect: []}
+  - {at: 45, send: {type: tick}, expect: []}

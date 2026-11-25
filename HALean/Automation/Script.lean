@@ -15,20 +15,28 @@ open Lean
 
 namespace HALean.Automation
 
+/-- A repeat frame is the repeat step's scope (`enter_scope()`), whose
+local `repeat` each iteration defines (`define_local`). `ov` is a value a
+`variables` action assigned to `repeat` during the current iteration:
+`ScriptRunVariables._assign` writes to the nearest scope that defines the
+name, so it replaces the loop's `repeat` until the next iteration. -/
 inductive Frame where
   /-- Remaining actions of one script. `coe` is the `continue_on_error` of the
   action whose handler started this sub-script (false for the root). -/
   | seq (rest : List Action) (coe : Bool)
-  | repeatCount (i n : Nat) (body : List Action) (coe : Bool)
+  | repeatCount (i n : Nat) (body : List Action) (coe : Bool) (ov : Option Template.Value)
   | repeatWhile (i : Nat) (conds : List Condition) (body : List Action) (coe : Bool)
+      (ov : Option Template.Value)
   /-- `i = 0`: the body has not run yet. -/
   | repeatUntil (i : Nat) (conds : List Condition) (body : List Action) (coe : Bool)
+      (ov : Option Template.Value)
   | repeatEach (i : Nat) (items : List Template.Value) (body : List Action) (coe : Bool)
+      (ov : Option Template.Value)
   deriving Repr, Inhabited
 
 def Frame.coe : Frame → Bool
-  | .seq _ c | .repeatCount _ _ _ c | .repeatWhile _ _ _ c | .repeatUntil _ _ _ c
-  | .repeatEach _ _ _ c => c
+  | .seq _ c | .repeatCount _ _ _ c _ | .repeatWhile _ _ _ c _ | .repeatUntil _ _ _ c _
+  | .repeatEach _ _ _ c _ => c
 
 /-- `set_repeat_var(iteration, count, item)` -/
 def repeatVar (iteration : Nat) (count : Option Nat) (item : Option Template.Value) :
@@ -41,19 +49,31 @@ def repeatVar (iteration : Nat) (count : Option Nat) (item : Option Template.Val
           | some .none | none => []
           | some x => [(.str "item", x)])) : List (Template.Value × Template.Value)))
 
-/-- The `repeat` variable in scope: defined locally by the innermost repeat. -/
+/-- The `repeat` variable in scope: defined locally by the innermost repeat
+(or what a `variables` action assigned to it in this iteration). -/
 def currentRepeat : List Frame → Option Template.Value
   | [] => none
-  | .repeatCount i n _ _ :: _ => some (repeatVar i (some n) none)
-  | .repeatWhile i _ _ _ :: _ => some (repeatVar i none none)
-  | .repeatUntil i _ _ _ :: _ => some (repeatVar i none none)
-  | .repeatEach i items _ _ :: _ => some (repeatVar i (some items.length) (items[i - 1]?))
+  | .repeatCount i n _ _ ov :: _ => some (ov.getD (repeatVar i (some n) none))
+  | .repeatWhile i _ _ _ ov :: _ => some (ov.getD (repeatVar i none none))
+  | .repeatUntil i _ _ _ ov :: _ => some (ov.getD (repeatVar i none none))
+  | .repeatEach i items _ _ ov :: _ => some (ov.getD (repeatVar i (some items.length) (items[i - 1]?)))
   | .seq .. :: rest => currentRepeat rest
+
+/-- Assign `repeat` in the innermost repeat scope; `none` when no repeat
+encloses the step (then it is an ordinary variable). -/
+def assignRepeat (v : Template.Value) : List Frame → Option (List Frame)
+  | [] => none
+  | .repeatCount i n b c _ :: rest => some (.repeatCount i n b c (some v) :: rest)
+  | .repeatWhile i cs b c _ :: rest => some (.repeatWhile i cs b c (some v) :: rest)
+  | .repeatUntil i cs b c _ :: rest => some (.repeatUntil i cs b c (some v) :: rest)
+  | .repeatEach i items b c _ :: rest => some (.repeatEach i items b c (some v) :: rest)
+  | .seq a c :: rest => (assignRepeat v rest).map (Frame.seq a c :: ·)
 
 /-- The kind of a failed service call, which decides what
 `continue_on_error` may swallow (`_handle_exception`, `_async_step_call_service`):
-  * `invalid`  – `vol.Invalid` / configuration errors: never swallowed
-  * `haError`  – `HomeAssistantError` (incl. ServiceNotFound): swallowed by any
+  * `invalid`  – `CONFIGURATION_ERRORS` (`probatio.Invalid`, `ServiceNotFound`,
+                 `TemplateError`, ...): never swallowed
+  * `haError`  – any other `HomeAssistantError`: swallowed by any
                  enclosing step with `continue_on_error`
   * `other`    – any other exception: only the service step's own
                  `continue_on_error` converts it to a HomeAssistantError -/
@@ -306,7 +326,7 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
         else match el with
           | some body => (.next (push (.seq body coe) cur), [], ctx)
           | none => (.next r', [], ctx)
-      | .repeatCount n body => (.next (push (.repeatCount 0 n body coe) cur), [], ctx)
+      | .repeatCount n body => (.next (push (.repeatCount 0 n body coe none) cur), [], ctx)
       | .repeatCountT t body =>
         -- `int(count.async_render(...))`; TemplateError/ValueError abort the script
         match Template.render t env.tmplCtx true with
@@ -325,14 +345,14 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
                         else .error "int() of non-ASCII text is not supported by HALean"
             | v => .error s!"int() argument must be a string or a number, not '{Template.typeName v}'"
           match n? with
-          | .ok (some n) => (.next (push (.repeatCount 0 n.toNat body coe) cur), [], ctx)
+          | .ok (some n) => (.next (push (.repeatCount 0 n.toNat body coe none) cur), [], ctx)
           | .ok none =>
             let m := s!"Error rendering repeat count template: invalid literal for int()"
             (.done (.aborted m), [.log "error" m], ctx)
           | .error m => (unwindError r' .other m, [], ctx)
       | .repeatEach items body =>
         match renderComplexV env items with
-        | .ok (.list xs) => (.next (push (.repeatEach 0 xs body coe) cur), [], ctx)
+        | .ok (.list xs) => (.next (push (.repeatEach 0 xs body coe none) cur), [], ctx)
         | .ok v =>
           let m := s!"Repeat 'for_each' must be a list of items, got: {(Template.pyStr v).toOption.getD (Template.typeName v)}"
           (.done (.aborted "Repeat 'for_each' must be a list of items"), [.log "error" m], ctx)
@@ -347,14 +367,19 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
             pure ((k, v) :: acc)) []
         match rendered with
         | .ok kvs =>
-          let vars := kvs.reverse.foldl (fun vs (k, v) => setVar vs k v) r'.vars
-          (.next { r' with vars }, [], ctx)
+          -- `self._variables.update(...)`: each name goes to the nearest
+          -- scope defining it; only a loop's `repeat` is not top-level here
+          let (vars, frames) := kvs.reverse.foldl (fun (vs, fs) (k, v) =>
+            match (if k == "repeat" then assignRepeat v fs else none) with
+            | some fs' => (vs, fs')
+            | none => (setVar vs k v, fs)) (r'.vars, r'.frames)
+          (.next { r' with vars, frames }, [], ctx)
         | .error msg =>
           -- a TemplateError is one of the `CONFIGURATION_ERRORS`, which
           -- `continue_on_error` never swallows
           (unwindError r' .invalid msg, [.log "error" msg], ctx)
-      | .repeatWhile cs body => (.next (push (.repeatWhile 0 cs body coe) cur), [], ctx)
-      | .repeatUntil cs body => (.next (push (.repeatUntil 0 cs body coe) cur), [], ctx)
+      | .repeatWhile cs body => (.next (push (.repeatWhile 0 cs body coe none) cur), [], ctx)
+      | .repeatUntil cs body => (.next (push (.repeatUntil 0 cs body coe none) cur), [], ctx)
       | .stop reason err rv =>
         -- `_AbortScript` / `_StopScript` are not HomeAssistantErrors: they
         -- reach the top whatever `continue_on_error` says.
@@ -439,28 +464,32 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
             let deadline := tus.map fun us => env.now.utc + ((us + 999) / 1000).toNat
             (.blocked { r1 with wait := .waitTrig trigs snapshot deadline cot }, [], ctx)
     run false a
-  | .repeatCount i n body c :: rest =>
-    if i < n then (.next (push (.seq body false) (.repeatCount (i + 1) n body c :: rest)), [], ctx)
+  | .repeatCount i n body c _ :: rest =>
+    if i < n then (.next (push (.seq body false) (.repeatCount (i + 1) n body c none :: rest)), [], ctx)
     else (.next { r with frames := rest }, [], ctx)
-  | .repeatEach i items body c :: rest =>
-    if i < items.length then (.next (push (.seq body false) (.repeatEach (i + 1) items body c :: rest)), [], ctx)
+  | .repeatEach i items body c _ :: rest =>
+    if i < items.length then (.next (push (.seq body false) (.repeatEach (i + 1) items body c none :: rest)), [], ctx)
     else (.next { r with frames := rest }, [], ctx)
-  | .repeatWhile i cs body c :: rest =>
+  | .repeatWhile i cs body c _ :: rest =>
     let it := i + 1
     -- `set_repeat_var(iteration)` happens before the while check
     let env := { env with vars := ("repeat", repeatVar it none none) :: r.vars }
     if testConditions env cs != some true then (.next { r with frames := rest }, [], ctx)
     else if it > REPEAT_TERMINATE_ITERATIONS then
       (.done (.aborted s!"While condition terminated because it looped {REPEAT_TERMINATE_ITERATIONS} times"), [], ctx)
-    else (.next (push (.seq body false) (.repeatWhile it cs body c :: rest)), [], ctx)
-  | .repeatUntil i cs body c :: rest =>
-    if i == 0 then (.next (push (.seq body false) (.repeatUntil 1 cs body c :: rest)), [], ctx)
+    -- from the second iteration on, `await asyncio.sleep(0)` before the body:
+    -- the run yields (`blocked` while `ready`) and goes on later
+    else if it > 1 then (.blocked (push (.seq body false) (.repeatWhile it cs body c none :: rest)), [], ctx)
+    else (.next (push (.seq body false) (.repeatWhile it cs body c none :: rest)), [], ctx)
+  | .repeatUntil i cs body c _ :: rest =>
+    if i == 0 then (.next (push (.seq body false) (.repeatUntil 1 cs body c none :: rest)), [], ctx)
     else
       -- `if self._test_conditions(conditions, "until") in [True, None]: break`
       if testConditions env cs != some false then (.next { r with frames := rest }, [], ctx)
       else if i ≥ REPEAT_TERMINATE_ITERATIONS then
         (.done (.aborted s!"Until condition terminated because it looped {REPEAT_TERMINATE_ITERATIONS} times"), [], ctx)
-      else (.next (push (.seq body false) (.repeatUntil (i + 1) cs body c :: rest)), [], ctx)
+      -- `await asyncio.sleep(0)` before the next iteration: the run yields
+      else (.blocked (push (.seq body false) (.repeatUntil (i + 1) cs body c none :: rest)), [], ctx)
 
 /-- Safety net for nested loops (HA would hang the event loop instead). -/
 def STEP_FUEL : Nat := 1000000

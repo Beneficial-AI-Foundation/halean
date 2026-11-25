@@ -1,0 +1,31 @@
+# When a queued run ends, `asyncio.Lock.release` wakes the next run's task,
+# which goes on after the callbacks already scheduled: here the step after
+# another automation's `parallel` comes first. Review item A13 (queued
+# release).
+automations:
+  - id: q
+    mode: queued
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - event: q_start
+      - wait_for_trigger: [{trigger: event, event_type: go2}]
+      - event: q_end
+  - id: c
+    triggers: [{trigger: event, event_type: go2}]
+    actions:
+      - event: c_pre
+      - parallel:
+          - event: c_br
+      - event: c_after
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered, id: q}, {type: fire_event, event_type: q_start}]}
+  - {at: 1, send: {type: event, event_type: go}, expect: [{type: automation_triggered, id: q}]}
+  - at: 2
+    send: {type: event, event_type: go2}
+    expect:
+      - {type: automation_triggered, id: c}
+      - {type: fire_event, event_type: c_pre}
+      - {type: fire_event, event_type: c_br}
+      - {type: fire_event, event_type: q_end}
+      - {type: fire_event, event_type: c_after}
+      - {type: fire_event, event_type: q_start}

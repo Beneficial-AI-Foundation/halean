@@ -1,0 +1,23 @@
+# A numeric_state `value_template` renders with the real clock: `now()` is
+# the current time, in the trigger and in the condition. Review item A5.
+automations:
+  - id: trig
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.s
+        value_template: "{{ (state.state | float) * (now().year - 2000) }}"
+        above: 30
+    actions: [{event: trig_fired}]
+  - id: cond
+    triggers: [{trigger: event, event_type: go}]
+    conditions:
+      - condition: numeric_state
+        entity_id: sensor.s
+        value_template: "{{ (state.state | float) * (now().year - 2000) }}"
+        above: 30
+    actions: [{event: cond_passed}]
+states: [{entity_id: sensor.s, state: "1"}]
+steps:
+  - {at: 1, send: {type: event, event_type: go}, expect: []}
+  - {at: 2, set: [sensor.s, "2"], expect: [{type: automation_triggered, id: trig}, {type: fire_event, event_type: trig_fired}]}
+  - {at: 3, send: {type: event, event_type: go}, expect: [{type: automation_triggered, id: cond}, {type: fire_event, event_type: cond_passed}]}

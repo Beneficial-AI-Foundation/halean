@@ -1,0 +1,39 @@
+description: >
+  A `restart` script with a run stops it and awaits that before its new run
+  starts (`Script.async_run`), so the other callbacks of the same event run
+  first. `script.turn_on` returns once the old run's task has seen its stop
+  (its `Script.async_run` calls `_changed()` when cancelled), before the new
+  run starts. Review item A13 (restart order with scripts).
+scripts:
+  x:
+    mode: restart
+    sequence:
+      - event: x_start
+      - action: test.work
+automations:
+  - id: a
+    mode: parallel
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - action: script.turn_on
+        target: {entity_id: script.x}
+      - event: a_after
+  - id: b
+    mode: parallel
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - event: b
+steps:
+  - at: 1
+    event: {event_type: go}
+    expect:
+      fire_event: [[script_started, {name: x, entity_id: script.x}], [x_start, {}], [a_after, {}], [b, {}]]
+  - at: 2
+    event: {event_type: go}
+    expect:
+      fire_event: [[script_started, {name: x, entity_id: script.x}], [b, {}], [a_after, {}], [x_start, {}]]
+      states: {script.x: ["on", {last_triggered: "2023-11-14T22:13:22+00:00", current: 1}]}
+  - at: 3
+    call: x
+    expect:
+      fire_event: [[script_started, {name: x, entity_id: script.x}], [x_start, {}]]

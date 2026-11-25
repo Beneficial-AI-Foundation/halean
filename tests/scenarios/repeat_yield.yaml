@@ -1,0 +1,39 @@
+# `repeat` `while` and `until` loops `await asyncio.sleep(0)` between
+# iterations (helpers/script.py, "yield to the event loop"), so two loops
+# started by the same event take turns, iteration by iteration; a `count`
+# loop does not yield. Review item A13 (`repeat while` order).
+automations:
+  - id: w
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - repeat:
+          while: "{{ repeat.index <= 3 }}"
+          sequence: [{event: w, event_data: {i: "{{ repeat.index }}"}}]
+  - id: u
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - repeat:
+          until: "{{ repeat.index >= 3 }}"
+          sequence: [{event: u, event_data: {i: "{{ repeat.index }}"}}]
+  - id: c
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - repeat:
+          count: 3
+          sequence: [{event: c, event_data: {i: "{{ repeat.index }}"}}]
+steps:
+  - at: 1
+    send: {type: event, event_type: go}
+    expect:
+      - {type: automation_triggered, id: w}
+      - {type: fire_event, event_type: w, data: {i: 1}}
+      - {type: automation_triggered, id: u}
+      - {type: fire_event, event_type: u, data: {i: 1}}
+      - {type: automation_triggered, id: c}
+      - {type: fire_event, event_type: c, data: {i: 1}}
+      - {type: fire_event, event_type: c, data: {i: 2}}
+      - {type: fire_event, event_type: c, data: {i: 3}}
+      - {type: fire_event, event_type: w, data: {i: 2}}
+      - {type: fire_event, event_type: u, data: {i: 2}}
+      - {type: fire_event, event_type: w, data: {i: 3}}
+      - {type: fire_event, event_type: u, data: {i: 3}}

@@ -1,0 +1,35 @@
+description: >
+  A restart automation's run that waits for a script is stopped by the next
+  trigger, and stopping it stops the script run it waits for (the awaiting
+  task is cancelled, and `Script.async_run` stops its run). So the second
+  trigger starts the `single` script afresh: `s_done` comes 5 s after the
+  second trigger, not after the first. Review item A12.
+scripts:
+  s:
+    sequence:
+      - delay: 5
+      - event: s_done
+automations:
+  - id: a
+    mode: restart
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - action: script.s
+      - event: a_done
+steps:
+  - at: 1
+    event: {event_type: go}
+    expect:
+      fire_event: [[script_started, {name: s, entity_id: script.s}]]
+  - at: 2
+    event: {event_type: go}
+    expect:
+      fire_event: [[script_started, {name: s, entity_id: script.s}]]
+      states: {script.s: ["on", {last_triggered: "2023-11-14T22:13:22+00:00", current: 1}]}
+  - at: 6
+    expect:
+      fire_event: []
+  - at: 7
+    expect:
+      fire_event: [[s_done, {}], [a_done, {}]]
+      states: {script.s: ["off", {current: 0}]}

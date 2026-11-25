@@ -1,0 +1,19 @@
+# An event trigger listens once per listed type (`hass.bus.async_listen`
+# for each), so `event_type: [a, a]` fires twice for one event. Review item
+# A7 (an event trigger on `state_changed` is refused: unsupported.yaml).
+automations:
+  - id: twice
+    mode: parallel
+    triggers: [{trigger: event, event_type: [a, a, b]}]
+    actions: [{event: fired, event_data: {t: "{{ trigger.event.event_type }}"}}]
+steps:
+  - at: 1
+    send: {type: event, event_type: a}
+    expect:
+      - {type: automation_triggered, id: twice}
+      - {type: fire_event, event_type: fired, data: {t: a}}
+      - {type: automation_triggered, id: twice}
+      - {type: fire_event, event_type: fired, data: {t: a}}
+  - at: 2
+    send: {type: event, event_type: b}
+    expect: [{type: automation_triggered, id: twice}, {type: fire_event, event_type: fired, data: {t: b}}]

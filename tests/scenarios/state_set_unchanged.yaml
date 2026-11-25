@@ -1,0 +1,14 @@
+# Setting a state to the same state and attributes fires no state_changed
+# in HA (`async_set` only reports it), so a state trigger without from/to
+# does not fire; the scenario runner sends the engine a tick instead.
+# Review item T1.
+automations:
+  - id: any_change
+    triggers: [{trigger: state, entity_id: light.k}]
+    actions: [{event: changed}]
+states:
+  - {entity_id: light.k, state: "off", attributes: {b: 1}}
+steps:
+  - {at: 1, set: [light.k, "off"], attributes: {b: 1}, expect: []}
+  - {at: 2, set: [light.k, "off"], attributes: {b: 1.0}, expect: []}
+  - {at: 3, set: [light.k, "off"], attributes: {b: 2}, expect: [{type: automation_triggered}, {type: fire_event, event_type: changed}]}

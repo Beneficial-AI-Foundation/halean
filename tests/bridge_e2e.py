@@ -11,6 +11,8 @@ With --scripts (second run): the automation calls a script that HALean runs,
 the script's call reaches "HA", and the script entity's states are written
 over the REST API (a tiny fake HTTP server). Third run: an mqtt trigger; the
 bridge subscribes with `mqtt/subscribe` and a message reaches the engine.
+Fourth run: "HA" answers the call with `not_found` (ServiceNotFound), which
+`continue_on_error` does not swallow in HA, so the run stops before its event.
 """
 
 from __future__ import annotations
@@ -53,12 +55,24 @@ AUTOMATIONS_MQTT = [
         ],
     }
 ]
+# fourth run: the service does not exist; continue_on_error must not go on
+AUTOMATIONS_MISSING = [
+    {
+        "id": "motion",
+        "triggers": [{"trigger": "state", "entity_id": "binary_sensor.motion", "to": "on"}],
+        "actions": [
+            {"action": "light.turn_on", "target": {"entity_id": "light.hall"},
+             "continue_on_error": True},
+            {"event": "light_done"},
+        ],
+    }
+]
 SCRIPTS = {"lights": {"sequence": [{"action": "light.turn_on", "target": {"entity_id": "light.hall"}}]}}
 STATE_OFF = {"entity_id": "binary_sensor.motion", "state": "off", "attributes": {},
              "last_changed": "2026-01-01T00:00:00+00:00"}
 
 
-async def run(with_scripts: bool, mqtt: bool = False) -> bool:
+async def run(with_scripts: bool, mqtt: bool = False, missing: bool = False) -> bool:
     loop = asyncio.get_running_loop()
     got: dict[str, asyncio.Future] = {
         k: loop.create_future() for k in ("call_service", "fire_event")
@@ -114,6 +128,13 @@ async def run(with_scripts: bool, mqtt: bool = False) -> bool:
                 await asyncio.sleep(0.3)
                 await ws.send(json.dumps({"id": msg["id"], "type": "event", "event": {
                     "topic": "home/door", "payload": "open", "qos": 0, "retain": False}}))
+            elif msg["type"] == "call_service" and missing:
+                # what HA's websocket `call_service` sends for ServiceNotFound
+                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": False,
+                                          "error": {"code": "not_found",
+                                                    "message": "Action light.turn_on not found.",
+                                                    "translation_key": "service_not_found"}}))
+                got["call_service"].set_result(msg)
             elif msg["type"] in got:
                 await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True,
                                           "result": {}}))
@@ -123,7 +144,7 @@ async def run(with_scripts: bool, mqtt: bool = False) -> bool:
 
     tmpdir = Path(os.environ.get("TMPDIR", "/tmp"))
     tmp = tmpdir / "halean_e2e_automations.json"
-    tmp.write_text(json.dumps(AUTOMATIONS_MQTT if mqtt else
+    tmp.write_text(json.dumps(AUTOMATIONS_MISSING if missing else AUTOMATIONS_MQTT if mqtt else
                               AUTOMATIONS_SCRIPTS if with_scripts else AUTOMATIONS))
     args = [str(tmp)]
     if with_scripts:
@@ -140,13 +161,17 @@ async def run(with_scripts: bool, mqtt: bool = False) -> bool:
             "uv", "run", str(ROOT / "bridge" / "bridge.py"), *args, env=env)
         try:
             call = await asyncio.wait_for(got["call_service"], 60)
-            event = await asyncio.wait_for(got["fire_event"], 10)
+            if missing:
+                await asyncio.sleep(2)  # the event must not come
+                event = got["fire_event"].result() if got["fire_event"].done() else None
+            else:
+                event = await asyncio.wait_for(got["fire_event"], 10)
             await asyncio.sleep(0.5)  # let the last state write land
         finally:
             bridge.terminate()
             await bridge.wait()
     ok = (call["domain"], call["service"], call["target"]) == ("light", "turn_on", {"entity_id": "light.hall"}) \
-        and event["event_type"] == "light_done"
+        and (event is None if missing else event["event_type"] == "light_done")
     if with_scripts:
         # off at load, on while running, off again; written with the bearer token
         seq = [(p, b["state"]) for p, b in posted]
@@ -154,7 +179,8 @@ async def run(with_scripts: bool, mqtt: bool = False) -> bool:
             and ("/api/states/script.lights", "on") in seq and seq[-1] == ("/api/states/script.lights", "off")
     if mqtt:
         ok = ok and mqtt_topics == ["#"]
-    name = "bridge end-to-end" + (" with scripts" if with_scripts else "") + (" with mqtt" if mqtt else "")
+    name = "bridge end-to-end" + (" with scripts" if with_scripts else "") + (" with mqtt" if mqtt else "") \
+        + (" with a missing service" if missing else "")
     print(f"PASS {name}" if ok else f"FAIL {name}: {call} {event} {posted}")
     return ok
 
@@ -163,6 +189,7 @@ async def main() -> int:
     ok = await run(False)
     ok = await run(True) and ok
     ok = await run(False, mqtt=True) and ok
+    ok = await run(False, missing=True) and ok
     return 0 if ok else 1
 
 

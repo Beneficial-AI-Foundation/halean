@@ -1,0 +1,36 @@
+# `process_state_match` and the state condition compare with Python's `==`
+# (an attribute `20.0` equals `to: 20`, `true` equals `1`), and `"*"`
+# (MATCH_ALL) matches anything. Review items A2, A4.
+automations:
+  - id: level
+    triggers: [{trigger: state, entity_id: sensor.s, attribute: level, to: 20}]
+    actions: [{event: level_20}]
+  - id: flag
+    triggers: [{trigger: state, entity_id: sensor.s, attribute: flag, to: [1]}]
+    actions: [{event: flag_1}]
+  - id: any_to
+    triggers: [{trigger: state, entity_id: light.k, to: "*"}]
+    actions: [{event: any_to}]
+  - id: any_from
+    triggers: [{trigger: state, entity_id: light.k, from: "*", to: "on"}]
+    actions: [{event: any_from}]
+  - id: cond
+    triggers: [{trigger: event, event_type: go}]
+    conditions: [{condition: state, entity_id: sensor.s, attribute: level, state: 20}]
+    actions: [{event: cond_passed}]
+states:
+  - {entity_id: sensor.s, state: "x"}
+  - {entity_id: light.k, state: "off"}
+steps:
+  - {at: 1, set: [sensor.s, "x"], attributes: {level: 20.0},
+     expect: [{type: automation_triggered, id: level}, {type: fire_event, event_type: level_20}]}
+  - {at: 2, set: [sensor.s, "x"], attributes: {level: 20.0, flag: true},
+     expect: [{type: automation_triggered, id: flag}, {type: fire_event, event_type: flag_1}]}
+  - {at: 3, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: cond}, {type: fire_event, event_type: cond_passed}]}
+  - {at: 4, set: [light.k, "on"],
+     expect: [{type: automation_triggered, id: any_to}, {type: fire_event, event_type: any_to},
+              {type: automation_triggered, id: any_from}, {type: fire_event, event_type: any_from}]}
+  # an attribute change: `to: "*"` is given, so it is not match-all
+  - {at: 5, set: [light.k, "on"], attributes: {b: 1}, expect: []}
+  - {at: 6, set: [light.k, "dim"], expect: [{type: automation_triggered, id: any_to}, {type: fire_event, event_type: any_to}]}

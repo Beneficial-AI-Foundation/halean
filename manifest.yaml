@@ -44,7 +44,9 @@ entries:
   lean:
   - HALean.Automation.decodeCondition
   status: translated
-  notes: 'key_dependency("for", "state"); `for` with an attribute or with a state naming an input entity is refused'
+  notes: 'key_dependency("for", "state"); `for` with an attribute or with a state naming an input entity is refused;
+    entity ids lower-cased (cvEntityIds); `match` lower-cased and one of all/any; `state` a str or a list of str
+    without an attribute (STATE_CONDITION_STATE_SCHEMA); a non-string attribute name is refused'
   hash: e76a36ce71c6f701
   deps: 18eedf0d57c50675
 - python: helpers/condition.py::async_numeric_state
@@ -53,8 +55,8 @@ entries:
   - HALean.Automation.numericStateOne
   - HALean.Automation.resolveBound
   status: translated
-  notes: value_template rendered with `state` and the run variables; None/unavailable/unknown results
-    are False
+  notes: value_template rendered with `state`, the run variables and the clock (now()); None/unavailable/unknown
+    results are False
   hash: 374d77c1a17c5957
   deps: 61173cd8ac8659df
 - python: helpers/condition.py::time
@@ -164,7 +166,9 @@ entries:
   - HALean.Automation.step
   - HALean.Automation.REPEAT_TERMINATE_ITERATIONS
   status: translated
-  notes: count (incl. templated), for_each, while, until; the `repeat` variable is local to its loop (currentRepeat)
+  notes: count (Coerce(int), else a template whose result int() reads), for_each, while, until; the
+    `repeat` variable is local to its loop (currentRepeat); while and until yield (asyncio.sleep(0)) between
+    iterations, so the run goes on after the current callbacks
   hash: 8ae3b200144a1124
   deps: ae96343dfe5263cb
 - python: helpers/script.py::_ScriptRun._async_step_stop
@@ -178,9 +182,11 @@ entries:
   lean:
   - HALean.Automation.step
   - HALean.Automation.resumeService
+  - HALean.Automation.checkResponse
   status: translated
   notes: 'response_variable: the shell asks for the response (return_response) and reports a response-support
-    mismatch as a configuration error'
+    mismatch as a configuration error; a reported response that is not a dict is async_call''s
+    HomeAssistantError (service_reponse_invalid)'
   hash: 2c9a2006b53f8036
   deps: 616a5c1087686591
 - python: helpers/script.py::_ScriptRun._async_step_event
@@ -208,9 +214,16 @@ entries:
   lean:
   - HALean.Automation.admit
   - HALean.Automation.triggerAutomation
+  - HALean.Automation.restartRun
+  - HALean.Automation.resumeWoken
   - HALean.Automation.startScript
   status: translated
-  notes: 'partial theorems (properties, not a specification of the function): single_exclusive, restart_never_rejects, admit_bounded, queued_waits (the admission decision admit) and EngineBound.runs_bounded (the engine-wide run bound); the run itself (restart, queueing, stopping) is not specified'
+  notes: 'partial theorems (properties, not a specification of the function): single_exclusive, restart_never_rejects,
+    admit_bounded, queued_waits (the admission decision admit) and EngineBound.runs_bounded (the engine-wide run
+    bound); a top-level run''s `context` is set over its variables (contextValue); an automation''s restart with
+    runs awaits their stop, so started_action, last_triggered and the new run come after the current callbacks
+    (pendingStarts); a script entity''s restart likewise (StartRes.deferred, scheduled once callLocal answered its
+    caller)'
   hash: de80e422d227b5fe
   deps: 452617cc552dc4a0
 - python: helpers/script.py::_QueuedScriptRun.async_run
@@ -222,13 +235,19 @@ entries:
 - python: helpers/script.py::_QueuedScriptRun._finish
   lean:
   - HALean.Automation.finishRun
+  - HALean.Automation.releaseQueue
   status: translated
+  notes: the lock's release wakes the next run's task, which goes on after the current callbacks (woken)
   hash: b1588007b28a8988
 - python: helpers/event.py::process_state_match
   lean:
   - HALean.Automation.StateMatch.matches
+  - HALean.Automation.processStateMatch
+  - HALean.Automation.pyJsonEq
   status: translated
-  notes: 'theorem stateMatch_matches_iff characterises StateMatch.matches exactly, but over Json equality, where upstream uses Python == and set membership (20 == 20.0, 1 == True); also match_invert, match_all'
+  notes: 'None and MATCH_ALL ("*") match everything, a list by membership, a mapping by its keys, anything else
+    by Python == (pyJsonEq); partial theorems: match_invert, match_all, processStateMatch_values_none_iff,
+    processStateMatch_invert, stateMatch_matches_iff'
   hash: dfe501b7ee7ebfd0
   deps: a66c7803c75068d8
 - python: helpers/event.py::async_track_same_state
@@ -246,10 +265,22 @@ entries:
   - HALean.Automation.onStateTrigger
   - HALean.Automation.renderPeriod
   status: translated
-  notes: 'templated ''for'' rejected; matchAll is by key presence (so an explicit null ''to'' works as
-    upstream); templated for: rendered when the trigger matches (cv.positive_time_period_template)'
+  notes: 'matchAll is by key presence (so an explicit null ''to'' works as upstream); old/new values
+    compared by Python == (pyJsonEq); templated for: rendered when the trigger matches
+    (cv.positive_time_period_template)'
   hash: 5e5087a8dc6161d9
   deps: 94196e4b95aa58ff
+- python: components/homeassistant/triggers/state.py::async_validate_trigger_config
+  lean:
+  - HALean.Automation.decodeTrigger
+  - HALean.Automation.strOrStrListOrNone
+  - HALean.Automation.cvEntityIds
+  status: translated
+  notes: TRIGGER_STATE_SCHEMA (from/to/not_from/not_to are str, [str] or None) without an attribute,
+    TRIGGER_ATTRIBUTE_SCHEMA (match_all) with one; entity ids lower-cased; a registry id (uuid) or a
+    non-string attribute name is refused
+  hash: de58be0adb3f4f4a
+  deps: d9cf865a8b9a80a5
 - python: components/homeassistant/triggers/numeric_state.py::async_attach_trigger
   lean:
   - HALean.Automation.addPeriodPending
@@ -284,13 +315,21 @@ entries:
   status: translated
   hash: 61270e2f0e6c06ac
   deps: fdfef72653ee8883
+- python: components/homeassistant/triggers/time_pattern.py::TimePattern.__call__
+  lean:
+  - HALean.Automation.decodeTrigger
+  status: translated
+  notes: '"*", "/n" (int(n) in 1..maximum) or int(value) in 0..maximum; non-ASCII text is refused'
+  hash: 8e9ad0999417cea5
 - python: components/homeassistant/triggers/event.py::async_attach_trigger
   lean:
   - HALean.Automation.onEvent
   status: translated
   notes: 'event_type and event_data rendered (limited, with the static trigger_variables) at load; values
-    compared by Python ==, nested mappings as a schema (eventDataMatches); a list in nested event_data and
-    the context filter are rejected (events carry no context in the protocol)'
+    compared by Python ==, nested mappings as a schema (eventDataMatches); one listener per listed type
+    (a duplicate fires twice); a list in nested event_data, the context filter (events carry no context in
+    the protocol) and state_changed (the engine does not get automation entities'' state writes as events)
+    are rejected'
   hash: 87152f92fcbc896a
   deps: ca9978cd67821363
 - python: components/homeassistant/triggers/homeassistant.py::async_attach_trigger
@@ -719,8 +758,11 @@ entries:
 - python: helpers/script_variables.py::ScriptRunVariables._assign
   lean:
   - HALean.Automation.setVar
+  - HALean.Automation.assignRepeat
   status: translated
-  notes: only `repeat` is ever defined locally, so assignments go to the run's top level
+  notes: only `repeat` is ever defined locally (by its loop), so `repeat` inside a loop is assigned in the
+    loop's scope (the repeat frame's override, cleared at the next iteration) and every other name at the
+    run's top level
   hash: 4bc94edc1767f0c6
 - python: helpers/script.py::_ScriptRun._async_step_variables
   lean:
@@ -1168,7 +1210,8 @@ entries:
   - HALean.Automation.resumeWoken
   status: translated
   notes: 'gather: branches start after the current callbacks, all run to the end, then the first branch
-    (in order) that raised re-raises in the parent, which also resumes later'
+    (in order) that raised re-raises in the parent, which also resumes later; a disabled branch is an empty
+    one (its task still runs)'
   hash: 8651899477a8fa0e
   deps: 08c449ea45a5ca23
 - python: helpers/script.py::Script._async_prep_parallel_scripts
@@ -1859,7 +1902,8 @@ entries:
   - HALean.Automation.callLocal
   - HALean.Automation.continueNow
   status: translated
-  notes: 'script_stack: copied for wait=True, fresh for turn_on'
+  notes: 'script_stack: copied for wait=True, fresh for turn_on; turn_on of a restart that must stop runs
+    first returns before the new run starts (the old run''s Script.async_run calls _changed() when cancelled)'
   hash: f8b34c1450b62023
   deps: bdac6da04faa9958
 - python: components/script/__init__.py::ScriptEntity._async_run
@@ -2311,8 +2355,11 @@ entries:
   lean:
   - HALean.Core.cvEntityIds
   - HALean.Core.pyIter
+  - HALean.Automation.cvEntityIds
+  - HALean.Automation.cvEntityIdStr
   status: translated
-  notes: allow_uuid=False only (entity_ids); iterating a scalar raises TypeError
+  notes: allow_uuid=False only (entity_ids); iterating a scalar raises TypeError. The automation decoder's
+    HALean.Automation.cvEntityIds refuses a uuid (no entity registry)
   hash: 7965187b5a15af43
   deps: 7bcdf3065281b350
 - python: helpers/config_validation.py::entity_ids

@@ -136,7 +136,7 @@ def stateOne (env : CondEnv) (eid : String) (req : List Json) (forP : Option For
       if isInputEntityId s then
         let some se := env.states.get? s | throw s!"the 'state' entity {s} is unavailable"
         sv := .str se.state
-    isState := value == sv
+    isState := pyJsonEq value sv
     if isState then break
   match forP with
   | none => return isState
@@ -192,7 +192,8 @@ def numericStateOf (env : CondEnv) (ent : EntityState) (below above : Option Bou
         | throw s!"entity {ent.entityId} state '{value.compress}' cannot be processed as a number"
       pure fv
     | some (t, vars) => do
-      let ctx : Template.Ctx := { states := env.states, vars := ("state", .state ent false) :: vars }
+      -- rendered like any template: the state machine and the clock (`now()`)
+      let ctx : Template.Ctx := { env.tmplCtx with vars := ("state", .state ent false) :: vars }
       let value ← match Template.render t ctx true with
         | .ok v => pure v
         | .error e => throw s!"template error: {e}"

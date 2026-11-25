@@ -146,36 +146,53 @@ theorem entityIds_missing (j : Json) (h : field? j "entity_id" = none) :
     entityIds j = .error "missing entity_id" := by
   simp [entityIds, h, throw, throwThe, MonadExceptOf.throw]
 
-/-- Decoded entity ids are never empty (empty pieces of a comma-separated
-string are dropped). -/
-theorem entityIds_ne_empty (j : Json) (ids : List String) (h : entityIds j = .ok ids) :
-    ∀ s ∈ ids, s ≠ "" := by
-  unfold entityIds at h
-  cases hf : field? j "entity_id" with
-  | none => simp [hf, throw, throwThe, MonadExceptOf.throw] at h
-  | some v =>
-    simp only [hf, bind, Except.bind] at h
-    cases hs : strList v with
-    | error e => simp [hs] at h
-    | ok xs =>
-      simp only [hs, pure, Except.pure, Except.ok.injEq] at h
-      subst h
-      intro s hmem
-      simp only [List.mem_flatMap, List.mem_filter, decide_eq_true_eq] at hmem
-      obtain ⟨_, _, _, hne⟩ := hmem
-      exact hne
+/-- Every item of a `mapM` result comes from some input item. -/
+private theorem mapM_ok_mem {α β : Type} (f : α → Except String β) :
+    ∀ (l : List α) (ys : List β), l.mapM f = .ok ys → ∀ y ∈ ys, ∃ x ∈ l, f x = .ok y
+  | [], ys, h => by
+    simp only [List.mapM_nil, pure, Except.pure, Except.ok.injEq] at h
+    subst h; simp
+  | a :: l, ys, h => by
+    rw [List.mapM_cons] at h
+    cases hfa : f a with
+    | error e => simp [hfa, bind, Except.bind] at h
+    | ok b =>
+      cases hl : l.mapM f with
+      | error e => simp [hfa, hl, bind, Except.bind] at h
+      | ok bs =>
+        simp only [hfa, hl, bind, Except.bind, pure, Except.pure, Except.ok.injEq] at h
+        subst h
+        intro y hy
+        rcases List.mem_cons.mp hy with rfl | hy
+        · exact ⟨a, List.mem_cons_self .., hfa⟩
+        · obtain ⟨x, hx, hfx⟩ := mapM_ok_mem f l bs hl y hy
+          exact ⟨x, List.mem_cons_of_mem _ hx, hfx⟩
 
-/-- `entity_id` must be a string or a list of strings. -/
-theorem entityIds_ok_imp (j : Json) (ids : List String) (h : entityIds j = .ok ids) :
-    ∃ v, ∃ xs : List String, field? j "entity_id" = some v ∧ ensureList v = xs.map Json.str := by
+/-- `cv.entity_id` returns a valid entity id. -/
+theorem cvEntityIdStr_valid (s r : String) (h : cvEntityIdStr s = .ok r) :
+    Template.validEntityId r = true := by
+  unfold cvEntityIdStr at h
+  by_cases ha : s.toList.all (fun c => decide (c.toNat < 128)) = true
+  · by_cases hv : Template.validEntityId s.toLower = true
+    · simp only [ha, hv, Bool.not_true, Bool.false_eq_true, ↓reduceIte, pure, Except.pure,
+        Except.ok.injEq, bind, Except.bind] at h
+      subst h; exact hv
+    · simp [ha, hv, throw, throwThe, MonadExceptOf.throw, bind, Except.bind] at h
+  · simp [ha, throw, throwThe, MonadExceptOf.throw, bind, Except.bind] at h
+
+/-- Decoded entity ids are valid entity ids (lower-cased, `domain.object_id`). -/
+theorem entityIds_valid (j : Json) (ids : List String) (h : entityIds j = .ok ids) :
+    ∀ s ∈ ids, Template.validEntityId s = true := by
   unfold entityIds at h
-  cases hf : field? j "entity_id" with
-  | none => simp [hf, throw, throwThe, MonadExceptOf.throw] at h
-  | some v =>
-    simp only [hf, bind, Except.bind] at h
-    cases hs : strList v with
-    | error e => simp [hs] at h
-    | ok xs => exact ⟨v, xs, rfl, (strList_ok_iff v xs).mp hs⟩
+  split at h
+  · simp [throw, throwThe, MonadExceptOf.throw] at h
+  · unfold cvEntityIds at h
+    intro s hs
+    obtain ⟨x, _, hx⟩ := mapM_ok_mem _ _ ids h s hs
+    split at hx
+    · exact cvEntityIdStr_valid _ _ hx
+    · simp [throw, throwThe, MonadExceptOf.throw] at hx
+  · simp [throw, throwThe, MonadExceptOf.throw] at h
 
 /-- No `weekday` key: no restriction. -/
 theorem weekday?_none_iff (j : Json) : weekday? j = .ok none ↔ field? j "weekday" = none := by
@@ -243,23 +260,45 @@ theorem jsonNumToFloat_isSome_imp (v : Json) (h : (jsonNumToFloat v).isSome = tr
 /-- A JSON number always reads as a float. -/
 theorem jsonNumToFloat_num (n : JsonNumber) : (jsonNumToFloat (.num n)).isSome = true := rfl
 
-/-- `None`, booleans and lists are not time periods. -/
-theorem durationMs_bad_type (v : Json)
-    (h : v = .null ∨ (∃ b, v = .bool b) ∨ ∃ a, v = .arr a) :
+/-- `None` and lists are not time periods. -/
+theorem durationMs_bad_type (v : Json) (h : v = .null ∨ ∃ a, v = .arr a) :
     durationMs v = .error s!"invalid time period: {v.compress}" := by
-  rcases h with rfl | ⟨b, rfl⟩ | ⟨a, rfl⟩ <;> rfl
+  rcases h with rfl | ⟨a, rfl⟩ <;> rfl
 
 /-- A template is not accepted where a static period is required. -/
 theorem durationMs_template (s : String) (h : Template.isTemplateString s = true) :
     durationMs (.str s) = .error s!"templated durations are not supported here: {s}" := by
   simp [durationMs, h, throw, throwThe, MonadExceptOf.throw, bind, Except.bind]
 
-/-- A string period with a leading minus sign is rejected
-(`positive_time_period`). -/
-theorem durationMs_negative_str (s : String) (h : Template.isTemplateString s = false)
-    (hneg : s.startsWith "-" = true) :
-    durationMs (.str s) = .error "negative time period" := by
-  simp [durationMs, h, hneg, throw, throwThe, MonadExceptOf.throw, bind, Except.bind]
+/-- A decoded period is `cv.time_period`'s, not negative
+(`positive_timedelta`), rounded up to whole ms. -/
+theorem durationMs_ok (v : Json) (ms : Nat) (h : durationMs v = .ok ms) :
+    ∃ us, cvTimePeriod (Template.Value.ofJson v) = .ok us ∧ 0 ≤ us ∧ ms = ((us + 999) / 1000).toNat := by
+  unfold durationMs at h
+  have tail : ∀ (x : Except String Int),
+      (match x with
+        | .error e => (throw s!"invalid time period {v.compress}: {e}" : D Nat)
+        | .ok us => if us < 0 then throw "negative time period" else pure ((us + 999) / 1000).toNat) = .ok ms →
+      ∃ us, x = .ok us ∧ 0 ≤ us ∧ ms = ((us + 999) / 1000).toNat := by
+    intro x hx
+    cases x with
+    | error e => simp [throw, throwThe, MonadExceptOf.throw] at hx
+    | ok us =>
+      by_cases hn : us < 0
+      · simp [hn, throw, throwThe, MonadExceptOf.throw] at hx
+      · simp only [hn, ↓reduceIte, pure, Except.pure, Except.ok.injEq] at hx
+        exact ⟨us, rfl, by omega, hx.symm⟩
+  cases v with
+  | null => simp [throw, throwThe, MonadExceptOf.throw, bind, Except.bind] at h
+  | arr a => simp [throw, throwThe, MonadExceptOf.throw, bind, Except.bind] at h
+  | str s =>
+    by_cases ht : Template.isTemplateString s = true
+    · simp [ht, throw, throwThe, MonadExceptOf.throw, bind, Except.bind] at h
+    · simp only [ht, Bool.false_eq_true, ↓reduceIte, bind, Except.bind, pure, Except.pure] at h
+      exact tail _ h
+  | bool b => exact tail _ h
+  | num n => exact tail _ h
+  | obj o => exact tail _ h
 
 /-- An optional period is absent exactly when its key is. -/
 theorem optDuration_none_iff (j : Json) (k : String) :
@@ -573,58 +612,38 @@ private theorem not_given (j : Json) (k : String) :
     · subst hv; simp
     · simp [hv]
 
-/-- The positive key wins: its values are matched as they are. -/
+/-- `process_state_match`: `None` and `MATCH_ALL` match everything. -/
+theorem processStateMatch_values_none_iff (v : Json) (i : Bool) :
+    (processStateMatch v i).values = none ↔ v = .null ∨ v = .str "*" := by
+  unfold processStateMatch
+  split <;> simp_all
+
+/-- `invert` is kept as given. -/
+theorem processStateMatch_invert (v : Json) (i : Bool) : (processStateMatch v i).invert = i := by
+  unfold processStateMatch; split <;> rfl
+
+/-- The positive key wins. -/
 theorem stateMatch_pos (j : Json) (pos neg : String) (v : Json)
     (h : field? j pos = some v) (hv : v ≠ .null) :
-    stateMatch j pos neg = { values := some (ensureList v), invert := false } := by
+    stateMatch j pos neg = processStateMatch v false := by
   unfold stateMatch
   rw [h]
   cases v <;> first | rfl | exact absurd rfl hv
 
-/-- Without the positive key, the negative key matches everything but its
-values. -/
+/-- Without the positive key, the negative key is matched inverted. -/
 theorem stateMatch_neg (j : Json) (pos neg : String) (v : Json)
     (hp : ¬ Given j pos) (h : field? j neg = some v) (hv : v ≠ .null) :
-    stateMatch j pos neg = { values := some (ensureList v), invert := true } := by
+    stateMatch j pos neg = processStateMatch v true := by
   unfold stateMatch
   rcases (not_given j pos).mp hp with hp | hp <;> rw [hp] <;> simp only [h] <;>
     cases v <;> first | rfl | exact absurd rfl hv
 
-/-- The match is MATCH_ALL exactly when neither key is given. -/
-theorem stateMatch_values_none_iff (j : Json) (pos neg : String) :
-    (stateMatch j pos neg).values = none ↔ ¬ Given j pos ∧ ¬ Given j neg := by
-  by_cases hp : Given j pos
-  · obtain ⟨v, h, hv⟩ := hp
-    rw [stateMatch_pos j pos neg v h hv]
-    simp only [reduceCtorEq, false_iff, not_and]
-    intro hc; exact absurd ⟨v, h, hv⟩ hc
-  · by_cases hn : Given j neg
-    · obtain ⟨v, h, hv⟩ := hn
-      rw [stateMatch_neg j pos neg v hp h hv]
-      simp only [reduceCtorEq, false_iff, not_and]
-      intro _ hc; exact hc ⟨v, h, hv⟩
-    · simp only [hp, hn, not_false_eq_true, and_self, iff_true]
-      unfold stateMatch
-      rcases (not_given j pos).mp hp with hp | hp <;>
-        rcases (not_given j neg).mp hn with hn | hn <;> rw [hp] <;> simp only [hn]
-
-/-- The match is inverted exactly when only the negative key is given. -/
-theorem stateMatch_invert_iff (j : Json) (pos neg : String) :
-    (stateMatch j pos neg).invert = true ↔ ¬ Given j pos ∧ Given j neg := by
-  by_cases hp : Given j pos
-  · obtain ⟨v, h, hv⟩ := hp
-    rw [stateMatch_pos j pos neg v h hv]
-    simp only [Bool.false_eq_true, false_iff, not_and]
-    intro hc; exact absurd ⟨v, h, hv⟩ hc
-  · by_cases hn : Given j neg
-    · obtain ⟨v, h, hv⟩ := hn
-      rw [stateMatch_neg j pos neg v hp h hv]
-      simp only [true_iff]
-      exact ⟨hp, v, h, hv⟩
-    · simp only [hp, hn, not_false_eq_true, and_false, iff_false, Bool.not_eq_true]
-      unfold stateMatch
-      rcases (not_given j pos).mp hp with hp | hp <;>
-        rcases (not_given j neg).mp hn with hn | hn <;> rw [hp] <;> simp only [hn]
+/-- Neither key given: MATCH_ALL. -/
+theorem stateMatch_none (j : Json) (pos neg : String) (hp : ¬ Given j pos) (hn : ¬ Given j neg) :
+    stateMatch j pos neg = {} := by
+  unfold stateMatch
+  rcases (not_given j pos).mp hp with hp | hp <;>
+    rcases (not_given j neg).mp hn with hn | hn <;> rw [hp] <;> simp only [hn]
 
 /-! ### `decodeTrigger` -/
 

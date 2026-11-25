@@ -73,14 +73,32 @@ theorem currentRepeat_none_iff (fs : List Frame) :
         · exact ⟨as, c, rfl⟩
         · exact h f hf
       · intro h f hf; exact h f (List.mem_cons_of_mem _ hf)
-    | repeatCount i n b c => simp [currentRepeat]
-    | repeatWhile i cs b c => simp [currentRepeat]
-    | repeatUntil i cs b c => simp [currentRepeat]
-    | repeatEach i items b c => simp [currentRepeat]
+    | repeatCount i n b c ov => simp [currentRepeat]
+    | repeatWhile i cs b c ov => simp [currentRepeat]
+    | repeatUntil i cs b c ov => simp [currentRepeat]
+    | repeatEach i items b c ov => simp [currentRepeat]
 
 /-- Inside a counted loop, `repeat` is that loop's, whatever encloses it. -/
 theorem currentRepeat_repeatCount (i n : Nat) (body : List Action) (c : Bool) (rest : List Frame) :
-    currentRepeat (.repeatCount i n body c :: rest) = some (repeatVar i (some n) none) := rfl
+    currentRepeat (.repeatCount i n body c none :: rest) = some (repeatVar i (some n) none) := rfl
+
+/-- A value assigned to `repeat` inside a loop is what the loop's steps see,
+until the next iteration (`ScriptRunVariables._assign` writes to the
+loop's scope). -/
+theorem currentRepeat_assign (v : Template.Value) (fs fs' : List Frame)
+    (h : assignRepeat v fs = some fs') : currentRepeat fs' = some v := by
+  induction fs generalizing fs' with
+  | nil => simp [assignRepeat] at h
+  | cons f rest ih =>
+    cases f with
+    | seq as c =>
+      simp only [assignRepeat, Option.map_eq_some_iff] at h
+      obtain ⟨fs'', h1, rfl⟩ := h
+      simp only [currentRepeat]; exact ih fs'' h1
+    | repeatCount => simp only [assignRepeat, Option.some.injEq] at h; subst h; rfl
+    | repeatWhile => simp only [assignRepeat, Option.some.injEq] at h; subst h; rfl
+    | repeatUntil => simp only [assignRepeat, Option.some.injEq] at h; subst h; rfl
+    | repeatEach => simp only [assignRepeat, Option.some.injEq] at h; subst h; rfl
 
 /-- The innermost loop wins: outer frames do not matter. -/
 theorem currentRepeat_innermost (f : Frame) (rest rest' : List Frame)
@@ -88,10 +106,10 @@ theorem currentRepeat_innermost (f : Frame) (rest rest' : List Frame)
     currentRepeat (f :: rest) = currentRepeat (f :: rest') := by
   cases f with
   | seq as c => exact absurd rfl (h as c)
-  | repeatCount i n b c => rfl
-  | repeatWhile i cs b c => rfl
-  | repeatUntil i cs b c => rfl
-  | repeatEach i items b c => rfl
+  | repeatCount i n b c ov => rfl
+  | repeatWhile i cs b c ov => rfl
+  | repeatUntil i cs b c ov => rfl
+  | repeatEach i items b c ov => rfl
 
 /-- A step always sees all of the run's variables; the only addition is
 `repeat`, in front. -/
@@ -390,27 +408,29 @@ theorem step_sub_done (ctx : ExecCtx) (r : Run) (c : Bool) (f : Frame) (rest : L
 /-- A counted loop that has iterations left starts its body as a fresh
 sub-script and counts the iteration. -/
 theorem step_repeatCount_iter (ctx : ExecCtx) (r : Run) (i n : Nat) (body : List Action) (c : Bool)
-    (rest : List Frame) (h : r.frames = .repeatCount i n body c :: rest) (hi : i < n) :
+    (ov : Option Template.Value) (rest : List Frame) (h : r.frames = .repeatCount i n body c ov :: rest)
+    (hi : i < n) :
     step ctx r =
-      (.next { r with frames := .seq body false :: .repeatCount (i + 1) n body c :: rest },
+      (.next { r with frames := .seq body false :: .repeatCount (i + 1) n body c none :: rest },
        [], ctx) := by
   unfold step
   simp only [h, hi, ite_true]
 
 /-- A counted loop that has done its `n` iterations is popped. -/
 theorem step_repeatCount_done (ctx : ExecCtx) (r : Run) (i n : Nat) (body : List Action) (c : Bool)
-    (rest : List Frame) (h : r.frames = .repeatCount i n body c :: rest) (hi : n ≤ i) :
+    (ov : Option Template.Value) (rest : List Frame) (h : r.frames = .repeatCount i n body c ov :: rest)
+    (hi : n ≤ i) :
     step ctx r = (.next { r with frames := rest }, [], ctx) := by
   unfold step
   simp only [h, Nat.not_lt.mpr hi, ite_false]
 
 /-- A `for_each` loop runs its body once per item, then is popped. -/
 theorem step_repeatEach (ctx : ExecCtx) (r : Run) (i : Nat) (items : List Template.Value)
-    (body : List Action) (c : Bool) (rest : List Frame)
-    (h : r.frames = .repeatEach i items body c :: rest) :
+    (body : List Action) (c : Bool) (ov : Option Template.Value) (rest : List Frame)
+    (h : r.frames = .repeatEach i items body c ov :: rest) :
     step ctx r =
       (if i < items.length then
-        .next { r with frames := .seq body false :: .repeatEach (i + 1) items body c :: rest }
+        .next { r with frames := .seq body false :: .repeatEach (i + 1) items body c none :: rest }
        else .next { r with frames := rest }, [], ctx) := by
   unfold step
   simp only [h]
@@ -418,9 +438,10 @@ theorem step_repeatEach (ctx : ExecCtx) (r : Run) (i : Nat) (items : List Templa
 
 /-- `repeat ... until` always runs its body once before testing. -/
 theorem step_repeatUntil_first (ctx : ExecCtx) (r : Run) (cs : List Condition) (body : List Action)
-    (c : Bool) (rest : List Frame) (h : r.frames = .repeatUntil 0 cs body c :: rest) :
+    (c : Bool) (ov : Option Template.Value) (rest : List Frame)
+    (h : r.frames = .repeatUntil 0 cs body c ov :: rest) :
     step ctx r =
-      (.next { r with frames := .seq body false :: .repeatUntil 1 cs body c :: rest }, [], ctx) := by
+      (.next { r with frames := .seq body false :: .repeatUntil 1 cs body c none :: rest }, [], ctx) := by
   unfold step
   simp only [h]
   rfl
@@ -428,7 +449,8 @@ theorem step_repeatUntil_first (ctx : ExecCtx) (r : Run) (cs : List Condition) (
 /-- A `while` loop with no conditions is stopped by the iteration limit
 (`REPEAT_TERMINATE_ITERATIONS`) rather than running for ever. -/
 theorem step_repeatWhile_limit (ctx : ExecCtx) (r : Run) (i : Nat) (body : List Action)
-    (c : Bool) (rest : List Frame) (h : r.frames = .repeatWhile i [] body c :: rest)
+    (c : Bool) (ov : Option Template.Value) (rest : List Frame)
+    (h : r.frames = .repeatWhile i [] body c ov :: rest)
     (hi : REPEAT_TERMINATE_ITERATIONS ≤ i) :
     (step ctx r).1 = .done (.aborted
       s!"While condition terminated because it looped {REPEAT_TERMINATE_ITERATIONS} times") := by
@@ -497,7 +519,7 @@ theorem step_repeatCount_start (ctx : ExecCtx) (r : Run) (n : Nat) (body : List 
     (as : List Action) (c : Bool) (rest : List Frame)
     (h : r.frames = .seq (.repeatCount n body :: as) c :: rest) :
     step ctx r =
-      (.next { r with frames := .repeatCount 0 n body false :: .seq as c :: rest }, [], ctx) := by
+      (.next { r with frames := .repeatCount 0 n body false none :: .seq as c :: rest }, [], ctx) := by
   unfold step
   simp only [h]
   simp [step.run]

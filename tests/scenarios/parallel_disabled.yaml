@@ -1,0 +1,24 @@
+# A `parallel` step whose branches are all disabled still gathers one task
+# per branch (each skips its disabled sequence), so the step after it runs
+# once the other callbacks of the event are done. Review item A13
+# (all-disabled `parallel`).
+automations:
+  - id: a
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - parallel:
+          - sequence: [{event: never}]
+            enabled: false
+          - {event: never, enabled: false}
+      - event: a_after
+  - id: b
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{event: b_done}]
+steps:
+  - at: 1
+    send: {type: event, event_type: go}
+    expect:
+      - {type: automation_triggered, id: a}
+      - {type: automation_triggered, id: b}
+      - {type: fire_event, event_type: b_done}
+      - {type: fire_event, event_type: a_after}

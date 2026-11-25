@@ -55,7 +55,7 @@ first theorem about whole executions of `Engine.step` is in
 | `runs_bounded` | start the engine with `init` (automations with `max ≥ 1`, no script entities) and feed it any inputs: a `single` or `restart` automation has at most one live run, a `queued` or `parallel` automation at most `max` (live = running or queued, `parallel` branches excluded) |
 | `Inv.step`, `Inv.steps` | the invariant behind it (no script entities, every automation within its bound) holds after any input and any sequence of inputs |
 | `HPres.engine` | every run handler (`drive`, `finishRun`, `releaseQueue`, `finishBranch`, `answer`, `continueNow`, `stopRun`, `cancelRun`, `startScript`, `callLocal`) keeps the invariant, at every nesting depth |
-| `Inv.admitted`, `Inv.restarted` | `triggerAutomation`'s admission keeps the bound: without `restart` one run is added below the bound; with `restart` the new run is added and every older run of the automation removed |
+| `Inv.admitted`, `Pres.restartRun` | `triggerAutomation`'s admission keeps the bound: without `restart` one run is added below the bound; with `restart` every older run of the automation is stopped first, then the new run is admitted again (HA adds it first; nothing outside the engine can tell the difference) |
 
 The bound needs `max ≥ 1`. HALean did not enforce that until the proof was
 attempted: the automation decoder took the JSON number's mantissa, so `max: 0`
@@ -86,8 +86,9 @@ first step, so it makes no service call, and the outside call returns `None`.
 HALean drove the removed run anyway, so it made a second `test.work` call for
 a run that no longer existed, and it answered the outside call `cancelled`.
 Now `Engine.starting` holds runs that were added but have not started. `stopRun`
-answers their callers `None`, and `startScript` drives its run only if the run
-is still live.
+answers their callers `None`, and the run, which starts only once the stop of
+the others is done (`PendingStart`, as HA awaits it), is driven only if it is
+still live.
 
 The proof needed the engine to be total. The ten mutually recursive run
 handlers take one another as a `Handlers` record, one level down; `handlers n`

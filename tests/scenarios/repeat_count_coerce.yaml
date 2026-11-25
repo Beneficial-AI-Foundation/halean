@@ -1,0 +1,26 @@
+# `repeat: count:` is `probatio.Any(probatio.Coerce(int), cv.template)`:
+# `2.0` and `2.7` are 2, `true` is 1, `"2.0"` is a template whose result
+# `int()` reads when the step runs. Review item A10.
+automations:
+  - id: r
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - repeat: {count: 2.0, sequence: [{event: a, event_data: {i: "{{ repeat.index }}"}}]}
+      - repeat: {count: 2.7, sequence: [{event: b, event_data: {i: "{{ repeat.index }}"}}]}
+      - repeat: {count: true, sequence: [{event: c, event_data: {i: "{{ repeat.index }}"}}]}
+      - repeat: {count: "2.0", sequence: [{event: d, event_data: {i: "{{ repeat.index }}"}}]}
+      - repeat: {count: " 2 ", sequence: [{event: e, event_data: {i: "{{ repeat.index }}"}}]}
+steps:
+  - at: 1
+    send: {type: event, event_type: go}
+    expect:
+      - {type: automation_triggered}
+      - {type: fire_event, event_type: a, data: {i: 1}}
+      - {type: fire_event, event_type: a, data: {i: 2}}
+      - {type: fire_event, event_type: b, data: {i: 1}}
+      - {type: fire_event, event_type: b, data: {i: 2}}
+      - {type: fire_event, event_type: c, data: {i: 1}}
+      - {type: fire_event, event_type: d, data: {i: 1}}
+      - {type: fire_event, event_type: d, data: {i: 2}}
+      - {type: fire_event, event_type: e, data: {i: 1}}
+      - {type: fire_event, event_type: e, data: {i: 2}}
