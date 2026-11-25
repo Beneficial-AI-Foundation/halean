@@ -1,0 +1,71 @@
+# random scenario, seed 202, index 104 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  variables: {v1: '{{ trigger.platform }}', v2: 0, v3: 0, v4: 0}
+  triggers:
+  - {trigger: template, value_template: '{{ states(''sensor.s1'') | int(0) > 3 }}'}
+  - {trigger: template, value_template: '{{ is_state(''input_boolean.b1'', ''on'') and is_state(''light.l1'', ''on'') }}'}
+  - {trigger: state, entity_id: light.l1}
+  actions:
+  - if:
+    - {condition: numeric_state, entity_id: sensor.s1, below: 15}
+    then:
+    - sequence:
+      - if:
+        - {condition: template, value_template: '{{ is_state(''input_boolean.b1'', ''on'') and is_state(''light.l1'', ''on'') }}'}
+        then:
+        - variables: {v1: '{{ states(''sensor.s1'') }}'}
+        - {delay: '{{ 1 }}'}
+        - variables:
+            v3: [a, '{{ 1 + 1 }}']
+        else:
+        - action: test.s1
+          data: {n: 1, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+          continue_on_error: true
+  - {action: test.s2}
+  - if:
+    - {condition: time, before: '22:13:30', enabled: false}
+    then:
+    - action: test.s3
+      data: {n: 3, v: '{{ [states(''light.l1''), states(''light.l2'')] }}'}
+    - variables: {v1: x}
+states:
+- {entity_id: sensor.s1, state: '1'}
+- {entity_id: sensor.s2, state: '12'}
+- {entity_id: light.l1, state: 'on'}
+- {entity_id: light.l2, state: 'off'}
+- entity_id: input_boolean.b1
+  state: 'off'
+  attributes: {lvl: 1}
+steps:
+- at: 0
+  set: [light.l1, 'off']
+  attributes: {lvl: 1}
+- at: 0
+  set: [light.l1, 'on']
+- at: 2
+  set: [sensor.s1, abc]
+- at: 5
+  send: {type: event, event_type: tick}
+- at: 6
+  send: {type: service_result, call_id: 0, ok: true}
+- at: 7
+  send:
+    type: event
+    event_type: e2
+    data: {k: a}
+- at: 10
+  send: {type: service_result, call_id: 1, ok: true}
+- at: 10
+  set: [input_boolean.b1, 'on']
+  attributes: {lvl: 2}
+- at: 11
+  send: {type: service_result, call_id: 2, ok: true}
+- at: 11
+  set: [light.l1, unavailable]
+- at: 11
+  set: [sensor.s1, unavailable]
+- at: 11
+  set: [sensor.s1, '4']
+  attributes: {lvl: 3}

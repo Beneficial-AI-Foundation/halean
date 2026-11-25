@@ -1,0 +1,95 @@
+# random scenario, seed 101, index 124 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: parallel
+  triggers:
+  - {trigger: numeric_state, entity_id: sensor.s1, below: 10, id: alpha}
+  conditions: ['{{ is_state(''light.l2'', ''off'') }}']
+  actions:
+  - event: m_1
+    event_data: {n: 1, v: '{{ trigger.platform }}'}
+  - action: test.s2
+    data: {n: 2, v: '{{ trigger.platform }}'}
+  - if:
+    - {condition: time, after: '22:00'}
+    - {condition: trigger, id: alpha}
+    then:
+    - event: m_3
+      event_data: {n: 3, v: '{{ now().second }}'}
+    - action: test.s4
+      data: {n: 4, v: '{{ now().second }}'}
+  - action: test.s5
+    data: {n: 5, v: '{{ states(''light.l1'') }}'}
+    target: {entity_id: '{{ trigger.entity_id | default(''light.l2'', true) }}'}
+  - {stop: s}
+- alias: a1
+  id: id1
+  triggers:
+  - trigger: event
+    event_type: e1
+    event_data: {k: true}
+    id: beta
+  - {trigger: time, at: '22:13:29'}
+  actions:
+  - event: m_6
+    event_data: {n: 6, v: '{{ [states(''light.l1''), states(''light.l2'')] }}'}
+  - {condition: template, value_template: '{{ states(''sensor.s1'') | int(0) > 10 }}'}
+states:
+- {entity_id: sensor.s1, state: '1'}
+- {entity_id: light.l1, state: unavailable}
+- entity_id: light.l2
+  state: 'off'
+  attributes: {lvl: 1}
+- entity_id: input_boolean.b1
+  state: unavailable
+  attributes: {lvl: 1}
+steps:
+- at: 3
+  send: {type: event, event_type: tick}
+- at: 6
+  set: [light.l2, unavailable]
+- at: 7
+  set: [sensor.s1, '1']
+  attributes: {lvl: 1}
+- at: 8
+  set: [light.l2, unavailable]
+  attributes: {lvl: 1}
+- at: 9
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 10
+  set: [input_boolean.b1, 'on']
+  attributes: {lvl: 2}
+- at: 13
+  set: [input_boolean.b1, 'on']
+- at: 15
+  send: {type: event, event_type: e3}
+- at: 18
+  send: {type: event, event_type: tick}
+- at: 19
+  send:
+    type: event
+    event_type: e1
+    data: {k: a}
+- at: 21
+  set: [light.l2, 'off']
+- at: 24
+  send:
+    type: event
+    event_type: e1
+    data: {k: a}
+- at: 25
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 26
+  send: {type: event, event_type: tick}
+- at: 27
+  set: [input_boolean.b1, 'on']
+  attributes: {lvl: 1}
+- at: 28
+  send: {type: event, event_type: tick}

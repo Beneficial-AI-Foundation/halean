@@ -1,0 +1,415 @@
+######## cases
+== act_delay_static_invalid
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'unit'], ['fire_event', 'm_unit', {}], ['automation_triggered', 'empty'], ['fire_event', 'm_empty', {}], ['automation_triggered', 'floathours'], ['automation_triggered', 'weeks'], ['fire_event', 'm_weeks', {}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'unit' could not be validated and has been disabled: not a valid option, did you mean 'seconds'? at 'actions[0].delay.secs'. Got 1
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'empty' could not be validated and has been disabled: offset {} should be format 'HH:MM', 'HH:MM:SS' or 'HH:MM:SS.F' at 'actions[0].delay'. Got {}
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'floathours' could not be validated and has been disabled: offset 0.5:00 should be format 'HH:MM', 'HH:MM:SS' or 'HH:MM:SS.F' at 'actions[0].delay'. Got '0.5:00'
+== act_delay_string_forms
+  step 1
+    HA:     [['automation_triggered', 's5'], ['automation_triggered', 'frac'], ['automation_triggered', 'bool'], ['automation_triggered', 'float']]
+    engine: [['automation_triggered', 's5'], ['automation_triggered', 'frac'], ['automation_triggered', 'float']]
+  step 2
+    HA:     [['fire_event', 'm_bool', {}], ['fire_event', 'm_float', {}]]
+    engine: []
+  step 3
+    HA:     [['fire_event', 'm_s2', {}], ['fire_event', 'm_frac', {}]]
+    engine: [['fire_event', 'm_s2', {}], ['fire_event', 'm_float', {}]]
+  step 4
+    HA:     []
+    engine: [['fire_event', 'm_frac', {}]]
+    engine: {"id": "?", "reason": "invalid time period: true", "type": "unsupported"}
+== act_repeat_count_float
+  step 1
+    HA:     [['automation_triggered', 'floatcount'], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}]]
+    engine: [['automation_triggered', 'floatcount'], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_25', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}], ['fire_event', 'm_30', {}]]
+== act_repeat_var_shadow
+  step 1
+    HA:     [['automation_triggered', 'shadow'], ['fire_event', 'm_in', {'r': 'mine'}], ['fire_event', 'm_in', {'r': 'mine'}], ['fire_event', 'm_out', {'defined': False}]]
+    engine: [['automation_triggered', 'shadow'], ['fire_event', 'm_in', {'r': {'first': True, 'index': 1, 'last': False}}], ['fire_event', 'm_in', {'r': {'first': False, 'index': 2, 'last': True}}], ['fire_event', 'm_out', {'defined': True}]]
+== act_stop_null
+  step 1
+    HA:     [['automation_triggered', 'stopnull'], ['fire_event', 'm_before', {}]]
+    engine: []
+    engine: {"id": "?", "reason": "action not supported: {\"stop\":null}", "type": "unsupported"}
+== cfg_both_trigger_keys
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'both_keys'], ['fire_event', 'm_both_keys', {}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'both_keys' could not be validated and has been disabled: Cannot specify both 'trigger' and 'triggers'. Please use 'triggers' only.. Got {'alias': 'both_keys', 'trigger': [{'trigger': 'event', 'event_type': 'e'}], 'triggers': [{'trigger': 'event', 'event_type': 'e'}], 'actions': [{'event': 'm_both_keys'}]}
+== cfg_duplicate_ids
+  step 1
+    HA:     [['automation_triggered', 'first'], ['fire_event', 'm_first', {}]]
+    engine: [['automation_triggered', 'first'], ['fire_event', 'm_first', {}], ['automation_triggered', 'second'], ['fire_event', 'm_second', {}]]
+    ha_log: ERROR homeassistant.components.automation: Platform automation does not generate unique IDs. ID same already exists - ignoring automation.first
+== cfg_initial_state_false
+  step 1
+    HA:     [['automation_triggered', 'on_at_start'], ['fire_event', 'm_on_at_start', {}]]
+    engine: [['automation_triggered', 'off_at_start'], ['fire_event', 'm_off_at_start', {}], ['automation_triggered', 'on_at_start'], ['fire_event', 'm_on_at_start', {}]]
+== cfg_missing_required
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'no_actions'], ['automation_triggered', 'choose_no_sequence'], ['fire_event', 'm_choose_no_sequence', {}], ['automation_triggered', 'if_no_then'], ['fire_event', 'm_if_no_then', {}], ['automation_triggered', 'repeat_no_sequence'], ['fire_event', 'm_repeat_no_sequence', {}], ['automation_triggered', 'choose_no_conditions'], ['fire_event', 'm_choose_no_conditions', {}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'no_actions' could not be validated and has been disabled: required key not provided at 'actions'. Got None
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'choose_no_sequence' could not be validated and has been disabled: required key not provided at 'actions[0].choose[0].sequence'. Got None
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'if_no_then' could not be validated and has been disabled: required key not provided at 'actions[0].then'. Got None
+== cfg_unknown_keys
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'action_extra'], ['fire_event', 'm_action_extra', {}], ['automation_triggered', 'trigger_extra'], ['fire_event', 'm_trigger_extra', {}], ['automation_triggered', 'condition_extra'], ['fire_event', 'm_condition_extra', {}], ['automation_triggered', 'automation_extra'], ['fire_event', 'm_automation_extra', {}], ['automation_triggered', 'two_actions_in_one']]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'action_extra' could not be validated and has been disabled: not a valid option at 'actions[0].foo'. Got 1
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'trigger_extra' failed to setup triggers and has been disabled: not a valid option at 'foo'. Got None
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'condition_extra' could not be validated and has been disabled: not a valid option at 'conditions[0].foo'. Got 1
+== coe_string_forms
+  step 2
+    HA:     [['fire_event', 'm_str', {}]]
+    engine: []
+  step 4
+    HA:     [['fire_event', 'm_int', {}]]
+    engine: []
+    engine: {"level": "error", "message": "Error while executing automation coestr: ", "type": "log"}
+    engine: {"level": "error", "message": "Error while executing automation coeint: ", "type": "log"}
+    ha_log: ERROR homeassistant.components.automation.coestr: coestr: Error executing script. Error for call_service at pos 1: failed
+    ha_log: ERROR homeassistant.components.automation.coeint: coeint: Error executing script. Error for call_service at pos 1: failed
+== cond_cache_same_text
+  step 1
+    HA:     [['automation_triggered', 'cache']]
+    engine: [['automation_triggered', 'cache'], ['fire_event', 'm_str_1', {}]]
+== cond_entity_uppercase
+  step 1
+    HA:     [['automation_triggered', 'upcond'], ['fire_event', 'm_upcond', {}]]
+    engine: []
+== cond_invalid_configs
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'badmatch'], ['fire_event', 'm_badmatch', {}], ['automation_triggered', 'nostate'], ['fire_event', 'm_nostate', {}], ['automation_triggered', 'noconds'], ['fire_event', 'm_noconds', {}], ['automation_triggered', 'badweekday'], ['fire_event', 'm_badweekday', {}], ['automation_triggered', 'noid'], ['fire_event', 'm_noid', {}], ['automation_triggered', 'boolstate'], ['fire_event', 'm_boolstate', {}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'badmatch' could not be validated and has been disabled: expected 'all' or 'any' at 'conditions[0].match'. Got 'some'
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'nostate' could not be validated and has been disabled: required key not provided at 'conditions[0].conditions[0].state'. Got None
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'noconds' could not be validated and has been disabled: required key not provided at 'conditions[0].conditions'. Got None
+== cond_numeric_no_bounds
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'nobounds'], ['fire_event', 'm_nobounds', {}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'nobounds' could not be validated and has been disabled: at least one of ['below', 'above'] is required at 'conditions[0]'. Got {'condition': 'numeric_state', 'entity_id': 'sensor.a'}
+== cond_state_attr_types
+  step 3
+    HA:     [['automation_triggered', 'attrcond'], ['fire_event', 'm_default', {}]]
+    engine: [['automation_triggered', 'attrcond'], ['fire_event', 'm_is_str1', {}]]
+  step 5
+    HA:     [['automation_triggered', 'attrcond'], ['fire_event', 'm_is_1', {}]]
+    engine: [['automation_triggered', 'attrcond'], ['fire_event', 'm_default', {}]]
+  step 7
+    HA:     [['automation_triggered', 'attrcond'], ['fire_event', 'm_is_1', {}]]
+    engine: [['automation_triggered', 'attrcond'], ['fire_event', 'm_default', {}]]
+== cond_time_empty
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'timeempty'], ['fire_event', 'm_timeempty', {}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'timeempty' could not be validated and has been disabled: at least one of ['before', 'after', 'weekday'] is required at 'conditions[0]'. Got {'condition': 'time'}
+== ev_type_list_and_dup
+  step 1
+    HA:     [['automation_triggered', 'evlist'], ['fire_event', 'm_evlist', {'t': 'e1', 'd': 1}], ['automation_triggered', 'evlist'], ['fire_event', 'm_evlist', {'t': 'e1', 'd': 1}]]
+    engine: [['automation_triggered', 'evlist'], ['fire_event', 'm_evlist', {'d': 1, 't': 'e1'}]]
+== mode_restart_other_automation_order
+  step 2
+    HA:     [['automation_triggered', 'other'], ['fire_event', 'm_other', {}], ['automation_triggered', 'rst'], ['fire_event', 'm_rst', {}]]
+    engine: [['automation_triggered', 'rst'], ['fire_event', 'm_rst', {}], ['automation_triggered', 'other'], ['fire_event', 'm_other', {}]]
+== mode_restart_other_automation_state
+  step 4
+    HA:     [['call_service', 'test', 'other', {}], ['automation_triggered', 'other'], ['automation_triggered', 'rst'], ['call_service', 'test', 'rst', {}]]
+    engine: [['automation_triggered', 'rst'], ['call_service', 'test', 'rst', {}], ['automation_triggered', 'other'], ['call_service', 'test', 'other', {}]]
+== mode_restart_parallel_not_started
+  step 1
+    HA:     [['automation_triggered', 'rstpar'], ['fire_event', 'm_a', {'id': 'first'}], ['fire_event', 'm_b', {'id': 'first'}], ['automation_triggered', 'rstpar'], ['fire_event', 'm_a', {'id': 'second'}], ['fire_event', 'm_b', {'id': 'second'}]]
+    engine: [['automation_triggered', 'rstpar'], ['automation_triggered', 'rstpar'], ['fire_event', 'm_a', {'id': 'second'}], ['fire_event', 'm_b', {'id': 'second'}]]
+== mode_restart_two_triggers
+  step 2
+    HA:     [['automation_triggered', 'rst'], ['automation_triggered', 'rst'], ['fire_event', 'm_step', {'id': 'second'}]]
+    engine: [['automation_triggered', 'rst'], ['fire_event', 'm_step', {'id': 'first'}], ['automation_triggered', 'rst'], ['fire_event', 'm_step', {'id': 'second'}]]
+== num_above_gt_below
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'abovebelow'], ['fire_event', 'm_abovebelow', {}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'abovebelow' failed to setup triggers and has been disabled: A value can never be above 10.0 and below 5.0 at the same time. You probably want two different triggers.. Got {'alias': 'abovebelow', 'triggers': [{'entity_id': 'sensor.t', 'above': 10, 'below': 5, 'platform': 'numeric_state'}, {'event_type': 'go', 'platform': 'event'}], '
+== num_bound_entity_domain
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'bounddomain'], ['fire_event', 'm_bounddomain', {}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'bounddomain' failed to setup triggers and has been disabled: expected float at 'above'. Got None
+== num_float_strings
+  step 5
+    HA:     [['automation_triggered', 'floats'], ['fire_event', 'm_floats', {'s': '1_1'}]]
+    engine: []
+  step 16
+    HA:     [['automation_triggered', 'floats'], ['fire_event', 'm_floats', {'s': 12}]]
+    engine: []
+    engine: {"level": "warning", "message": "Error in numeric_state trigger: entity sensor.t state '\"1_1\"' cannot be processed as a number", "type": "log"}
+    engine: {"level": "warning", "message": "Error in numeric_state trigger: entity sensor.t state '\"0x20\"' cannot be processed as a number", "type": "log"}
+    engine: {"level": "warning", "message": "Error in numeric_state trigger: entity sensor.t state '\"\uff11\uff12\"' cannot be processed as a number", "type": "log"}
+    ha_log: WARNING homeassistant.components.homeassistant.triggers.numeric_state: Error in 'floats' trigger: In 'numeric_state' condition: entity sensor.t state '0x20' cannot be processed as a number
+== par_list_branch
+  step 1
+    HA:     [['automation_triggered', 'parlist'], ['fire_event', 'm_a1', {}], ['fire_event', 'm_a2', {}], ['fire_event', 'm_b', {}], ['fire_event', 'm_after', {}]]
+    engine: []
+    engine: {"id": "?", "reason": "action not supported: [{\"event\":\"m_a1\"},{\"event\":\"m_a2\"}]", "type": "unsupported"}
+== state_attr_bool_int
+  step 1
+    HA:     [['automation_triggered', 'attr1'], ['fire_event', 'm_attr1', {}]]
+    engine: []
+== state_attr_int_float_same
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'attrsame'], ['fire_event', 'm_attrsame', {}]]
+  step 2
+    HA:     []
+    engine: [['automation_triggered', 'attrsame'], ['fire_event', 'm_attrsame', {}]]
+== state_entity_duplicate
+  step 1
+    HA:     [['automation_triggered', 'dupent'], ['fire_event', 'm_dupent', {}], ['automation_triggered', 'dupent'], ['fire_event', 'm_dupent', {}]]
+    engine: [['automation_triggered', 'dupent'], ['fire_event', 'm_dupent', {}]]
+== state_entity_uppercase
+  step 1
+    HA:     [['automation_triggered', 'upper'], ['fire_event', 'm_upper', {}]]
+    engine: []
+== state_from_and_not_from
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'excl'], ['fire_event', 'm_excl', {}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'excl' failed to setup triggers and has been disabled: two or more values in the same group of exclusion 'from' at '<from>'. Got None
+== state_invalid_entity_id
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'badid'], ['fire_event', 'm_badid', {}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'badid' failed to setup triggers and has been disabled: Entity notanentity is neither a valid entity ID nor a valid UUID at 'entity_id'. Got None
+== state_not_to_star
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'notstar'], ['fire_event', 'm_notstar', {}]]
+  step 3
+    HA:     []
+    engine: [['automation_triggered', 'notstar'], ['fire_event', 'm_notstar', {}]]
+== state_to_star
+  step 1
+    HA:     [['automation_triggered', 'star'], ['fire_event', 'm_star', {}]]
+    engine: []
+== state_to_yaml_bool
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'boolto'], ['fire_event', 'm_boolto', {}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'boolto' failed to setup triggers and has been disabled: expected str at 'to'. Got None
+== svc_data_merge
+  step 2
+    HA:     [['call_service', 'test', 'eid', {'entity_id': ['light.c'], 'device_id': ['d1']}]]
+    engine: [['call_service', 'test', 'eid', {'device_id': ['d1'], 'entity_id': ['light.from_data']}]]
+== svc_response_none
+  step 2
+    HA:     []
+    engine: [['fire_event', 'm_after', {}]]
+    ha_log: ERROR homeassistant.components.automation.respnone: respnone: Error executing script. Error for call_service at pos 1: Failed to process the returned action response data, expected a dictionary, but got <class 'NoneType'>
+    ha_log: ERROR homeassistant.components.automation.respnone: Error while executing automation automation.respnone: Failed to process the returned action response data, expected a dictionary, but got <class 'NoneType'>
+== svc_target_over_data
+  step 1
+    HA:     [['automation_triggered', 'tod'], ['call_service', 'test', 'tod', {'entity_id': ['light.from_target'], 'v': 1}]]
+    engine: [['automation_triggered', 'tod'], ['call_service', 'test', 'tod', {'entity_id': ['light.from_data'], 'v': 1}]]
+== time_at_load_second
+  step 1
+    HA:     [['automation_triggered', 'atload'], ['fire_event', 'm_atload', {}]]
+    engine: []
+== time_duplicate_at
+  step 2
+    HA:     [['automation_triggered', 'dupat'], ['fire_event', 'm_dupat', {}], ['automation_triggered', 'dupat'], ['fire_event', 'm_dupat', {}]]
+    engine: [['automation_triggered', 'dupat'], ['fire_event', 'm_dupat', {}]]
+== time_two_triggers_same_time
+  step 1
+    HA:     [['automation_triggered', 'twotime'], ['fire_event', 'm_twotime', {'id': 'b'}], ['automation_triggered', 'twotime'], ['fire_event', 'm_twotime', {'id': 'a'}]]
+    engine: [['automation_triggered', 'twotime'], ['fire_event', 'm_twotime', {'id': 'a'}], ['automation_triggered', 'twotime'], ['fire_event', 'm_twotime', {'id': 'b'}]]
+== time_weekday_invalid
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'wd_bad'], ['fire_event', 'm_wd_bad', {}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'wd_bad' failed to setup triggers and has been disabled: value must be one of ['fri', 'mon', 'sat', 'sun', 'thu', 'tue', 'wed'] at 'weekday[0]'. Got None
+== timer_same_tick_delay_vs_pattern
+  step 2
+    HA:     []
+    engine: [['automation_triggered', 'tick'], ['fire_event', 'm_run', {'p': 'time_pattern'}]]
+    ha_log: WARNING homeassistant.components.automation.tick: tick: Already running
+== tmpl_context_variable
+  step 1
+    HA:     [['automation_triggered', 'ctx'], ['fire_event', 'm_ctx', {'d': True}]]
+    engine: []
+    engine: {"id": "?", "reason": "template uses 'context', which HALean does not support", "type": "unsupported"}
+== tmpl_undefined_variable
+  step 1
+    HA:     [['automation_triggered', 'undef'], ['fire_event', 'm_undef', {'v': 'fallback', 'd': False}]]
+    engine: []
+    engine: {"id": "?", "reason": "template uses 'nothing_defines_me', which HALean does not support", "type": "unsupported"}
+== tooling_noop_set
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'noop'], ['fire_event', 'm_noop', {}]]
+== tooling_walk_actions_mapping
+  step 1
+    HA:     [['automation_triggered', 'mapping']]
+    engine: [['automation_triggered', 'mapping'], ['call_service', 'test', 'single', {'v': 1}]]
+    ha_log: ERROR homeassistant.components.automation.mapping: mapping: Error executing script. Service not found for call_service at pos 1: Action test.single not found
+== tp_every_n_seconds
+  step 1
+    HA:     [['automation_triggered', 'every5'], ['fire_event', 'm_every5', {'s': 21}]]
+    engine: []
+== tp_number_forms
+  step 2
+    HA:     [['automation_triggered', 'spaces'], ['fire_event', 'm_spaces', {}]]
+    engine: []
+  step 3
+    HA:     [['automation_triggered', 'plus'], ['fire_event', 'm_plus', {}]]
+    engine: []
+  step 4
+    HA:     [['automation_triggered', 'float'], ['fire_event', 'm_float', {}]]
+    engine: []
+    engine: {"id": "?", "reason": "bad seconds", "type": "unsupported"}
+    engine: {"id": "?", "reason": "bad seconds", "type": "unsupported"}
+    engine: {"id": "?", "reason": "bad seconds", "type": "unsupported"}
+== trigger_id_int
+  step 1
+    HA:     []
+    engine: [['automation_triggered', 'intid'], ['fire_event', 'm_intid', {'id': 0}]]
+    ha_log: ERROR homeassistant.components.automation: Automation with alias 'intid' could not be validated and has been disabled: expected str at 'triggers[0].id'. Got 7
+== trigger_nested_list
+  step 1
+    HA:     [['automation_triggered', 'nestedtr'], ['fire_event', 'm_nestedtr', {'idx': 0}]]
+    engine: []
+  step 2
+    HA:     [['automation_triggered', 'nestedtr'], ['fire_event', 'm_nestedtr', {'idx': 1}]]
+    engine: []
+  step 3
+    HA:     [['automation_triggered', 'nestedtr'], ['fire_event', 'm_nestedtr', {'idx': 2}]]
+    engine: []
+    engine: {"id": "?", "reason": "trigger platform '' is not supported", "type": "unsupported"}
+######## s101
+== r101_148
+  step 3
+    HA:     []
+    engine: [['automation_triggered', 'a0'], ['fire_event', 'm_1', {}], ['fire_event', 'm_2', {'n': 2, 'v': 'time pattern'}]]
+    ha_log: WARNING homeassistant.components.automation.a0: a0: Already running
+######## s202
+== r202_090
+  step 6
+    HA:     [['automation_triggered', 'a0'], ['call_service', 'test', 's9', {'n': 9, 'v': 0}], ['automation_triggered', 'a0'], ['automation_triggered', 'a0'], ['call_service', 'test', 's9', {'n': 9, 'v': 2}]]
+    engine: [['automation_triggered', 'a0'], ['automation_triggered', 'a0'], ['automation_triggered', 'a0'], ['call_service', 'test', 's9', {'n': 9, 'v': 2}]]
+  step 10
+    HA:     [['fire_event', 'm_10', {'n': 10, 'v': 1, 'var': 'x'}]]
+    engine: [['call_service', 'test', 's6', {'entity_id': ['light.l1'], 'n': 6, 'v': 20}]]
+    ha_log: ERROR homeassistant.components.automation.a0: a0: Parallel action at step 1: parallel 1: Parallel action at step 2: parallel 2: If at step 1: Error executing script. Invalid data for call_service at pos 2: invalid
+    ha_log: ERROR homeassistant.components.automation.a0: a0: Parallel action at step 1: parallel 1: Parallel action at step 2: parallel 2: Error executing script. Invalid data for if at pos 1: invalid
+    ha_log: ERROR homeassistant.components.automation.a0: a0: Parallel action at step 1: parallel 1: Error executing script. Invalid data for parallel at pos 2: invalid
+== r202_201
+  step 8
+    HA:     [['fire_event', 'm_4', {}], ['fire_event', 'm_4', {}], ['fire_event', 'm_5', {}], ['call_service', 'test', 's7', {'n': 7, 'v': 0, 'entity_id': ['light.l2']}]]
+    engine: [['fire_event', 'm_4', {}], ['fire_event', 'm_5', {}], ['call_service', 'test', 's7', {'entity_id': ['light.l2'], 'n': 7, 'v': 0}], ['fire_event', 'm_4', {}]]
+######## s303
+== r303_027
+  step 7
+    HA:     [['automation_triggered', 'a1'], ['automation_triggered', 'a0'], ['call_service', 'test', 's2', {'n': 2, 'v': 1}]]
+    engine: [['automation_triggered', 'a0'], ['call_service', 'test', 's2', {'n': 2, 'v': 1}], ['automation_triggered', 'a1']]
+    ha_log: ERROR homeassistant.components.automation.a0: a0: Error executing script. Error for call_service at pos 2: Failed to process the returned action response data, expected a dictionary, but got <class 'NoneType'>
+    ha_log: ERROR homeassistant.components.automation.a0: Error while executing automation automation.a0: Failed to process the returned action response data, expected a dictionary, but got <class 'NoneType'>
+== r303_032
+  step 11
+    HA:     [['automation_triggered', 'a0'], ['automation_triggered', 'a1'], ['fire_event', 'm_11', {'n': 11, 'v': 0}], ['fire_event', 'm_14', {'n': 14, 'v': ['on', 'unavailable']}], ['call_service', 'test', 's9', {'n': 9, 'v': 35}], ['fire_event', 'm_14', {'n': 14, 'v': ['on', 'unavailable']}], ['automation_triggered', 'a1'], ['fire_event', 'm_11', {'n': 11, 'v': 'beta'}], ['fire_event', 'm_14', {'n': 14, 'v': ['on', 'unavailable']}], ['fire_event', 'm_14', {'n': 14, 'v': ['on', 'unavailable']}], ['automation_triggered', 'a0'], ['call_service', 'test', 's9', {'n': 9, 'v': 35}]]
+    engine: [['automation_triggered', 'a0'], ['automation_triggered', 'a0'], ['automation_triggered', 'a1'], ['fire_event', 'm_11', {'n': 11, 'v': 0}], ['fire_event', 'm_14', {'n': 14, 'v': ['on', 'unavailable']}], ['fire_event', 'm_14', {'n': 14, 'v': ['on', 'unavailable']}], ['automation_triggered', 'a1'], ['fire_event', 'm_11', {'n': 11, 'v': 'beta'}], ['fire_event', 'm_14', {'n': 14, 'v': ['on', 'unavailable']}], ['fire_event', 'm_14', {'n': 14, 'v': ['on', 'unavailable']}], ['call_service', 'test', 's9', {'n': 9, 'v': 35}]]
+  step 14
+    HA:     [['automation_triggered', 'a1'], ['fire_event', 'm_11', {'n': 11, 'v': 'beta'}], ['fire_event', 'm_14', {'n': 14, 'v': ['off', 'unavailable']}], ['fire_event', 'm_14', {'n': 14, 'v': ['off', 'unavailable']}], ['automation_triggered', 'a0']]
+    engine: [['automation_triggered', 'a0'], ['automation_triggered', 'a1'], ['fire_event', 'm_11', {'n': 11, 'v': 'beta'}], ['fire_event', 'm_14', {'n': 14, 'v': ['off', 'unavailable']}], ['fire_event', 'm_14', {'n': 14, 'v': ['off', 'unavailable']}]]
+== r303_035
+  step 13
+    HA:     [['fire_event', 'm_21', {'n': 21, 'completed': False, 'trig': 'none'}], ['call_service', 'test', 's23', {}], ['automation_triggered', 'a0']]
+    engine: [['fire_event', 'm_21', {'completed': False, 'n': 21, 'trig': 'none'}], ['call_service', 'test', 's24', {'n': 24, 'v': 'state of light.l1'}], ['automation_triggered', 'a0']]
+  step 14
+    HA:     [['call_service', 'test', 's24', {'n': 24, 'v': 'state of light.l1'}]]
+    engine: [['call_service', 'test', 's25', {'n': 25, 'v': 36}]]
+    ha_log: ERROR homeassistant.components.automation.a1: a1: Choose at step 1: default: Error executing script. Error for call_service at pos 1: Failed to process the returned action response data, expected a dictionary, but got <class 'NoneType'>
+    ha_log: ERROR homeassistant.components.automation.a2: a2: Choose at step 1: choice 1: Error executing script. Error for call_service at pos 1: Failed to process the returned action response data, expected a dictionary, but got <class 'NoneType'>
+    ha_log: ERROR homeassistant.components.automation.a1: a1: Error executing script. Error for choose at pos 1: Failed to process the returned action response data, expected a dictionary, but got <class 'NoneType'>
+== r303_037
+  step 13
+    HA:     [['call_service', 'test', 's4', {}], ['automation_triggered', 'a0'], ['fire_event', 'm_1', {'n': 1, 'v': 8}], ['fire_event', 'm_2', {'n': 2, 'v': 'state of light.l1'}], ['automation_triggered', 'a2'], ['automation_triggered', 'a1'], ['call_service', 'test', 's4', {}]]
+    engine: [['call_service', 'test', 's4', {}], ['automation_triggered', 'a0'], ['automation_triggered', 'a1'], ['call_service', 'test', 's4', {}], ['automation_triggered', 'a2'], ['fire_event', 'm_1', {'n': 1, 'v': 8}], ['fire_event', 'm_2', {'n': 2, 'v': 'state of light.l1'}]]
+    engine: {"level": "error", "message": "Error while executing automation a1: ", "type": "log"}
+    ha_log: ERROR homeassistant.components.automation.a1: a1: If at step 1: Repeat at step 2: Error executing script. Error for call_service at pos 1: failed
+    ha_log: ERROR homeassistant.components.automation.a1: a1: If at step 1: Error executing script. Error for repeat at pos 2: failed
+    ha_log: ERROR homeassistant.components.automation.a1: a1: Error executing script. Error for if at pos 1: failed
+== r303_058
+  step 12
+    HA:     [['fire_event', 'm_7', {'n': 7, 'completed': False, 'trig': 'none'}], ['fire_event', 'm_7', {'n': 7, 'completed': False, 'trig': 'none'}], ['fire_event', 'm_8', {'n': 8, 'v': 7.5}]]
+    engine: [['fire_event', 'm_7', {'completed': False, 'n': 7, 'trig': 'none'}], ['fire_event', 'm_8', {'n': 8, 'v': 7.5}], ['fire_event', 'm_7', {'completed': False, 'n': 7, 'trig': 'none'}]]
+    engine: {"level": "error", "message": "Error while executing automation a0: ", "type": "log"}
+    engine: {"level": "error", "message": "Error while executing automation a0: ", "type": "log"}
+    engine: {"level": "error", "message": "Error while executing automation a0: ", "type": "log"}
+    ha_log: ERROR homeassistant.components.automation.a0: a0: Error executing script. Unexpected error for call_service at pos 1: other
+    ha_log: ERROR homeassistant.components.automation.a0: Unexpected error while executing automation automation.a0
+    ha_log: ERROR homeassistant.components.automation.a0: a0: Error executing script. Error for call_service at pos 1: failed
+== r303_069
+  step 18
+    HA:     [['fire_event', 'm_2', {}], ['fire_event', 'm_3', {'n': 3, 'v': 'state of light.l1'}], ['fire_event', 'm_2', {}]]
+    engine: [['fire_event', 'm_3', {'n': 3, 'v': 'state of light.l1'}], ['fire_event', 'm_2', {}], ['fire_event', 'm_2', {}]]
+    ha_log: WARNING homeassistant.components.automation.a0: a0: Error in 'choose[0]' evaluation: In 'not' (item 2 of 3):
+  In 'or' (item 1 of 2):
+    In 'numeric_state':
+      In 'numeric_state' condition: entity sensor.s2 state 'abc' cannot be processed as a number
+  In 'or' (item 2 of 2):
+    In 'numeric_state':
+      In 'numeric_state' condition: entity sensor.s1 state 'abc' cannot be processed as a number
+    ha_log: WARNING homeassistant.components.automation.a0: a0: Error in 'choose[0]' evaluation: In 'not' (item 2 of 3):
+  In 'or' (item 1 of 2):
+    In 'numeric_state':
+      In 'numeric_state' condition: entity sensor.s2 state 'abc' cannot be processed as a number
+  In 'or' (item 2 of 2):
+    In 'numeric_state':
+      In 'numeric_state' condition: entity sensor.s1 state 'abc' cannot be processed as a number
+    ha_log: WARNING homeassistant.components.automation.a0: a0: Error in 'choose[0]' evaluation: In 'not' (item 2 of 3):
+  In 'or' (item 1 of 2):
+    In 'numeric_state':
+      In 'numeric_state' condition: entity sensor.s2 state 'abc' cannot be processed as a number
+  In 'or' (item 2 of 2):
+    In 'numeric_state':
+      In 'numeric_state' condition: entity sensor.s1 state 'abc' cannot be processed as a number
+== r303_097
+  step 6
+    HA:     [['automation_triggered', 'a1'], ['automation_triggered', 'a0']]
+    engine: [['automation_triggered', 'a0'], ['automation_triggered', 'a1']]
+  step 18
+    HA:     [['automation_triggered', 'a1'], ['automation_triggered', 'a0']]
+    engine: [['automation_triggered', 'a0'], ['automation_triggered', 'a1']]
+== r303_126
+  step 6
+    HA:     [['automation_triggered', 'a1'], ['fire_event', 'm_9', {'n': 9, 'v': 'state'}], ['automation_triggered', 'a1'], ['fire_event', 'm_9', {'n': 9, 'v': 'state'}]]
+    engine: [['automation_triggered', 'a1'], ['automation_triggered', 'a1'], ['fire_event', 'm_9', {'n': 9, 'v': 'state'}]]
+== r303_136
+  step 10
+    HA:     []
+    engine: [['fire_event', 'm_2', {'completed': True, 'n': 2, 'trig': 'state'}], ['fire_event', 'm_1', {}]]
+== r303_160
+  step 16
+    HA:     [['automation_triggered', 'a1'], ['fire_event', 'm_12', {'n': 12, 'v': 4}], ['fire_event', 'm_13', {}], ['call_service', 'test', 's14', {'n': 14, 'v': 4}], ['automation_triggered', 'a0'], ['call_service', 'test', 's2', {'n': 2, 'v': 4, 'entity_id': ['light.l1', 'light.l2']}]]
+    engine: [['automation_triggered', 'a0'], ['call_service', 'test', 's2', {'entity_id': ['light.l1', 'light.l2'], 'n': 2, 'v': 4}], ['automation_triggered', 'a1'], ['fire_event', 'm_12', {'n': 12, 'v': 4}], ['fire_event', 'm_13', {}], ['call_service', 'test', 's14', {'n': 14, 'v': 4}]]
+  step 18
+    HA:     []
+    engine: [['fire_event', 'm_3', {'n': 3, 'v': 2}], ['call_service', 'test', 's2', {'entity_id': ['light.l1', 'light.l2'], 'n': 2, 'v': 1}]]
+  step 23
+    HA:     [['call_service', 'test', 's2', {'n': 2, 'v': 12, 'entity_id': ['light.l1', 'light.l2']}]]
+    engine: []
+    engine: {"level": "warning", "message": "a2: Maximum number of runs exceeded", "type": "log"}
+    engine: {"level": "warning", "message": "a2: Maximum number of runs exceeded", "type": "log"}
+    engine: {"level": "warning", "message": "a2: Maximum number of runs exceeded", "type": "log"}
+    engine: {"level": "warning", "message": "a2: Maximum number of runs exceeded", "type": "log"}
+    ha_log: WARNING homeassistant.components.automation.a2: a2: Maximum number of runs exceeded
+    ha_log: WARNING homeassistant.components.automation.a2: a2: Maximum number of runs exceeded
+    ha_log: WARNING homeassistant.components.automation.a2: a2: Maximum number of runs exceeded
+== r303_188
+  step 21
+    HA:     [['automation_triggered', 'a1'], ['automation_triggered', 'a2'], ['automation_triggered', 'a1']]
+    engine: [['automation_triggered', 'a1'], ['automation_triggered', 'a1'], ['automation_triggered', 'a2']]
+  step 24
+    HA:     [['call_service', 'test', 's3', {'n': 3, 'v': 13}], ['fire_event', 'm_5', {'n': 5, 'v': 8}], ['automation_triggered', 'a2'], ['automation_triggered', 'a1'], ['automation_triggered', 'a1']]
+    engine: [['call_service', 'test', 's3', {'n': 3, 'v': 13}], ['fire_event', 'm_5', {'n': 5, 'v': 8}], ['automation_triggered', 'a1'], ['automation_triggered', 'a1'], ['automation_triggered', 'a2']]

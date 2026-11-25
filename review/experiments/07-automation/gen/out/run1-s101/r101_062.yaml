@@ -1,0 +1,59 @@
+# random scenario, seed 101, index 62 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: parallel
+  max: 3
+  triggers:
+  - {trigger: state, entity_id: light.l2, id: beta}
+  - {trigger: time, at: '22:13:33'}
+  - trigger: state
+    entity_id: sensor.s2
+    from: [abc, unknown]
+  conditions:
+  - condition: state
+    entity_id: sensor.s1
+    state: unknown
+    for: {seconds: 1}
+  actions:
+  - condition: time
+    before: 06:00
+    weekday: [wed, mon]
+  - {wait_template: '{{ trigger.id == ''0'' }}', timeout: 0}
+  - event: m_1
+    event_data: {n: 1, completed: '{{ wait.completed }}'}
+states:
+- {entity_id: sensor.s1, state: unknown}
+- {entity_id: sensor.s2, state: unknown}
+- {entity_id: light.l1, state: 'on'}
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: 'on'}
+steps:
+- at: 1
+  send: {type: event, event_type: tick}
+- at: 2
+  send: {type: event, event_type: tick}
+- at: 5
+  send: {type: event, event_type: tick}
+- at: 6
+  send: {type: event, event_type: tick}
+- at: 6
+  send:
+    type: event
+    event_type: e1
+    data: {k: a}
+- at: 8
+  set: [sensor.s1, '4']
+- at: 10
+  set: [sensor.s1, '7.5']
+- at: 11
+  set: [sensor.s2, '1']
+- at: 12
+  set: [input_boolean.b1, 'off']
+- at: 13
+  set: [light.l1, unavailable]
+- at: 13
+  set: [sensor.s1, unavailable]
+- at: 14
+  set: [light.l2, 'on']
+  attributes: {lvl: 1}

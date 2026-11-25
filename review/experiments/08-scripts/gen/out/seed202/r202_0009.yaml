@@ -1,0 +1,130 @@
+description: random scenario seed=202 index=9
+scripts:
+  s0:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - delay: 1
+      - action: test.m
+        data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+        response_variable: r
+  s2:
+    icon: mdi:script
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - event: mark
+        event_data:
+          id: s2.2
+          v: '{{ v | default(0) }}'
+      else:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - event: mark
+          event_data:
+            id: s2.3
+            v: '{{ v | default(0) }}'
+            this: '{{ this.state }}/{{ this.attributes.current }}'
+        else:
+        - action: script.turn_off
+          target:
+            entity_id: script.s2
+    - parallel:
+      - sequence:
+        - event: mark
+          event_data:
+            id: s2.4
+            v: '{{ v | default(0) }}'
+        - event: mark
+          event_data:
+            id: s2.5
+            v: '{{ v | default(0) }}'
+            st: '{{ states(''script.s2'') }}'
+            cur: '{{ state_attr(''script.s2'', ''current'') }}'
+      - sequence:
+        - delay: 1
+steps:
+- at: 1
+  call: s0
+  data:
+    v: 3
+- at: 4
+  call: s1
+  return_response: true
+- at: 5
+  call: s2
+  data:
+    v: 2
+- at: 5
+  result: 0
+  ok: false
+  error_kind: ha_error
+- at: 6
+  result: 1
+  response:
+    n: 1
+- at: 7
+  call: s2
+  data:
+    v: 1
+- at: 7
+  call: s0
+  return_response: true
+- at: 8
+  call: s2
+- at: 8
+  call: s0
+  return_response: true
+- at: 8
+  call: s2
+- at: 9
+- at: 9
+  call: s2
+  data:
+    v: 0
+  return_response: true
+- at: 10
+  call: s2
+  data:
+    v: 0
+  return_response: true
+- at: 10

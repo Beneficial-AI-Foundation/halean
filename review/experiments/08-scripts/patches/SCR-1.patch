@@ -1,0 +1,19 @@
+diff --git a/HALean/Script/Entity.lean b/HALean/Script/Entity.lean
+index 7a7cdee..02f4276 100644
+--- a/HALean/Script/Entity.lean
++++ b/HALean/Script/Entity.lean
+@@ -203,6 +203,14 @@ def planCall (scripts : List ScriptEntity) (running : Nat → Bool) (service : S
+         | none => pure []
+         | some v@(.obj _) => pure (jsonVars v)
+         | some _ => return [.fail .invalid "expected a dictionary for dictionary value @ data['variables']"]
++      -- `cv.comp_entity_ids` is part of the schema: a bad entity id is a `vol.Invalid`
++      -- (a string, a list or `None`; other scalars are a `TypeError` in `entity_ids`)
++      if let some v := field? data "entity_id" then
++        let checked := match v with
++          | .str _ | .arr _ | .null => true
++          | _ => false
++        if checked then
++          if let .error m := compEntityIds v then return [.fail .invalid m]
+       match extractTargets scripts data with
+       | .error m => return [.fail .other m]
+       | .ok targets =>

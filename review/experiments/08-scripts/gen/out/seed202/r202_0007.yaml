@@ -1,0 +1,140 @@
+description: random scenario seed=202 index=7
+scripts:
+  s0:
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - delay: 2
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      else:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s1'') }}'
+        cur: '{{ state_attr(''script.s1'', ''current'') }}'
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s1:
+    alias: Script 1 B
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+  s2:
+    icon: mdi:script
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - variables:
+        out:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+    - action: test.m
+      data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+  s3:
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - variables:
+        out:
+          id: s3.5
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+    - delay: 1
+steps:
+- at: 1
+  call: s0
+  data:
+    v: 4
+  return_response: true
+- at: 3
+  call: s3
+- at: 4
+  call: s2
+  data:
+    v: 4
+  return_response: true
+- at: 5
+  call: s3
+  data:
+    v: 2
+- at: 7
+  call: turn_off
+  data:
+    entity_id: all
+- at: 8
+- at: 10
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s3
+- at: 11
+  call: s3
+  data:
+    v: 0
+- at: 14
+  call: s3
+  return_response: true
+- at: 16
+  call: s1
+- at: 16
+  call: s2
+  return_response: true
+- at: 16
+  call: s0
+  data:
+    v: 4
+- at: 18
+  call: s2
+  data:
+    v: 0
+  return_response: true
+- at: 19
+  call: s2
+  data:
+    v: 1
+- at: 20
+  call: s1
+  return_response: true
+- at: 23
+  call: s0

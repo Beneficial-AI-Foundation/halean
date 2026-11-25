@@ -1,0 +1,115 @@
+description: random scenario seed=101 index=220
+scripts:
+  s0:
+    icon: mdi:script
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - parallel:
+      - sequence:
+        - action: test.m
+          data:
+            id: s0.2
+            v: '{{ v | default(0) }}'
+      - sequence:
+        - action: script.s1
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          response_variable: r
+        - action: test.m
+          data:
+            id: s0.3
+            v: '{{ v | default(0) }}'
+          response_variable: r
+    - action: test.m
+      data:
+        id: s0.4
+        v: '{{ v | default(0) }}'
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+  s2:
+    icon: mdi:script
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - delay: 3
+steps:
+- at: 1
+  call: turn_off
+  data:
+    entity_id: script.s0
+- at: 3
+  call: s2
+- at: 4
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    variables:
+      v: 1
+- at: 5
+  call: s1
+  return_response: true
+- at: 8
+  call: s2
+  data:
+    v: 3
+  return_response: true
+- at: 11
+  call: s2
+  data:
+    v: 1
+  return_response: true
+- at: 12
+  call: s2
+- at: 12
+  call: s2
+  data:
+    v: 4
+- at: 12
+  call: s1
+- at: 13
+- at: 14
+- at: 16
+  call: turn_off
+  data:
+    entity_id: script.s2
+- at: 17
+  call: s0
+  data:
+    v: 2
+  return_response: true
+- at: 19
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s2
+- at: 19
+- at: 20
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s1

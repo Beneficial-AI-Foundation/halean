@@ -1,0 +1,67 @@
+# random scenario, seed 101, index 67 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  variables: {v1: '{{ trigger.platform }}'}
+  triggers:
+  - {trigger: time, at: '22:13:33'}
+  actions:
+  - action: test.s1
+    data: {n: 1, v: '{{ now().second }}'}
+    target: {entity_id: '{{ trigger.entity_id | default(''light.l2'', true) }}'}
+  - {delay: 2}
+  - {wait_template: '{{ is_state(''light.l2'', ''off'') }}', timeout: '{{ 2 }}'}
+  - event: m_8
+    event_data: {n: 8, completed: '{{ wait.completed }}'}
+  - parallel:
+    - sequence:
+      - event: m_2
+        event_data: {n: 2, v: '{{ states(''light.l1'') }}', var: '{{ v1 | default(''undef'') }}'}
+      - event: m_3
+        event_data: {n: 3, v: '{{ trigger.description }}'}
+      - action: test.s4
+        data: {n: 4, v: '{{ trigger.description }}'}
+        target: {entity_id: '{{ trigger.entity_id | default(''light.l2'', true) }}'}
+        continue_on_error: true
+    - sequence:
+      - {condition: numeric_state, entity_id: sensor.s1, above: sensor.s2, below: 9}
+      - sequence:
+        - sequence:
+          - action: test.s5
+            data: {n: 5, v: '{{ trigger.id }}'}
+            continue_on_error: true
+    - {event: m_6}
+  - {event: m_7}
+states:
+- {entity_id: sensor.s1, state: '8'}
+- entity_id: light.l1
+  state: 'off'
+  attributes: {lvl: 1}
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: 'off'}
+steps:
+- at: 3
+  send: {type: event, event_type: tick}
+- at: 6
+  set: [light.l1, 'on']
+- at: 7
+  set: [input_boolean.b1, unavailable]
+- at: 8
+  send: {type: event, event_type: e2}
+- at: 10
+  send: {type: event, event_type: tick}
+- at: 11
+  send: {type: event, event_type: tick}
+- at: 14
+  send: {type: event, event_type: tick}
+- at: 15
+  set: [sensor.s1, unknown]
+- at: 16
+  send: {type: service_result, call_id: 0, ok: true}
+- at: 16
+  set: [light.l2, unavailable]
+- at: 19
+  send: {type: event, event_type: e3}
+- at: 21
+  set: [sensor.s2, unavailable]

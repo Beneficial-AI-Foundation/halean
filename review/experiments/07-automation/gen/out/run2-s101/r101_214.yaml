@@ -1,0 +1,66 @@
+# random scenario, seed 101, index 214 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  triggers:
+  - trigger: state
+    entity_id: [light.l2, light.l1]
+    from: unavailable
+    for: '{{ 2 }}'
+    id: beta
+  - {trigger: time_pattern, seconds: /9, id: beta}
+  - {trigger: template, value_template: '{{ states(''sensor.s2'') | float(0) < 9 }}', for: '{{ 2 }}', id: beta}
+  conditions:
+  - condition: state
+    entity_id: sensor.s1
+    state: [unavailable, unknown]
+  actions:
+  - wait_for_trigger:
+    - {trigger: template, value_template: '{{ states(''sensor.s1'') == states(''sensor.s2'') }}'}
+  - event: m_2
+    event_data: {n: 2, completed: '{{ wait.completed }}', trig: '{{ wait.trigger.platform if wait.trigger else ''none'' }}'}
+  - variables: {v1: '{{ (v1 | default(0) | int(0)) + 1 }}'}
+  - {wait_template: '{{ trigger.platform == ''event'' }}', timeout: 0}
+  - event: m_3
+    event_data: {n: 3, completed: '{{ wait.completed }}'}
+  - {delay: 2, enabled: false}
+  - action: test.s1
+    data: {n: 1, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+  variables: {v1: 0}
+states:
+- {entity_id: sensor.s1, state: '12'}
+- {entity_id: sensor.s2, state: '7.5'}
+- {entity_id: light.l1, state: unavailable}
+- {entity_id: light.l2, state: unavailable}
+- entity_id: input_boolean.b1
+  state: 'off'
+  attributes: {lvl: 1}
+steps:
+- at: 1
+  send: {type: event, event_type: tick}
+- at: 2
+  send: {type: event, event_type: e1}
+- at: 3
+  send: {type: event, event_type: e1}
+- at: 3
+  set: [light.l2, 'off']
+  attributes: {lvl: 1}
+- at: 5
+  send: {type: event, event_type: e1}
+- at: 6
+  set: [input_boolean.b1, 'off']
+  attributes: {lvl: 2}
+- at: 8
+  send: {type: event, event_type: tick}
+- at: 8
+  set: [light.l1, 'off']
+- at: 11
+  set: [light.l1, unavailable]
+  attributes: {lvl: 3}
+- at: 12
+  send: {type: event, event_type: tick}
+- at: 12
+  send: {type: event, event_type: e1}
+- at: 13
+  set: [light.l2, 'on']

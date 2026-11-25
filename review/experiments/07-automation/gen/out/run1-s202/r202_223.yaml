@@ -1,0 +1,93 @@
+# random scenario, seed 202, index 223 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  triggers:
+  - {trigger: time, at: '22:13:29'}
+  conditions:
+  - not:
+    - {condition: template, value_template: '{{ trigger.id == ''0'' }}'}
+    - '{{ states(''sensor.s1'') | int(0) > 3 }}'
+  - {condition: time, before: '22:13:30'}
+  actions:
+  - action: test.s1
+    target:
+      entity_id: [light.l1, light.l2]
+    continue_on_error: true
+  - event: m_2
+    event_data: {n: 2, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+  - {delay: 0}
+  - {stop: s, error: true}
+states:
+- {entity_id: sensor.s1, state: abc}
+- {entity_id: sensor.s2, state: unknown}
+- entity_id: light.l1
+  state: 'on'
+  attributes: {lvl: 3}
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: 'on'}
+steps:
+- at: 1
+  send:
+    type: event
+    event_type: e1
+    data: {k: true}
+- at: 3
+  send: {type: event, event_type: tick}
+- at: 4
+  set: [input_boolean.b1, 'off']
+  attributes: {lvl: 1}
+- at: 5
+  send: {type: event, event_type: e3}
+- at: 6
+  set: [sensor.s2, '12']
+- at: 7
+  send: {type: event, event_type: tick}
+- at: 8
+  send:
+    type: event
+    event_type: e1
+    data: {k: a}
+- at: 11
+  send: {type: event, event_type: tick}
+- at: 13
+  send: {type: event, event_type: e3}
+- at: 14
+  send: {type: event, event_type: tick}
+- at: 14
+  send:
+    type: event
+    event_type: e1
+    data: {k: a}
+- at: 15
+  send:
+    type: event
+    event_type: e1
+    data: {k: true}
+- at: 16
+  set: [light.l2, 'on']
+- at: 18
+  set: [light.l2, 'off']
+  attributes: {lvl: 1}
+- at: 18
+  send: {type: event, event_type: e2}
+- at: 19
+  set: [light.l2, 'on']
+- at: 20
+  send: {type: event, event_type: e3}
+- at: 20
+  set: [input_boolean.b1, unavailable]
+  attributes: {lvl: 2}
+- at: 21
+  set: [light.l1, 'on']
+- at: 24
+  set: [light.l1, 'off']
+- at: 26
+  set: [light.l1, unavailable]
+- at: 29
+  send: {type: event, event_type: tick}
+- at: 29
+  set: [light.l2, unavailable]
+- at: 30
+  set: [sensor.s1, '20']
+  attributes: {lvl: 1}

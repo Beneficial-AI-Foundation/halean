@@ -1,0 +1,108 @@
+description: random scenario seed=101 index=276
+scripts:
+  s0:
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - variables:
+        out:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+    - action: test.m
+      data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+      response_variable: r
+  s2:
+    alias: Script 2 A
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - repeat:
+        count: 2
+        sequence:
+        - action: test.m
+          data:
+            id: s2.4
+            v: '{{ v | default(0) }}'
+        - delay: 1
+steps:
+- at: 3
+  call: s1
+  data:
+    v: 4
+- at: 4
+  call: turn_off
+  data:
+    entity_id: all
+- at: 5
+  call: s2
+  data:
+    v: 0
+  return_response: true
+- at: 7
+  result: 0
+  ok: false
+  error_kind: ha_error
+- at: 8
+  call: turn_off
+  data:
+    entity_id:
+    - script.s0
+    - script.s2
+- at: 11
+  result: 1
+  ok: false
+  error_kind: ha_error
+- at: 12
+  call: s1
+  data:
+    v: 0
+  return_response: true
+- at: 12
+  result: 2
+  response:
+    n: 2
+- at: 13
+- at: 13
+  call: s2
+  data:
+    v: 0
+  return_response: true
+- at: 15
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+    variables:
+      v: 2

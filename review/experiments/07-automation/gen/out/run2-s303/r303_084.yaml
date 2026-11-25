@@ -1,0 +1,81 @@
+# random scenario, seed 303, index 84 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  max: 2
+  triggers:
+  - trigger: state
+    entity_id: light.l1
+    to: unavailable
+    from: ['on', 'off']
+  - {trigger: state, entity_id: sensor.s1, to: unknown}
+  conditions:
+  - {condition: trigger, id: '0'}
+  actions:
+  - event: m_1
+    event_data: {n: 1, v: '{{ trigger.description }}'}
+  - parallel:
+    - sequence:
+      - {delay: 1}
+    - sequence:
+      - parallel:
+        - sequence:
+          - {event: m_2, enabled: false}
+          - wait_for_trigger:
+            - {trigger: state, entity_id: light.l1, to: 3, from: 3, attribute: lvl}
+            - {trigger: template, value_template: '{{ is_state(''light.l2'', ''off'') }}'}
+        - event: m_3
+          event_data: {n: 3, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+      - action: test.s4
+        data: {n: 4, v: '{{ this.attributes.current }}'}
+    continue_on_error: true
+  - sequence:
+    - action: test.s5
+      data: {n: 5, v: '{{ now().second }}'}
+    - {event: m_6}
+    - event: m_7
+      event_data: {n: 7, v: '{{ states(''sensor.s1'') }}'}
+  - {condition: numeric_state, entity_id: sensor.s2, above: 6, below: 9}
+states:
+- {entity_id: sensor.s1, state: abc}
+- entity_id: sensor.s2
+  state: '8'
+  attributes: {lvl: 3}
+- {entity_id: light.l1, state: unavailable}
+- entity_id: light.l2
+  state: 'off'
+  attributes: {lvl: 2}
+- {entity_id: input_boolean.b1, state: 'off'}
+steps:
+- at: 2
+  set: [light.l1, unavailable]
+  attributes: {lvl: 2}
+- at: 2
+  set: [light.l1, 'off']
+- at: 5
+  set: [light.l1, 'on']
+- at: 7
+  set: [light.l1, unavailable]
+- at: 8
+  set: [sensor.s1, '4']
+- at: 9
+  set: [light.l1, 'on']
+- at: 11
+  set: [light.l1, unavailable]
+- at: 12
+  set: [sensor.s1, abc]
+- at: 13
+  send:
+    type: event
+    event_type: e3
+    data: {k: 2}
+- at: 16
+  send:
+    type: event
+    event_type: e1
+    data: {k: 1}
+- at: 17
+  set: [sensor.s1, '12']
+- at: 17
+  set: [sensor.s1, unknown]

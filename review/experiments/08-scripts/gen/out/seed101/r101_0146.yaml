@@ -1,0 +1,100 @@
+description: random scenario seed=101 index=146
+scripts:
+  s0:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - action: script.turn_off
+        target:
+          entity_id: script.s1
+      else:
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: test.m
+        data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+        response_variable: r
+    - action: test.m
+      data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+  s2:
+    alias: Script 2 B
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - event: mark
+      event_data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+steps:
+- at: 2
+  call: s1
+  data:
+    v: 1
+  return_response: true
+- at: 5
+  call: s2
+  data:
+    v: 4
+- at: 8
+  call: s1
+  return_response: true
+- at: 9
+  result: 1
+  ok: false
+  error_kind: other
+- at: 10
+  result: 0
+  response:
+    n: 0
+- at: 11
+  call: s1
+  data:
+    v: 2
+- at: 12
+  call: s0
+  return_response: true
+- at: 14
+  call: s1
+  data:
+    v: 2

@@ -1,0 +1,78 @@
+# random scenario, seed 202, index 194 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  max: 3
+  triggers:
+  - {trigger: numeric_state, entity_id: sensor.s1, above: 3, id: beta}
+  - trigger: state
+    entity_id: [light.l1]
+    to: 2
+    attribute: lvl
+    id: beta
+  actions:
+  - action: test.s1
+    data: {n: 1, v: '{{ now().second }}'}
+    target:
+      entity_id: [light.l1, light.l2]
+  - sequence:
+    - repeat:
+        for_each: [a, b]
+        sequence:
+        - variables: {v1: '{{ repeat.index if repeat is defined else -1 }}'}
+    - parallel:
+      - sequence:
+        - {condition: template, value_template: '{{ is_state(''input_boolean.b1'', ''on'') and is_state(''light.l1'', ''on'') }}'}
+      - sequence:
+        - wait_template: '{{ states(''sensor.s1'') == states(''sensor.s2'') }}'
+          timeout: {seconds: 2}
+        - event: m_2
+          event_data: {n: 2, completed: '{{ wait.completed }}'}
+        - {condition: template, value_template: '{{ states(''sensor.s1'') | int > 5 }}'}
+  - delay: {seconds: '{{ 2 }}'}
+  variables: {v1: 0}
+states:
+- {entity_id: sensor.s1, state: '20'}
+- {entity_id: sensor.s2, state: unknown}
+- entity_id: light.l1
+  state: 'on'
+  attributes: {lvl: 3}
+- {entity_id: light.l2, state: unavailable}
+- {entity_id: input_boolean.b1, state: unavailable}
+steps:
+- at: 2
+  set: [sensor.s1, '1']
+  attributes: {lvl: 3}
+- at: 5
+  send: {type: event, event_type: e1}
+- at: 6
+  set: [sensor.s2, '12']
+- at: 8
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 9
+  set: [sensor.s1, unknown]
+- at: 9
+  send: {type: event, event_type: tick}
+- at: 10
+  send: {type: event, event_type: e3}
+- at: 10
+  send:
+    type: event
+    event_type: e1
+    data: {k: 2}
+- at: 11
+  send: {type: event, event_type: e3}
+- at: 11
+  send:
+    type: event
+    event_type: e1
+    data: {k: true}
+- at: 14
+  send: {type: event, event_type: tick}
+- at: 15
+  set: [light.l2, 'off']
+  attributes: {lvl: 3}

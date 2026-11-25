@@ -1,0 +1,85 @@
+description: random scenario seed=202 index=76
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+  s1:
+    alias: Script 1 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+  s2:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+  s3:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - variables:
+        out:
+          id: s3.4
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+steps:
+- at: 2
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 4
+  call: s0
+- at: 4
+- at: 5
+  call: s3
+  data:
+    v: 4
+- at: 6
+  call: s1
+  data:
+    v: 1
+- at: 7
+  call: s3
+- at: 8
+  call: s2
+  data:
+    v: 4
+  return_response: true
+- at: 8
+  call: s1
+  data:
+    v: 4
+- at: 10
+  call: turn_off
+  data:
+    entity_id:
+    - script.s0
+    - script.s3

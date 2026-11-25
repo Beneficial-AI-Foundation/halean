@@ -1,0 +1,89 @@
+# random scenario, seed 303, index 118 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: parallel
+  max: 3
+  triggers:
+  - {trigger: state, entity_id: light.l1, id: beta}
+  - trigger: state
+    entity_id: light.l1
+    not_from: ['off', unavailable]
+    for: '{{ 2 }}'
+  conditions:
+  - {condition: template, value_template: '{{ is_state(''light.l1'', ''on'') }}'}
+  - condition: and
+    conditions:
+    - condition: and
+      conditions:
+      - {condition: numeric_state, entity_id: sensor.s1, above: 3}
+      - '{{ states(''sensor.s1'') | int(0) > 10 }}'
+    - {condition: template, value_template: '{{ states(''sensor.s1'') == states(''sensor.s2'') }}'}
+  actions:
+  - {event: m_1}
+  - {wait_template: '{{ states(''sensor.s1'') == states(''sensor.s2'') }}', timeout: 0}
+  - event: m_2
+    event_data: {n: 2, completed: '{{ wait.completed }}'}
+states:
+- {entity_id: sensor.s1, state: '7.5'}
+- entity_id: sensor.s2
+  state: abc
+  attributes: {lvl: 2}
+- {entity_id: light.l1, state: 'off'}
+- entity_id: light.l2
+  state: 'off'
+  attributes: {lvl: 1}
+- {entity_id: input_boolean.b1, state: unavailable}
+steps:
+- at: 3
+  set: [light.l1, 'on']
+- at: 4
+  set: [light.l1, 'off']
+- at: 7
+  set: [sensor.s1, '4']
+- at: 7
+  send: {type: event, event_type: tick}
+- at: 8
+  send:
+    type: event
+    event_type: e2
+    data: {k: a}
+- at: 11
+  set: [light.l1, unavailable]
+- at: 12
+  set: [light.l1, 'off']
+  attributes: {lvl: 3}
+- at: 12
+  set: [light.l1, 'on']
+- at: 12
+  send: {type: event, event_type: e3}
+- at: 15
+  send: {type: event, event_type: tick}
+- at: 16
+  send: {type: event, event_type: e1}
+- at: 17
+  set: [sensor.s1, '1']
+- at: 20
+  set: [light.l1, 'off']
+  attributes: {lvl: 1}
+- at: 22
+  set: [light.l1, 'off']
+  attributes: {lvl: 2}
+- at: 23
+  set: [light.l1, 'off']
+- at: 24
+  send: {type: event, event_type: tick}
+- at: 24
+  send:
+    type: event
+    event_type: e1
+    data: {k: 1}
+- at: 25
+  send: {type: event, event_type: e2}
+- at: 26
+  send:
+    type: event
+    event_type: e1
+    data: {k: true}
+- at: 27
+  set: [sensor.s1, '8']

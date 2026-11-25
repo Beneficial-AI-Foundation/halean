@@ -1,0 +1,111 @@
+description: random scenario seed=101 index=224
+scripts:
+  s0:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+    - action: test.m
+      data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+      response_variable: r
+  s1:
+    alias: Script 1 A
+    icon: mdi:script
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+  s2:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: test.m
+      data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+steps:
+- at: 3
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+- at: 3
+  reload:
+    s1:
+      alias: Script 1 A
+      icon: mdi:script
+      mode: queued
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+    s2:
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - action: test.m
+        data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+- at: 4
+  result: 0
+  response:
+    n: 0
+- at: 7
+  call: turn_off
+  data:
+    entity_id: all
+- at: 10
+  call: s2
+- at: 12
+- at: 13
+- at: 16
+  result: 1
+  response:
+    n: 1

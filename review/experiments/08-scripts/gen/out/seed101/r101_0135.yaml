@@ -1,0 +1,88 @@
+description: random scenario seed=101 index=135
+scripts:
+  s0:
+    alias: Script 0 A
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+  s1:
+    alias: Script 1 B
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: test.m
+      data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+steps:
+- at: 1
+  call: s2
+  data:
+    v: 2
+- at: 3
+  call: s1
+- at: 4
+- at: 4
+  result: 1
+  response:
+    n: 1
+- at: 6
+  call: s0
+  data:
+    v: 1
+- at: 9
+  call: turn_off
+  data:
+    entity_id:
+    - script.s0
+    - script.s2
+- at: 12
+  result: 0
+  response:
+    n: 0
+- at: 13
+  result: 2
+  response:
+    n: 2
+- at: 14
+  call: toggle
+  data:
+    entity_id:
+    - script.s2

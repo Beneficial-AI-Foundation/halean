@@ -1,0 +1,40 @@
+diff --git a/HALean/Automation/Engine.lean b/HALean/Automation/Engine.lean
+index bc6de0f..71785ce 100644
+--- a/HALean/Automation/Engine.lean
++++ b/HALean/Automation/Engine.lean
+@@ -849,6 +849,10 @@ def startScriptH (h : Handlers) (ai : Nat) (runVars : List (String × Template.V
+     let e ← getE
+     setE { e with starting := e.starting ++ [run.id] }
+     for old in existing do h.stopRun old.id false
++    -- `await self.async_stop(...)` yields: whoever awaited a stopped run goes
++    -- on before the new run starts (and can stop it before it started)
++    for old in existing do
++      if let some c := old.caller then h.continueNow c
+     let e ← getE
+     setE { e with starting := e.starting.filter (· != run.id) }
+   let e ← getE
+@@ -868,6 +872,7 @@ def callLocalH (h : Handlers) (c : Caller) (ops : List HALean.Script.LocalOp) :
+   for op in ops do
+     -- `async_toggle`: `is_on` now, not when the call was planned
+     let eNow ← getE
++    let toggled := match op with | .toggle _ => true | _ => false
+     let op : HALean.Script.LocalOp := match op with
+       | .toggle ai => if (runsOf eNow ai).isEmpty then .start ai [] false else .stop ai
+       | o => o
+@@ -904,9 +909,15 @@ def callLocalH (h : Handlers) (c : Caller) (ops : List HALean.Script.LocalOp) :
+         return
+     | .stop ai =>
+       -- every run is told to stop before any lock is handed on
+-      for r in runsOf (← getE) ai do h.stopRun r.id false
++      let stopped := runsOf (← getE) ai
++      for r in stopped do h.stopRun r.id false
+       writeEntity ai
+       yielded := true
++      -- `toggle` awaits each entity in turn: whoever awaited a stopped run
++      -- goes on before the next entity is toggled
++      if toggled then
++        for r in stopped do
++          if let some c := r.caller then h.continueNow c
+   h.answer c (.ok .none)
+   if !yielded then h.continueNow c
+ 

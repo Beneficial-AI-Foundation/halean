@@ -1,0 +1,109 @@
+# random scenario, seed 101, index 201 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  triggers:
+  - {trigger: time_pattern, seconds: '26'}
+  actions:
+  - {delay: 0}
+  - variables: {v1: '{{ states(''sensor.s1'') }}'}
+  - wait_for_trigger:
+    - {trigger: state, entity_id: sensor.s1}
+  variables: {v1: 0}
+- alias: a1
+  id: id1
+  mode: restart
+  variables: {v1: '{{ states(''sensor.s2'') }}', v2: 0}
+  triggers:
+  - {trigger: state, entity_id: light.l2, from: 'on'}
+  - {trigger: numeric_state, entity_id: sensor.s1, above: 3}
+  - trigger: state
+    entity_id: light.l2
+    to: [unavailable, 'on']
+    for: 3
+    id: alpha
+  actions:
+  - parallel:
+    - sequence:
+      - variables: {v2: 1}
+      - {delay: 0}
+      - {event: m_1}
+    - {event: m_2}
+    - event: m_3
+      event_data: {n: 3, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+  - action: test.s4
+    data: {n: 4, v: '{{ trigger.platform }}'}
+  - repeat:
+      count: 2
+      sequence:
+      - wait_for_trigger:
+        - {trigger: state, entity_id: input_boolean.b1, to: 1, attribute: lvl, for: 1}
+        timeout: 3
+        continue_on_timeout: false
+      - event: m_5
+        event_data: {n: 5, v: '{{ trigger.id }}', var: '{{ v1 | default(''undef'') }}'}
+      - wait_for_trigger:
+        - {trigger: event, event_type: e1}
+        - trigger: event
+          event_type: e3
+          event_data: {k: a}
+  - sequence:
+    - if:
+      - condition: state
+        entity_id: [input_boolean.b1]
+        state: 'on'
+        match: any
+      then:
+      - sequence:
+        - {event: m_6}
+        - action: test.s7
+          data: {n: 7, v: '{{ trigger.idx }}'}
+      - action: test.s8
+        data: {n: 8, v: '{{ now().second }}'}
+        continue_on_error: true
+states:
+- entity_id: sensor.s1
+  state: unavailable
+  attributes: {lvl: 2}
+- {entity_id: sensor.s2, state: unknown}
+- {entity_id: light.l1, state: 'on'}
+- {entity_id: light.l2, state: unavailable}
+- entity_id: input_boolean.b1
+  state: 'off'
+  attributes: {lvl: 1}
+steps:
+- at: 3
+  send: {type: event, event_type: e2}
+- at: 6
+  set: [light.l2, 'off']
+- at: 8
+  send: {type: event, event_type: e1}
+- at: 8
+  send:
+    type: event
+    event_type: e2
+    data: {k: 1}
+- at: 9
+  set: [light.l2, unavailable]
+  attributes: {lvl: 3}
+- at: 11
+  send: {type: event, event_type: e3}
+- at: 12
+  send: {type: event, event_type: e3}
+- at: 13
+  send: {type: event, event_type: e2}
+- at: 13
+  send: {type: event, event_type: e3}
+- at: 14
+  send:
+    type: service_result
+    call_id: 0
+    ok: true
+    response: {value: 1}
+- at: 15
+  send:
+    type: event
+    event_type: e1
+    data: {k: true}
+- at: 18
+  set: [sensor.s2, '20']

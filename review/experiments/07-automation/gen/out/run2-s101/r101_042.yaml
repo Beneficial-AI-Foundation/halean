@@ -1,0 +1,193 @@
+# random scenario, seed 101, index 42 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  max: 3
+  triggers:
+  - {trigger: numeric_state, entity_id: sensor.s2, above: 3, below: 10, for: 3}
+  - {trigger: time_pattern, seconds: 23}
+  - {trigger: state, entity_id: sensor.s1, to: '12'}
+  conditions:
+  - not:
+    - {condition: time, before: '22:14'}
+    - condition: and
+      conditions:
+      - {condition: template, value_template: '{{ trigger.platform in [''state'', ''numeric_state''] }}'}
+      - {condition: numeric_state, entity_id: sensor.s1, below: 9}
+      - {condition: template, value_template: '{{ is_state(''input_boolean.b1'', ''on'') and is_state(''light.l1'', ''on'') }}', enabled: false}
+    - {condition: state, entity_id: light.gone, state: unavailable}
+  - {condition: template, value_template: '{{ trigger.id == ''0'' }}', enabled: false}
+  actions:
+  - action: test.s1
+    data: {n: 1, v: '{{ trigger.idx }}'}
+    target:
+      entity_id: [light.l1, light.l2]
+    response_variable: v1
+  - choose:
+    - conditions:
+      - condition: not
+        conditions:
+        - condition: and
+          conditions:
+          - {condition: numeric_state, entity_id: sensor.s2, below: 9}
+          - {condition: numeric_state, entity_id: sensor.s1, below: 9}
+        - {condition: state, entity_id: sensor.s2, state: '12'}
+      sequence:
+      - event: m_2
+        event_data: {n: 2, v: '{{ states(''light.l1'') }}'}
+    - conditions:
+      - {condition: numeric_state, entity_id: sensor.s1, above: 3, below: 15}
+      - {condition: state, entity_id: light.l2, state: 'on'}
+      sequence:
+      - delay: {seconds: '{{ 2 }}'}
+    default:
+    - variables: {v2: '{{ (v2 | default(0) | int(0)) + 1 }}'}
+    - parallel:
+      - sequence:
+        - repeat:
+            until: ['{{ repeat.index >= 3 }}']
+            sequence:
+            - action: test.s3
+              target: {entity_id: '{{ trigger.entity_id | default(''light.l2'', true) }}'}
+        - choose:
+          - conditions:
+            - {condition: numeric_state, entity_id: sensor.s2, below: 9}
+            sequence:
+            - action: test.s4
+              target:
+                entity_id: [light.l1, light.l2]
+          - conditions:
+            - condition: and
+              conditions:
+              - {condition: template, value_template: '{{ states(''sensor.s2'') | float(0) < 5 }}'}
+              - {condition: template, value_template: '{{ trigger.platform == ''event'' }}'}
+              - {condition: template, value_template: '{{ trigger.id == ''0'' }}'}
+            - {condition: template, value_template: '{{ trigger.id == ''0'' }}'}
+            sequence:
+            - event: m_5
+              event_data: {n: 5, v: '{{ trigger.platform }}', var: '{{ v1 | default(''undef'') }}'}
+            - delay: {seconds: '{{ 2 }}'}
+            - {condition: template, value_template: '{{ is_state(''input_boolean.b1'', ''on'') and is_state(''light.l1'', ''on'') }}'}
+      - sequence:
+        - repeat:
+            while:
+            - {condition: numeric_state, entity_id: sensor.s1, above: 3}
+            - '{{ repeat.index <= 3 }}'
+            sequence:
+            - {condition: template, value_template: '{{ trigger.platform in [''state'', ''numeric_state''] }}'}
+    - {wait_template: '{{ trigger.platform == ''event'' }}'}
+    - event: m_6
+      event_data: {n: 6, completed: '{{ wait.completed }}'}
+  - {delay: 1}
+  variables: {v1: 0, v2: 0}
+- alias: a1
+  id: id1
+  mode: restart
+  triggers:
+  - {trigger: state, entity_id: light.l1, to: 'off', from: 'on', id: beta}
+  - trigger: state
+    entity_id: sensor.s1
+    from: ['20', '1']
+    to: abc
+  - {trigger: event, event_type: e1}
+  actions:
+  - sequence:
+    - choose:
+      - conditions: ['{{ states(''sensor.s1'') | int > 5 }}']
+        sequence:
+        - {delay: 1}
+        - {stop: s, error: true}
+        - {action: test.s7, continue_on_error: true, response_variable: v1}
+      default:
+      - condition: and
+        conditions:
+        - and: ['{{ states(''sensor.s1'') | int(0) > 10 }}']
+        - condition: or
+          conditions:
+          - {condition: numeric_state, entity_id: sensor.s2, above: sensor.s2, enabled: false}
+          - {condition: template, value_template: '{{ is_state(''light.l2'', ''off'') }}'}
+    - {delay: 0}
+    continue_on_error: true
+  - {event: m_8}
+  - {delay: '{{ 1 }}'}
+  variables: {v1: 0}
+states:
+- entity_id: sensor.s1
+  state: '8'
+  attributes: {lvl: 2}
+- {entity_id: sensor.s2, state: '20'}
+- entity_id: light.l1
+  state: unavailable
+  attributes: {lvl: 1}
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: 'on'}
+steps:
+- at: 2
+  set: [light.l1, 'off']
+- at: 5
+  set: [sensor.s1, '8']
+- at: 8
+  send:
+    type: event
+    event_type: e1
+    data: {k: true}
+- at: 8
+  send: {type: event, event_type: tick}
+- at: 9
+  set: [sensor.s2, '7.5']
+- at: 10
+  set: [input_boolean.b1, unavailable]
+- at: 12
+  send:
+    type: event
+    event_type: e3
+    data: {k: 1}
+- at: 14
+  set: [light.l2, 'off']
+  attributes: {lvl: 2}
+- at: 15
+  send: {type: event, event_type: tick}
+- at: 18
+  set: [input_boolean.b1, 'off']
+  attributes: {lvl: 2}
+- at: 19
+  set: [light.l2, unavailable]
+  attributes: {lvl: 1}
+- at: 20
+  set: [light.l1, 'on']
+  attributes: {lvl: 3}
+- at: 20
+  send: {type: event, event_type: tick}
+- at: 22
+  send:
+    type: event
+    event_type: e2
+    data: {k: 1}
+- at: 22
+  send: {type: event, event_type: tick}
+- at: 23
+  set: [light.l1, 'off']
+- at: 26
+  set: [sensor.s1, unknown]
+- at: 29
+  send: {type: event, event_type: tick}
+- at: 30
+  set: [sensor.s1, unknown]
+  attributes: {lvl: 1}
+- at: 31
+  set: [input_boolean.b1, 'on']
+  attributes: {lvl: 3}
+- at: 32
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 35
+  set: [input_boolean.b1, 'off']
+- at: 36
+  set: [light.l2, 'on']
+  attributes: {lvl: 1}
+- at: 37
+  set: [input_boolean.b1, 'on']
+  attributes: {lvl: 3}

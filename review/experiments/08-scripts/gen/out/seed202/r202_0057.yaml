@@ -1,0 +1,132 @@
+description: random scenario seed=202 index=57
+scripts:
+  s0:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - delay: 1
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+  s2:
+    icon: mdi:script
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - action: test.m
+      data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: script.toggle
+      target:
+        entity_id: script.s3
+    - delay: 1
+  s3:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+    - delay: 2
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+steps:
+- at: 1
+  call: s0
+  data:
+    v: 2
+- at: 2
+  result: 0
+  response:
+    n: 0
+- at: 3
+  call: turn_off
+  data:
+    entity_id:
+    - script.s2
+    - script.s0
+- at: 6
+  call: s2
+  data:
+    v: 2
+  return_response: true
+- at: 9
+  call: turn_off
+  data:
+    entity_id: script.s0
+- at: 10
+  result: 1
+  response:
+    n: 1
+- at: 12
+  call: s0
+  data:
+    v: 0
+- at: 13
+  call: s2
+  data:
+    v: 3
+- at: 15
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+- at: 15
+  call: s3
+  data:
+    v: 0
+- at: 16
+  call: s3
+  data:
+    v: 2
+  return_response: true
+- at: 18
+  call: s1
+  data:
+    v: 1
+  return_response: true
+- at: 19
+  result: 3
+  response:
+    n: 3

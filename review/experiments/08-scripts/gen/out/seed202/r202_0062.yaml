@@ -1,0 +1,191 @@
+description: random scenario seed=202 index=62
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - delay: 3
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+  s1:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - repeat:
+        count: 2
+        sequence:
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s2
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+    - variables:
+        out:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+  s2:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - repeat:
+        count: 2
+        sequence:
+        - variables:
+            out:
+              id: s2.4
+              v: '{{ v | default(0) }}'
+        - stop: done
+          response_variable: out
+    - action: test.m
+      data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+steps:
+- at: 3
+  reload:
+    s0:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+      - delay: 3
+      - event: mark
+        event_data:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+    s1:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - repeat:
+          count: 2
+          sequence:
+          - action: script.turn_on
+            target:
+              entity_id:
+              - script.s2
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+      - variables:
+          out:
+            id: s1.3
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+      alias: Reloaded s1
+    s2:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - repeat:
+          count: 2
+          sequence:
+          - variables:
+              out:
+                id: s2.4
+                v: '{{ v | default(0) }}'
+          - stop: done
+            response_variable: out
+      - action: test.m
+        data:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+- at: 6
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    variables:
+      v: 0
+- at: 7
+  call: s2
+  data:
+    v: 1
+  return_response: true
+- at: 9
+  call: s1
+- at: 9
+- at: 10
+- at: 11
+  reload:
+    s0:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+      - delay: 3
+      - event: mark
+        event_data:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+    s1:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - repeat:
+          count: 2
+          sequence:
+          - action: script.turn_on
+            target:
+              entity_id:
+              - script.s2
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+      - variables:
+          out:
+            id: s1.3
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+      alias: Reloaded s1
+- at: 12
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+- at: 15
+  call: s0
+  return_response: true
+- at: 16
+  result: 0
+  response:
+    n: 0
+- at: 17
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0

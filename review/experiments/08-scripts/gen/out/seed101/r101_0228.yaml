@@ -1,0 +1,230 @@
+description: random scenario seed=101 index=228
+scripts:
+  s0:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - variables:
+        out:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s2'') }}'
+        cur: '{{ state_attr(''script.s2'', ''current'') }}'
+    - action: script.toggle
+      target:
+        entity_id: script.s2
+  s1:
+    alias: Script 1 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - event: mark
+        event_data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+  s2:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+    - variables:
+        out:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+    - action: test.m
+      data:
+        id: s2.6
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - event: mark
+      event_data:
+        id: s2.7
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s1'') }}'
+        cur: '{{ state_attr(''script.s1'', ''current'') }}'
+  s3:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s3.8
+        v: '{{ v | default(0) }}'
+      response_variable: r
+steps:
+- at: 3
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+    variables:
+      v: 1
+- at: 6
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 7
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 9
+  result: 0
+  ok: false
+  error_kind: invalid
+- at: 11
+  call: s1
+  data:
+    v: 2
+  return_response: true
+- at: 13
+  reload:
+    s0:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - variables:
+          out:
+            id: s0.1
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+      - event: mark
+        event_data:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s2'') }}'
+          cur: '{{ state_attr(''script.s2'', ''current'') }}'
+      - action: script.toggle
+        target:
+          entity_id: script.s2
+    s1:
+      alias: Script 1 A
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - event: mark
+          event_data:
+            id: s1.3
+            v: '{{ v | default(0) }}'
+      - action: script.turn_off
+        target:
+          entity_id: script.s1
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+    s2:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+      - variables:
+          out:
+            id: s2.5
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+      - action: test.m
+        data:
+          id: s2.6
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+      - event: mark
+        event_data:
+          id: s2.7
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s1'') }}'
+          cur: '{{ state_attr(''script.s1'', ''current'') }}'
+    s3:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s3.8
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      alias: Reloaded s3
+- at: 14
+  call: s2
+  data:
+    v: 2
+  return_response: true
+- at: 15
+  call: s1
+  data:
+    v: 1
+  return_response: true
+- at: 17
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    variables:
+      v: 2
+- at: 18
+  call: s3
+- at: 20
+  result: 1
+  ok: false
+  error_kind: ha_error

@@ -1,0 +1,77 @@
+# random scenario, seed 202, index 270 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  max: 2
+  variables: {v1: 0}
+  triggers:
+  - {trigger: numeric_state, entity_id: sensor.s1, above: 3, below: 10, for: 2, id: beta}
+  - {trigger: time, at: '22:13:29'}
+  - {trigger: state, entity_id: light.l1, for: 2}
+  actions:
+  - wait_for_trigger:
+    - trigger: event
+      event_type: e3
+      event_data: {k: true}
+    timeout: 2
+    continue_on_timeout: false
+  - event: m_1
+    event_data: {n: 1, completed: '{{ wait.completed }}', trig: '{{ wait.trigger.platform if wait.trigger else ''none'' }}'}
+  - {condition: trigger, id: alpha}
+- alias: a1
+  id: id1
+  triggers:
+  - {trigger: template, value_template: '{{ states(''sensor.s1'') | int > 5 }}', for: 3}
+  conditions:
+  - condition: state
+    entity_id: light.l1
+    state: ['on', 'off']
+  - {condition: numeric_state, entity_id: sensor.s1, below: 15}
+  actions:
+  - event: m_2
+    event_data: {n: 2, v: '{{ trigger.idx }}'}
+  - sequence:
+    - variables: {v1: 1}
+  - event: m_3
+    event_data: {n: 3, v: '{{ this.attributes.current }}', var: '{{ v1 | default(''undef'') }}'}
+  variables: {v1: 0}
+states:
+- {entity_id: sensor.s1, state: '8'}
+- entity_id: sensor.s2
+  state: '7.5'
+  attributes: {lvl: 1}
+- {entity_id: light.l1, state: 'off'}
+- {entity_id: light.l2, state: 'off'}
+- entity_id: input_boolean.b1
+  state: unavailable
+  attributes: {lvl: 1}
+steps:
+- at: 1
+  send: {type: event, event_type: tick}
+- at: 2
+  set: [sensor.s2, '12']
+- at: 3
+  send:
+    type: event
+    event_type: e1
+    data: {k: 1}
+- at: 3
+  send: {type: event, event_type: tick}
+- at: 6
+  send: {type: event, event_type: e1}
+- at: 9
+  set: [input_boolean.b1, 'on']
+- at: 11
+  send: {type: event, event_type: e2}
+- at: 11
+  set: [light.l2, 'off']
+  attributes: {lvl: 2}
+- at: 12
+  send: {type: event, event_type: e2}
+- at: 12
+  send: {type: event, event_type: e1}
+- at: 15
+  send: {type: event, event_type: e3}
+- at: 15
+  set: [sensor.s1, '20']

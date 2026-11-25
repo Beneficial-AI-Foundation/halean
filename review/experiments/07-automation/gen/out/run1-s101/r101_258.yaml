@@ -1,0 +1,114 @@
+# random scenario, seed 101, index 258 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  max: 3
+  triggers:
+  - {trigger: time, at: '22:13:33'}
+  actions:
+  - {event: m_1}
+  - variables: {v1: 1}
+  variables: {v1: 0}
+- alias: a1
+  id: id1
+  mode: queued
+  max: 3
+  triggers:
+  - {trigger: numeric_state, entity_id: sensor.s2, below: 10, for: 2}
+  actions:
+  - action: test.s2
+    data: {n: 2, v: '{{ [states(''light.l1''), states(''light.l2'')] }}'}
+  - parallel:
+    - sequence:
+      - parallel:
+        - event: m_3
+          event_data: {n: 3, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+        - sequence:
+          - parallel:
+            - {event: m_4}
+            - sequence:
+              - {action: test.s5}
+              - variables: {v1: '{{ states(''sensor.s1'') }}'}
+              - delay: {seconds: '{{ 2 }}'}
+            enabled: false
+        - sequence:
+          - if:
+            - condition: trigger
+              id: [beta, '0']
+            - {condition: template, value_template: '{{ is_state(''light.l1'', ''on'') }}'}
+            then:
+            - {action: test.s6}
+            - delay: {seconds: 1}
+            else:
+            - variables: {v2: '{{ repeat.index if repeat is defined else -1 }}'}
+    - sequence:
+      - variables: {v3: x}
+      - action: test.s7
+        data: {n: 7, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+        continue_on_error: true
+  - if:
+    - {condition: state, entity_id: light.l2, state: 'on'}
+    then:
+    - {stop: s}
+    - {stop: s, error: true}
+    else:
+    - wait_for_trigger:
+      - {trigger: state, entity_id: sensor.s2, to: 3, from: 3, attribute: lvl}
+    - event: m_8
+      event_data: {n: 8, completed: '{{ wait.completed }}', trig: '{{ wait.trigger.platform if wait.trigger else ''none'' }}'}
+    - {condition: template, value_template: '{{ trigger.platform == ''event'' }}'}
+  variables: {v1: 0, v2: 0, v3: 0}
+states:
+- {entity_id: sensor.s1, state: unknown}
+- {entity_id: sensor.s2, state: '12'}
+- {entity_id: light.l1, state: 'off'}
+- {entity_id: light.l2, state: 'on'}
+- entity_id: input_boolean.b1
+  state: 'off'
+  attributes: {lvl: 1}
+steps:
+- at: 0
+  send: {type: event, event_type: tick}
+- at: 0
+  send:
+    type: event
+    event_type: e1
+    data: {k: 2}
+- at: 0
+  send:
+    type: event
+    event_type: e3
+    data: {k: 2}
+- at: 1
+  send:
+    type: event
+    event_type: e2
+    data: {k: 2}
+- at: 3
+  send: {type: event, event_type: e1}
+- at: 6
+  send:
+    type: event
+    event_type: e3
+    data: {k: a}
+- at: 8
+  send:
+    type: event
+    event_type: e2
+    data: {k: a}
+- at: 10
+  set: [sensor.s2, abc]
+  attributes: {lvl: 1}
+- at: 13
+  send:
+    type: event
+    event_type: e1
+    data: {k: 2}
+- at: 14
+  send: {type: event, event_type: tick}
+- at: 15
+  send: {type: event, event_type: e2}
+- at: 16
+  set: [input_boolean.b1, 'on']
+  attributes: {lvl: 1}

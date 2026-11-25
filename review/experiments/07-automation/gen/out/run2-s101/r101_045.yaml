@@ -1,0 +1,100 @@
+# random scenario, seed 101, index 45 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: parallel
+  max: 2
+  variables: {v1: '{{ trigger.platform }}', v2: 0, v3: 0}
+  triggers:
+  - trigger: event
+    event_type: e1
+    event_data: {k: a}
+  - {trigger: state, entity_id: light.l2, to: 'off'}
+  - trigger: state
+    entity_id: light.l1
+    not_from: unavailable
+    to: ['off', 'on']
+  conditions:
+  - {condition: state, entity_id: light.l2, state: 'off'}
+  actions:
+  - {stop: s}
+  - variables:
+      v1: [a, '{{ 1 + 1 }}']
+  - {event: m_1}
+  - variables: {v3: '{{ repeat.index if repeat is defined else -1 }}'}
+states:
+- entity_id: sensor.s2
+  state: abc
+  attributes: {lvl: 3}
+- entity_id: light.l1
+  state: unavailable
+  attributes: {lvl: 1}
+- {entity_id: light.l2, state: 'off'}
+- entity_id: input_boolean.b1
+  state: 'off'
+  attributes: {lvl: 3}
+steps:
+- at: 2
+  send:
+    type: event
+    event_type: e2
+    data: {k: a}
+- at: 4
+  send: {type: event, event_type: tick}
+- at: 4
+  send: {type: event, event_type: e2}
+- at: 5
+  send:
+    type: event
+    event_type: e3
+    data: {k: a}
+- at: 5
+  set: [sensor.s1, '1']
+  attributes: {lvl: 2}
+- at: 6
+  set: [sensor.s1, abc]
+- at: 8
+  send: {type: event, event_type: tick}
+- at: 8
+  set: [sensor.s2, '4']
+- at: 10
+  set: [sensor.s1, '4']
+- at: 11
+  set: [sensor.s2, unknown]
+- at: 12
+  send:
+    type: event
+    event_type: e2
+    data: {k: a}
+- at: 14
+  set: [light.l2, 'on']
+- at: 14
+  set: [light.l1, 'on']
+- at: 15
+  set: [light.l1, unavailable]
+- at: 16
+  set: [sensor.s2, '1']
+- at: 17
+  set: [sensor.s1, '12']
+  attributes: {lvl: 2}
+- at: 17
+  send: {type: event, event_type: e3}
+- at: 17
+  send: {type: event, event_type: e1}
+- at: 18
+  set: [light.l1, 'off']
+- at: 19
+  set: [sensor.s2, '8']
+- at: 20
+  set: [sensor.s2, '7.5']
+- at: 23
+  set: [light.l2, 'on']
+  attributes: {lvl: 1}
+- at: 24
+  set: [light.l1, 'on']
+  attributes: {lvl: 2}
+- at: 27
+  send:
+    type: event
+    event_type: e2
+    data: {k: 2}

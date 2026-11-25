@@ -1,0 +1,82 @@
+# random scenario, seed 101, index 101 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: parallel
+  triggers:
+  - trigger: state
+    entity_id: input_boolean.b1
+    from: ['on', 'off']
+  - {trigger: time_pattern, seconds: /7}
+  actions:
+  - if:
+    - {condition: state, entity_id: sensor.s1, state: '12'}
+    then:
+    - wait_for_trigger:
+      - {trigger: template, value_template: '{{ is_state(''input_boolean.b1'', ''on'') and is_state(''light.l1'', ''on'') }}'}
+      - {trigger: event, event_type: e2}
+      timeout: 3
+    - event: m_1
+      event_data: {n: 1, completed: '{{ wait.completed }}', trig: '{{ wait.trigger.platform if wait.trigger else ''none'' }}'}
+    else:
+    - action: test.s2
+      data: {n: 2, v: '{{ trigger.id }}'}
+    - parallel:
+      - event: m_3
+        event_data: {n: 3, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+      - {event: m_4}
+      continue_on_error: true
+  - action: test.s5
+    data: {n: 5, v: '{{ this.attributes.current }}'}
+  - {condition: time, after: '22:00', before: '22:14'}
+  - event: m_6
+    event_data: {n: 6, v: '{{ this.attributes.current }}'}
+  - delay: {seconds: 1}
+states:
+- {entity_id: sensor.s1, state: '20'}
+- entity_id: light.l1
+  state: 'on'
+  attributes: {lvl: 2}
+- {entity_id: light.l2, state: 'on'}
+- entity_id: input_boolean.b1
+  state: 'on'
+  attributes: {lvl: 2}
+steps:
+- at: 0
+  send: {type: event, event_type: tick}
+- at: 3
+  set: [sensor.s1, unavailable]
+- at: 4
+  send: {type: service_result, call_id: 0, ok: true}
+- at: 4
+  set: [sensor.s1, '8']
+- at: 5
+  send: {type: service_result, call_id: 1, ok: true}
+- at: 6
+  send: {type: event, event_type: e2}
+- at: 8
+  send: {type: event, event_type: e3}
+- at: 9
+  set: [sensor.s2, '12']
+- at: 10
+  send: {type: service_result, call_id: 2, ok: true}
+- at: 13
+  send:
+    type: event
+    event_type: e3
+    data: {k: 2}
+- at: 14
+  send: {type: service_result, call_id: 3, ok: true}
+- at: 17
+  set: [sensor.s1, unknown]
+- at: 17
+  send: {type: service_result, call_id: 4, ok: false, error_kind: invalid}
+- at: 20
+  send: {type: event, event_type: e2}
+- at: 21
+  send:
+    type: event
+    event_type: e2
+    data: {k: a}
+- at: 21
+  set: [sensor.s1, '4']

@@ -1,0 +1,73 @@
+# random scenario, seed 202, index 48 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  triggers:
+  - {trigger: state, entity_id: sensor.s2, from: abc}
+  - {trigger: numeric_state, entity_id: sensor.s2, above: 6, below: 15}
+  conditions:
+  - condition: or
+    conditions:
+    - {condition: numeric_state, entity_id: sensor.s2, below: 9}
+    - {condition: time, after: '22:13:25'}
+  - {condition: numeric_state, entity_id: sensor.s2, below: 9}
+  actions:
+  - choose:
+    - conditions:
+      - {condition: template, value_template: '{{ states(''sensor.s1'') == states(''sensor.s2'') }}'}
+      sequence:
+      - {delay: '00:00:02'}
+  - {action: test.s1}
+  - repeat:
+      while: ['{{ states(''sensor.s1'') == states(''sensor.s2'') }}', '{{ repeat.index <= 2 }}']
+      sequence:
+      - condition: not
+        conditions:
+        - {condition: trigger, id: '0'}
+        - {condition: template, value_template: '{{ is_state(''light.l2'', ''off'') }}'}
+      - event: m_2
+        event_data: {n: 2, v: '{{ this.attributes.current }}'}
+    continue_on_error: true
+  - wait_for_trigger:
+    - {trigger: state, entity_id: light.l2, not_to: 1, attribute: lvl}
+    timeout: {seconds: 2}
+  - event: m_3
+    event_data: {n: 3, completed: '{{ wait.completed }}', trig: '{{ wait.trigger.platform if wait.trigger else ''none'' }}'}
+  - {stop: s, error: true}
+states:
+- {entity_id: sensor.s1, state: '12'}
+- {entity_id: sensor.s2, state: '12'}
+- {entity_id: light.l1, state: 'off'}
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: 'off'}
+steps:
+- at: 2
+  send: {type: event, event_type: e2}
+- at: 3
+  set: [sensor.s2, '7.5']
+- at: 4
+  send:
+    type: event
+    event_type: e2
+    data: {k: a}
+- at: 5
+  send: {type: event, event_type: e2}
+- at: 6
+  set: [sensor.s2, '7.5']
+  attributes: {lvl: 2}
+- at: 6
+  set: [input_boolean.b1, unavailable]
+- at: 9
+  send: {type: event, event_type: tick}
+- at: 11
+  set: [light.l2, 'on']
+  attributes: {lvl: 2}
+- at: 11
+  set: [light.l2, 'off']
+- at: 12
+  send: {type: event, event_type: e1}
+- at: 13
+  set: [light.l1, 'on']
+  attributes: {lvl: 2}
+- at: 14
+  set: [sensor.s1, '20']

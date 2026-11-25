@@ -1,0 +1,171 @@
+description: random scenario seed=101 index=260
+scripts:
+  s0:
+    alias: Script 0 B
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s1:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s3
+        - script.s2
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+      response_variable: r
+  s2:
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+  s3:
+    alias: Script 3 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s3.3
+        v: '{{ v | default(0) }}'
+steps:
+- at: 1
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+- at: 4
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s2
+- at: 7
+  call: s0
+  data:
+    v: 4
+- at: 7
+- at: 8
+  reload:
+    s0:
+      alias: Script 0 B
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s1:
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s3
+          - script.s2
+        data:
+          variables:
+            v: '{{ v | default(0) + 10 }}'
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: test.m
+        data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+        response_variable: r
+    s2:
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s2.2
+          v: '{{ v | default(0) }}'
+    s3:
+      alias: Reloaded s3
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s3.3
+          v: '{{ v | default(0) }}'
+- at: 10
+  call: s0
+  data:
+    v: 1
+- at: 11
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 11
+  result: 1
+  response:
+    n: 1
+- at: 13
+  result: 2
+  response:
+    n: 2
+- at: 14
+  call: s3
+  data:
+    v: 4
+- at: 14
+  result: 0
+  response:
+    n: 0

@@ -1,0 +1,45 @@
+# random scenario, seed 202, index 259 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  variables: {v1: '{{ trigger.platform }}'}
+  triggers:
+  - {trigger: numeric_state, entity_id: sensor.s2, above: 3, below: 10, for: '{{ 2 }}', id: alpha}
+  actions:
+  - event: m_1
+    event_data: {n: 1, v: '{{ trigger.idx }}'}
+  - {event: m_2}
+  - {action: test.s3}
+states:
+- {entity_id: sensor.s1, state: '1'}
+- {entity_id: sensor.s2, state: '20'}
+- entity_id: light.l1
+  state: 'on'
+  attributes: {lvl: 2}
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: 'on'}
+steps:
+- at: 1
+  send: {type: event, event_type: tick}
+- at: 3
+  send: {type: event, event_type: tick}
+- at: 5
+  set: [sensor.s1, '7.5']
+- at: 8
+  send: {type: event, event_type: tick}
+- at: 8
+  set: [light.l1, 'off']
+- at: 9
+  send: {type: event, event_type: e1}
+- at: 11
+  send: {type: event, event_type: e2}
+- at: 12
+  send: {type: event, event_type: e1}
+- at: 12
+  send: {type: event, event_type: tick}
+- at: 13
+  send: {type: event, event_type: tick}
+- at: 16
+  send: {type: event, event_type: tick}
+- at: 18
+  send: {type: event, event_type: tick}

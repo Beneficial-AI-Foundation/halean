@@ -1,0 +1,27 @@
+description: >
+  Two runs of a parallel script start in one step, each with `delay 3`; another script with `delay 1`
+  starts a second later. The two delays end in the same tick. HALean goes on in the order the delays
+  were started; the harness's HA fires same-deadline timers in the order of asyncio's timer heap.
+  (Minimised from random case r101_0042.)
+scripts:
+  starter:
+    sequence:
+      - action: script.turn_on
+        target: {entity_id: script.p}
+        data:
+          variables: {v: 10}
+  p:
+    mode: parallel
+    fields:
+      v: {}
+    sequence:
+      - delay: 3
+      - event: p_done
+        event_data: {v: "{{ v | default(0) }}"}
+  other:
+    sequence:
+      - delay: 1
+steps:
+  - {at: 16, call: turn_on, data: {entity_id: [script.starter, script.p]}}
+  - {at: 17, call: other}
+  - {at: 20}

@@ -1,0 +1,104 @@
+description: random scenario seed=101 index=297
+scripts:
+  s0:
+    alias: Script 0 A
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+      else:
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+        response_variable: r
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      else:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: test.m
+        data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+  s2:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - repeat:
+        count: 2
+        sequence:
+        - event: mark
+          event_data:
+            id: s2.3
+            v: '{{ v | default(0) }}'
+steps:
+- at: 2
+  call: s1
+  data:
+    v: 0
+  return_response: true
+- at: 3
+  call: s2
+  data:
+    v: 1
+- at: 4
+  call: s1
+- at: 7
+  result: 0
+  response:
+    n: 0
+- at: 8
+  call: s1
+  data:
+    v: 2
+  return_response: true
+- at: 10
+- at: 11
+  call: s0
+  data:
+    v: 2
+  return_response: true
+- at: 12
+  call: s2
+  return_response: true

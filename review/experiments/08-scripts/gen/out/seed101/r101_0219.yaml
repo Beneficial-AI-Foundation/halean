@@ -1,0 +1,155 @@
+description: random scenario seed=101 index=219
+scripts:
+  s0:
+    alias: Script 0 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s3
+        - script.s4
+  s1:
+    icon: mdi:script
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+  s2:
+    alias: Script 2 B
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+    - action: script.toggle
+      target:
+        entity_id: script.s3
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+  s3:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s3.2
+        v: '{{ v | default(0) }}'
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+  s4:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s4.3
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s3'') }}'
+        cur: '{{ state_attr(''script.s3'', ''current'') }}'
+    - event: mark
+      event_data:
+        id: s4.4
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - delay: 1
+      - action: script.turn_off
+        target:
+          entity_id: script.s1
+      else:
+      - action: script.turn_off
+        target:
+          entity_id: script.s4
+    - delay: 1
+steps:
+- at: 1
+- at: 1
+  call: s2
+  data:
+    v: 3
+- at: 2
+  call: turn_off
+  data:
+    entity_id:
+    - script.s2
+    - script.s0
+- at: 4
+  call: s4
+  data:
+    v: 4
+- at: 5
+  call: s0
+  data:
+    v: 4
+- at: 6
+  result: 0
+  ok: false
+  error_kind: invalid
+- at: 7
+  call: s1
+  return_response: true
+- at: 9
+  call: toggle
+  data:
+    entity_id:
+    - script.s4
+    - script.s1
+- at: 9
+  result: 1
+  response:
+    n: 1
+- at: 12
+  call: s3
+  return_response: true
+- at: 13
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    variables:
+      v: 0
+- at: 14
+  call: turn_off
+  data:
+    entity_id: all
+- at: 16
+  result: 2
+  ok: false
+  error_kind: invalid
+- at: 17
+  result: 3
+  response:
+    n: 3
+- at: 18
+  call: s2

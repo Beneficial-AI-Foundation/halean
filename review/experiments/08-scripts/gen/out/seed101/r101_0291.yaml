@@ -1,0 +1,125 @@
+description: random scenario seed=101 index=291
+scripts:
+  s0:
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.toggle
+      target:
+        entity_id: script.s2
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s0'') }}'
+        cur: '{{ state_attr(''script.s0'', ''current'') }}'
+    - repeat:
+        count: 2
+        sequence:
+        - action: script.s0
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          continue_on_error: true
+  s1:
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: script.toggle
+      target:
+        entity_id: script.s2
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+steps:
+- at: 2
+  call: s1
+- at: 5
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+    variables:
+      v: 3
+- at: 6
+  result: 1
+  response:
+    n: 1
+- at: 6
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+- at: 7
+  call: s1
+  return_response: true
+- at: 8
+  result: 0
+  response:
+    n: 0
+- at: 10
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    variables:
+      v: 2
+- at: 11
+  result: 3
+  response:
+    n: 3
+- at: 12
+  call: turn_off
+  data:
+    entity_id: all
+- at: 15
+  result: 4
+  response:
+    n: 4
+- at: 17
+  result: 5
+  response:
+    n: 5
+- at: 18
+  call: s2
+- at: 19
+  call: s0
+  data:
+    v: 2
+  return_response: true
+- at: 20
+  call: s2
+- at: 22
+  call: s1
+  data:
+    v: 2

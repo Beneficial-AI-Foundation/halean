@@ -1,0 +1,13 @@
+description: >
+  A service call with response_variable whose `result` step carries no response. The harness's HA
+  handler then returns None, which ServiceRegistry.async_call refuses for a call that asked for a
+  response; halean-script takes the result as an empty answer.
+scripts:
+  s:
+    sequence:
+      - action: test.get
+        response_variable: r
+      - event: s_after
+steps:
+  - {at: 1, call: s}
+  - {at: 2, result: 0}

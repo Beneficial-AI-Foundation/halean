@@ -1,0 +1,41 @@
+diff --git a/HALean/Automation/Engine.lean b/HALean/Automation/Engine.lean
+index 82637a7..bc6de0f 100644
+--- a/HALean/Automation/Engine.lean
++++ b/HALean/Automation/Engine.lean
+@@ -866,7 +866,13 @@ so a calling run resumes after the current callbacks. -/
+ def callLocalH (h : Handlers) (c : Caller) (ops : List HALean.Script.LocalOp) : EM Unit := do
+   let mut yielded := false
+   for op in ops do
++    -- `async_toggle`: `is_on` now, not when the call was planned
++    let eNow ← getE
++    let op : HALean.Script.LocalOp := match op with
++      | .toggle ai => if (runsOf eNow ai).isEmpty then .start ai [] false else .stop ai
++      | o => o
+     match op with
++    | .toggle _ => pure ()
+     | .fail k m =>
+       emit [.log "error" m]
+       h.answer c (.err k m)
+diff --git a/HALean/Script/Entity.lean b/HALean/Script/Entity.lean
+index cd017a1..c156601 100644
+--- a/HALean/Script/Entity.lean
++++ b/HALean/Script/Entity.lean
+@@ -95,6 +95,9 @@ inductive LocalOp where
+   | start (idx : Nat) (vars : List (String × Template.Value)) (wait : Bool)
+   /-- `ScriptEntity.async_turn_off` (`Script.async_stop`) -/
+   | stop (idx : Nat)
++  /-- `ToggleEntity.async_toggle`: `is_on` is read when the handler gets to
++  this entity, after the entities before it were started or stopped. -/
++  | toggle (idx : Nat)
+   /-- The call raises before the handler runs (schema errors, ...). -/
+   | fail (k : ErrKind) (msg : String)
+   deriving Repr, Inhabited
+@@ -221,7 +224,7 @@ def planCall (scripts : List ScriptEntity) (running : Nat → Bool) (service : S
+         return targets.map fun i =>
+           if service == "turn_on" then .start i vars false
+           else if service == "turn_off" then .stop i
+-          else if running i then .stop i else .start i [] false
++          else .toggle i
+   else
+     match scripts.zipIdx.find? (fun (p : ScriptEntity × Nat) => p.1.alive && p.1.objectId == service) with
+     | some (_, i) => some [.start i (jsonVars data) true]

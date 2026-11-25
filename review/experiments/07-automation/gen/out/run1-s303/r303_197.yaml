@@ -1,0 +1,80 @@
+# random scenario, seed 303, index 197 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: restart
+  triggers:
+  - {trigger: template, value_template: '{{ states(''sensor.s1'') | int(0) > 3 }}', for: '00:00:02'}
+  - {trigger: state, entity_id: light.l1, to: unavailable, from: 'off'}
+  actions:
+  - variables: {v1: '{{ states(''sensor.s1'') }}'}
+  - {stop: s}
+  - event: m_1
+    event_data: {n: 1, v: '{{ states(''light.l1'') }}'}
+  variables: {v1: 0}
+states:
+- {entity_id: sensor.s1, state: '4'}
+- entity_id: light.l1
+  state: 'on'
+  attributes: {lvl: 1}
+- {entity_id: light.l2, state: 'on'}
+- entity_id: input_boolean.b1
+  state: 'on'
+  attributes: {lvl: 1}
+steps:
+- at: 1
+  send: {type: event, event_type: tick}
+- at: 2
+  send: {type: event, event_type: e1}
+- at: 3
+  send: {type: event, event_type: tick}
+- at: 4
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 7
+  set: [sensor.s1, '7.5']
+- at: 8
+  send: {type: event, event_type: tick}
+- at: 8
+  set: [light.l1, 'off']
+- at: 10
+  send: {type: event, event_type: tick}
+- at: 10
+  send:
+    type: event
+    event_type: e3
+    data: {k: 2}
+- at: 12
+  set: [sensor.s1, '20']
+- at: 13
+  send: {type: event, event_type: e3}
+- at: 14
+  set: [light.l1, unavailable]
+- at: 15
+  send:
+    type: event
+    event_type: e1
+    data: {k: 2}
+- at: 17
+  send:
+    type: event
+    event_type: e2
+    data: {k: 2}
+- at: 18
+  set: [light.l1, 'on']
+  attributes: {lvl: 2}
+- at: 18
+  send: {type: event, event_type: tick}
+- at: 19
+  send: {type: event, event_type: tick}
+- at: 19
+  send:
+    type: event
+    event_type: e1
+    data: {k: a}
+- at: 22
+  send: {type: event, event_type: tick}
+- at: 23
+  set: [light.l1, unavailable]

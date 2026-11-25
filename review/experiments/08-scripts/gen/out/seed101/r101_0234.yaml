@@ -1,0 +1,208 @@
+description: random scenario seed=101 index=234
+scripts:
+  s0:
+    alias: Script 0 A
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+  s1:
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s4
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: test.m
+      data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+  s3:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - delay: 1
+    - event: mark
+      event_data:
+        id: s3.4
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s4:
+    alias: Script 4 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+    - event: mark
+      event_data:
+        id: s4.5
+        v: '{{ v | default(0) }}'
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - delay: 2
+steps:
+- at: 2
+  call: s4
+  data:
+    v: 1
+  return_response: true
+- at: 5
+  reload:
+    s0:
+      alias: Script 0 A
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s3
+    s1:
+      icon: mdi:script
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.s4
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - action: test.m
+        data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+      alias: Reloaded s1
+    s2:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - action: test.m
+        data:
+          id: s2.2
+          v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+    s3:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - delay: 1
+      - event: mark
+        event_data:
+          id: s3.4
+          v: '{{ v | default(0) }}'
+          r: '{{ r | default(''undef'') }}'
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s4:
+      alias: Script 4 A
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+      - event: mark
+        event_data:
+          id: s4.5
+          v: '{{ v | default(0) }}'
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - delay: 2
+- at: 6
+  call: s3
+  return_response: true
+- at: 7
+  call: s2
+- at: 10
+  call: turn_off
+  data:
+    entity_id: script.s2
+- at: 10
+  call: turn_on
+  data:
+    entity_id:
+    - script.s3
+    - script.s2
+    variables:
+      v: 1
+- at: 11
+  call: s0
+  data:
+    v: 2
+  return_response: true
+- at: 12
+  call: turn_on
+  data:
+    entity_id:
+    - script.s3

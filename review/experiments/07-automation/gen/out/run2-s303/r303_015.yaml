@@ -1,0 +1,89 @@
+# random scenario, seed 303, index 15 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: parallel
+  triggers:
+  - {trigger: event, event_type: e2}
+  - trigger: state
+    entity_id: sensor.s1
+    not_from: ['1', unavailable]
+  - trigger: state
+    entity_id: [light.l1]
+    from: 'off'
+  conditions:
+  - not:
+    - {condition: template, value_template: '{{ is_state(''light.l1'', ''on'') }}'}
+    - '{{ trigger.platform == ''event'' }}'
+  - {condition: numeric_state, entity_id: sensor.s1, below: 15}
+  actions:
+  - {action: test.s1}
+  - {action: test.s2}
+states:
+- {entity_id: sensor.s1, state: '12'}
+- {entity_id: sensor.s2, state: unknown}
+- {entity_id: light.l1, state: 'on'}
+- entity_id: light.l2
+  state: 'on'
+  attributes: {lvl: 1}
+steps:
+- at: 1
+  set: [sensor.s1, unavailable]
+- at: 3
+  send: {type: event, event_type: tick}
+- at: 5
+  send: {type: event, event_type: tick}
+- at: 6
+  send: {type: event, event_type: e1}
+- at: 7
+  set: [sensor.s1, unknown]
+  attributes: {lvl: 3}
+- at: 8
+  set: [light.l1, 'off']
+- at: 11
+  send:
+    type: event
+    event_type: e1
+    data: {k: a}
+- at: 12
+  set: [sensor.s1, unknown]
+- at: 13
+  set: [light.l1, 'off']
+  attributes: {lvl: 1}
+- at: 14
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 17
+  send: {type: event, event_type: e1}
+- at: 18
+  set: [sensor.s1, '8']
+- at: 19
+  set: [light.l1, 'off']
+- at: 22
+  send: {type: event, event_type: tick}
+- at: 23
+  set: [sensor.s1, '4']
+- at: 26
+  send:
+    type: event
+    event_type: e1
+    data: {k: 2}
+- at: 29
+  send: {type: event, event_type: tick}
+- at: 29
+  send: {type: service_result, call_id: 0, ok: false, error_kind: invalid}
+- at: 32
+  send: {type: event, event_type: e3}
+- at: 34
+  send: {type: event, event_type: tick}
+- at: 37
+  set: [light.l1, 'off']
+  attributes: {lvl: 1}
+- at: 38
+  send: {type: service_result, call_id: 1, ok: true}
+- at: 38
+  send: {type: event, event_type: tick}
+- at: 39
+  send: {type: service_result, call_id: 2, ok: true}

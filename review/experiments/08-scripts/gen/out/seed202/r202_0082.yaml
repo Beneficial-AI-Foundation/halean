@@ -1,0 +1,124 @@
+description: random scenario seed=202 index=82
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+  s1:
+    alias: Script 1 A
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+  s2:
+    alias: Script 2 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+    - action: test.m
+      data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+    - delay: 3
+  s3:
+    alias: Script 3 A
+    icon: mdi:script
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - action: test.m
+      data:
+        id: s3.3
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+steps:
+- at: 2
+  call: s0
+  data:
+    v: 4
+  return_response: true
+- at: 4
+  call: turn_off
+  data:
+    entity_id: script.s0
+- at: 7
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    variables:
+      v: 1
+- at: 8
+  result: 0
+  response:
+    n: 0
+- at: 9
+  result: 1
+  response:
+    n: 1
+- at: 10
+  call: s0
+  data:
+    v: 2
+- at: 11
+  result: 2
+  response:
+    n: 2
+- at: 12
+  result: 3
+  response:
+    n: 3
+- at: 13
+  call: turn_off
+  data:
+    entity_id:
+    - script.s0
+    - script.s3
+- at: 14
+  call: s2
+- at: 15
+  call: s2
+  data:
+    v: 4
+- at: 15

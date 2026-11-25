@@ -1,0 +1,70 @@
+# random scenario, seed 101, index 272 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: parallel
+  variables: {v1: '{{ trigger.platform }}'}
+  triggers:
+  - {trigger: time, at: '22:13:23'}
+  actions:
+  - if:
+    - condition: and
+      conditions:
+      - {condition: trigger, id: alpha}
+      - condition: trigger
+        id: [beta, '0']
+    then:
+    - wait_for_trigger:
+      - trigger: state
+        entity_id: [light.l1, input_boolean.b1]
+        attribute: lvl
+      timeout: 2
+    - event: m_2
+      event_data: {n: 2, completed: '{{ wait.completed }}', trig: '{{ wait.trigger.platform if wait.trigger else ''none'' }}'}
+    - {action: test.s1}
+    else:
+    - event: m_3
+      event_data: {n: 3, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+    - action: test.s4
+      data: {n: 4, v: '{{ trigger.id }}'}
+      continue_on_error: true
+      enabled: false
+  - {action: test.s5}
+states:
+- {entity_id: sensor.s1, state: '8'}
+- {entity_id: sensor.s2, state: '20'}
+- entity_id: light.l1
+  state: 'off'
+  attributes: {lvl: 1}
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: unavailable}
+steps:
+- at: 1
+  send: {type: event, event_type: e3}
+- at: 2
+  send: {type: event, event_type: e2}
+- at: 5
+  set: [light.l1, 'on']
+- at: 7
+  send: {type: service_result, call_id: 0, ok: true}
+- at: 9
+  set: [sensor.s1, '4']
+- at: 10
+  set: [light.l1, 'on']
+  attributes: {lvl: 2}
+- at: 10
+  set: [sensor.s1, '8']
+- at: 11
+  set: [sensor.s1, abc]
+- at: 12
+  set: [sensor.s1, unknown]
+  attributes: {lvl: 2}
+- at: 12
+  send: {type: event, event_type: e3}
+- at: 15
+  set: [light.l2, 'on']
+- at: 18
+  send:
+    type: event
+    event_type: e1
+    data: {k: 1}

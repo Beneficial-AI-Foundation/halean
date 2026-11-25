@@ -26,7 +26,10 @@ scripts with a higher index, so nothing loops forever.
 from __future__ import annotations
 
 import copy
+import os
 import random
+import signal
+import subprocess
 import sys
 from pathlib import Path
 
@@ -37,6 +40,17 @@ sys.path.insert(0, str(HERE.parent / "harness"))
 from run_script_scenarios import lean_run  # noqa: E402
 
 MODES = ["single", "restart", "queued", "parallel"]
+
+
+class _Timeout(Exception):
+    pass
+
+
+def _alarm(*_args) -> None:
+    raise _Timeout
+
+
+signal.signal(signal.SIGALRM, _alarm)
 
 
 class Gen:
@@ -181,6 +195,20 @@ def loops(scripts: dict) -> bool:
                     continue
                 seen.add(n)
                 todo.extend(direct[n] | fresh[n])
+    # a parallel script on a cycle of calls recurses until `max` runs exist;
+    # with several calls per run that is exponential in `max` (both in HA
+    # and in HALean), so only small `max` values are let through
+    for name, cfg in scripts.items():
+        if cfg.get("mode") == "parallel" and cfg.get("max", 10) > 3:
+            seen, todo = set(), list(direct[name] | fresh[name])
+            while todo:
+                n = todo.pop()
+                if n == name:
+                    return True
+                if n in seen or n not in scripts:
+                    continue
+                seen.add(n)
+                todo.extend(direct[n] | fresh[n])
     return False
 
 
@@ -200,8 +228,19 @@ def scenario(seed: int, idx: int) -> dict:
         at += rng.choice([0, 1, 1, 1, 2, 3])
         if at == 0:
             at = 1
-        # how many service calls exist so far (through HALean)
-        _, obs = lean_run(sc)
+        # how many service calls exist so far (through HALean); a prefix that
+        # takes HALean more than 60 s ends the scenario one step earlier
+        signal.alarm(60)
+        try:
+            _, obs = lean_run(sc)
+        except _Timeout:
+            # only this process's own engine child
+            subprocess.run(["pkill", "-P", str(os.getpid()), "-f", "halean-script"], check=False)
+            sc["steps"].pop()
+            sc["description"] += " (cut: halean-script took more than 60 s on the next step)"
+            break
+        finally:
+            signal.alarm(0)
         made = sum(len(o["call_service"]) for o in obs)
         pending = [n for n in range(made) if n not in resolved]
         st: dict = {"at": at}

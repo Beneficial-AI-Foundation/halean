@@ -1,0 +1,170 @@
+description: random scenario seed=202 index=31
+scripts:
+  s0:
+    alias: Script 0 B
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+    - action: script.toggle
+      target:
+        entity_id: script.s1
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s1'') }}'
+        cur: '{{ state_attr(''script.s1'', ''current'') }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+  s2:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+steps:
+- at: 1
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+    variables:
+      v: 2
+- at: 4
+  call: s0
+  return_response: true
+- at: 4
+  reload:
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s1'') }}'
+          cur: '{{ state_attr(''script.s1'', ''current'') }}'
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+    s2:
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+- at: 6
+- at: 9
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 10
+  result: 0
+  response:
+    n: 0
+- at: 11
+  reload:
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s1'') }}'
+          cur: '{{ state_attr(''script.s1'', ''current'') }}'
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+    s2:
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+      alias: Reloaded s2
+- at: 14
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    variables:
+      v: 1
+- at: 16
+  call: turn_off
+  data:
+    entity_id: all
+- at: 18
+  call: s1
+- at: 19
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    variables:
+      v: 3
+- at: 22
+  call: s2
+  data:
+    v: 2
+- at: 22
+  call: s1
+  return_response: true
+- at: 25
+  call: s2
+  data:
+    v: 2
+- at: 26
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 27
+  call: s1
+  data:
+    v: 0

@@ -1,0 +1,73 @@
+# random scenario, seed 202, index 38 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: restart
+  variables: {v1: 0}
+  triggers:
+  - {trigger: event, event_type: e3}
+  conditions:
+  - condition: not
+    conditions:
+    - condition: or
+      conditions:
+      - {condition: time, after: '22:00', before: '06:00'}
+      - '{{ is_state(''input_boolean.b1'', ''on'') and is_state(''light.l1'', ''on'') }}'
+  actions:
+  - {delay: '00:00:02', enabled: false}
+  - repeat:
+      for_each: '{{ [''x'', 1] }}'
+      sequence:
+      - delay: {seconds: '{{ 2 }}'}
+    enabled: false
+states:
+- {entity_id: sensor.s1, state: '4'}
+- {entity_id: sensor.s2, state: '1'}
+- {entity_id: input_boolean.b1, state: 'on'}
+steps:
+- at: 1
+  send: {type: event, event_type: e1}
+- at: 1
+  send:
+    type: event
+    event_type: e2
+    data: {k: a}
+- at: 1
+  send:
+    type: event
+    event_type: e1
+    data: {k: true}
+- at: 2
+  set: [sensor.s1, unknown]
+- at: 3
+  set: [input_boolean.b1, unavailable]
+  attributes: {lvl: 3}
+- at: 6
+  send: {type: event, event_type: e3}
+- at: 6
+  set: [sensor.s1, '8']
+  attributes: {lvl: 1}
+- at: 9
+  send: {type: event, event_type: tick}
+- at: 9
+  send:
+    type: event
+    event_type: e1
+    data: {k: 1}
+- at: 11
+  send: {type: event, event_type: tick}
+- at: 12
+  send: {type: event, event_type: e1}
+- at: 13
+  send:
+    type: event
+    event_type: e3
+    data: {k: 1}
+- at: 15
+  set: [light.l2, 'on']
+- at: 16
+  set: [sensor.s1, '8']
+- at: 17
+  set: [light.l1, 'off']
+- at: 18
+  send: {type: event, event_type: e1}

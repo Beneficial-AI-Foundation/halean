@@ -1,0 +1,115 @@
+description: random scenario seed=101 index=294
+scripts:
+  s0:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - delay: 1
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s0'') }}'
+        cur: '{{ state_attr(''script.s0'', ''current'') }}'
+  s2:
+    icon: mdi:script
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+steps:
+- at: 1
+  call: turn_off
+  data:
+    entity_id: all
+- at: 2
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+- at: 3
+  call: turn_off
+  data:
+    entity_id: script.s1
+- at: 4
+  result: 0
+  response:
+    n: 0
+- at: 5
+  call: s0
+  data:
+    v: 0
+  return_response: true
+- at: 6
+  result: 1
+  ok: false
+  error_kind: ha_error
+- at: 7
+  reload:
+    s0:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+      - action: script.turn_off
+        target:
+          entity_id: script.s1
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+    s2:
+      icon: mdi:script
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+- at: 8
+  call: s0
+  data:
+    v: 1
+- at: 8
+  call: s0
+  data:
+    v: 3

@@ -1,0 +1,133 @@
+# random scenario, seed 101, index 111 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  triggers:
+  - trigger: state
+    entity_id: light.l2
+    from: ['on', 'off']
+  - {trigger: numeric_state, entity_id: sensor.s1, above: 3, below: 10, for: '{{ 2 }}'}
+  - trigger: state
+    entity_id: [light.l2, sensor.s2]
+    to: 'on'
+    for: 3
+  actions:
+  - delay: {seconds: '{{ 2 }}'}
+  - {stop: s}
+  - {stop: s}
+  - event: m_1
+    event_data: {n: 1, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+- alias: a1
+  id: id1
+  mode: parallel
+  max: 3
+  triggers:
+  - trigger: event
+    event_type: e1
+    event_data: {k: a}
+    id: alpha
+  actions:
+  - condition: and
+    conditions:
+    - condition: and
+      conditions:
+      - condition: state
+        entity_id: input_boolean.b1
+        state: ['on', unavailable]
+      - {condition: numeric_state, entity_id: sensor.s1, above: 3, below: 15}
+    - {condition: template, value_template: '{{ trigger.platform == ''event'' }}'}
+    enabled: false
+  - sequence:
+    - repeat:
+        until:
+        - condition: or
+          conditions:
+          - condition: not
+            conditions:
+            - condition: not
+              conditions: ['{{ states(''sensor.s1'') | int > 5 }}']
+              enabled: false
+            - {condition: trigger, id: alpha}
+            - {condition: state, entity_id: light.l1, state: 'off'}
+          - '{{ repeat.index >= 3 }}'
+        sequence:
+        - event: m_2
+          event_data: {n: 2, v: '{{ [states(''light.l1''), states(''light.l2'')] }}'}
+    - {wait_template: '{{ states(''sensor.s1'') == states(''sensor.s2'') }}', timeout: '00:00:03', continue_on_timeout: false}
+    - event: m_3
+      event_data: {n: 3, completed: '{{ wait.completed }}'}
+states:
+- entity_id: sensor.s1
+  state: unavailable
+  attributes: {lvl: 2}
+- {entity_id: sensor.s2, state: unknown}
+- {entity_id: light.l1, state: 'on'}
+- {entity_id: light.l2, state: 'off'}
+steps:
+- at: 1
+  set: [light.l1, 'off']
+- at: 2
+  send: {type: event, event_type: tick}
+- at: 2
+  set: [input_boolean.b1, 'on']
+- at: 4
+  set: [sensor.s1, '4']
+- at: 7
+  send: {type: event, event_type: e1}
+- at: 10
+  set: [sensor.s1, '4']
+  attributes: {lvl: 1}
+- at: 11
+  send:
+    type: event
+    event_type: e3
+    data: {k: 2}
+- at: 11
+  set: [light.l1, 'off']
+  attributes: {lvl: 1}
+- at: 11
+  set: [sensor.s2, '12']
+- at: 13
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 14
+  set: [sensor.s1, '7.5']
+- at: 14
+  send: {type: event, event_type: tick}
+- at: 15
+  send:
+    type: event
+    event_type: e3
+    data: {k: 1}
+- at: 16
+  send:
+    type: event
+    event_type: e3
+    data: {k: 2}
+- at: 19
+  send: {type: event, event_type: tick}
+- at: 20
+  send: {type: event, event_type: tick}
+- at: 21
+  set: [sensor.s1, unknown]
+- at: 22
+  set: [light.l1, 'on']
+- at: 25
+  set: [light.l1, 'on']
+  attributes: {lvl: 2}
+- at: 26
+  send: {type: event, event_type: tick}
+- at: 26
+  send: {type: event, event_type: e1}
+- at: 26
+  set: [light.l2, 'on']
+- at: 27
+  set: [sensor.s2, '4']
+- at: 30
+  send:
+    type: event
+    event_type: e3
+    data: {k: a}

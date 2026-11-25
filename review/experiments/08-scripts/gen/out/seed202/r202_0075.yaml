@@ -1,0 +1,119 @@
+description: random scenario seed=202 index=75
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - repeat:
+        count: 2
+        sequence:
+        - action: test.m
+          data:
+            id: s0.1
+            v: '{{ v | default(0) }}'
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+        - script.s3
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+    - delay: 1
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+  s3:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+  s4:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+    - event: mark
+      event_data:
+        id: s4.3
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+steps:
+- at: 1
+  call: s4
+  data:
+    v: 2
+- at: 2
+  call: s1
+  data:
+    v: 1
+- at: 3
+  call: s0
+- at: 4
+  result: 0
+  response:
+    n: 0
+- at: 5
+  result: 1
+  response:
+    n: 1
+- at: 6
+  call: s1
+  data:
+    v: 3
+  return_response: true
+- at: 7
+  call: s0
+  data:
+    v: 1
+- at: 8
+  result: 2
+  response:
+    n: 2

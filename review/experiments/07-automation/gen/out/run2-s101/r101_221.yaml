@@ -1,0 +1,48 @@
+# random scenario, seed 101, index 221 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: restart
+  triggers:
+  - trigger: state
+    entity_id: light.l2
+    to: 'off'
+    for: {seconds: '{{ 1 + 1 }}'}
+    id: alpha
+  - {trigger: time_pattern, seconds: /3}
+  actions:
+  - delay: {seconds: '{{ 2 }}'}
+  - {wait_template: '{{ states(''sensor.s1'') == states(''sensor.s2'') }}'}
+states:
+- {entity_id: sensor.s2, state: '4'}
+- {entity_id: light.l1, state: unavailable}
+- entity_id: light.l2
+  state: unavailable
+  attributes: {lvl: 3}
+- {entity_id: input_boolean.b1, state: unavailable}
+steps:
+- at: 1
+  send: {type: event, event_type: e1}
+- at: 2
+  set: [input_boolean.b1, 'off']
+- at: 2
+  set: [input_boolean.b1, unavailable]
+- at: 3
+  set: [light.l2, 'on']
+- at: 5
+  set: [input_boolean.b1, 'on']
+- at: 6
+  send: {type: event, event_type: tick}
+- at: 7
+  set: [light.l1, 'on']
+  attributes: {lvl: 2}
+- at: 10
+  set: [sensor.s2, unavailable]
+- at: 13
+  set: [sensor.s1, '1']
+- at: 14
+  send: {type: event, event_type: e3}
+- at: 15
+  send: {type: event, event_type: e1}
+- at: 18
+  set: [input_boolean.b1, 'off']

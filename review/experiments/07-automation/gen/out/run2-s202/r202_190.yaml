@@ -1,0 +1,170 @@
+# random scenario, seed 202, index 190 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  triggers:
+  - {trigger: event, event_type: e2}
+  - {trigger: time, at: '22:13:23'}
+  conditions:
+  - {condition: numeric_state, entity_id: sensor.s1, below: 15}
+  actions:
+  - sequence:
+    - {event: m_1}
+  - if:
+    - {condition: template, value_template: '{{ trigger.id == ''0'' }}'}
+    then:
+    - event: m_2
+      event_data: {n: 2, v: '{{ trigger.description }}'}
+    else:
+    - repeat:
+        count: '{{ states(''sensor.s1'') | int(0) // 4 }}'
+        sequence:
+        - repeat:
+            while: ['{{ is_state(''light.l1'', ''on'') }}', '{{ repeat.index <= 3 }}']
+            sequence:
+            - {condition: numeric_state, entity_id: sensor.s2, above: sensor.s2, below: 15}
+            - event: m_3
+              event_data: {n: 3, v: '{{ states(''light.l1'') }}'}
+              enabled: false
+          continue_on_error: true
+      continue_on_error: true
+    continue_on_error: true
+  - {stop: s, error: true}
+- alias: a1
+  id: id1
+  triggers:
+  - {trigger: event, event_type: e3}
+  - trigger: event
+    event_type: e1
+    event_data: {k: a}
+  - {trigger: event, event_type: e3}
+  conditions:
+  - condition: not
+    conditions:
+    - {condition: template, value_template: '{{ states(''sensor.s1'') | int(0) > 7 }}'}
+    - condition: time
+      after: '22:00'
+      before: '22:13:30'
+      weekday: [tue]
+    - or:
+      - {condition: time, after: '23:00:00', before: '22:13:30'}
+      - {condition: template, value_template: '{{ states(''sensor.s1'') | int(0) > 3 }}'}
+      - '{{ trigger.platform == ''event'' }}'
+    enabled: false
+  actions:
+  - {event: m_4}
+  - action: test.s5
+    data: {n: 5, v: '{{ this.attributes.current }}'}
+    continue_on_error: true
+    response_variable: v1
+  variables: {v1: 0}
+- alias: a2
+  id: id2
+  triggers:
+  - {trigger: numeric_state, entity_id: sensor.s2, above: 6, below: 15}
+  - {trigger: state, entity_id: input_boolean.b1, id: alpha}
+  actions:
+  - repeat:
+      while:
+      - condition: trigger
+        id: [beta, '0']
+      - '{{ repeat.index <= 1 }}'
+      sequence:
+      - parallel:
+        - event: m_6
+          event_data: {n: 6, v: '{{ states(''sensor.s1'') }}'}
+        - sequence:
+          - {action: test.s7, enabled: false}
+          - action: test.s8
+            data: {n: 8, v: '{{ this.attributes.current }}'}
+    continue_on_error: true
+  - {stop: s}
+states:
+- entity_id: sensor.s1
+  state: '4'
+  attributes: {lvl: 3}
+- {entity_id: sensor.s2, state: '1'}
+- entity_id: light.l1
+  state: 'off'
+  attributes: {lvl: 1}
+- {entity_id: light.l2, state: 'on'}
+- {entity_id: input_boolean.b1, state: 'off'}
+steps:
+- at: 1
+  send: {type: event, event_type: e3}
+- at: 4
+  send:
+    type: event
+    event_type: e1
+    data: {k: a}
+- at: 5
+  set: [sensor.s2, abc]
+- at: 5
+  send:
+    type: service_result
+    call_id: 0
+    ok: true
+    response: {value: 1}
+- at: 8
+  set: [input_boolean.b1, 'on']
+- at: 9
+  set: [sensor.s1, '7.5']
+- at: 10
+  send:
+    type: event
+    event_type: e3
+    data: {k: 1}
+- at: 13
+  send:
+    type: service_result
+    call_id: 1
+    ok: true
+    response:
+      value: [1, 2]
+- at: 14
+  set: [light.l2, 'off']
+- at: 15
+  send: {type: event, event_type: tick}
+- at: 15
+  send: {type: event, event_type: e2}
+- at: 16
+  set: [light.l1, unavailable]
+- at: 17
+  set: [light.l2, 'off']
+  attributes: {lvl: 2}
+- at: 19
+  set: [light.l1, 'off']
+- at: 20
+  send:
+    type: event
+    event_type: e1
+    data: {k: 2}
+- at: 21
+  set: [sensor.s2, '20']
+- at: 22
+  send: {type: event, event_type: tick}
+- at: 23
+  send: {type: event, event_type: tick}
+- at: 26
+  send: {type: event, event_type: e3}
+- at: 26
+  send:
+    type: service_result
+    call_id: 2
+    ok: true
+    response: {value: x}
+- at: 26
+  set: [input_boolean.b1, 'off']
+- at: 27
+  send:
+    type: event
+    event_type: e1
+    data: {k: true}
+- at: 28
+  set: [sensor.s2, '8']
+- at: 29
+  send:
+    type: service_result
+    call_id: 3
+    ok: true
+    response: {value: x}

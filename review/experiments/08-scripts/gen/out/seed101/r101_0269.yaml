@@ -1,0 +1,123 @@
+description: random scenario seed=101 index=269
+scripts:
+  s0:
+    alias: Script 0 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+  s1:
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - parallel:
+      - sequence:
+        - repeat:
+            count: 2
+            sequence:
+            - delay: 2
+      - sequence:
+        - condition: template
+          value_template: '{{ v | default(0) < 2 }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+  s2:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+steps:
+- at: 1
+  call: s0
+- at: 1
+  call: s1
+- at: 2
+  call: s2
+  data:
+    v: 0
+- at: 4
+  call: s1
+  data:
+    v: 1
+- at: 4
+  call: s2
+  data:
+    v: 0
+- at: 4
+  reload:
+    s0:
+      alias: Script 0 B
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+    s1:
+      mode: queued
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - parallel:
+        - sequence:
+          - repeat:
+              count: 2
+              sequence:
+              - delay: 2
+        - sequence:
+          - condition: template
+            value_template: '{{ v | default(0) < 2 }}'
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+    s2:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+- at: 7
+  call: s0
+  return_response: true
+- at: 9
+- at: 10
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    variables:
+      v: 3
+- at: 11
+  call: s2
+  data:
+    v: 2
+  return_response: true

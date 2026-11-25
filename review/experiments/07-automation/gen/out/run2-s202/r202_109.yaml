@@ -1,0 +1,93 @@
+# random scenario, seed 202, index 109 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: parallel
+  max: 3
+  triggers:
+  - {trigger: numeric_state, entity_id: sensor.s1, above: 3, for: 2}
+  - {trigger: numeric_state, entity_id: sensor.s2, above: 6, below: 15, for: '{{ 2 }}'}
+  - {trigger: event, event_type: e1}
+  actions:
+  - repeat:
+      while:
+      - {condition: template, value_template: '{{ is_state(''input_boolean.b1'', ''on'') and is_state(''light.l1'', ''on'') }}'}
+      - '{{ repeat.index <= 3 }}'
+      sequence:
+      - sequence:
+        - event: m_1
+          event_data: {n: 1, v: '{{ trigger.idx }}'}
+        - {stop: s}
+      - if:
+        - '{{ trigger.platform in [''state'', ''numeric_state''] }}'
+        - {condition: time, after: '22:13:25', before: '22:13:30'}
+        then:
+        - event: m_2
+          event_data: {n: 2, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+  - wait_for_trigger:
+    - {trigger: event, event_type: e3}
+    timeout: 2
+states:
+- entity_id: sensor.s1
+  state: '1'
+  attributes: {lvl: 1}
+- {entity_id: sensor.s2, state: '12'}
+- entity_id: light.l1
+  state: unavailable
+  attributes: {lvl: 1}
+- {entity_id: light.l2, state: unavailable}
+- entity_id: input_boolean.b1
+  state: unavailable
+  attributes: {lvl: 2}
+steps:
+- at: 1
+  set: [input_boolean.b1, 'on']
+- at: 3
+  set: [sensor.s1, '1']
+- at: 4
+  set: [light.l2, 'off']
+  attributes: {lvl: 2}
+- at: 4
+  send: {type: event, event_type: tick}
+- at: 5
+  send: {type: event, event_type: tick}
+- at: 5
+  set: [light.l2, 'on']
+  attributes: {lvl: 2}
+- at: 6
+  set: [light.l2, unavailable]
+- at: 6
+  set: [sensor.s2, '20']
+  attributes: {lvl: 1}
+- at: 7
+  set: [light.l2, unavailable]
+  attributes: {lvl: 2}
+- at: 7
+  send:
+    type: event
+    event_type: e1
+    data: {k: 1}
+- at: 8
+  set: [light.l1, 'on']
+- at: 9
+  send: {type: event, event_type: tick}
+- at: 10
+  set: [sensor.s1, '7.5']
+- at: 11
+  send:
+    type: event
+    event_type: e3
+    data: {k: a}
+- at: 13
+  send: {type: event, event_type: e1}
+- at: 15
+  send: {type: event, event_type: e1}
+- at: 16
+  send: {type: event, event_type: e2}
+- at: 19
+  set: [light.l1, unavailable]
+  attributes: {lvl: 2}
+- at: 22
+  set: [light.l2, 'on']
+- at: 25
+  send: {type: event, event_type: tick}

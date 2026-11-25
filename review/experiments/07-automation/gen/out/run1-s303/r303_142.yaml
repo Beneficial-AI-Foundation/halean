@@ -1,0 +1,130 @@
+# random scenario, seed 303, index 142 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  triggers:
+  - {trigger: template, value_template: '{{ states(''sensor.s1'') | int > 5 }}', for: '{{ 2 }}'}
+  - {trigger: state, entity_id: light.l1, not_from: 'on'}
+  conditions:
+  - '{{ states(''sensor.s1'') | int > 5 }}'
+  - {condition: trigger, id: '0'}
+  actions:
+  - {stop: s}
+  - parallel:
+    - sequence:
+      - event: m_1
+        event_data: {n: 1, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+    - sequence:
+      - if:
+        - or:
+          - condition: not
+            conditions:
+            - {condition: trigger, id: alpha}
+            - {condition: state, entity_id: light.l1, state: 'off'}
+          - condition: trigger
+            id: [beta, '0']
+            enabled: false
+        - {condition: template, value_template: '{{ states(''sensor.s1'') | int > 5 }}'}
+        then:
+        - {wait_template: '{{ states(''sensor.s1'') | int > 5 }}'}
+      - {event: m_2}
+  - if:
+    - {condition: template, value_template: '{{ states(''sensor.s1'') | int > 5 }}', enabled: false}
+    - {condition: trigger, id: alpha}
+    then:
+    - event: m_3
+      event_data: {n: 3, v: '{{ [states(''light.l1''), states(''light.l2'')] }}'}
+- alias: a1
+  id: id1
+  mode: restart
+  triggers:
+  - {trigger: state, entity_id: light.l1, not_to: 'off'}
+  - trigger: state
+    entity_id: [sensor.s1, light.l1]
+    from: abc
+    to: unavailable
+    for: 1
+    id: beta
+  conditions:
+  - condition: not
+    conditions:
+    - condition: and
+      conditions:
+      - {condition: trigger, id: '0'}
+    - {condition: template, value_template: '{{ states(''sensor.s1'') == states(''sensor.s2'') }}'}
+    - condition: or
+      conditions: ['{{ states(''sensor.s1'') | int(0) > 3 }}']
+  actions:
+  - action: test.s4
+    target: {entity_id: light.l1}
+  - {stop: s}
+  - repeat:
+      count: 1
+      sequence:
+      - parallel:
+        - event: m_5
+          event_data: {n: 5, v: '{{ this.attributes.current }}'}
+        - sequence:
+          - action: test.s6
+            target:
+              entity_id: [light.l1, light.l2]
+          - condition: and
+            conditions:
+            - condition: or
+              conditions:
+              - {condition: trigger, id: '1'}
+              - '{{ states(''sensor.s1'') | int(0) > 10 }}'
+            - condition: trigger
+              id: [beta, '0']
+            enabled: false
+  - event: m_7
+    event_data: {n: 7, v: '{{ states(''light.l1'') }}'}
+states:
+- entity_id: sensor.s1
+  state: '1'
+  attributes: {lvl: 3}
+- {entity_id: sensor.s2, state: unknown}
+- entity_id: light.l1
+  state: 'off'
+  attributes: {lvl: 3}
+- {entity_id: light.l2, state: 'on'}
+- entity_id: input_boolean.b1
+  state: 'on'
+  attributes: {lvl: 3}
+steps:
+- at: 1
+  send: {type: event, event_type: e3}
+- at: 2
+  send: {type: event, event_type: tick}
+- at: 4
+  set: [light.l1, 'on']
+- at: 5
+  send: {type: event, event_type: tick}
+- at: 7
+  send:
+    type: event
+    event_type: e2
+    data: {k: true}
+- at: 8
+  send: {type: event, event_type: tick}
+- at: 8
+  send: {type: event, event_type: tick}
+- at: 9
+  send:
+    type: event
+    event_type: e3
+    data: {k: 1}
+- at: 10
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 10
+  send: {type: event, event_type: e3}
+- at: 11
+  send: {type: event, event_type: tick}
+- at: 11
+  send:
+    type: event
+    event_type: e1
+    data: {k: true}

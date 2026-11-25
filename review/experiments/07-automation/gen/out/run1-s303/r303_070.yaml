@@ -1,0 +1,95 @@
+# random scenario, seed 303, index 70 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: restart
+  triggers:
+  - {trigger: state, entity_id: light.l1, to: 'off'}
+  - {trigger: state, entity_id: sensor.s1}
+  - trigger: state
+    entity_id: [sensor.s1]
+    from: abc
+    not_to: '4'
+  actions:
+  - action: test.s1
+    data: {n: 1, v: '{{ trigger.idx }}'}
+    target: {entity_id: '{{ trigger.entity_id | default(''light.l2'', true) }}'}
+    enabled: false
+  - delay: {seconds: 1}
+  - {wait_template: '{{ trigger.platform in [''state'', ''numeric_state''] }}', timeout: '{{ 2 }}'}
+  - event: m_2
+    event_data: {n: 2, completed: '{{ wait.completed }}'}
+states:
+- {entity_id: sensor.s1, state: '7.5'}
+- entity_id: sensor.s2
+  state: unavailable
+  attributes: {lvl: 1}
+- {entity_id: light.l1, state: 'on'}
+- entity_id: light.l2
+  state: 'on'
+  attributes: {lvl: 3}
+- entity_id: input_boolean.b1
+  state: unavailable
+  attributes: {lvl: 2}
+steps:
+- at: 1
+  send: {type: event, event_type: e1}
+- at: 3
+  set: [light.l1, 'off']
+- at: 4
+  send: {type: event, event_type: e3}
+- at: 5
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 8
+  send:
+    type: event
+    event_type: e2
+    data: {k: true}
+- at: 9
+  send: {type: event, event_type: tick}
+- at: 9
+  send: {type: event, event_type: tick}
+- at: 10
+  send: {type: event, event_type: tick}
+- at: 11
+  send: {type: event, event_type: e1}
+- at: 11
+  send: {type: event, event_type: e1}
+- at: 11
+  send: {type: event, event_type: e1}
+- at: 11
+  set: [sensor.s1, '20']
+- at: 14
+  set: [light.l1, 'on']
+  attributes: {lvl: 3}
+- at: 16
+  send:
+    type: event
+    event_type: e2
+    data: {k: a}
+- at: 17
+  set: [light.l1, 'off']
+- at: 17
+  set: [sensor.s1, '8']
+- at: 18
+  send: {type: event, event_type: tick}
+- at: 19
+  set: [sensor.s1, abc]
+- at: 20
+  set: [sensor.s1, unknown]
+- at: 23
+  send: {type: event, event_type: e3}
+- at: 23
+  send: {type: event, event_type: tick}
+- at: 26
+  send: {type: event, event_type: e2}
+- at: 29
+  send: {type: event, event_type: e3}
+- at: 31
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}

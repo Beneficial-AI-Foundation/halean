@@ -1,0 +1,157 @@
+description: random scenario seed=202 index=19
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+    - delay: 1
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+      response_variable: r
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+steps:
+- at: 1
+  call: s2
+- at: 3
+  call: s1
+  data:
+    v: 4
+  return_response: true
+- at: 6
+  call: s1
+  data:
+    v: 2
+- at: 8
+  reload:
+    s0:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+    s2:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 3
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+- at: 10
+  call: turn_off
+  data:
+    entity_id: script.s0
+- at: 11
+  call: turn_off
+  data:
+    entity_id: all
+- at: 13
+- at: 14
+  result: 0
+  response:
+    n: 0
+- at: 15
+  reload:
+    s0:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+      alias: Reloaded s0
+    s2:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 3
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+- at: 16
+  reload:
+    s0:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s0.3
+          v: '{{ v | default(0) }}'
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - delay: 3
+      alias: Reloaded s0
+    s2:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 3
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+- at: 19
+  call: s2
+  return_response: true
+- at: 20
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s0
+- at: 21
+  call: s0

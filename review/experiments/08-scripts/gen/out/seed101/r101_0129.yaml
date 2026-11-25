@@ -1,0 +1,211 @@
+description: random scenario seed=101 index=129
+scripts:
+  s0:
+    alias: Script 0 A
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - variables:
+        out:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+    - delay: 2
+  s1:
+    icon: mdi:script
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+    - repeat:
+        count: 2
+        sequence:
+        - action: script.toggle
+          target:
+            entity_id: script.s2
+        - delay: 2
+    - delay: 1
+    - repeat:
+        count: 2
+        sequence:
+        - event: mark
+          event_data:
+            id: s1.3
+            v: '{{ v | default(0) }}'
+            st: '{{ states(''script.s0'') }}'
+            cur: '{{ state_attr(''script.s0'', ''current'') }}'
+  s2:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+  s3:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+steps:
+- at: 1
+  call: s2
+  data:
+    v: 2
+- at: 3
+  call: turn_off
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 5
+- at: 6
+  reload:
+    s0:
+      alias: Script 0 A
+      mode: parallel
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - variables:
+          out:
+            id: s0.1
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+      - delay: 2
+    s1:
+      icon: mdi:script
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.5
+          v: '{{ v | default(0) }}'
+          r: '{{ r | default(''undef'') }}'
+      - action: test.m
+        data:
+          id: s1.6
+          v: '{{ v | default(0) }}'
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s2:
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+    s3:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+- at: 7
+  call: s0
+  return_response: true
+- at: 8
+  call: turn_on
+  data:
+    entity_id:
+    - script.s3
+    - script.s2
+    variables:
+      v: 0
+- at: 11
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 14
+  result: 0
+  response:
+    n: 0
+- at: 15
+  call: s2
+  data:
+    v: 2
+- at: 15
+  call: s1
+  data:
+    v: 3
+  return_response: true
+- at: 16
+  result: 1
+  response:
+    n: 1
+- at: 18
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s2
+- at: 21
+  result: 2
+  response:
+    n: 2

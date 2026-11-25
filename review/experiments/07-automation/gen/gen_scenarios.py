@@ -368,7 +368,7 @@ class Gen:
         k = self.pick(kinds)
         if k == "set":
             # never a no-op set: HA sends no state_changed for it, but tests/run_scenarios.py
-            # `build` does (AUT-26), which would hide everything else
+            # `build` does (AUT-25), which would hide everything else
             for _ in range(20):
                 eid = self.entity()
                 st = {"at": at, "set": [eid, self.pick(self.values_for(eid))]}

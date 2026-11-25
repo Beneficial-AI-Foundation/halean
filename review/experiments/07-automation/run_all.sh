@@ -23,5 +23,5 @@ for d in logs/$R-dump/*/; do
   echo "== $d" >> logs/$R-summary.txt
   $PY triage.py $d >> logs/$R-summary.txt
 done
-grep -hE "^(FAILED|ERROR) " logs/$R-cases.log logs/$R-random-*.log | sed 's/ - .*//' | sort > logs/$R-failing.txt
+grep -hE "^(FAILED|ERROR) test_differential.py::" logs/$R-cases.log logs/$R-random-*.log | sed 's/ - .*//' | sort > logs/$R-failing.txt
 wc -l logs/$R-failing.txt

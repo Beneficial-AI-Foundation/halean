@@ -1,0 +1,144 @@
+description: random scenario seed=101 index=186
+scripts:
+  s0:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.toggle
+      target:
+        entity_id: script.s1
+  s1:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - delay: 3
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+  s2:
+    alias: Script 2 B
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+steps:
+- at: 2
+  call: s0
+  data:
+    v: 0
+  return_response: true
+- at: 3
+  reload:
+    s0:
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.toggle
+        target:
+          entity_id: script.s1
+    s2:
+      alias: Script 2 B
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+        continue_on_error: true
+- at: 4
+  call: s2
+  data:
+    v: 2
+- at: 6
+  result: 0
+  ok: false
+  error_kind: other
+- at: 9
+  call: s0
+  data:
+    v: 2
+- at: 12
+- at: 13
+  reload:
+    s0:
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.toggle
+        target:
+          entity_id: script.s1
+      alias: Reloaded s0
+    s2:
+      alias: Script 2 B
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+        continue_on_error: true
+- at: 13
+  call: s0
+  return_response: true
+- at: 14
+  call: s0
+  data:
+    v: 2
+  return_response: true
+- at: 14
+  call: s0
+  data:
+    v: 3
+- at: 15
+  call: s0
+  data:
+    v: 2
+- at: 16
+  call: s2
+  data:
+    v: 2
+  return_response: true
+- at: 17
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s0
+- at: 18
+  call: s2
+  data:
+    v: 4
+  return_response: true

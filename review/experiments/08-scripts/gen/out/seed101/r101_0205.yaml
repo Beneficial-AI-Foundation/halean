@@ -1,0 +1,219 @@
+description: random scenario seed=101 index=205
+scripts:
+  s0:
+    alias: Script 0 A
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - delay: 1
+  s1:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - stop: bad
+      error: true
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+        - script.s3
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - action: test.m
+      data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s2.6
+        v: '{{ v | default(0) }}'
+  s3:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - repeat:
+        count: 2
+        sequence:
+        - action: test.m
+          data:
+            id: s3.7
+            v: '{{ v | default(0) }}'
+          continue_on_error: true
+        - action: script.s2
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          response_variable: r
+steps:
+- at: 3
+  call: s0
+  return_response: true
+- at: 4
+  call: s0
+  data:
+    v: 0
+- at: 4
+  call: s1
+  data:
+    v: 4
+- at: 5
+- at: 6
+- at: 7
+  call: s0
+  data:
+    v: 3
+  return_response: true
+- at: 7
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+- at: 10
+  call: s1
+  data:
+    v: 4
+  return_response: true
+- at: 11
+  call: turn_off
+  data:
+    entity_id: all
+- at: 12
+  call: turn_on
+  data:
+    entity_id:
+    - script.s3
+    - script.s2
+    variables:
+      v: 0
+- at: 13
+  reload:
+    s0:
+      alias: Script 0 A
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+      - delay: 1
+    s1:
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - stop: bad
+        error: true
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s2
+          - script.s3
+      - action: test.m
+        data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s2:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+      - action: test.m
+        data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s2.6
+          v: '{{ v | default(0) }}'
+      alias: Reloaded s2
+    s3:
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - repeat:
+          count: 2
+          sequence:
+          - action: test.m
+            data:
+              id: s3.7
+              v: '{{ v | default(0) }}'
+            continue_on_error: true
+          - action: script.s2
+            data:
+              v: '{{ v | default(0) + 1 }}'
+            response_variable: r
+- at: 14
+  result: 1
+  response:
+    n: 1
+- at: 14
+  result: 2
+  ok: false
+  error_kind: invalid
+- at: 15
+  call: s3
+  data:
+    v: 4
+- at: 15
+  result: 3
+  response:
+    n: 3
+- at: 16
+  call: turn_off
+  data:
+    entity_id: all

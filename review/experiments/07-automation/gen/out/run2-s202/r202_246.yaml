@@ -1,0 +1,153 @@
+# random scenario, seed 202, index 246 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  max: 3
+  triggers:
+  - {trigger: numeric_state, entity_id: sensor.s1, above: 6, below: 15, value_template: '{{ state.state | float(0) * 2 }}'}
+  - {trigger: time, at: '22:13:33'}
+  - trigger: event
+    event_type: e3
+    event_data: {k: a}
+  conditions:
+  - {condition: trigger, id: '1'}
+  - condition: state
+    entity_id: [sensor.s2]
+    state: 'on'
+    match: any
+  actions:
+  - action: test.s1
+    data: {n: 1, v: '{{ states(''sensor.s1'') }}'}
+    continue_on_error: true
+  - choose:
+    - conditions:
+      - or:
+        - condition: and
+          conditions:
+          - condition: state
+            entity_id: light.l1
+            state: ['on', 'off']
+          enabled: false
+        - condition: trigger
+          id: [beta, '0']
+        - or:
+          - {condition: state, entity_id: light.l1, state: unavailable}
+      sequence:
+      - {condition: trigger, id: '0', enabled: false}
+      - {event: m_2}
+    - conditions:
+      - {condition: template, value_template: '{{ is_state(''light.l1'', ''on'') }}', enabled: false}
+      sequence:
+      - action: test.s3
+        data: {n: 3, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+      - {wait_template: '{{ states(''sensor.s2'') | float(0) < 5 }}'}
+      - event: m_4
+        event_data: {n: 4, completed: '{{ wait.completed }}'}
+    default:
+    - {wait_template: '{{ trigger.platform == ''event'' }}', timeout: 2, continue_on_timeout: false}
+    - event: m_5
+      event_data: {n: 5, completed: '{{ wait.completed }}'}
+  - choose:
+    - conditions:
+      - condition: or
+        conditions:
+        - {condition: template, value_template: '{{ states(''sensor.s2'') | float(0) < 5 }}'}
+      sequence:
+      - variables: {v1: '{{ repeat.index if repeat is defined else -1 }}'}
+      - wait_for_trigger:
+        - {trigger: event, event_type: e2}
+        timeout: 0
+    - conditions:
+      - {condition: time, after: '22:00'}
+      - {condition: time, before: '22:13:30'}
+      sequence:
+      - {delay: '{{ 1 }}'}
+      - action: test.s6
+        data: {n: 6, v: '{{ this.attributes.current }}'}
+    default:
+    - condition: time
+      before: '22:13:30'
+      weekday: [tue]
+  - repeat:
+      count: 0
+      sequence:
+      - action: test.s7
+        data: {n: 7, v: '{{ now().second }}'}
+        target: {entity_id: light.l1}
+  variables: {v1: 0}
+- alias: a1
+  id: id1
+  mode: restart
+  triggers:
+  - trigger: state
+    entity_id: [light.l2, sensor.s1]
+    attribute: lvl
+  - {trigger: state, entity_id: sensor.s1, to: unknown, from: unknown}
+  - {trigger: template, value_template: '{{ states(''sensor.s1'') | int(0) > 10 }}'}
+  actions:
+  - action: test.s8
+    data: {n: 8, v: '{{ trigger.id }}'}
+  - {action: test.s9, continue_on_error: true}
+states:
+- {entity_id: sensor.s1, state: '7.5'}
+- {entity_id: sensor.s2, state: '4'}
+- entity_id: light.l1
+  state: 'off'
+  attributes: {lvl: 1}
+- {entity_id: light.l2, state: unavailable}
+- {entity_id: input_boolean.b1, state: unavailable}
+steps:
+- at: 1
+  set: [light.l2, 'on']
+  attributes: {lvl: 2}
+- at: 2
+  set: [light.l1, 'on']
+- at: 3
+  set: [light.l2, 'off']
+- at: 4
+  set: [light.l1, 'off']
+  attributes: {lvl: 2}
+- at: 4
+  send:
+    type: service_result
+    call_id: 1
+    ok: true
+    response:
+      value: [1, 2]
+- at: 4
+  set: [light.l1, 'on']
+- at: 4
+  set: [sensor.s1, abc]
+  attributes: {lvl: 2}
+- at: 5
+  send:
+    type: event
+    event_type: e1
+    data: {k: 1}
+- at: 8
+  send:
+    type: service_result
+    call_id: 0
+    ok: true
+    response:
+      value: [1, 2]
+- at: 10
+  send:
+    type: service_result
+    call_id: 3
+    ok: true
+    response: {value: 1}
+- at: 10
+  send: {type: service_result, call_id: 4, ok: true}
+- at: 13
+  set: [light.l2, 'off']
+  attributes: {lvl: 3}
+- at: 14
+  send: {type: service_result, call_id: 5, ok: true}
+- at: 15
+  send: {type: event, event_type: tick}
+- at: 15
+  set: [input_boolean.b1, 'on']
+- at: 16
+  send: {type: service_result, call_id: 6, ok: true}

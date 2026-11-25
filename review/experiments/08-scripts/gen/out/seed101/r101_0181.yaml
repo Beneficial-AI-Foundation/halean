@@ -1,0 +1,149 @@
+description: random scenario seed=101 index=181
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.toggle
+      target:
+        entity_id: script.s1
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+        - script.s3
+  s2:
+    alias: Script 2 B
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - delay: 2
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s3
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+  s3:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+steps:
+- at: 2
+  call: s2
+  data:
+    v: 2
+  return_response: true
+- at: 3
+  call: s1
+- at: 4
+  call: s0
+  data:
+    v: 2
+- at: 5
+  reload:
+    s0:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.toggle
+        target:
+          entity_id: script.s1
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s2
+        data:
+          variables:
+            v: '{{ v | default(0) + 10 }}'
+    s1:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s2
+          - script.s3
+    s2:
+      alias: Script 2 B
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - delay: 2
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s3
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+- at: 6
+  call: s2
+  data:
+    v: 3
+  return_response: true
+- at: 6
+  result: 0
+  response:
+    n: 0
+- at: 7
+  call: s1
+  data:
+    v: 4
+- at: 7
+  result: 1
+  response:
+    n: 1
+- at: 8
+  call: s2
+  data:
+    v: 2
+- at: 10
+  call: s2
+  data:
+    v: 1
+  return_response: true
+- at: 12
+  result: 2
+  response:
+    n: 2
+- at: 12
+  call: s0
+  data:
+    v: 3
+  return_response: true

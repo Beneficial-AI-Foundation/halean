@@ -1,0 +1,92 @@
+# random scenario, seed 101, index 8 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  triggers:
+  - trigger: event
+    event_type: e2
+    event_data: {k: true}
+  - trigger: state
+    entity_id: [input_boolean.b1, sensor.s2]
+    to: [unavailable, 'on']
+    id: alpha
+  conditions:
+  - {condition: state, entity_id: sensor.s2, state: '20'}
+  - '{{ states(''sensor.s1'') | int > 5 }}'
+  actions:
+  - if:
+    - condition: not
+      conditions:
+      - condition: not
+        conditions:
+        - condition: time
+          before: 06:00
+          weekday: [tue]
+        - condition: trigger
+          id: [beta, '0']
+          enabled: false
+    then:
+    - wait_for_trigger:
+      - trigger: state
+        entity_id: [sensor.s2, light.l1]
+        to: 3
+        attribute: lvl
+      - {trigger: event, event_type: e3}
+    - delay: {seconds: '{{ 2 }}'}
+    else:
+    - variables: {v1: x}
+  - wait_for_trigger:
+    - trigger: event
+      event_type: e1
+      event_data: {k: 1}
+  - event: m_1
+    event_data: {n: 1, completed: '{{ wait.completed }}', trig: '{{ wait.trigger.platform if wait.trigger else ''none'' }}'}
+  variables: {v1: 0}
+states:
+- entity_id: sensor.s1
+  state: '8'
+  attributes: {lvl: 1}
+- {entity_id: sensor.s2, state: '1'}
+- {entity_id: light.l1, state: 'off'}
+- entity_id: light.l2
+  state: 'on'
+  attributes: {lvl: 1}
+- {entity_id: input_boolean.b1, state: 'off'}
+steps:
+- at: 3
+  set: [sensor.s1, '4']
+- at: 4
+  send: {type: event, event_type: tick}
+- at: 5
+  send: {type: event, event_type: tick}
+- at: 8
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 11
+  send:
+    type: event
+    event_type: e2
+    data: {k: a}
+- at: 11
+  send: {type: event, event_type: tick}
+- at: 13
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 14
+  set: [sensor.s1, '20']
+- at: 15
+  set: [sensor.s1, '1']
+- at: 16
+  send:
+    type: event
+    event_type: e1
+    data: {k: a}
+- at: 17
+  send: {type: event, event_type: e3}
+- at: 18
+  set: [input_boolean.b1, unavailable]

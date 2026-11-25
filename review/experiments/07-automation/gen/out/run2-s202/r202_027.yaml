@@ -1,0 +1,79 @@
+# random scenario, seed 202, index 27 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  triggers:
+  - {trigger: time, at: '22:13:29', id: beta}
+  - trigger: event
+    event_type: e1
+    event_data: {k: true}
+  - {trigger: template, value_template: '{{ states(''sensor.s1'') | int(0) > 3 }}', id: beta}
+  actions:
+  - condition: and
+    conditions:
+    - or: ['{{ states(''sensor.s1'') | int > 5 }}']
+      enabled: false
+    - {condition: template, value_template: '{{ states(''sensor.s1'') == states(''sensor.s2'') }}'}
+    - {condition: template, value_template: '{{ is_state(''light.l1'', ''on'') }}', enabled: false}
+  - wait_for_trigger:
+    - {trigger: template, value_template: '{{ states(''sensor.s1'') | int > 5 }}'}
+  - event: m_1
+    event_data: {n: 1, v: '{{ states(''sensor.s2'') | int(0) + 1 }}'}
+  - {stop: s}
+  - {condition: template, value_template: '{{ states(''sensor.s1'') | int(0) > 3 }}'}
+states:
+- entity_id: sensor.s1
+  state: '4'
+  attributes: {lvl: 3}
+- {entity_id: light.l1, state: 'off'}
+- entity_id: light.l2
+  state: unavailable
+  attributes: {lvl: 1}
+- entity_id: input_boolean.b1
+  state: 'on'
+  attributes: {lvl: 1}
+steps:
+- at: 1
+  set: [light.l1, unavailable]
+- at: 2
+  send: {type: event, event_type: tick}
+- at: 5
+  send: {type: event, event_type: tick}
+- at: 6
+  set: [sensor.s2, unavailable]
+- at: 7
+  send: {type: event, event_type: e1}
+- at: 8
+  set: [light.l2, unavailable]
+- at: 10
+  send: {type: event, event_type: tick}
+- at: 11
+  send: {type: event, event_type: e1}
+- at: 13
+  set: [sensor.s1, '20']
+- at: 14
+  set: [light.l2, 'off']
+  attributes: {lvl: 1}
+- at: 15
+  set: [sensor.s1, unknown]
+- at: 16
+  set: [sensor.s1, '4']
+- at: 19
+  set: [sensor.s2, '4']
+- at: 19
+  set: [sensor.s1, '1']
+- at: 20
+  set: [sensor.s1, '12']
+- at: 21
+  send: {type: event, event_type: tick}
+- at: 21
+  send:
+    type: event
+    event_type: e2
+    data: {k: true}
+- at: 24
+  send: {type: event, event_type: tick}
+- at: 26
+  send: {type: event, event_type: tick}
+- at: 27
+  send: {type: event, event_type: tick}

@@ -1,0 +1,21 @@
+description: >
+  A script turns on a second script, which turns the first one off. The stop arrives while the first
+  script is still inside its turn_on step, and that step returns without suspending: HA's run sees the
+  stop before its next step and just ends, so its caller gets None (not a cancellation).
+scripts:
+  a:
+    sequence:
+      - action: script.turn_on
+        target: {entity_id: script.c}
+      - event: a_never
+  c:
+    sequence:
+      - action: script.turn_off
+        target: {entity_id: script.a}
+  outer:
+    sequence:
+      - action: script.a
+      - event: outer_after
+steps:
+  - {at: 1, call: a}
+  - {at: 2, call: outer}

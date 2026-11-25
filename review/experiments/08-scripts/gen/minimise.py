@@ -148,6 +148,8 @@ def main() -> None:
         if nxt is None:
             break
         sc = nxt
+        # written after every round, so an interrupted run still leaves its best result
+        Path(sys.argv[2]).write_text(yaml.safe_dump(sc, sort_keys=False, width=200))
         print(f"  {len(sc['steps'])} steps, {len(sc['scripts'])} scripts, "
               f"{sum(len(s) for s in all_seqs(sc))} actions", flush=True)
     Path(sys.argv[2]).write_text(yaml.safe_dump(sc, sort_keys=False, width=200))

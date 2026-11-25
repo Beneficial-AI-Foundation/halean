@@ -1,0 +1,15 @@
+diff --git a/HALean/Script/Entity.lean b/HALean/Script/Entity.lean
+index 02f4276..cd017a1 100644
+--- a/HALean/Script/Entity.lean
++++ b/HALean/Script/Entity.lean
+@@ -197,6 +197,10 @@ def planCall (scripts : List ScriptEntity) (running : Nat → Bool) (service : S
+       for k in keys do
+         if !(ENTITY_SERVICE_FIELDS.contains k || k == "variables" || k == "metadata") then
+           return [.fail .invalid s!"extra keys not allowed @ data['{k}']"]
++      -- `vol.Remove("metadata"): dict`
++      match field? data "metadata" with
++      | none | some (.obj _) => pure ()
++      | some _ => return [.fail .invalid "expected a dictionary for dictionary value @ data['metadata']"]
+       if !keys.any ENTITY_SERVICE_FIELDS.contains then
+         return [.fail .invalid s!"must contain at least one of {", ".intercalate ENTITY_SERVICE_FIELDS}."]
+       let vars ← match field? data "variables" with

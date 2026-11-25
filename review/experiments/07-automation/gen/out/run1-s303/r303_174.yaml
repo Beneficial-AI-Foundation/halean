@@ -1,0 +1,85 @@
+# random scenario, seed 303, index 174 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  max: 2
+  triggers:
+  - {trigger: event, event_type: e3, id: beta}
+  - {trigger: state, entity_id: light.l1, to: 2, attribute: lvl}
+  conditions:
+  - {condition: time, after: '22:00', before: '22:14'}
+  actions:
+  - {stop: s}
+  - {wait_template: '{{ states(''sensor.s1'') | int(0) > 7 }}', timeout: '{{ 2 }}', continue_on_timeout: false}
+  - event: m_1
+    event_data: {n: 1, completed: '{{ wait.completed }}'}
+- alias: a1
+  id: id1
+  triggers:
+  - trigger: event
+    event_type: e2
+    event_data: {k: a}
+  - trigger: state
+    entity_id: light.l1
+    not_to: ['off', 'on']
+    for: '{{ 2 }}'
+  actions:
+  - action: test.s2
+    target:
+      entity_id: [light.l1, light.l2]
+    response_variable: v1
+  - action: test.s3
+    data: {n: 3, v: '{{ trigger.id }}'}
+    target: {entity_id: '{{ trigger.entity_id | default(''light.l2'', true) }}'}
+  variables: {v1: 0}
+states:
+- {entity_id: sensor.s1, state: '20'}
+- {entity_id: sensor.s2, state: '8'}
+- {entity_id: light.l1, state: 'off'}
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: 'on'}
+steps:
+- at: 1
+  send:
+    type: event
+    event_type: e1
+    data: {k: true}
+- at: 1
+  set: [sensor.s1, abc]
+- at: 2
+  set: [light.l1, unavailable]
+- at: 3
+  set: [light.l1, 'off']
+- at: 4
+  send: {type: event, event_type: e3}
+- at: 5
+  send: {type: event, event_type: e1}
+- at: 5
+  set: [light.l1, 'off']
+  attributes: {lvl: 3}
+- at: 5
+  set: [light.l1, 'on']
+- at: 6
+  set: [light.l1, 'off']
+- at: 9
+  set: [sensor.s1, '8']
+- at: 12
+  send: {type: event, event_type: e1}
+- at: 14
+  set: [light.l1, unavailable]
+- at: 16
+  set: [sensor.s1, '4']
+  attributes: {lvl: 1}
+- at: 17
+  set: [sensor.s1, '12']
+  attributes: {lvl: 3}
+- at: 18
+  set: [light.l1, 'off']
+  attributes: {lvl: 1}
+- at: 21
+  send:
+    type: service_result
+    call_id: 0
+    ok: true
+    response: {value: 1}

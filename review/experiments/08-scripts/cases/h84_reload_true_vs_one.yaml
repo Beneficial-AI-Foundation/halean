@@ -1,0 +1,19 @@
+description: >
+  Reload with `continue_on_error true` written as `1` (equal as Python dicts: True == 1, so HA keeps
+  the entity and its run).
+scripts:
+  a:
+    sequence:
+      - delay: 3
+      - event: a_done
+        continue_on_error: true
+steps:
+  - {at: 1, call: a}
+  - at: 2
+    reload:
+      a:
+        sequence:
+          - delay: 3
+          - event: a_done
+            continue_on_error: 1
+  - {at: 4}

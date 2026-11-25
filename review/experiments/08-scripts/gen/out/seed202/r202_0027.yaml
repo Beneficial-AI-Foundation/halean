@@ -1,0 +1,122 @@
+description: random scenario seed=202 index=27
+scripts:
+  s0:
+    alias: Script 0 A
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - parallel:
+      - sequence:
+        - event: mark
+          event_data:
+            id: s0.2
+            v: '{{ v | default(0) }}'
+            r: '{{ r | default(''undef'') }}'
+      - sequence:
+        - delay: 3
+        - action: test.m
+          data:
+            id: s0.3
+            v: '{{ v | default(0) }}'
+          continue_on_error: true
+    - event: mark
+      event_data:
+        id: s0.4
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s0'') }}'
+        cur: '{{ state_attr(''script.s0'', ''current'') }}'
+  s1:
+    alias: Script 1 A
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.toggle
+      target:
+        entity_id: script.s2
+    - event: mark
+      event_data:
+        id: s1.5
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s3
+        data:
+          variables:
+            v: '{{ v | default(0) + 10 }}'
+      else:
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+  s3:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+steps:
+- at: 1
+- at: 1
+  call: s2
+  data:
+    v: 1
+- at: 2
+  call: s3
+  data:
+    v: 3
+- at: 3
+  call: s0
+  data:
+    v: 2
+- at: 6
+  call: turn_off
+  data:
+    entity_id: all
+- at: 7
+  call: turn_on
+  data:
+    entity_id:
+    - script.s3
+    - script.s0
+    variables:
+      v: 0
+- at: 8
+  call: turn_off
+  data:
+    entity_id: script.s3
+- at: 10
+  call: s3
+  data:
+    v: 0
+- at: 13
+  call: s3
+  return_response: true

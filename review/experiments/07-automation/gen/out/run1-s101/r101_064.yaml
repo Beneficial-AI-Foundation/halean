@@ -1,0 +1,89 @@
+# random scenario, seed 101, index 64 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: restart
+  triggers:
+  - {trigger: time_pattern, seconds: 23}
+  - {trigger: event, event_type: e2, id: alpha}
+  - {trigger: numeric_state, entity_id: sensor.s1, above: 6, below: 15}
+  actions:
+  - parallel:
+    - event: m_1
+      event_data: {n: 1, v: '{{ this.attributes.current }}'}
+    - {event: m_2}
+  - action: test.s3
+    data: {n: 3, v: '{{ now().second }}'}
+    response_variable: v1
+  - action: test.s4
+    data: {n: 4, v: '{{ this.attributes.current }}'}
+    response_variable: v2
+  - if:
+    - or:
+      - {condition: time, before: '22:13:30'}
+      - and:
+        - condition: state
+          entity_id: light.l1
+          state: [unavailable, 'off']
+        - {condition: numeric_state, entity_id: sensor.s2, below: 15}
+        - '{{ is_state(''light.l1'', ''on'') }}'
+      - condition: state
+        entity_id: light.l1
+        state: ['on', 'off']
+      enabled: false
+    then:
+    - {event: m_5}
+    continue_on_error: true
+  - action: test.s6
+    target:
+      entity_id: [light.l1, light.l2]
+    response_variable: v3
+  variables: {v1: 0, v2: 0, v3: 0}
+states:
+- {entity_id: sensor.s1, state: '20'}
+- {entity_id: sensor.s2, state: '4'}
+- {entity_id: light.l1, state: 'off'}
+- entity_id: light.l2
+  state: unavailable
+  attributes: {lvl: 1}
+- {entity_id: input_boolean.b1, state: 'off'}
+steps:
+- at: 0
+  set: [sensor.s1, '20']
+  attributes: {lvl: 1}
+- at: 1
+  send: {type: event, event_type: tick}
+- at: 3
+  send: {type: event, event_type: e3}
+- at: 4
+  set: [light.l2, 'off']
+- at: 5
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 8
+  send:
+    type: event
+    event_type: e3
+    data: {k: 1}
+- at: 10
+  send:
+    type: service_result
+    call_id: 0
+    ok: true
+    response:
+      value: [1, 2]
+- at: 11
+  set: [sensor.s1, '20']
+- at: 13
+  send: {type: event, event_type: tick}
+- at: 13
+  send: {type: service_result, call_id: 1, ok: false, error_kind: other}
+- at: 14
+  send:
+    type: event
+    event_type: e2
+    data: {k: 1}
+- at: 15
+  set: [light.l1, unavailable]

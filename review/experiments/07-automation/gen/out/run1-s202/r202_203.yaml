@@ -1,0 +1,82 @@
+# random scenario, seed 202, index 203 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  triggers:
+  - {trigger: state, entity_id: light.l2, not_to: 2, attribute: lvl}
+  conditions:
+  - condition: not
+    conditions:
+    - condition: trigger
+      id: [beta, '0']
+    - condition: or
+      conditions:
+      - {condition: template, value_template: '{{ trigger.platform == ''event'' }}'}
+      - condition: trigger
+        id: [beta, '0']
+      - {condition: numeric_state, entity_id: sensor.s2, above: sensor.s2}
+  actions:
+  - if:
+    - '{{ trigger.platform == ''event'' }}'
+    - {condition: template, value_template: '{{ trigger.id == ''0'' }}'}
+    then:
+    - {stop: s}
+    - event: m_1
+      event_data: {n: 1, v: '{{ trigger.idx }}'}
+    else:
+    - variables: {v1: '{{ repeat.index if repeat is defined else -1 }}'}
+  - {wait_template: '{{ states(''sensor.s1'') == states(''sensor.s2'') }}', timeout: 1, continue_on_timeout: false}
+  variables: {v1: 0}
+states:
+- entity_id: sensor.s1
+  state: unknown
+  attributes: {lvl: 2}
+- {entity_id: sensor.s2, state: '8'}
+- {entity_id: light.l1, state: 'off'}
+- {entity_id: light.l2, state: unavailable}
+- entity_id: input_boolean.b1
+  state: unavailable
+  attributes: {lvl: 1}
+steps:
+- at: 1
+  send:
+    type: event
+    event_type: e3
+    data: {k: 1}
+- at: 1
+  send: {type: event, event_type: e1}
+- at: 3
+  set: [input_boolean.b1, 'on']
+  attributes: {lvl: 1}
+- at: 3
+  send:
+    type: event
+    event_type: e3
+    data: {k: a}
+- at: 3
+  send: {type: event, event_type: tick}
+- at: 4
+  send: {type: event, event_type: e1}
+- at: 6
+  set: [light.l1, 'on']
+- at: 9
+  send: {type: event, event_type: e1}
+- at: 9
+  send: {type: event, event_type: tick}
+- at: 10
+  set: [sensor.s1, '12']
+- at: 12
+  send: {type: event, event_type: e1}
+- at: 15
+  send: {type: event, event_type: tick}
+- at: 17
+  set: [light.l2, 'off']
+- at: 18
+  send: {type: event, event_type: tick}
+- at: 19
+  send: {type: event, event_type: tick}
+- at: 20
+  send:
+    type: event
+    event_type: e1
+    data: {k: a}

@@ -1,0 +1,55 @@
+# random scenario, seed 303, index 40 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: restart
+  triggers:
+  - trigger: state
+    entity_id: [sensor.s1, light.l1]
+    from: 1
+    to: 1
+    attribute: lvl
+  - {trigger: template, value_template: '{{ is_state(''light.l1'', ''on'') }}'}
+  actions:
+  - event: m_1
+    event_data: {n: 1, v: '{{ trigger.id }}'}
+  - {stop: s}
+states:
+- {entity_id: sensor.s1, state: '12'}
+- {entity_id: sensor.s2, state: '4'}
+- {entity_id: light.l1, state: 'on'}
+- {entity_id: light.l2, state: 'on'}
+- {entity_id: input_boolean.b1, state: 'off'}
+steps:
+- at: 0
+  set: [light.l1, unavailable]
+- at: 1
+  send: {type: event, event_type: tick}
+- at: 2
+  send: {type: event, event_type: tick}
+- at: 2
+  send:
+    type: event
+    event_type: e3
+    data: {k: 2}
+- at: 2
+  set: [light.l1, 'off']
+  attributes: {lvl: 3}
+- at: 3
+  send: {type: event, event_type: tick}
+- at: 4
+  send: {type: event, event_type: e3}
+- at: 5
+  send: {type: event, event_type: tick}
+- at: 8
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 9
+  set: [light.l1, 'on']
+- at: 10
+  set: [light.l1, 'off']
+- at: 10
+  set: [light.l1, unavailable]
+  attributes: {lvl: 2}

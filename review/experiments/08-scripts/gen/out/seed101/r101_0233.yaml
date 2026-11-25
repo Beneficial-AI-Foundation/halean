@@ -1,0 +1,126 @@
+description: random scenario seed=101 index=233
+scripts:
+  s0:
+    icon: mdi:script
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 2
+  s1:
+    alias: Script 1 B
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s2:
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+steps:
+- at: 1
+  reload:
+    s0:
+      icon: mdi:script
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 2
+    s1:
+      alias: Script 1 B
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+          r: '{{ r | default(''undef'') }}'
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s2:
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: test.m
+        data:
+          id: s2.2
+          v: '{{ v | default(0) }}'
+        response_variable: r
+        continue_on_error: true
+      alias: Reloaded s2
+- at: 1
+  call: turn_off
+  data:
+    entity_id: all
+- at: 4
+  call: s0
+  data:
+    v: 2
+- at: 5
+  call: s0
+- at: 5
+  call: s2
+- at: 6
+  call: s0
+  return_response: true
+- at: 7
+  call: s2
+  data:
+    v: 3
+  return_response: true
+- at: 9
+  call: s1
+  data:
+    v: 2
+- at: 10
+  result: 0
+  response:
+    n: 0
+- at: 12
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    - script.s2
+    variables:
+      v: 3
+- at: 15
+  result: 1
+  response:
+    n: 1

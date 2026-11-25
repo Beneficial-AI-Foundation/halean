@@ -1,0 +1,141 @@
+description: random scenario seed=202 index=49
+scripts:
+  s0:
+    alias: Script 0 B
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - delay: 2
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s0'') }}'
+        cur: '{{ state_attr(''script.s0'', ''current'') }}'
+  s1:
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - variables:
+        out:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+  s2:
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+steps:
+- at: 1
+  call: s1
+- at: 1
+  call: s2
+  data:
+    v: 1
+- at: 3
+  call: s2
+- at: 3
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+- at: 6
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+- at: 7
+  call: s2
+  data:
+    v: 0
+- at: 9
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+- at: 12
+  call: s0
+  data:
+    v: 1
+- at: 14
+  call: s2
+- at: 15
+  call: turn_off
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 16
+  call: s2
+- at: 17
+  call: s0
+  data:
+    v: 4
+- at: 20
+  call: s1
+- at: 21
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    - script.s2
+- at: 23
+  reload:
+    s1:
+      mode: parallel
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - variables:
+          out:
+            id: s1.3
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+    s2:
+      mode: queued
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+- at: 24
+  call: s1
+  data:
+    v: 1
+  return_response: true

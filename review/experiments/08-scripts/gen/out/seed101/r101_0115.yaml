@@ -1,0 +1,71 @@
+description: random scenario seed=101 index=115
+scripts:
+  s0:
+    alias: Script 0 A
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+  s1:
+    alias: Script 1 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s2'') }}'
+        cur: '{{ state_attr(''script.s2'', ''current'') }}'
+  s2:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+steps:
+- at: 1
+- at: 2
+  call: turn_off
+  data:
+    entity_id: all
+- at: 5
+  call: s0
+- at: 8
+  result: 0
+  ok: false
+  error_kind: ha_error
+- at: 9
+  call: turn_off
+  data:
+    entity_id: script.s1
+- at: 9
+  call: s0
+  data:
+    v: 4
+- at: 12
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    variables:
+      v: 2
+- at: 13
+  result: 1
+  response:
+    n: 1

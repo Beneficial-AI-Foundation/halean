@@ -1,0 +1,92 @@
+# random scenario, seed 101, index 27 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: parallel
+  triggers:
+  - {trigger: numeric_state, entity_id: sensor.s1, above: 6, below: 15}
+  - trigger: event
+    event_type: e1
+    event_data: {k: a}
+  conditions:
+  - {condition: numeric_state, entity_id: sensor.s1, below: 9}
+  actions:
+  - variables: {v1: x}
+  - {delay: '{{ 1 }}'}
+  - action: test.s1
+    data: {n: 1, v: '{{ this.attributes.current }}'}
+  - {event: m_2}
+  variables: {v1: 0}
+- alias: a1
+  id: id1
+  variables: {v1: '{{ trigger.platform }}', v2: 0}
+  triggers:
+  - {trigger: event, event_type: e2}
+  conditions:
+  - {condition: time, before: '22:14'}
+  actions:
+  - event: m_3
+    event_data: {n: 3, v: '{{ trigger.id }}', var: '{{ v1 | default(''undef'') }}'}
+  - repeat:
+      until: ['{{ repeat.index >= 1 }}']
+      sequence:
+      - action: test.s4
+        data: {n: 4, v: '{{ trigger.id }}'}
+        target:
+          entity_id: [light.l1, light.l2]
+  - variables: {v1: x}
+states:
+- {entity_id: sensor.s1, state: '12'}
+- entity_id: sensor.s2
+  state: '20'
+  attributes: {lvl: 2}
+- entity_id: light.l1
+  state: unavailable
+  attributes: {lvl: 1}
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: 'on'}
+steps:
+- at: 1
+  send: {type: event, event_type: tick}
+- at: 3
+  set: [input_boolean.b1, 'on']
+  attributes: {lvl: 2}
+- at: 6
+  set: [sensor.s1, '8']
+- at: 8
+  send: {type: event, event_type: tick}
+- at: 10
+  set: [input_boolean.b1, 'on']
+- at: 11
+  send: {type: event, event_type: e3}
+- at: 13
+  set: [sensor.s2, '8']
+- at: 15
+  send: {type: event, event_type: e2}
+- at: 16
+  send: {type: service_result, call_id: 0, ok: true}
+- at: 18
+  set: [input_boolean.b1, unavailable]
+- at: 19
+  send: {type: event, event_type: e1}
+- at: 19
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 19
+  set: [sensor.s1, unknown]
+- at: 22
+  send: {type: event, event_type: e3}
+- at: 24
+  send: {type: event, event_type: e3}
+- at: 25
+  set: [light.l1, unavailable]
+- at: 26
+  send: {type: event, event_type: e3}
+- at: 27
+  set: [light.l1, 'off']
+- at: 28
+  set: [light.l1, unavailable]
+- at: 31
+  set: [sensor.s2, abc]

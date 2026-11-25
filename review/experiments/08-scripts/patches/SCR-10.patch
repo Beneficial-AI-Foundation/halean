@@ -1,0 +1,51 @@
+diff --git a/HALean/Script/Config.lean b/HALean/Script/Config.lean
+index 1021570..617cccb 100644
+--- a/HALean/Script/Config.lean
++++ b/HALean/Script/Config.lean
+@@ -37,8 +37,22 @@ def MAX_EXCEEDED_CHOICES : List String :=
+ def cvString (what : String) : Json → D String
+   | .str s => pure s
+   | .num n => pure (toString n)
++  -- `str(True)` / `str(False)`
++  | .bool b => pure (if b then "True" else "False")
+   | v => throw s!"{what}: expected a string, got {v.compress}"
+ 
++/-- `cv.boolean`: a bool, a number (`!= 0`), or one of the strings HA
++accepts (any case, stripped). -/
++def cvBoolean (what : String) : Json → D Bool
++  | .bool b => pure b
++  | .num n => pure (n.mantissa != 0)
++  | .str s =>
++    let v := s.toLower.trim
++    if ["1", "true", "yes", "on", "enable"].contains v then pure true
++    else if ["0", "false", "no", "off", "disable"].contains v then pure false
++    else throw s!"{what}: invalid boolean value {s}"
++  | v => throw s!"{what}: invalid boolean value {v.compress}"
++
+ /-- `cv.slug`: the object id must be its own slug. -/
+ def isSlug (s : String) : Bool := !s.isEmpty && slugify? s == some s
+ 
+@@ -113,8 +127,7 @@ def decodeFields (j : Json) : D (List String) := do
+     for (k, v) in kvs.toList do
+       if !FIELD_KEYS.contains k then throw s!"extra keys not allowed @ data['fields']['{name}']['{k}']"
+       match k, v with
+-      | "advanced", .bool _ | "required", .bool _ => pure ()
+-      | "advanced", _ | "required", _ => throw s!"field {name}: {k} must be a boolean"
++      | "advanced", v | "required", v => discard (cvBoolean s!"field {name}: {k}" v)
+       | "description", v | "example", v | "name", v => discard (cvString s!"field {name}: {k}" v)
+       | "selector", .obj _ | "selector", .null => pure ()
+       | "selector", _ => throw s!"field {name}: invalid selector"
+@@ -153,9 +166,10 @@ def decodeScript (key : String) (j : Json) (extraNames : List String := []) :
+     let .obj tk := t | throw "trace must be a mapping"
+     for (k, v) in tk.toList do
+       if k != "stored_traces" then throw s!"extra keys not allowed @ data['trace']['{k}']"
+-      match v with
+-      | .num n => if n.exponent != 0 || n.mantissa < 1 then throw "stored_traces must be a positive integer"
+-      | _ => throw "stored_traces must be a positive integer"
++      -- `cv.positive_int`: `vol.All(vol.Coerce(int), vol.Range(min=0))`
++      match pyIntOfJson? v with
++      | some i => if i < 0 then throw "stored_traces must be at least 0"
++      | none => throw "stored_traces: expected int"
+   let mode ← match field? j "mode" with
+     | none | some (.str "single") => pure Mode.single
+     | some (.str "restart") => pure .restart

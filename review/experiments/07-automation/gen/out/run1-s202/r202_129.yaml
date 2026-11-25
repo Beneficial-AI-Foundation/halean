@@ -1,0 +1,64 @@
+# random scenario, seed 202, index 129 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: restart
+  triggers:
+  - {trigger: time_pattern, seconds: 31}
+  - {trigger: numeric_state, entity_id: sensor.s1, above: 3}
+  - trigger: state
+    entity_id: [light.l2, light.l1]
+  actions:
+  - variables: {v1: x}
+  - {stop: s}
+  variables: {v1: 0}
+states:
+- {entity_id: sensor.s1, state: '1'}
+- {entity_id: sensor.s2, state: '4'}
+- {entity_id: light.l1, state: unavailable}
+- entity_id: light.l2
+  state: 'off'
+  attributes: {lvl: 1}
+- {entity_id: input_boolean.b1, state: unavailable}
+steps:
+- at: 1
+  set: [light.l1, 'on']
+- at: 2
+  set: [sensor.s2, unavailable]
+  attributes: {lvl: 1}
+- at: 4
+  set: [light.l2, unavailable]
+  attributes: {lvl: 3}
+- at: 6
+  send: {type: event, event_type: e1}
+- at: 7
+  send: {type: event, event_type: tick}
+- at: 8
+  set: [sensor.s2, unavailable]
+- at: 11
+  set: [input_boolean.b1, 'on']
+  attributes: {lvl: 2}
+- at: 13
+  set: [light.l2, 'on']
+- at: 15
+  send:
+    type: event
+    event_type: e2
+    data: {k: 1}
+- at: 16
+  send: {type: event, event_type: e2}
+- at: 17
+  send:
+    type: event
+    event_type: e3
+    data: {k: 2}
+- at: 18
+  set: [input_boolean.b1, unavailable]
+- at: 20
+  set: [sensor.s1, '7.5']
+- at: 21
+  set: [input_boolean.b1, 'off']
+- at: 23
+  set: [sensor.s2, '12']
+- at: 26
+  send: {type: event, event_type: e2}

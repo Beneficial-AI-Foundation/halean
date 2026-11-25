@@ -19,7 +19,7 @@ outside the subset? The answer is in `FINDINGS.md`.
 | `harness/test_differential.py` | Copy of `tests/differential/test_differential.py`. Changes are listed below. `harness/pytest.ini` is the shipped one. |
 | `run.sh`, `run_all.sh` | One harness run / a full run (cases + the three random sets). |
 | `show.py`, `triage.py` | Print the differing steps of dumped results / group failing cases by a rough signature. |
-| `logs/` | `run1-*`, `run2-*`: the two full runs. `runN-dump/<set>/<case>.json`: both results per case. `scratch-*`: exploratory runs. |
+| `logs/` | `run1-*`, `run2-*`: the two full runs (`runN-cases.log`, `runN-random-<seed>.log`, `runN-summary.txt`, `runN-failing.txt`, `runN-divergences.txt`). `runN-dump/<set>/<case>.json`: both results per case. `gen-determinism.txt`: the two runs used identical scenario sets and failed on the same ids. `scratch/`: exploratory runs made while writing the cases and the generator (earlier generator versions; not part of the result). |
 | `patches/AUT-<n>.patch` | One patch per ID that has one (cumulative, in the order of `patches/apply_patches.py`). `patches/all-patches.*`: build log and shipped-suite logs of the patched copy; `patches/patched-*`: this experiment's cases and random sets against the patched engine. |
 | `mutations/` | The mutation patches, build logs and shipped-suite logs. |
 
@@ -54,7 +54,7 @@ HALEAN_BIN=/tmp/claude-0/halean-copies/07-automation-p/.lake/build/bin \
 Patches and mutations (throwaway copies only):
 
 ```bash
-cp -a /home/user/halean /tmp/claude-0/halean-copies/07-automation-p
+cp -a /home/user/halean /tmp/claude-0/halean-copies/07-automation-p     # the copies used here were deleted
 python3 patches/apply_patches.py          # edits and commits each patch in that copy, rewrites patches/AUT-*.patch
 (cd /tmp/claude-0/halean-copies/07-automation-p && lake build halean-automation halean-script)
 # shipped suites in the copy: tests/run_scenarios.py, tests/run_script_scenarios.py,

@@ -1,0 +1,8 @@
+# harness note: `action:` given as one mapping (valid for HA). The harness's `_walk_actions`
+# iterates the mapping's keys and registers no service, so HA raises ServiceNotFound
+automations:
+  - alias: mapping
+    triggers: [{trigger: event, event_type: e}]
+    action: {action: test.single, data: {v: 1}}
+steps:
+  - {at: 1, send: {type: event, event_type: e}}

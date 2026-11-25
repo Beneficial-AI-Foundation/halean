@@ -1,0 +1,108 @@
+description: random scenario seed=101 index=216
+scripts:
+  s0:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+    - delay: 1
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+  s1:
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s3'') }}'
+        cur: '{{ state_attr(''script.s3'', ''current'') }}'
+    - delay: 3
+  s2:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - delay: 3
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s3'') }}'
+        cur: '{{ state_attr(''script.s3'', ''current'') }}'
+    - event: mark
+      event_data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s1'') }}'
+        cur: '{{ state_attr(''script.s1'', ''current'') }}'
+  s3:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s3.6
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - event: mark
+      event_data:
+        id: s3.7
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s0'') }}'
+        cur: '{{ state_attr(''script.s0'', ''current'') }}'
+steps:
+- at: 1
+  call: s2
+- at: 4
+- at: 4
+  call: toggle
+  data:
+    entity_id:
+    - script.s3
+- at: 5
+  call: s2
+  data:
+    v: 0
+  return_response: true
+- at: 8
+  result: 0
+  response:
+    n: 0
+- at: 8
+  call: s0
+  data:
+    v: 4
+  return_response: true
+- at: 11
+  call: s3
+  data:
+    v: 3
+- at: 12
+  call: turn_off
+  data:
+    entity_id: script.s2
+- at: 12
+  call: s3
+  data:
+    v: 4

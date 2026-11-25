@@ -1,0 +1,328 @@
+description: random scenario seed=101 index=173
+scripts:
+  s0:
+    icon: mdi:script
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+      - event: mark
+        event_data:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+      else:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+        - script.s1
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+    - parallel:
+      - sequence:
+        - if:
+          - condition: template
+            value_template: '{{ v | default(0) is even }}'
+          then:
+          - action: test.m
+            data:
+              id: s0.3
+              v: '{{ v | default(0) }}'
+          - action: test.m
+            data:
+              id: s0.4
+              v: '{{ v | default(0) }}'
+          else:
+          - action: script.turn_on
+            target:
+              entity_id:
+              - script.s4
+            data:
+              variables:
+                v: '{{ v | default(0) + 10 }}'
+          - action: script.s3
+            data:
+              v: '{{ v | default(0) + 1 }}'
+      - sequence:
+        - parallel:
+          - sequence:
+            - delay: 1
+            - action: test.m
+              data:
+                id: s0.5
+                v: '{{ v | default(0) }}'
+              response_variable: r
+          - sequence:
+            - action: script.toggle
+              target:
+                entity_id: script.s4
+            - action: script.turn_on
+              target:
+                entity_id:
+                - script.s1
+              data:
+                variables:
+                  v: '{{ v | default(0) + 10 }}'
+  s1:
+    alias: Script 1 B
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+  s2:
+    alias: Script 2 A
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+  s3:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s3.6
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+  s4:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+    - action: script.s4
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+steps:
+- at: 3
+  call: s3
+  data:
+    v: 1
+  return_response: true
+- at: 4
+  result: 0
+  response:
+    n: 0
+- at: 5
+  call: turn_off
+  data:
+    entity_id:
+    - script.s3
+    - script.s1
+- at: 6
+  call: s3
+  data:
+    v: 3
+- at: 7
+  call: s0
+  data:
+    v: 0
+  return_response: true
+- at: 8
+  call: s3
+  data:
+    v: 0
+- at: 11
+  call: turn_off
+  data:
+    entity_id:
+    - script.s1
+    - script.s4
+- at: 12
+  result: 2
+  response:
+    n: 2
+- at: 13
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+- at: 13
+  result: 1
+  response:
+    n: 1
+- at: 13
+  call: s0
+  data:
+    v: 1
+- at: 15
+  call: s1
+- at: 16
+  call: s1
+  return_response: true
+- at: 18
+  call: s2
+- at: 18
+  reload:
+    s0:
+      icon: mdi:script
+      mode: queued
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - action: test.m
+          data:
+            id: s0.1
+            v: '{{ v | default(0) }}'
+        - event: mark
+          event_data:
+            id: s0.2
+            v: '{{ v | default(0) }}'
+        else:
+        - action: script.s1
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          continue_on_error: true
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s4
+          - script.s1
+        data:
+          variables:
+            v: '{{ v | default(0) + 10 }}'
+      - parallel:
+        - sequence:
+          - if:
+            - condition: template
+              value_template: '{{ v | default(0) is even }}'
+            then:
+            - action: test.m
+              data:
+                id: s0.3
+                v: '{{ v | default(0) }}'
+            - action: test.m
+              data:
+                id: s0.4
+                v: '{{ v | default(0) }}'
+            else:
+            - action: script.turn_on
+              target:
+                entity_id:
+                - script.s4
+              data:
+                variables:
+                  v: '{{ v | default(0) + 10 }}'
+            - action: script.s3
+              data:
+                v: '{{ v | default(0) + 1 }}'
+        - sequence:
+          - parallel:
+            - sequence:
+              - delay: 1
+              - action: test.m
+                data:
+                  id: s0.5
+                  v: '{{ v | default(0) }}'
+                response_variable: r
+            - sequence:
+              - action: script.toggle
+                target:
+                  entity_id: script.s4
+              - action: script.turn_on
+                target:
+                  entity_id:
+                  - script.s1
+                data:
+                  variables:
+                    v: '{{ v | default(0) + 10 }}'
+    s1:
+      alias: Script 1 B
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s4
+        data:
+          variables:
+            v: '{{ v | default(0) + 10 }}'
+    s3:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s3.6
+          v: '{{ v | default(0) }}'
+        response_variable: r
+        continue_on_error: true
+    s4:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+      - action: script.s4
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - action: script.turn_off
+        target:
+          entity_id: script.s1
+      - action: script.turn_off
+        target:
+          entity_id: script.s3

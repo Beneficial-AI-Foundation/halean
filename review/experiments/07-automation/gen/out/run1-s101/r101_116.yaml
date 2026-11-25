@@ -1,0 +1,65 @@
+# random scenario, seed 101, index 116 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  triggers:
+  - {trigger: state, entity_id: sensor.s2, attribute: lvl}
+  - {trigger: time_pattern, seconds: 31}
+  actions:
+  - action: test.s1
+    target:
+      entity_id: [light.l1, light.l2]
+  - action: test.s2
+    data: {n: 2, v: '{{ trigger.platform }}'}
+    target: {entity_id: light.l1}
+  - action: test.s3
+    data: {n: 3, v: '{{ states(''light.l1'') }}'}
+  - action: test.s4
+    target: {entity_id: light.l1}
+    enabled: false
+  - event: m_5
+    event_data: {n: 5, v: '{{ states(''light.l1'') }}'}
+states:
+- {entity_id: sensor.s1, state: '8'}
+- {entity_id: sensor.s2, state: unknown}
+- {entity_id: light.l1, state: 'off'}
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: 'on'}
+steps:
+- at: 2
+  send: {type: event, event_type: tick}
+- at: 3
+  set: [sensor.s2, '12']
+- at: 3
+  set: [input_boolean.b1, 'on']
+  attributes: {lvl: 2}
+- at: 6
+  send: {type: event, event_type: e1}
+- at: 9
+  set: [input_boolean.b1, 'off']
+- at: 11
+  send: {type: event, event_type: tick}
+- at: 12
+  send:
+    type: service_result
+    call_id: 0
+    ok: true
+    response:
+      value: [1, 2]
+- at: 13
+  send:
+    type: service_result
+    call_id: 1
+    ok: true
+    response: {value: x}
+- at: 16
+  set: [light.l2, 'off']
+  attributes: {lvl: 2}
+- at: 17
+  set: [input_boolean.b1, 'off']
+  attributes: {lvl: 2}
+- at: 18
+  send: {type: service_result, call_id: 2, ok: false, error_kind: ha_error}
+- at: 19
+  set: [light.l1, 'on']

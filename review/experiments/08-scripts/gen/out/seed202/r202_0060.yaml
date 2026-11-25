@@ -1,0 +1,139 @@
+description: random scenario seed=202 index=60
+scripts:
+  s0:
+    alias: Script 0 A
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - event: mark
+        event_data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s1'') }}'
+          cur: '{{ state_attr(''script.s1'', ''current'') }}'
+      - action: script.toggle
+        target:
+          entity_id: script.s3
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+  s2:
+    icon: mdi:script
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+    - event: mark
+      event_data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+  s3:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s3.5
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+steps:
+- at: 2
+  call: s0
+  data:
+    v: 4
+- at: 5
+- at: 6
+  call: s2
+  data:
+    v: 3
+  return_response: true
+- at: 9
+  call: turn_off
+  data:
+    entity_id: all
+- at: 9
+  result: 1
+  response:
+    n: 1
+- at: 10
+  result: 0
+  response:
+    n: 0
+- at: 11
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s0
+- at: 11
+  call: turn_on
+  data:
+    entity_id:
+    - script.s3
+    variables:
+      v: 4
+- at: 12
+- at: 12
+- at: 13
+  result: 3
+  ok: false
+  error_kind: ha_error
+- at: 14
+  call: s2
+- at: 15
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+- at: 18
+  call: turn_off
+  data:
+    entity_id: script.s0
+- at: 21
+  call: s0
+  return_response: true
+- at: 22
+  result: 2
+  response:
+    n: 2

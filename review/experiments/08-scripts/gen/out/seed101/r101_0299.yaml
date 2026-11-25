@@ -1,0 +1,170 @@
+description: random scenario seed=101 index=299
+scripts:
+  s0:
+    alias: Script 0 A
+    icon: mdi:script
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - action: script.toggle
+      target:
+        entity_id: script.s2
+  s1:
+    alias: Script 1 B
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s4
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s2:
+    alias: Script 2 B
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - delay: 2
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - repeat:
+        count: 2
+        sequence:
+        - delay: 3
+        - action: script.s2
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          response_variable: r
+  s3:
+    alias: Script 3 B
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s4
+  s4:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s4.4
+        v: '{{ v | default(0) }}'
+    - parallel:
+      - sequence:
+        - action: script.turn_off
+          target:
+            entity_id: script.s0
+        - action: test.m
+          data:
+            id: s4.5
+            v: '{{ v | default(0) }}'
+          response_variable: r
+      - sequence:
+        - event: mark
+          event_data:
+            id: s4.6
+            v: '{{ v | default(0) }}'
+        - delay: 1
+    - event: mark
+      event_data:
+        id: s4.7
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s4.8
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+steps:
+- at: 2
+  call: s4
+  return_response: true
+- at: 3
+  call: s2
+  data:
+    v: 1
+- at: 4
+  call: s1
+  return_response: true
+- at: 6
+  call: s0
+  data:
+    v: 3
+  return_response: true
+- at: 8
+  result: 1
+  response:
+    n: 1
+- at: 11
+  result: 0
+  response:
+    n: 0
+- at: 12
+  result: 2
+  response:
+    n: 2
+- at: 15
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+- at: 15
+  call: s4
+  data:
+    v: 3
+  return_response: true
+- at: 17
+- at: 18
+  call: turn_off
+  data:
+    entity_id: script.s1
+- at: 19
+  result: 3
+  ok: false
+  error_kind: invalid
+- at: 22
+  call: s3
+  data:
+    v: 4
+- at: 23
+  call: s2
+  data:
+    v: 1
+  return_response: true
+- at: 26
+  call: s1
+  data:
+    v: 4

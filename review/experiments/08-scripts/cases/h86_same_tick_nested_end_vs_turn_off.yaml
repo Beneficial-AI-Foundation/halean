@@ -1,0 +1,20 @@
+description: >
+  Two delays end in the same tick. The first ends a delay inside `repeat` (the last step of its script);
+  the second run then turns the first script off. In HA the first run has not yet returned from the
+  repeat block (one more event-loop iteration), so it is cancelled; its caller sees a cancellation.
+scripts:
+  nested:
+    sequence:
+      - repeat:
+          count: 1
+          sequence:
+            - delay: 2
+  stopper:
+    sequence:
+      - delay: 1
+      - action: script.turn_off
+        target: {entity_id: script.nested}
+steps:
+  - {at: 1, call: nested}
+  - {at: 2, call: stopper}
+  - {at: 3}

@@ -1,0 +1,226 @@
+description: random scenario seed=101 index=172
+scripts:
+  s0:
+    alias: Script 0 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s1
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+  s1:
+    icon: mdi:script
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - repeat:
+        count: 2
+        sequence:
+        - action: script.s2
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          response_variable: r
+          continue_on_error: true
+        - action: script.s2
+          data:
+            v: '{{ v | default(0) + 1 }}'
+  s2:
+    alias: Script 2 B
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+  s3:
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - delay: 2
+    - event: mark
+      event_data:
+        id: s3.2
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - parallel:
+      - sequence:
+        - action: script.s2
+          data:
+            v: '{{ v | default(0) + 1 }}'
+      - sequence:
+        - action: script.s3
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          continue_on_error: true
+        - delay: 1
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - action: test.m
+        data:
+          id: s3.3
+          v: '{{ v | default(0) }}'
+steps:
+- at: 1
+  call: s3
+- at: 1
+  call: s1
+  return_response: true
+- at: 4
+  call: s0
+  data:
+    v: 4
+- at: 4
+  result: 0
+  response:
+    n: 0
+- at: 5
+  call: s1
+- at: 6
+  call: s0
+  return_response: true
+- at: 9
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s3
+- at: 10
+  call: s3
+  data:
+    v: 0
+- at: 12
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    variables:
+      v: 4
+- at: 13
+  call: s1
+  data:
+    v: 2
+- at: 14
+  call: s2
+  data:
+    v: 3
+- at: 15
+  result: 1
+  response:
+    n: 1
+- at: 15
+  reload:
+    s0:
+      alias: Script 0 A
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s1
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+        response_variable: r
+        continue_on_error: true
+    s1:
+      icon: mdi:script
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - repeat:
+          count: 2
+          sequence:
+          - action: script.s2
+            data:
+              v: '{{ v | default(0) + 1 }}'
+            response_variable: r
+            continue_on_error: true
+          - action: script.s2
+            data:
+              v: '{{ v | default(0) + 1 }}'
+    s3:
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - delay: 2
+      - event: mark
+        event_data:
+          id: s3.2
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+      - parallel:
+        - sequence:
+          - action: script.s2
+            data:
+              v: '{{ v | default(0) + 1 }}'
+        - sequence:
+          - action: script.s3
+            data:
+              v: '{{ v | default(0) + 1 }}'
+            continue_on_error: true
+          - delay: 1
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - action: test.m
+          data:
+            id: s3.3
+            v: '{{ v | default(0) }}'
+- at: 18
+- at: 19
+  result: 2
+  response:
+    n: 2

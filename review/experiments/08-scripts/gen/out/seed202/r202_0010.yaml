@@ -1,0 +1,215 @@
+description: random scenario seed=202 index=10
+scripts:
+  s0:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+  s2:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - repeat:
+        count: 2
+        sequence:
+        - delay: 1
+    - parallel:
+      - sequence:
+        - action: script.turn_off
+          target:
+            entity_id: script.s0
+      - sequence:
+        - event: mark
+          event_data:
+            id: s2.4
+            v: '{{ v | default(0) }}'
+            this: '{{ this.state }}/{{ this.attributes.current }}'
+    - action: test.m
+      data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s2.6
+        v: '{{ v | default(0) }}'
+  s3:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - stop: bad
+      error: true
+steps:
+- at: 2
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 3
+  call: s3
+  data:
+    v: 0
+  return_response: true
+- at: 6
+  result: 0
+  response:
+    n: 0
+- at: 9
+  result: 2
+  response:
+    n: 2
+- at: 9
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    variables:
+      v: 0
+- at: 10
+  call: s3
+- at: 11
+  reload:
+    s0:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: test.m
+        data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+      - action: test.m
+        data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+    s3:
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - stop: bad
+        error: true
+- at: 14
+  reload:
+    s0:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: test.m
+        data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+      - action: test.m
+        data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+    s3:
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 2
+- at: 17
+  call: s0
+  data:
+    v: 3
+- at: 20

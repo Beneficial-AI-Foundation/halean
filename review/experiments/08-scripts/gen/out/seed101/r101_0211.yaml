@@ -1,0 +1,245 @@
+description: random scenario seed=101 index=211
+scripts:
+  s0:
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+    - parallel:
+      - sequence:
+        - variables:
+            out:
+              id: s0.1
+              v: '{{ v | default(0) }}'
+        - stop: done
+          response_variable: out
+      - sequence:
+        - event: mark
+          event_data:
+            id: s0.2
+            v: '{{ v | default(0) }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - parallel:
+      - sequence:
+        - action: test.m
+          data:
+            id: s0.3
+            v: '{{ v | default(0) }}'
+      - sequence:
+        - action: script.s2
+          data:
+            v: '{{ v | default(0) + 1 }}'
+  s1:
+    alias: Script 1 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - event: mark
+      event_data:
+        id: s1.4
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+  s2:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+    - variables:
+        out:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+steps:
+- at: 2
+  call: s0
+  data:
+    v: 3
+- at: 3
+  call: s2
+  data:
+    v: 1
+- at: 3
+  call: s2
+  return_response: true
+- at: 3
+  reload:
+    s0:
+      mode: parallel
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+        continue_on_error: true
+      - parallel:
+        - sequence:
+          - variables:
+              out:
+                id: s0.1
+                v: '{{ v | default(0) }}'
+          - stop: done
+            response_variable: out
+        - sequence:
+          - event: mark
+            event_data:
+              id: s0.2
+              v: '{{ v | default(0) }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - parallel:
+        - sequence:
+          - action: test.m
+            data:
+              id: s0.3
+              v: '{{ v | default(0) }}'
+        - sequence:
+          - action: script.s2
+            data:
+              v: '{{ v | default(0) + 1 }}'
+    s1:
+      alias: Script 1 B
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - event: mark
+        event_data:
+          id: s1.4
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+    s2:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s2.6
+          v: '{{ v | default(0) }}'
+      - delay: 3
+- at: 6
+  call: s0
+  return_response: true
+- at: 8
+  call: s2
+  data:
+    v: 3
+- at: 8
+  call: turn_off
+  data:
+    entity_id:
+    - script.s1
+    - script.s2
+- at: 9
+  call: s2
+  data:
+    v: 4
+  return_response: true
+- at: 10
+  reload:
+    s0:
+      mode: parallel
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+        continue_on_error: true
+      - parallel:
+        - sequence:
+          - variables:
+              out:
+                id: s0.1
+                v: '{{ v | default(0) }}'
+          - stop: done
+            response_variable: out
+        - sequence:
+          - event: mark
+            event_data:
+              id: s0.2
+              v: '{{ v | default(0) }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - parallel:
+        - sequence:
+          - action: test.m
+            data:
+              id: s0.3
+              v: '{{ v | default(0) }}'
+        - sequence:
+          - action: script.s2
+            data:
+              v: '{{ v | default(0) + 1 }}'
+    s1:
+      alias: Reloaded s1
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - event: mark
+        event_data:
+          id: s1.4
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+    s2:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s2.6
+          v: '{{ v | default(0) }}'
+      - delay: 3
+- at: 10
+  call: s0

@@ -1,0 +1,92 @@
+description: random scenario seed=101 index=279
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - action: test.m
+      data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+  s1:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - event: mark
+      event_data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - event: mark
+      event_data:
+        id: s1.4
+        v: '{{ v | default(0) }}'
+  s2:
+    alias: Script 2 B
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+steps:
+- at: 3
+- at: 5
+  call: s0
+  data:
+    v: 2
+- at: 5
+  call: turn_off
+  data:
+    entity_id: script.s1
+- at: 8
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 10
+  call: s2
+  data:
+    v: 1
+  return_response: true
+- at: 12
+  result: 0
+  ok: false
+  error_kind: invalid
+- at: 13
+- at: 14
+- at: 15
+  call: turn_off
+  data:
+    entity_id:
+    - script.s1
+    - script.s0

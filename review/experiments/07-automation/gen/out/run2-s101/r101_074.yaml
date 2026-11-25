@@ -1,0 +1,89 @@
+# random scenario, seed 101, index 74 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  triggers:
+  - {trigger: state, entity_id: light.l2, not_to: 1, not_from: 2, attribute: lvl, for: 2}
+  conditions:
+  - {condition: numeric_state, entity_id: sensor.s2, above: 3, below: 9}
+  actions:
+  - variables: {v1: x}
+  - wait_template: '{{ trigger.id == ''0'' }}'
+    timeout: {seconds: 2}
+  - event: m_2
+    event_data: {n: 2, completed: '{{ wait.completed }}'}
+  - {event: m_1}
+  variables: {v1: 0}
+states:
+- entity_id: sensor.s1
+  state: unavailable
+  attributes: {lvl: 2}
+- {entity_id: sensor.s2, state: '7.5'}
+- {entity_id: light.l1, state: 'off'}
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: 'off'}
+steps:
+- at: 1
+  send: {type: event, event_type: tick}
+- at: 4
+  set: [input_boolean.b1, unavailable]
+- at: 4
+  send:
+    type: event
+    event_type: e3
+    data: {k: a}
+- at: 5
+  set: [input_boolean.b1, 'on']
+  attributes: {lvl: 1}
+- at: 8
+  set: [sensor.s2, unknown]
+- at: 11
+  send: {type: event, event_type: tick}
+- at: 12
+  set: [sensor.s1, '7.5']
+- at: 13
+  send:
+    type: event
+    event_type: e2
+    data: {k: true}
+- at: 16
+  set: [sensor.s1, '12']
+  attributes: {lvl: 3}
+- at: 17
+  send:
+    type: event
+    event_type: e2
+    data: {k: true}
+- at: 18
+  set: [light.l2, unavailable]
+- at: 19
+  set: [sensor.s1, '12']
+- at: 20
+  set: [sensor.s1, '20']
+  attributes: {lvl: 1}
+- at: 21
+  set: [light.l2, 'on']
+  attributes: {lvl: 2}
+- at: 24
+  set: [input_boolean.b1, unavailable]
+- at: 27
+  set: [input_boolean.b1, 'on']
+- at: 28
+  set: [light.l1, unavailable]
+- at: 28
+  set: [input_boolean.b1, 'off']
+- at: 29
+  set: [light.l1, unavailable]
+  attributes: {lvl: 3}
+- at: 31
+  set: [light.l2, 'off']
+- at: 32
+  send: {type: event, event_type: tick}
+- at: 32
+  set: [light.l2, unavailable]
+  attributes: {lvl: 3}
+- at: 35
+  set: [light.l2, 'on']
+- at: 36
+  set: [light.l2, unavailable]

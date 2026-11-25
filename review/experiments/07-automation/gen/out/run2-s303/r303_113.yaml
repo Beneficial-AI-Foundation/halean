@@ -1,0 +1,85 @@
+# random scenario, seed 303, index 113 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  triggers:
+  - {trigger: event, event_type: e3}
+  - trigger: state
+    entity_id: [light.l1, sensor.s1]
+    to: 'off'
+    id: beta
+  - {trigger: event, event_type: e2}
+  actions:
+  - {wait_template: '{{ states(''sensor.s1'') | int(0) > 7 }}', timeout: '{{ 2 }}', continue_on_timeout: false}
+  - event: m_3
+    event_data: {n: 3, completed: '{{ wait.completed }}'}
+  - action: test.s1
+    data: {n: 1, v: '{{ trigger.description }}'}
+    response_variable: v1
+  - event: m_2
+    event_data: {n: 2, v: '{{ states(''sensor.s1'') }}'}
+  variables: {v1: 0}
+states:
+- {entity_id: sensor.s1, state: unknown}
+- {entity_id: sensor.s2, state: '20'}
+- entity_id: light.l1
+  state: 'off'
+  attributes: {lvl: 2}
+- {entity_id: light.l2, state: 'off'}
+steps:
+- at: 2
+  set: [light.l1, unavailable]
+  attributes: {lvl: 3}
+- at: 5
+  send: {type: event, event_type: tick}
+- at: 8
+  set: [light.l1, unavailable]
+  attributes: {lvl: 1}
+- at: 10
+  set: [light.l1, unavailable]
+- at: 12
+  set: [light.l1, 'off']
+- at: 15
+  set: [light.l1, 'on']
+- at: 16
+  send: {type: event, event_type: tick}
+- at: 19
+  send: {type: event, event_type: tick}
+- at: 20
+  send: {type: event, event_type: tick}
+- at: 21
+  send: {type: event, event_type: tick}
+- at: 22
+  set: [light.l1, 'off']
+- at: 22
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 24
+  set: [light.l1, 'on']
+- at: 27
+  set: [sensor.s1, abc]
+  attributes: {lvl: 3}
+- at: 27
+  send: {type: event, event_type: tick}
+- at: 27
+  set: [sensor.s1, '7.5']
+- at: 30
+  set: [light.l1, unavailable]
+- at: 31
+  set: [light.l1, 'on']
+- at: 32
+  set: [sensor.s1, '4']
+  attributes: {lvl: 3}
+- at: 32
+  send: {type: event, event_type: tick}
+- at: 33
+  set: [light.l1, unavailable]
+- at: 36
+  set: [light.l1, 'off']
+- at: 39
+  set: [light.l1, unavailable]
+- at: 40
+  send: {type: event, event_type: tick}

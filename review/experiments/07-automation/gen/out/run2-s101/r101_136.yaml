@@ -1,0 +1,115 @@
+# random scenario, seed 101, index 136 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  triggers:
+  - {trigger: numeric_state, entity_id: sensor.s1, above: 3, id: alpha}
+  actions:
+  - {wait_template: '{{ is_state(''light.l1'', ''on'') }}', timeout: '00:00:03'}
+  - event: m_3
+    event_data: {n: 3, completed: '{{ wait.completed }}'}
+  - {delay: 1}
+  - event: m_1
+    event_data: {n: 1, v: '{{ states(''sensor.s1'') }}'}
+  - {event: m_2}
+- alias: a1
+  id: id1
+  triggers:
+  - {trigger: time, at: '22:13:33', id: alpha}
+  - {trigger: event, event_type: e2}
+  - {trigger: template, value_template: '{{ is_state(''light.l1'', ''on'') }}', id: beta}
+  actions:
+  - {condition: numeric_state, entity_id: sensor.s2, above: 6}
+  - sequence:
+    - action: test.s4
+      data: {n: 4, v: '{{ [states(''light.l1''), states(''light.l2'')] }}'}
+    - {delay: 0}
+    - action: test.s5
+      data: {n: 5, v: '{{ trigger.id }}'}
+      response_variable: v1
+  - {action: test.s6, continue_on_error: true}
+  - repeat:
+      count: 1
+      sequence:
+      - {stop: s}
+  - if:
+    - {condition: trigger, id: alpha}
+    then:
+    - choose:
+      - conditions:
+        - '{{ trigger.id == ''0'' }}'
+        - {condition: state, entity_id: input_boolean.b1, state: 'on', for: '00:00:03'}
+        sequence:
+        - action: test.s7
+          data: {n: 7, v: '{{ states(''light.l1'') }}'}
+        - action: test.s8
+          data: {n: 8, v: '{{ now().second }}'}
+      continue_on_error: true
+    - sequence:
+      - {action: test.s9}
+      - variables: {v1: '{{ repeat.index if repeat is defined else -1 }}'}
+    else:
+    - {delay: '{{ 1 }}'}
+    - event: m_10
+      event_data: {n: 10, v: '{{ states(''light.l1'') }}'}
+  variables: {v1: 0, v2: 0}
+states:
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: 'on'}
+steps:
+- at: 1
+  set: [sensor.s2, '12']
+- at: 4
+  set: [sensor.s1, '1']
+  attributes: {lvl: 2}
+- at: 5
+  set: [input_boolean.b1, 'off']
+- at: 7
+  set: [light.l1, 'on']
+- at: 10
+  send: {type: service_result, call_id: 0, ok: true}
+- at: 13
+  send:
+    type: service_result
+    call_id: 1
+    ok: true
+    response: {value: 1}
+- at: 14
+  send: {type: service_result, call_id: 2, ok: true}
+- at: 14
+  send: {type: event, event_type: tick}
+- at: 17
+  send:
+    type: event
+    event_type: e2
+    data: {k: true}
+- at: 18
+  send: {type: service_result, call_id: 3, ok: true}
+- at: 18
+  send:
+    type: service_result
+    call_id: 4
+    ok: true
+    response: {value: x}
+- at: 19
+  set: [sensor.s1, '20']
+- at: 21
+  set: [light.l1, 'off']
+- at: 23
+  send: {type: event, event_type: tick}
+- at: 23
+  send: {type: event, event_type: tick}
+- at: 24
+  set: [light.l1, unavailable]
+- at: 24
+  send:
+    type: event
+    event_type: e2
+    data: {k: 2}
+- at: 25
+  send: {type: service_result, call_id: 5, ok: true}
+- at: 26
+  send: {type: event, event_type: tick}
+- at: 26
+  set: [light.l2, 'on']

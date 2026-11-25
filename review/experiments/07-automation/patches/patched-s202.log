@@ -1,0 +1,484 @@
+........................................................................ [ 23%]
+..................F..................................................... [ 47%]
+.........................................................F.............. [ 71%]
+........................................................................ [ 95%]
+............ss.                                                          [100%]
+=================================== FAILURES ===================================
+___________________________ test_scenario[r202_090] ____________________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fe861a37de0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/gen/out/run1-s202/r202_090.yaml')
+
+    @pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
+    async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+>       await _run(hass, freezer, path)
+
+test_differential.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fe861a37de0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/gen/out/run1-s202/r202_090.yaml')
+client = None
+
+    async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+                   client=None) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        loc = sc.get("location", LOCATION)
+        hass.config.latitude = loc["latitude"]
+        hass.config.longitude = loc["longitude"]
+        hass.config.elevation = loc["elevation"]
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = set()
+        automations = copy.deepcopy(sc["automations"])
+        for a in automations:
+            _walk_actions(a.get("actions") or a.get("action"), services, events)
+    
+        observed: list[tuple] = []
+        futures: list[asyncio.Future] = []
+        ha_log: list[str] = []  # review: HA's warnings/errors, for the dump only
+        if _DUMP:
+            import logging
+    
+            class _H(logging.Handler):
+                def emit(self, record):  # noqa: ANN001
+                    ha_log.append(f"{record.levelname} {record.name}: {record.getMessage()}"[:600])
+    
+            _h = _H(level=logging.WARNING)
+            logging.getLogger().addHandler(_h)
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall) -> None:
+            observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut  # the scenario's response; raises if it reports a failure
+    
+        # services answer with response data when asked (SupportsResponse.OPTIONAL)
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type == "automation_triggered":
+                observed.append(("automation_triggered", event.data.get("name")))
+            elif event.event_type in events and event.context is not input_ctx:
+                observed.append(("fire_event", event.event_type, dict(event.data)))
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "automation", {"automation": automations})
+        await _settle()
+    
+        per_step: list[list[tuple]] = [list(observed)]
+        missing_calls: list[int] = []  # review: see the service_result branch below
+        observed.clear()
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            # advance one second at a time, like the bridge's ticks
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            else:
+                msg = st["send"]
+                if msg["type"] == "event":
+                    hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+                elif msg["type"] == "mqtt":
+                    async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                            msg.get("qos", 0), msg.get("retain", False))
+                elif msg["type"] == "webhook":
+                    await _send_webhook(hass, client, msg)
+                elif msg["type"] == "service_result":
+                    # review: the shipped code raises IndexError here when HA made fewer calls than
+                    # the scenario answers. Record it instead, so that both results can be dumped;
+                    # the test still fails (see the assertion at the end).
+                    if msg["call_id"] >= len(futures):
+                        missing_calls.append(msg["call_id"])
+                        await _settle()
+                        per_step.append(list(observed))
+                        observed.clear()
+                        continue
+                    fut = futures[msg["call_id"]]
+                    if fut.done():
+                        pass  # the run was stopped (restart) and its call cancelled
+                    elif msg.get("ok"):
+                        fut.set_result(msg.get("response"))
+                    else:
+                        kind = msg.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            await _settle()
+            per_step.append(list(observed))
+            observed.clear()
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+    
+        if _DUMP:
+            logging.getLogger().removeHandler(_h)
+        raw_engine = engine_outputs(sc)
+        engine = [_normalise_engine(c) for c in raw_engine]
+        if _DUMP:
+            Path(_DUMP).mkdir(parents=True, exist_ok=True)
+            (Path(_DUMP) / f"{path.stem}.json").write_text(json.dumps({
+                "ha": per_step, "engine": engine, "ha_log": ha_log,
+                "engine_other": [[c for c in cs if c["type"] not in ("automation_triggered", "call_service", "fire_event")]
+                                 for cs in raw_engine]}, default=str, indent=1))
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = [
+            f"{label}\n    HA:     {ha}\n    engine: {en}"
+            for label, ha, en in zip(labels, per_step, engine)
+            if _streams(ha) != _streams(en)
+        ]
+>       assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and the Lean engine disagree:
+E           step at=11
+E             HA:     [('automation_triggered', 'a0'), ('call_service', 'test', 's9', {'n': 9, 'v': 0}), ('automation_triggered', 'a0'), ('automation_triggered', 'a0'), ('call_service', 'test', 's9', {'n': 9, 'v': 2})]
+E             engine: [('automation_triggered', 'a0'), ('automation_triggered', 'a0'), ('automation_triggered', 'a0'), ('call_service', 'test', 's9', {'n': 9, 'v': 2})]
+E           step at=12
+E             HA:     [('fire_event', 'm_10', {'n': 10, 'v': 1, 'var': 'x'})]
+E             engine: [('call_service', 'test', 's6', {'entity_id': ['light.l1'], 'n': 6, 'v': 20})]
+E       assert not ["step at=11\n    HA:     [('automation_triggered', 'a0'), ('call_service', 'test', 's9', {'n': 9, 'v': 0}), ('automat...10, 'v': 1, 'var': 'x'})]\n    engine: [('call_service', 'test', 's6', {'entity_id': ['light.l1'], 'n': 6, 'v': 20})]"]
+
+test_differential.py:315: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded automation from homeassistant.components.automation
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+INFO:homeassistant.loader:Loaded template from homeassistant.components.template
+INFO:homeassistant.setup:Setting up automation
+INFO:homeassistant.helpers.entity_registry:Registered new automation.automation entity: automation.a0
+INFO:homeassistant.components.automation.a0:Initialized trigger a0
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.a0:a0: Running automation actions
+INFO:homeassistant.components.automation.a0:a0: Parallel action at step 1: parallel 1: Initialized trigger
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.a0:a0: Parallel action at step 1: parallel 1: Timeout reached, abort script.
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.a0:a0: Running automation actions
+INFO:homeassistant.components.automation.a0:a0: Restarting
+INFO:homeassistant.components.automation.a0:a0: Restarting
+INFO:homeassistant.components.automation.a0:a0: Parallel action at step 1: parallel 1: Initialized trigger
+INFO:homeassistant.components.automation.a0:a0: Running automation actions
+INFO:homeassistant.components.automation.a0:a0: Running automation actions
+INFO:homeassistant.components.automation.a0:a0: Parallel action at step 1: parallel 1: Initialized trigger
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+ERROR:homeassistant.components.automation.a0:a0: Parallel action at step 1: parallel 1: Parallel action at step 2: parallel 2: If at step 1: Error executing script. Invalid data for call_service at pos 2: invalid
+ERROR:homeassistant.components.automation.a0:a0: Parallel action at step 1: parallel 1: Parallel action at step 2: parallel 2: Error executing script. Invalid data for if at pos 1: invalid
+ERROR:homeassistant.components.automation.a0:a0: Parallel action at step 1: parallel 1: Error executing script. Invalid data for parallel at pos 2: invalid
+ERROR:homeassistant.components.automation.a0:a0: Error executing script. Invalid data for parallel at pos 1: invalid
+ERROR:homeassistant.components.automation.a0:Error while executing automation automation.a0: invalid
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded automation from homeassistant.components.automation
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+INFO     homeassistant.loader:loader.py:801 Loaded template from homeassistant.components.template
+INFO     homeassistant.setup:setup.py:393 Setting up automation
+INFO     homeassistant.helpers.entity_registry:entity_registry.py:1715 Registered new automation.automation entity: automation.a0
+INFO     homeassistant.components.automation.a0:__init__.py:888 Initialized trigger a0
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.a0:script.py:2301 a0: Running automation actions
+INFO     homeassistant.components.automation.a0:script.py:2301 a0: Parallel action at step 1: parallel 1: Initialized trigger
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.a0:script.py:2301 a0: Parallel action at step 1: parallel 1: Timeout reached, abort script.
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.a0:script.py:2301 a0: Running automation actions
+INFO     homeassistant.components.automation.a0:script.py:2301 a0: Restarting
+INFO     homeassistant.components.automation.a0:script.py:2301 a0: Restarting
+INFO     homeassistant.components.automation.a0:script.py:2301 a0: Parallel action at step 1: parallel 1: Initialized trigger
+INFO     homeassistant.components.automation.a0:script.py:2301 a0: Running automation actions
+INFO     homeassistant.components.automation.a0:script.py:2301 a0: Running automation actions
+INFO     homeassistant.components.automation.a0:script.py:2301 a0: Parallel action at step 1: parallel 1: Initialized trigger
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+ERROR    homeassistant.components.automation.a0:script.py:2301 a0: Parallel action at step 1: parallel 1: Parallel action at step 2: parallel 2: If at step 1: Error executing script. Invalid data for call_service at pos 2: invalid
+ERROR    homeassistant.components.automation.a0:script.py:2301 a0: Parallel action at step 1: parallel 1: Parallel action at step 2: parallel 2: Error executing script. Invalid data for if at pos 1: invalid
+ERROR    homeassistant.components.automation.a0:script.py:2301 a0: Parallel action at step 1: parallel 1: Error executing script. Invalid data for parallel at pos 2: invalid
+ERROR    homeassistant.components.automation.a0:script.py:2301 a0: Error executing script. Invalid data for parallel at pos 1: invalid
+ERROR    homeassistant.components.automation.a0:__init__.py:810 Error while executing automation automation.a0: invalid
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-2177' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+___________________________ test_scenario[r202_201] ____________________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fe857cf04b0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/gen/out/run1-s202/r202_201.yaml')
+
+    @pytest.mark.parametrize("path", PLAIN, ids=[p.stem for p in PLAIN])
+    async def test_scenario(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path) -> None:
+>       await _run(hass, freezer, path)
+
+test_differential.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fe857cf04b0>
+path = PosixPath('/home/user/halean/review/experiments/07-automation/gen/out/run1-s202/r202_201.yaml')
+client = None
+
+    async def _run(hass: HomeAssistant, freezer: FrozenDateTimeFactory, path: Path,
+                   client=None) -> None:
+        sc = yaml.safe_load(path.read_text())
+        if not sc.get("differential", True):
+            pytest.skip(sc.get("differential_reason", "engine-only scenario"))
+    
+        await hass.config.async_set_time_zone("UTC")
+        loc = sc.get("location", LOCATION)
+        hass.config.latitude = loc["latitude"]
+        hass.config.longitude = loc["longitude"]
+        hass.config.elevation = loc["elevation"]
+        freezer.move_to(T0_DT)
+    
+        services: set[tuple[str, str]] = set()
+        events: set[str] = set()
+        automations = copy.deepcopy(sc["automations"])
+        for a in automations:
+            _walk_actions(a.get("actions") or a.get("action"), services, events)
+    
+        observed: list[tuple] = []
+        futures: list[asyncio.Future] = []
+        ha_log: list[str] = []  # review: HA's warnings/errors, for the dump only
+        if _DUMP:
+            import logging
+    
+            class _H(logging.Handler):
+                def emit(self, record):  # noqa: ANN001
+                    ha_log.append(f"{record.levelname} {record.name}: {record.getMessage()}"[:600])
+    
+            _h = _H(level=logging.WARNING)
+            logging.getLogger().addHandler(_h)
+        input_ctx = Context()
+    
+        async def handler(call: ServiceCall) -> None:
+            observed.append(("call_service", call.domain, call.service, _norm_data(dict(call.data))))
+            fut = hass.loop.create_future()
+            futures.append(fut)
+            return await fut  # the scenario's response; raises if it reports a failure
+    
+        # services answer with response data when asked (SupportsResponse.OPTIONAL)
+        for domain, service in services:
+            hass.services.async_register(domain, service, handler,
+                                         supports_response=SupportsResponse.OPTIONAL)
+    
+        @callback
+        def on_event(event) -> None:
+            if event.event_type == "automation_triggered":
+                observed.append(("automation_triggered", event.data.get("name")))
+            elif event.event_type in events and event.context is not input_ctx:
+                observed.append(("fire_event", event.event_type, dict(event.data)))
+    
+        hass.bus.async_listen(MATCH_ALL, on_event)
+    
+        for s in sc.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+        await _settle()
+    
+        assert await async_setup_component(hass, "automation", {"automation": automations})
+        await _settle()
+    
+        per_step: list[list[tuple]] = [list(observed)]
+        missing_calls: list[int] = []  # review: see the service_result branch below
+        observed.clear()
+        current = T0_DT
+        for st in sc["steps"]:
+            target = T0_DT + timedelta(seconds=st["at"])
+            # advance one second at a time, like the bridge's ticks
+            while current + timedelta(seconds=1) <= target:
+                current += timedelta(seconds=1)
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+            if current != target:
+                current = target
+                freezer.move_to(current)
+                async_fire_time_changed(hass, current)
+                await _settle()
+    
+            if "set" in st:
+                eid, val = st["set"]
+                hass.states.async_set(eid, val, st.get("attributes", {}), context=input_ctx)
+            else:
+                msg = st["send"]
+                if msg["type"] == "event":
+                    hass.bus.async_fire(msg["event_type"], msg.get("data", {}), context=input_ctx)
+                elif msg["type"] == "mqtt":
+                    async_fire_mqtt_message(hass, msg["topic"], msg.get("payload", ""),
+                                            msg.get("qos", 0), msg.get("retain", False))
+                elif msg["type"] == "webhook":
+                    await _send_webhook(hass, client, msg)
+                elif msg["type"] == "service_result":
+                    # review: the shipped code raises IndexError here when HA made fewer calls than
+                    # the scenario answers. Record it instead, so that both results can be dumped;
+                    # the test still fails (see the assertion at the end).
+                    if msg["call_id"] >= len(futures):
+                        missing_calls.append(msg["call_id"])
+                        await _settle()
+                        per_step.append(list(observed))
+                        observed.clear()
+                        continue
+                    fut = futures[msg["call_id"]]
+                    if fut.done():
+                        pass  # the run was stopped (restart) and its call cancelled
+                    elif msg.get("ok"):
+                        fut.set_result(msg.get("response"))
+                    else:
+                        kind = msg.get("error_kind", "other")
+                        fut.set_exception(
+                            HomeAssistantError("failed") if kind == "ha_error"
+                            else vol.Invalid("invalid") if kind == "invalid"
+                            else RuntimeError("other"))
+            await _settle()
+            per_step.append(list(observed))
+            observed.clear()
+    
+        # release anything still blocked so HA can shut down cleanly
+        for fut in futures:
+            if not fut.done():
+                fut.set_result(None)
+        await _settle()
+    
+        if _DUMP:
+            logging.getLogger().removeHandler(_h)
+        raw_engine = engine_outputs(sc)
+        engine = [_normalise_engine(c) for c in raw_engine]
+        if _DUMP:
+            Path(_DUMP).mkdir(parents=True, exist_ok=True)
+            (Path(_DUMP) / f"{path.stem}.json").write_text(json.dumps({
+                "ha": per_step, "engine": engine, "ha_log": ha_log,
+                "engine_other": [[c for c in cs if c["type"] not in ("automation_triggered", "call_service", "fire_event")]
+                                 for cs in raw_engine]}, default=str, indent=1))
+        labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
+        diffs = [
+            f"{label}\n    HA:     {ha}\n    engine: {en}"
+            for label, ha, en in zip(labels, per_step, engine)
+            if _streams(ha) != _streams(en)
+        ]
+>       assert not diffs, "HA and the Lean engine disagree:\n  " + "\n  ".join(diffs)
+E       AssertionError: HA and the Lean engine disagree:
+E           step at=10
+E             HA:     [('fire_event', 'm_4', {}), ('fire_event', 'm_4', {}), ('fire_event', 'm_5', {}), ('call_service', 'test', 's7', {'n': 7, 'v': 0, 'entity_id': ['light.l2']})]
+E             engine: [('fire_event', 'm_4', {}), ('fire_event', 'm_5', {}), ('call_service', 'test', 's7', {'entity_id': ['light.l2'], 'n': 7, 'v': 0}), ('fire_event', 'm_4', {})]
+E       assert not ["step at=10\n    HA:     [('fire_event', 'm_4', {}), ('fire_event', 'm_4', {}), ('fire_event', 'm_5', {}), ('call_ser..., 'm_5', {}), ('call_service', 'test', 's7', {'entity_id': ['light.l2'], 'n': 7, 'v': 0}), ('fire_event', 'm_4', {})]"]
+
+test_differential.py:315: AssertionError
+----------------------------- Captured stderr call -----------------------------
+INFO:homeassistant.loader:Loaded automation from homeassistant.components.automation
+INFO:homeassistant.loader:Loaded trace from homeassistant.components.trace
+INFO:homeassistant.loader:Loaded blueprint from homeassistant.components.blueprint
+INFO:homeassistant.setup:Setting up blueprint
+INFO:homeassistant.setup:Setting up trace
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+INFO:homeassistant.setup:Setting up automation
+INFO:homeassistant.helpers.entity_registry:Registered new automation.automation entity: automation.a0
+INFO:homeassistant.components.automation.a0:Initialized trigger a0
+INFO:homeassistant.helpers.entity_registry:Registered new automation.automation entity: automation.a1
+INFO:homeassistant.components.automation.a1:Initialized trigger a1
+WARNING:asyncio:Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.a0:a0: Running automation actions
+WARNING:asyncio:Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO:homeassistant.components.automation.a0:a0: Running automation actions
+WARNING:asyncio:Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING:asyncio:Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+------------------------------ Captured log call -------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded automation from homeassistant.components.automation
+INFO     homeassistant.loader:loader.py:801 Loaded trace from homeassistant.components.trace
+INFO     homeassistant.loader:loader.py:801 Loaded blueprint from homeassistant.components.blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up blueprint
+INFO     homeassistant.setup:setup.py:393 Setting up trace
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+INFO     homeassistant.setup:setup.py:393 Setting up automation
+INFO     homeassistant.helpers.entity_registry:entity_registry.py:1715 Registered new automation.automation entity: automation.a0
+INFO     homeassistant.components.automation.a0:__init__.py:888 Initialized trigger a0
+INFO     homeassistant.helpers.entity_registry:entity_registry.py:1715 Registered new automation.automation entity: automation.a1
+INFO     homeassistant.components.automation.a1:__init__.py:888 Initialized trigger a1
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.a0:script.py:2301 a0: Running automation actions
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+INFO     homeassistant.components.automation.a0:script.py:2301 a0: Running automation actions
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-4977' coro=<test_scenario() running at /home/user/halean/review/experiments/07-automation/harness/test_differential.py:142> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 1.000 seconds
+=========================== short test summary info ============================
+FAILED test_differential.py::test_scenario[r202_090] - AssertionError: HA and...
+FAILED test_differential.py::test_scenario[r202_201] - AssertionError: HA and...
+2 failed, 299 passed, 2 skipped in 92.56s (0:01:32)
+exit=1

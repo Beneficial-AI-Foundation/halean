@@ -1,0 +1,144 @@
+description: random scenario seed=101 index=159
+scripts:
+  s0:
+    alias: Script 0 A
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+  s1:
+    alias: Script 1 B
+    icon: mdi:script
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+  s2:
+    alias: Script 2 A
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+    - delay: 1
+steps:
+- at: 1
+- at: 3
+  call: s0
+  return_response: true
+- at: 6
+  result: 0
+  ok: false
+  error_kind: other
+- at: 7
+  reload:
+    s0:
+      alias: Script 0 A
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+    s1:
+      alias: Script 1 B
+      icon: mdi:script
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - stop: bad
+        error: true
+      - delay: 1
+    s2:
+      alias: Script 2 A
+      icon: mdi:script
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+      - delay: 1
+- at: 8
+  call: turn_off
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 9
+  call: s0
+  return_response: true
+- at: 10
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+- at: 10
+  call: s2
+  data:
+    v: 2
+  return_response: true
+- at: 11
+  result: 1
+  ok: false
+  error_kind: other
+- at: 12
+  call: s0
+  data:
+    v: 3
+- at: 15
+  result: 2
+  response:
+    n: 2
+- at: 16
+  call: s0
+  data:
+    v: 1
+  return_response: true
+- at: 17
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+- at: 18
+  call: s0
+  return_response: true

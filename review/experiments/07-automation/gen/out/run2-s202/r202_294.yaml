@@ -1,0 +1,123 @@
+# random scenario, seed 202, index 294 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: restart
+  variables: {v1: '{{ trigger.platform }}', v2: 0}
+  triggers:
+  - trigger: state
+    entity_id: [light.l2, input_boolean.b1]
+    from: unavailable
+    to: unavailable
+  conditions:
+  - condition: and
+    conditions:
+    - condition: not
+      conditions:
+      - {condition: template, value_template: '{{ trigger.platform == ''event'' }}'}
+    - and:
+      - {condition: numeric_state, entity_id: sensor.s2, above: 3, below: 9}
+      - {condition: state, entity_id: light.l1, state: 'on'}
+      - {condition: time, after: '22:00', weekday: tue}
+  actions:
+  - sequence:
+    - {wait_template: '{{ trigger.id == ''0'' }}'}
+    - event: m_2
+      event_data: {n: 2, completed: '{{ wait.completed }}'}
+    - action: test.s1
+      data: {n: 1, v: '{{ trigger.platform }}'}
+  - sequence:
+    - {delay: '00:00:02'}
+  - {delay: 1}
+  - variables: {v2: '{{ (v2 | default(0) | int(0)) + 1 }}'}
+- alias: a1
+  id: id1
+  mode: parallel
+  triggers:
+  - {trigger: time, at: '22:13:33'}
+  actions:
+  - condition: trigger
+    id: [beta, '0']
+  - choose:
+    - conditions:
+      - {condition: state, entity_id: light.l1, state: 'on'}
+      sequence:
+      - repeat:
+          for_each: []
+          sequence:
+          - action: test.s3
+            data: {n: 3, v: '{{ [states(''light.l1''), states(''light.l2'')] }}'}
+    - conditions:
+      - condition: time
+        before: '22:13:30'
+        weekday: [tue]
+      sequence:
+      - {action: test.s4, enabled: false}
+      - parallel:
+        - sequence:
+          - {event: m_5}
+          - action: test.s6
+            data: {n: 6, v: '{{ trigger.idx }}'}
+            target: {entity_id: light.l1}
+            response_variable: v1
+        - event: m_7
+          event_data: {n: 7, v: '{{ this.attributes.current }}', var: '{{ v1 | default(''undef'') }}'}
+      - repeat:
+          count: 2
+          sequence:
+          - parallel:
+            - sequence:
+              - {event: m_8}
+              - action: test.s9
+                data: {n: 9, v: '{{ states(''sensor.s1'') }}'}
+                continue_on_error: true
+            - sequence:
+              - event: m_10
+                event_data: {n: 10, v: '{{ states(''sensor.s2'') | int(0) + 1 }}', var: '{{ v1 | default(''undef'') }}'}
+  - {condition: state, entity_id: sensor.s1, state: abc, for: 2}
+  - condition: and
+    conditions:
+    - condition: and
+      conditions:
+      - condition: time
+        before: '22:13:30'
+        weekday: [tue]
+      - condition: state
+        entity_id: light.gone
+        state: ['off', unavailable]
+    - {condition: state, entity_id: light.l1, state: 'on', enabled: false}
+  variables: {v1: 0}
+states:
+- {entity_id: sensor.s1, state: abc}
+- {entity_id: sensor.s2, state: unavailable}
+- {entity_id: light.l2, state: unavailable}
+- entity_id: input_boolean.b1
+  state: 'on'
+  attributes: {lvl: 2}
+steps:
+- at: 3
+  send: {type: event, event_type: tick}
+- at: 4
+  set: [sensor.s1, '12']
+  attributes: {lvl: 1}
+- at: 4
+  set: [light.l1, unavailable]
+- at: 7
+  send: {type: event, event_type: tick}
+- at: 8
+  set: [sensor.s1, '12']
+- at: 9
+  set: [sensor.s1, '1']
+- at: 10
+  set: [light.l2, 'off']
+- at: 10
+  send: {type: event, event_type: tick}
+- at: 12
+  send: {type: event, event_type: e3}
+- at: 14
+  send: {type: event, event_type: tick}
+- at: 16
+  set: [sensor.s1, unknown]
+- at: 17
+  set: [sensor.s1, '1']
+  attributes: {lvl: 1}

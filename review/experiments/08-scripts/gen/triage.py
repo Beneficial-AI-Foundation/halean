@@ -12,7 +12,9 @@ script runs halean-script again to get them). Signatures:
                        at or before the first differing step (README gap)
   call-to-ha:script.*  HALean sent a call_service for a script.* service to HA
   reload-window        the first difference is in a reload step
-  ha-indexerror        the HA side had fewer service calls than HALean (IndexError)
+  ha-indexerror        a `result: n` step for a call that one side did not make (IndexError in
+                       the harness; the generator took n from HALean, so the side is HA)
+  lean-indexerror      the same, on HALean's side (only with a patched build)
   other                none of the above; printed with -v
 """
 
@@ -48,7 +50,11 @@ def parse(log: str) -> dict[str, list[tuple[str, dict, dict]] | str]:
 
 def signature(sc: dict, diffs) -> tuple[str, tuple | None]:
     """The signature of one failed case and its first differing step."""
-    _, obs = lean_run(sc)
+    try:
+        _, obs = lean_run(sc)
+    except IndexError:
+        # a `result: n` step for a call HALean did not make
+        return "lean-indexerror", None
     labels = ["init"] + [f"step at={s['at']}" for s in sc["steps"]]
     if isinstance(diffs, str):
         return ("ha-indexerror" if diffs.startswith("IndexError") else f"error:{diffs[:60]}"), None

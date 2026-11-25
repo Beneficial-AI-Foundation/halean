@@ -1,0 +1,187 @@
+# random scenario, seed 101, index 182 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: queued
+  variables: {v1: '{{ states(''sensor.s2'') }}'}
+  triggers:
+  - {trigger: numeric_state, entity_id: sensor.s2, below: 10}
+  - {trigger: time_pattern, seconds: /9}
+  - {trigger: numeric_state, entity_id: sensor.s2, above: 3, below: 10}
+  actions:
+  - {stop: s}
+  - {condition: template, value_template: '{{ is_state(''light.l2'', ''off'') }}'}
+- alias: a1
+  id: id1
+  mode: restart
+  triggers:
+  - trigger: template
+    value_template: '{{ is_state(''input_boolean.b1'', ''on'') and is_state(''light.l1'', ''on'') }}'
+    for: {seconds: '{{ 1 + 1 }}'}
+  - {trigger: numeric_state, entity_id: sensor.s1, below: 10, value_template: '{{ state.state | float(0) * 2 }}'}
+  conditions: ['{{ is_state(''input_boolean.b1'', ''on'') and is_state(''light.l1'', ''on'') }}']
+  actions:
+  - condition: or
+    conditions:
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: [light.l1, light.l2]
+        state: 'on'
+        match: any
+      - condition: state
+        entity_id: sensor.s1
+        state: ['7.5', unavailable]
+  - repeat:
+      until: ['{{ repeat.index >= 2 }}']
+      sequence:
+      - variables:
+          v1: [a, '{{ 1 + 1 }}']
+  - {event: m_1}
+  variables: {v1: 0}
+- alias: a2
+  id: id2
+  triggers:
+  - {trigger: event, event_type: e1}
+  - trigger: state
+    entity_id: [sensor.s1, light.l1]
+    not_to: '1'
+    from: '7.5'
+  actions:
+  - action: test.s2
+    target: {entity_id: light.l1}
+  - sequence:
+    - variables: {v1: '{{ repeat.index if repeat is defined else -1 }}'}
+  - repeat:
+      while:
+      - or:
+        - {condition: template, value_template: '{{ trigger.platform == ''event'' }}'}
+        - {condition: time, after: '23:00:00', before: '06:00'}
+      - '{{ repeat.index <= 3 }}'
+      sequence:
+      - if: ['{{ states(''sensor.s1'') == states(''sensor.s2'') }}']
+        then:
+        - choose:
+          - conditions:
+            - not:
+              - condition: trigger
+                id: [beta, '0']
+              - {condition: state, entity_id: light.l2, state: 'off'}
+            sequence:
+            - variables: {v2: 1}
+            - {delay: 0}
+          default:
+          - variables: {v2: '{{ (v2 | default(0) | int(0)) + 1 }}'}
+          - event: m_3
+            event_data: {n: 3, v: '{{ [states(''light.l1''), states(''light.l2'')] }}', var: '{{ v1 | default(''undef'') }}'}
+          - action: test.s4
+            data: {n: 4, v: '{{ trigger.idx }}'}
+        - variables:
+            v4: [a, '{{ 1 + 1 }}']
+        else:
+        - {delay: '00:00:02'}
+        - repeat:
+            until: ['{{ repeat.index >= 2 }}']
+            sequence:
+            - {condition: template, value_template: '{{ trigger.platform == ''event'' }}', enabled: false}
+      - if:
+        - '{{ states(''sensor.s1'') | int > 5 }}'
+        - {condition: numeric_state, entity_id: sensor.s2, above: 6}
+        then:
+        - variables: {v5: '{{ (v5 | default(0) | int(0)) + 1 }}'}
+        - {wait_template: '{{ is_state(''light.l1'', ''on'') }}'}
+        - event: m_5
+          event_data: {n: 5, completed: '{{ wait.completed }}'}
+        continue_on_error: true
+      - event: m_6
+        event_data: {n: 6, v: '{{ states(''sensor.s1'') }}', var: '{{ v4 | default(''undef'') }}'}
+  - sequence:
+    - choose:
+      - conditions:
+        - '{{ is_state(''input_boolean.b1'', ''on'') and is_state(''light.l1'', ''on'') }}'
+        - {condition: template, value_template: '{{ trigger.platform in [''state'', ''numeric_state''] }}'}
+        sequence:
+        - if:
+          - {condition: numeric_state, entity_id: sensor.s1, below: 15}
+          then:
+          - {event: m_7}
+          - action: test.s8
+            data: {n: 8, v: '{{ now().second }}'}
+            continue_on_error: true
+          - variables: {v6: '{{ states(''sensor.s1'') }}'}
+        - if:
+          - {condition: trigger, id: '0'}
+          then:
+          - event: m_9
+            event_data: {n: 9, v: '{{ trigger.platform }}', var: '{{ v5 | default(''undef'') }}'}
+          continue_on_error: true
+      default:
+      - {delay: '{{ 1 }}'}
+      - sequence:
+        - variables: {v2: x}
+      - parallel:
+        - sequence:
+          - event: m_10
+            event_data: {n: 10, v: '{{ states(''sensor.s1'') }}', var: '{{ v4 | default(''undef'') }}'}
+          - {event: m_11}
+          - {condition: template, value_template: '{{ is_state(''light.l2'', ''off'') }}'}
+        - sequence:
+          - {action: test.s12, continue_on_error: true}
+        - event: m_13
+          event_data: {n: 13, v: '{{ states(''sensor.s1'') }}'}
+    - if:
+      - {condition: time, before: '22:14'}
+      then:
+      - {event: m_14}
+  - variables: {v1: '{{ repeat.index if repeat is defined else -1 }}'}
+  variables: {v1: 0, v2: 0, v3: 0, v4: 0, v5: 0, v6: 0, v7: 0, v8: 0}
+states:
+- {entity_id: sensor.s1, state: '4'}
+- {entity_id: sensor.s2, state: '1'}
+- entity_id: light.l1
+  state: 'on'
+  attributes: {lvl: 1}
+- {entity_id: light.l2, state: 'off'}
+- {entity_id: input_boolean.b1, state: unavailable}
+steps:
+- at: 1
+  send:
+    type: event
+    event_type: e3
+    data: {k: 2}
+- at: 2
+  set: [sensor.s2, unavailable]
+- at: 3
+  send: {type: event, event_type: e3}
+- at: 4
+  send:
+    type: event
+    event_type: e2
+    data: {k: a}
+- at: 7
+  send: {type: event, event_type: tick}
+- at: 8
+  set: [light.l1, unavailable]
+  attributes: {lvl: 2}
+- at: 10
+  set: [light.l2, unavailable]
+- at: 10
+  set: [light.l1, unavailable]
+- at: 10
+  set: [sensor.s2, '12']
+- at: 13
+  set: [input_boolean.b1, 'off']
+  attributes: {lvl: 1}
+- at: 15
+  set: [input_boolean.b1, unavailable]
+  attributes: {lvl: 3}
+- at: 16
+  set: [sensor.s2, '8']
+- at: 17
+  set: [light.l2, 'off']
+- at: 18
+  set: [light.l1, 'off']
+- at: 21
+  send: {type: event, event_type: tick}
+- at: 24
+  send: {type: event, event_type: tick}

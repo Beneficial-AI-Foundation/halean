@@ -1,0 +1,86 @@
+# random scenario, seed 202, index 68 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  mode: restart
+  triggers:
+  - {trigger: state, entity_id: light.l2, not_from: unavailable, to: unavailable}
+  conditions:
+  - {condition: trigger, id: '0'}
+  actions:
+  - if:
+    - {condition: template, value_template: '{{ trigger.platform == ''event'' }}'}
+    then:
+    - {wait_template: '{{ states(''sensor.s2'') | float(0) < 9 }}', timeout: '00:00:03'}
+    - event: m_1
+      event_data: {n: 1, completed: '{{ wait.completed }}'}
+  - action: test.s2
+    data: {n: 2, v: '{{ states(''light.l1'') }}'}
+  - action: test.s3
+    data: {n: 3, v: '{{ [states(''light.l1''), states(''light.l2'')] }}'}
+    response_variable: v1
+  variables: {v1: 0}
+- alias: a1
+  id: id1
+  mode: queued
+  triggers:
+  - trigger: state
+    entity_id: light.l1
+    to: 'off'
+    for: {seconds: 2}
+  - {trigger: state, entity_id: sensor.s2, from: abc, to: '1', for: 1}
+  - {trigger: time_pattern, seconds: 23}
+  actions:
+  - {wait_template: '{{ is_state(''light.l2'', ''off'') }}', timeout: 1, continue_on_timeout: false}
+  - {stop: s, error: true}
+  - {wait_template: '{{ is_state(''light.l2'', ''off'') }}', timeout: 2, continue_on_timeout: false}
+  - event: m_4
+    event_data: {n: 4, completed: '{{ wait.completed }}'}
+  - {stop: s}
+states:
+- entity_id: sensor.s1
+  state: unavailable
+  attributes: {lvl: 1}
+- {entity_id: sensor.s2, state: '12'}
+- entity_id: light.l1
+  state: 'off'
+  attributes: {lvl: 1}
+- {entity_id: light.l2, state: 'on'}
+steps:
+- at: 0
+  send:
+    type: event
+    event_type: e1
+    data: {k: a}
+- at: 0
+  send: {type: event, event_type: tick}
+- at: 0
+  set: [sensor.s2, '4']
+  attributes: {lvl: 3}
+- at: 1
+  send:
+    type: event
+    event_type: e1
+    data: {k: 2}
+- at: 2
+  send: {type: event, event_type: e2}
+- at: 3
+  set: [input_boolean.b1, 'off']
+- at: 4
+  send: {type: event, event_type: tick}
+- at: 4
+  send: {type: event, event_type: e3}
+- at: 5
+  send:
+    type: event
+    event_type: e2
+    data: {k: a}
+- at: 5
+  send: {type: event, event_type: tick}
+- at: 6
+  send: {type: event, event_type: e3}
+- at: 7
+  send:
+    type: event
+    event_type: e3
+    data: {k: 2}

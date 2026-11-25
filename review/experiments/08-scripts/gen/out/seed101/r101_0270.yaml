@@ -1,0 +1,121 @@
+description: random scenario seed=101 index=270
+scripts:
+  s0:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 2
+  s1:
+    alias: Script 1 B
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+  s2:
+    alias: Script 2 A
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+  s3:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s3.3
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - action: test.m
+      data:
+        id: s3.4
+        v: '{{ v | default(0) }}'
+    - delay: 1
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+steps:
+- at: 3
+  call: s2
+  data:
+    v: 3
+- at: 5
+  call: s2
+  return_response: true
+- at: 5
+  call: turn_off
+  data:
+    entity_id: all
+- at: 6
+- at: 7
+  call: s3
+- at: 7
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 8
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+    - script.s3
+- at: 9
+  result: 0
+  ok: false
+  error_kind: invalid
+- at: 10
+  call: turn_off
+  data:
+    entity_id: all
+- at: 12
+  call: turn_off
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+- at: 14
+  call: s2

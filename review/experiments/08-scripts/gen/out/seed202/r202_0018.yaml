@@ -1,0 +1,117 @@
+description: random scenario seed=202 index=18
+scripts:
+  s0:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s0'') }}'
+        cur: '{{ state_attr(''script.s0'', ''current'') }}'
+    - delay: 2
+  s1:
+    icon: mdi:script
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+  s2:
+    alias: Script 2 A
+    icon: mdi:script
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+    - repeat:
+        count: 2
+        sequence:
+        - condition: template
+          value_template: '{{ v | default(0) < 2 }}'
+        - action: script.s4
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          response_variable: r
+          continue_on_error: true
+  s3:
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s3.4
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s3.5
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s4'') }}'
+        cur: '{{ state_attr(''script.s4'', ''current'') }}'
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+  s4:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+steps:
+- at: 1
+  call: s4
+  return_response: true
+- at: 2
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    variables:
+      v: 1
+- at: 2
+  call: toggle
+  data:
+    entity_id:
+    - script.s3
+- at: 3
+  result: 0
+  response:
+    n: 0
+- at: 4
+  call: s2
+  data:
+    v: 4
+- at: 4
+  call: s4
+  data:
+    v: 2
+  return_response: true
+- at: 5
+  call: s0
+- at: 8
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s0

@@ -1,0 +1,218 @@
+description: random scenario seed=202 index=46
+scripts:
+  s0:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+    - delay: 1
+    - repeat:
+        count: 2
+        sequence:
+        - event: mark
+          event_data:
+            id: s1.2
+            v: '{{ v | default(0) }}'
+            r: '{{ r | default(''undef'') }}'
+  s2:
+    icon: mdi:script
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+  s3:
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+  s4:
+    alias: Script 4 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+    - event: mark
+      event_data:
+        id: s4.4
+        v: '{{ v | default(0) }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+steps:
+- at: 1
+  call: s3
+- at: 1
+  call: s2
+  data:
+    v: 4
+- at: 2
+  call: s0
+  return_response: true
+- at: 4
+  call: s2
+- at: 5
+  call: turn_on
+  data:
+    entity_id:
+    - script.s3
+- at: 5
+  call: s4
+  data:
+    v: 2
+  return_response: true
+- at: 5
+  reload:
+    s0:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s4
+        data:
+          variables:
+            v: '{{ v | default(0) + 10 }}'
+      - event: mark
+        event_data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+          r: '{{ r | default(''undef'') }}'
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s3
+      - delay: 1
+      - repeat:
+          count: 2
+          sequence:
+          - event: mark
+            event_data:
+              id: s1.2
+              v: '{{ v | default(0) }}'
+              r: '{{ r | default(''undef'') }}'
+      alias: Reloaded s1
+    s2:
+      icon: mdi:script
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+    s3:
+      icon: mdi:script
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+    s4:
+      alias: Script 4 B
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s3
+      - event: mark
+        event_data:
+          id: s4.4
+          v: '{{ v | default(0) }}'
+      - action: script.turn_off
+        target:
+          entity_id: script.s3
+- at: 6
+  call: s2
+  data:
+    v: 2
+- at: 9
+  call: s0
+  data:
+    v: 0
+- at: 12
+  call: turn_off
+  data:
+    entity_id: all
+- at: 14
+  call: s4
+  data:
+    v: 0
+- at: 15
+  call: s4
+- at: 17
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    - script.s4
+    variables:
+      v: 3
+- at: 17
+  call: s4
+  data:
+    v: 4
+- at: 17
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    variables:
+      v: 0

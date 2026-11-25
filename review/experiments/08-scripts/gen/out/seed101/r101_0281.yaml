@@ -1,0 +1,124 @@
+description: random scenario seed=101 index=281
+scripts:
+  s0:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - parallel:
+      - sequence:
+        - action: script.s1
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          continue_on_error: true
+      - sequence:
+        - action: script.turn_off
+          target:
+            entity_id: script.s3
+    - action: test.m
+      data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+  s2:
+    alias: Script 2 B
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - stop: bad
+      error: true
+    - variables:
+        out:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+    - delay: 3
+    - event: mark
+      event_data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s3'') }}'
+        cur: '{{ state_attr(''script.s3'', ''current'') }}'
+  s3:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - variables:
+        out:
+          id: s3.6
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+steps:
+- at: 1
+  call: s3
+- at: 1
+- at: 1
+  call: s3
+- at: 2
+  call: s3
+  data:
+    v: 0
+  return_response: true
+- at: 5
+  call: toggle
+  data:
+    entity_id:
+    - script.s3
+    - script.s0
+- at: 6
+  call: s0
+- at: 8
+  call: s0
+- at: 9
+- at: 10
+  call: s3
+- at: 11
+  call: s1
+  data:
+    v: 0
+  return_response: true
+- at: 13
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s0

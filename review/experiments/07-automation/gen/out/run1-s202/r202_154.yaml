@@ -1,0 +1,87 @@
+# random scenario, seed 202, index 154 (gen/gen_scenarios.py)
+automations:
+- alias: a0
+  id: id0
+  triggers:
+  - {trigger: state, entity_id: input_boolean.b1, not_to: 'on'}
+  actions:
+  - {event: m_1}
+  - repeat:
+      for_each:
+      - {k: 1}
+      - null
+      sequence:
+      - {stop: s, error: true}
+      - parallel:
+        - event: m_2
+          event_data: {n: 2, v: '{{ trigger.platform }}'}
+        - sequence:
+          - variables: {v1: x}
+          - action: test.s3
+            data: {n: 3, v: '{{ states(''light.l1'') }}'}
+        - event: m_4
+          event_data: {n: 4, v: '{{ now().second }}'}
+    continue_on_error: true
+  - wait_for_trigger:
+    - trigger: state
+      entity_id: [sensor.s1, sensor.s2]
+      not_from: 3
+      attribute: lvl
+    timeout: 2
+    continue_on_timeout: false
+  - event: m_7
+    event_data: {n: 7, completed: '{{ wait.completed }}', trig: '{{ wait.trigger.platform if wait.trigger else ''none'' }}'}
+  - action: test.s5
+    data: {n: 5, v: '{{ trigger.description }}'}
+    continue_on_error: true
+  - {event: m_6}
+  variables: {v1: 0}
+states:
+- {entity_id: sensor.s1, state: '20'}
+- {entity_id: sensor.s2, state: '1'}
+- entity_id: light.l1
+  state: 'off'
+  attributes: {lvl: 1}
+- {entity_id: input_boolean.b1, state: 'on'}
+steps:
+- at: 3
+  send:
+    type: event
+    event_type: e2
+    data: {k: 1}
+- at: 4
+  send:
+    type: event
+    event_type: e1
+    data: {k: 1}
+- at: 6
+  send:
+    type: event
+    event_type: e1
+    data: {k: 1}
+- at: 7
+  send: {type: event, event_type: tick}
+- at: 8
+  send:
+    type: event
+    event_type: e3
+    data: {k: true}
+- at: 9
+  set: [light.l2, 'on']
+- at: 10
+  send:
+    type: event
+    event_type: e1
+    data: {k: a}
+- at: 12
+  send: {type: event, event_type: tick}
+- at: 12
+  set: [light.l2, 'on']
+  attributes: {lvl: 1}
+- at: 12
+  send: {type: event, event_type: tick}
+- at: 15
+  set: [sensor.s2, '4']
+- at: 17
+  set: [sensor.s1, unavailable]
+  attributes: {lvl: 1}

@@ -1,0 +1,126 @@
+description: random scenario seed=202 index=90
+scripts:
+  s0:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - stop: bad
+      error: true
+  s1:
+    alias: Script 1 B
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+      response_variable: r
+  s2:
+    alias: Script 2 B
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - variables:
+        out:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+    - action: test.m
+      data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s2.6
+        v: '{{ v | default(0) }}'
+  s3:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+  s4:
+    alias: Script 4 B
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s4.7
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+    - action: test.m
+      data:
+        id: s4.8
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s4.9
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s2'') }}'
+        cur: '{{ state_attr(''script.s2'', ''current'') }}'
+steps:
+- at: 3
+  call: turn_on
+  data:
+    entity_id:
+    - script.s4
+    - script.s3
+    variables:
+      v: 3
+- at: 4
+  call: turn_off
+  data:
+    entity_id: all
+- at: 5
+  result: 1
+  response:
+    n: 1
+- at: 8
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+    variables:
+      v: 3
+- at: 9
+  result: 2
+  ok: false
+  error_kind: invalid
+- at: 11
+  result: 0
+  response:
+    n: 0
+- at: 11
+- at: 12
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
