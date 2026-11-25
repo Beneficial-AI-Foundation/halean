@@ -275,6 +275,113 @@ entries:
   notes: 'tag_scanned: tag_id (and device_id, when given) must be one of the configured strings; no
     composite device id expansion (no device registry)'
   hash: c22926f7f41c3019
+- python: components/mqtt/trigger.py::async_attach_trigger
+  lean:
+  - HALean.Automation.decodeTrigger
+  - HALean.Automation.onMqtt
+  - HALean.Automation.mqttPayloadMatches
+  - HALean.Automation.mqttTriggerVars
+  status: translated
+  notes: topic and payload rendered when the trigger attaches (templated ones only with the static
+    trigger_variables); encodings other than UTF-8 are refused (the protocol carries text); qos is
+    validated, the delivered qos comes with the message
+  hash: e9f27bfee783ef76
+- python: components/mqtt/util.py::valid_topic
+  lean:
+  - HALean.Automation.mqttValidTopic
+  status: translated
+  hash: 0d970b94b919e5f2
+- python: components/mqtt/util.py::valid_subscribe_topic
+  lean:
+  - HALean.Automation.mqttValidSubscribeTopic
+  status: translated
+  hash: 0d08880a6cd92a24
+- python: components/mqtt/util.py::valid_subscribe_topic_template
+  lean:
+  - HALean.Automation.decodeTrigger
+  status: translated
+  notes: a static topic is validated as written, a templated one after it renders
+  hash: 5d5c181f393830c2
+- python: components/mqtt/models.py::MqttCommandTemplate.async_render
+  lean:
+  - HALean.Automation.decodeTrigger
+  status: translated
+  notes: the wanted payload, rendered with value = None and the trigger variables (no entity)
+  hash: 56a057cff0330eb7
+- python: components/mqtt/models.py::convert_outgoing_mqtt_payload
+  lean:
+  - HALean.Automation.decodeTrigger
+  status: translated
+  notes: a payload that starts like a bytes literal (b'...) is refused instead of evaluated
+  hash: 2d4b7062a1e4a84b
+- python: components/mqtt/models.py::MqttValueTemplate.async_render_with_possible_json_value
+  lean:
+  - HALean.Automation.mqttPayloadMatches
+  status: translated
+  notes: no entity and no variables (the trigger passes none); a render error gives the default
+    sentinel, which matches nothing
+  hash: 17f6b29d015167ef
+- python: helpers/template/__init__.py::Template.async_render_with_possible_json_value
+  lean:
+  - HALean.Automation.mqttPayloadMatches
+  - HALean.Core.orjsonLoads
+  status: translated
+  notes: value_json from json_loads (orjson, HALean.Core.orjsonLoads); a static template returns its text
+  hash: 180f6e427a888133
+- python: components/mqtt/client.py::MQTT._async_mqtt_on_message
+  lean:
+  - HALean.Automation.onMqtt
+  status: translated
+  notes: the retained-message filter (_retained_topics, per subscription and topic) and the dispatch
+    to the triggers; payloads arrive decoded as UTF-8, so the per-subscription decode is the shell's
+  hash: 6fac5ac070108eae
+- python: components/mqtt/client.py::MQTT._matching_subscriptions
+  lean:
+  - HALean.Automation.onMqtt
+  status: translated
+  notes: simple (exact) subscriptions first, then wildcard ones, each in subscription order (upstream
+    keeps the simple ones in a set, so their order among themselves is not defined); no subscription
+    identifiers
+  hash: 62ddb11a8a2b679b
+- python: components/mqtt/client.py::_matcher_for_topic
+  lean:
+  - HALean.Automation.mqttTopicMatches
+  - HALean.Automation.mqttLevelsMatch
+  status: translated
+  notes: paho's MQTTMatcher.iter_match for a single filter (wildcards at the first level skip $ topics)
+  hash: 5a425e00b87fa66e
+- python: components/webhook/trigger.py::async_attach_trigger
+  lean:
+  - HALean.Automation.decodeTrigger
+  - HALean.Automation.onWebhook
+  status: translated
+  notes: the webhook id is rendered when the trigger attaches (templated only with the static
+    trigger_variables); the first attached trigger with an id registers the handler, so its
+    allowed_methods and local_only count; a wait's trigger is registered only while it waits
+  hash: fd0560684171db2e
+- python: components/webhook/trigger.py::_handle_webhook
+  lean:
+  - HALean.Automation.onWebhook
+  - HALean.Automation.multiDictValue
+  status: translated
+  notes: json (orjson) when the Content-Type contains "json", else the form fields; data and query
+    are MultiDictProxy objects (a key reads its first value; their methods, iteration and printing
+    are render errors)
+  hash: e694f0c3987da194
+- python: components/webhook/__init__.py::async_handle_webhook
+  lean:
+  - HALean.Automation.onWebhook
+  status: translated
+  notes: unknown ids and HEAD to a webhook without HEAD are ignored, other methods it does not allow
+    and remote requests to a local_only webhook are logged; whether the request is local is the
+    shell's (the protocol's local field); a JSON error is logged and nothing runs
+  hash: 018c5a1c37c8aa6c
+- python: components/webhook/__init__.py::async_register
+  lean:
+  - HALean.Automation.onWebhook
+  status: translated
+  notes: only automation triggers register webhooks, so an id is never taken by another integration
+  hash: 33426df420458864
 - python: components/automation/__init__.py::AutomationEntity.async_trigger
   lean:
   - HALean.Automation.thisValue

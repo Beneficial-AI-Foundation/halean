@@ -222,7 +222,7 @@ demo/make-bundle.sh 0.1.0-local dist && demo/smoke-test.sh dist/halean-demo.tar.
 
 | Area | Supported | Rejected at load, stays in HA |
 |---|---|---|
-| Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, `for`, re-rendered like HA's template tracker: only for what the last render read, every minute when it used `now()`, rate limits for loops over states), `time` (fixed or templated `at`: a limited template rendered with the static `trigger_variables`; `input_datetime` entities with a date or only a time, timestamp/uptime sensors, `offset`, weekday; rescheduled when the entity changes), `time_pattern`, `homeassistant` with `event: start` (once, on `homeassistant_started`), `tag` (`tag_id`, optional `device_id`), `event` (templated `event_type` and `event_data`, limited templates rendered with the static `trigger_variables`; nested `event_data`; values compared by Python's `==`), legacy `zone` (enter/leave by coordinates, Vincenty distance like HA's, or a person's/device tracker's `in_zones`), legacy `sun` (sunrise/sunset with `offset`, astral's NOAA calculation at HA's location and elevation); `for:` static or templated (a template string or a mapping of templates, rendered with the trigger variables when the trigger matches, then `cv.positive_time_period`; an error means no trigger) | `this` in trigger templates (its value depends on HA's startup phase), other sun events (dawn, dusk, noon, elevation, ...), `zone.entered`/`zone.left` and other new-style triggers, `homeassistant` with `event: shutdown` (a shutdown job, before any event the shell sees), `mqtt`, `webhook`, device triggers, a templated `time` `at` or event trigger that reads states, the clock or the time zone, or is in a `wait_for_trigger`; an event trigger's `context` (the protocol sends no event context), a list inside nested `event_data` |
+| Triggers | `state` (from/to/not_from/not_to, attribute, `for`, explicit null `to`), `numeric_state` (below/above, entity bounds, attribute, `value_template`, `for`, arming), `template` (arming, `for`, re-rendered like HA's template tracker: only for what the last render read, every minute when it used `now()`, rate limits for loops over states), `time` (fixed or templated `at`: a limited template rendered with the static `trigger_variables`; `input_datetime` entities with a date or only a time, timestamp/uptime sensors, `offset`, weekday; rescheduled when the entity changes), `time_pattern`, `homeassistant` with `event: start` (once, on `homeassistant_started`), `tag` (`tag_id`, optional `device_id`), `event` (templated `event_type` and `event_data`, limited templates rendered with the static `trigger_variables`; nested `event_data`; values compared by Python's `==`), legacy `zone` (enter/leave by coordinates, Vincenty distance like HA's, or a person's/device tracker's `in_zones`), legacy `sun` (sunrise/sunset with `offset`, astral's NOAA calculation at HA's location and elevation), `mqtt` (topic filters with `+`/`#` as paho matches them, exact topics before wildcard filters, `payload` and `value_template` with `value`/`value_json`, `qos`, UTF-8 `encoding`, a retained message once per subscription and topic, `trigger.topic`/`payload`/`payload_json`/`qos`; templated topic and payload rendered with the static `trigger_variables`; fed by the protocol's `mqtt` input), `webhook` (`allowed_methods` and `local_only` of the trigger that registered the id first, `trigger.json` for a JSON Content-Type, else `trigger.data` (form fields), `trigger.query`; templated ids rendered with the static `trigger_variables`; fed by the protocol's `webhook` input, which the bridge cannot send); `for:` static or templated (a template string or a mapping of templates, rendered with the trigger variables when the trigger matches, then `cv.positive_time_period`; an error means no trigger) | `this` in trigger templates (its value depends on HA's startup phase), other sun events (dawn, dusk, noon, elevation, ...), `zone.entered`/`zone.left` and other new-style triggers, `homeassistant` with `event: shutdown` (a shutdown job, before any event the shell sees), device triggers, a `webhook` trigger whose id is templated in a `wait_for_trigger` or reads states or the clock, an `mqtt` trigger with another `encoding` (the protocol carries UTF-8 text) or with a payload that reads as a bytes literal (`b'...'`), or whose topic or payload is templated in a `wait_for_trigger`, or whose payload template reads states or the clock, a templated `time` `at` or event trigger that reads states, the clock or the time zone, or is in a `wait_for_trigger`; an event trigger's `context` (the protocol sends no event context), a list inside nested `event_data` |
 | Conditions | `and`/`or`/`not` (incl. shorthand), `state` (match any/all, `for` (templates too, rendered when checked; `for` with an attribute or an `input_*` state is refused, as HA's schema does), attribute, `input_*` references), `numeric_state` (incl. `value_template`), `time` (fixed, `input_datetime`, `time` entities, timestamp/uptime sensors, midnight crossing, weekday), `trigger`, `template` (incl. the `"{{ ... }}"` shorthand), `zone` (several entities and zones), `sun` (before/after sunrise/sunset with offsets, the night as before sunrise or after sunset, polar days), `enabled` (see Actions) | platform conditions |
 | Automations | automation `variables` (rendered in order before conditions), `trigger_variables` (limited templates rendered when the triggers attach, then again with `variables` at each trigger), a trigger's own `variables` (rendered when it fires, seeing `trigger`; they win over the automation's); `this` in variables, conditions and actions (the automation entity's `state.as_dict()`: `entity_id` derived from the name like HA, `state`, `attributes` `id`/`last_triggered`/`mode`/`current`/`max`/`friendly_name`); names default to `automation <n>` like HA | `this` when the entity id needs transliteration (non-ASCII names, also for every later automation) or HTML entities, `trigger_variables` that use `this`, states or the clock, `variables` on a `wait_for_trigger`'s triggers |
 | Actions | service call (blocking; static names lower-cased as HA does, or templated names; templates in `data`/`data_template` and `target`, or one template for the whole `data` or `target`; the action's own `entity_id`; `response_variable`), `stop` with `response_variable`, `delay` (static or templated), `condition`, `choose`, `if`/`else`, `repeat` count (incl. templated)/for_each/while/until with the `repeat` variable, `variables`, `stop` (+`error`), `event` (templates in `event_data` and the legacy `event_data_template`), `sequence`, `wait_template` (`timeout`, static or templated, `continue_on_timeout`, the `wait` variable; tracked like HA's `async_track_template`), `wait_for_trigger` (any supported trigger, seeing the run's variables; `timeout`, `continue_on_timeout`, `wait.trigger`), `parallel` (branches share variables except `wait`; errors and `stop` are raised once every branch is done), `continue_on_error`, `enabled` on triggers, conditions and actions (`cv.boolean` words and numbers, or a limited template, decided at load: a trigger's sees the static `trigger_variables` and a render error skips it, a condition's or action's sees no variables; a `parallel` branch's templated `enabled` is never rendered and the branch always runs, as in HA) | device actions, `scene` |
@@ -650,19 +650,46 @@ listeners before anything else is delivered).
   trigger for automations loaded before startup finished.
 * The bridge is unverified. It subscribes to events after `get_states`, so a
   change in that window can be missed at startup.
+* MQTT through the bridge: when an automation or script has an `mqtt` trigger,
+  the bridge subscribes to `#` (plus `$<level>/#` for each `$` topic a trigger
+  names) with HA's `mqtt/subscribe` WebSocket command (admin token), so HA's
+  broker connection delivers every message, and the engine matches them
+  against its triggers. Compared with HA's own subscriptions: retained
+  messages arrive once, when the bridge subscribes, so a `wait_for_trigger`
+  that subscribes later does not get the retained message HA's broker would
+  resend; the delivered `qos` is capped by the bridge's subscription (the
+  highest `qos` a trigger asks for), not by each trigger's; and HA forwards a
+  payload that is not UTF-8 as the text `b'...'`, which the engine takes as the
+  payload where HA's trigger would drop the message. Several triggers on the
+  same exact topic run in subscription order; HA keeps them in a set, so its
+  order among them is not defined.
+* Webhooks through the bridge: HA receives webhook requests itself, and its
+  WebSocket API can only send one in (`webhook/handle`), not report them, so
+  the bridge cannot feed `webhook` triggers. It warns about automations that
+  have one; keep those in HA. A shell that receives the requests itself can
+  send the protocol's `webhook` input (`bridge/protocol.py` `webhook_input`
+  turns a raw request into it the way aiohttp parses it; multipart bodies are
+  not supported, and the query is split with `urllib.parse.parse_qsl`, which
+  agrees with yarl on ordinary query strings).
+* A webhook's `trigger.data` and `trigger.query` are `MultiDictProxy` objects:
+  HALean reads a key (`trigger.query.q`, `trigger.data['a']`: the first
+  value), `in` and truthiness; their methods (`get`, `items`, ...),
+  iterating, `length` and printing them are render errors.
 
 ## What is left to convert
 
-HALean covers 307 upstream functions (`manifest.yaml`), 28 of them proved.
+HALean covers 322 upstream functions (`manifest.yaml`), 28 of them proved.
 What is still missing, roughly in order of value:
 
 1. **What makes real automations fail to load today.**
-   * Trigger platforms: `homeassistant` shutdown, `mqtt`, `webhook`,
+   * Trigger platforms: `homeassistant` shutdown,
      `calendar`, `persistent_notification`, `conversation`, `device`
      (device triggers come from each integration, so they are the hardest).
-     All of these need input the shell does not send yet: MQTT messages,
-     webhook requests, calendar events, notifications, conversation
-     sentences, a shutdown signal.
+     All of these need input the shell does not send yet: calendar events,
+     notifications, conversation sentences, a shutdown signal. (`mqtt` and
+     `webhook` are translated, with the protocol inputs `mqtt` and `webhook`;
+     the bridge feeds MQTT messages from HA's `mqtt/subscribe`, but it cannot
+     see webhook requests, which HA receives itself.)
    * Templates are taken everywhere HA takes them, except in a
      `wait_for_trigger`'s triggers, whose limited templates (`enabled`, an
      event trigger's type and data, a time trigger's `at`) and own
