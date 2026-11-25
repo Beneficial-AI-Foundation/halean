@@ -653,8 +653,16 @@ Properties worth proving or model-checking are collected in
 
 1. Generate differential scenarios automatically (random automations within the supported
    subset plus random event sequences) to cover far more paths than hand-written ones.
-2. Make the run loop total and prove run-level properties: a `single` automation never has
-   two live runs, and a `queued` one runs in arrival order.
+2. Run-level properties: a `queued` automation runs in arrival order. (The run loop is
+   total, and the run bound is proved: `runs_bounded` in
+   `HALean/Automation/EngineBound.lean`.)
 3. User-level properties over a whole `automations.yaml`: conflicting commands to the
    same entity, and trigger loops (an action that re-triggers itself).
 4. Widen the subset: the other sun events and conditions (dawn, dusk, elevation), templated `trigger_variables`.
+
+## License
+
+HALean is licensed under the Apache License 2.0 (`LICENSE`). It translates parts
+of Home Assistant Core (Apache 2.0) and of probatio (MIT), Jinja2 (BSD 3-Clause),
+astral (Apache 2.0), python-slugify (MIT) and CPython (PSF License). `NOTICE`
+lists them, and their license texts are in `LICENSES/`.
