@@ -653,7 +653,7 @@ listeners before anything else is delivered).
 
 ## What is left to convert
 
-HALean covers 302 upstream functions (`manifest.yaml`), 28 of them proved.
+HALean covers 307 upstream functions (`manifest.yaml`), 28 of them proved.
 What is still missing, roughly in order of value:
 
 1. **What makes real automations fail to load today.**
