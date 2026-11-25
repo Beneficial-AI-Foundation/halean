@@ -1,0 +1,249 @@
+diff --git a/HALean/Helpers/Common.lean b/HALean/Helpers/Common.lean
+index 374bdc7..8f93284 100644
+--- a/HALean/Helpers/Common.lean
++++ b/HALean/Helpers/Common.lean
+@@ -270,7 +270,7 @@ def serviceArgs (data : List (String × Value)) : List (String × Value) :=
+ For explicit ids, HA iterates a `set` (hash order, random per process):
+ HALean runs them in the order given, which is one of HA's possible orders. -/
+ def selectTargets (entityIds : List String) : Target → List Nat
+-  | .all => List.range entityIds.length
++  | .all => (List.range entityIds.length).filter fun i => entityIds[i]? != some ""
+   | .ids ids =>
+     (ids.eraseDups).filterMap fun id => entityIds.idxOf? id
+ 
+diff --git a/HALean/Helpers/Component.lean b/HALean/Helpers/Component.lean
+index 1ef014e..5b9474e 100644
+--- a/HALean/Helpers/Component.lean
++++ b/HALean/Helpers/Component.lean
+@@ -100,6 +100,10 @@ def applyEffects (h : Helpers) (es : List Effect) : Helpers × List Out :=
+       let same := match h.states.lookup eid with
+         | some (st', attrs') => st' == st && attrsEq attrs' attrs
+         | none => false
++      -- `async_set_internal`: after the comparison with the old state, a state
++      -- longer than `MAX_LENGTH_STATE_STATE` (255) is replaced by `unknown`
++      -- (core.py:2501); the attributes stay.
++      let st := if st.length > 255 then STATE_UNKNOWN else st
+       let states := if h.states.any (·.1 == eid)
+         then h.states.map fun p => if p.1 == eid then (eid, (st, attrs)) else p
+         else h.states ++ [(eid, (st, attrs))]
+@@ -147,12 +151,34 @@ def Helpers.setup (h : Helpers) (domain : String) (cfg : Value)
+     | "input_boolean" => (InputBoolean.decodeConfig cfg).map fun cs =>
+       (cs.map fun c => .ok (.inputBoolean (InputBoolean.Entity.create c (last s!"input_boolean.{c.id}"))), [])
+     | "input_number" => (InputNumber.decodeConfig cfg).map fun cs =>
+-      (cs.map fun c => .ok (.inputNumber (InputNumber.Entity.create c (last s!"input_number.{c.id}"))), [])
++      (cs.map fun c =>
++        -- `float()` of a str maps Unicode spaces and decimal digits to ASCII
++        -- first (not modelled: refused), then skips `" \t\n\r\x0b\x0c"` around
++        -- the number (`parseFloatStr` trims `" \t\n\r"` only)
++        let pad (ch : Char) : Bool := ch == ' ' || (9 ≤ ch.toNat && ch.toNat ≤ 13)
++        let strip (s : String) : String :=
++          String.ofList ((s.toList.dropWhile pad).reverse.dropWhile pad).reverse
++        match last s!"input_number.{c.id}" with
++        | some s =>
++          if c.initial.isNone && !(s.toList.all (·.toNat < 128)) then
++            .error s!"input_number.{c.id}: float() of a non-ASCII last state is not modelled"
++          else .ok (.inputNumber (InputNumber.Entity.create c (some (strip s))))
++        | none => .ok (.inputNumber (InputNumber.Entity.create c none)), [])
+     | "input_select" => (InputSelect.decodeConfig cfg).map fun cs =>
+       (cs.map fun (c, _) => .ok (.inputSelect (InputSelect.Entity.create c (last s!"input_select.{c.id}"))),
+        cs.filterMap fun (_, w) => w.map (.log "warning"))
+     | "input_text" => (InputText.decodeConfig cfg).map fun cs =>
+-      (cs.map fun c => .ok (.inputText (InputText.Entity.create c (last s!"input_text.{c.id}"))), [])
++      (cs.map fun c =>
++        let e := InputText.Entity.create c (last s!"input_text.{c.id}")
++        -- an initial or restored value is matched like a `set_value` one: the
++        -- same refusal as `unsupportedArgs`
++        let nonAscii := match e.value with | some v => !(v.toList.all (·.toNat < 128)) | none => false
++        match c.pattern with
++        | some (p, _) =>
++          if nonAscii && Pattern.usesClassEscape p then
++            .error s!"input_text.{c.id}: matching non-ASCII text against \\d, \\w or \\s is not modelled"
++          else .ok (.inputText e)
++        | none => .ok (.inputText e), [])
+     | "counter" => (Counter.decodeConfig cfg).map fun cs =>
+       (cs.map fun c => match Counter.Entity.create c (last s!"counter.{c.id}") with
+         | some e => .ok (.counter e)
+@@ -173,6 +199,11 @@ def Helpers.setup (h : Helpers) (domain : String) (cfg : Value)
+       match r with
+       | .error why => return .unsupported why
+       | .ok e =>
++        -- `cv.slug("")` passes, and `<domain>.` is not a valid entity id: the
++        -- entity is not added (upstream logs the error)
++        if e.entityId.endsWith "." then
++          outs := outs ++ [.log "error" s!"Error adding entity {e.entityId} for domain {domain} with platform {domain}: HomeAssistantError: Invalid entity ID: {e.entityId}"]
++        else
+         match initialWrite e with
+         | .ok w =>
+           let (h2, o) := applyEffects { h with entities := h.entities ++ [e] } [w]
+diff --git a/HALean/Helpers/InputNumber.lean b/HALean/Helpers/InputNumber.lean
+index 59c8abf..c4c9056 100644
+--- a/HALean/Helpers/InputNumber.lean
++++ b/HALean/Helpers/InputNumber.lean
+@@ -142,7 +142,11 @@ def handle (service : String) (args : List (String × Value)) : HM Entity Unit :
+     | "increment", _ => increment e
+     | _, _ => decrement e
+   match r with
+-  | .ok e' => setEnt e'; write
++  | .ok e' =>
++    -- `self._attr_native_value = num_value` does nothing when the old value
++    -- compares equal and has the same type (helpers/entity.py `_setter`):
++    -- `-0.0` stays when `0.0` is set, and `0.0` stays when `-0.0` is set.
++    setEnt (if e'.value == e.value then { e' with value := e.value } else e'); write
+   | .error err => throw err
+ 
+ end HALean.Helpers.InputNumber
+diff --git a/HALean/Helpers/InputSelect.lean b/HALean/Helpers/InputSelect.lean
+index d0fa4c8..1cf27a7 100644
+--- a/HALean/Helpers/InputSelect.lean
++++ b/HALean/Helpers/InputSelect.lean
+@@ -56,7 +56,7 @@ def decode (id : String) (v : Value) : Except VErr (Config × Option String) :=
+   let name := lkStr kvs "name"
+   let uniq := dedup options
+   let warn := if uniq.length != options.length then
+-      some s!"Input select '{name.getD "<unnamed>"}' with options {(pyRepr (.list (options.map .str))).toOption.getD "?"} had duplicated options, the duplicates have been removed"
++      some s!"Input select '{match name with | some n => if n.isEmpty then "<unnamed>" else n | none => "<unnamed>"}' with options {(pyRepr (.list (options.map .str))).toOption.getD "?"} had duplicated options, the duplicates have been removed"
+     else none
+   return ({ id, name, options := uniq, initial, icon := lkStr kvs "icon" }, warn)
+ 
+diff --git a/HALean/Helpers/Pattern.lean b/HALean/Helpers/Pattern.lean
+index 853096a..0f4c726 100644
+--- a/HALean/Helpers/Pattern.lean
++++ b/HALean/Helpers/Pattern.lean
+@@ -19,7 +19,9 @@ namespace HALean.Helpers.Pattern
+ open HALean.Template
+ 
+ def isWordChar (c : Char) : Bool := c.isAlphanum || c == '_'
+-def isSpaceChar (c : Char) : Bool := c == ' ' || c == '\t' || c == '\n' || c == '\r' || c.toNat == 11 || c.toNat == 12
++def isSpaceChar (c : Char) : Bool := c == ' ' || c == '\t' || c == '\n' || c == '\r' || c.toNat == 11 || c.toNat == 12 ||
++  -- `str.isspace()` is also true for the separators U+001C..U+001F
++  (28 ≤ c.toNat && c.toNat ≤ 31)
+ 
+ /-- The predicate of `\d \D \w \W \s \S`. -/
+ def classEscape? : Char → Option (Char → Bool)
+@@ -55,7 +57,11 @@ def classAtom : P (Char → Bool) := do
+   let lo ← if c == '\\' then do
+       let e ← next
+       match classEscape? e with
+-      | some p => return p
++      | some p =>
++        -- sre_parse: a class escape cannot start a range (`[\\d-z]`)
++        match ← get with
++        | '-' :: d :: _ => if d != ']' then throw "bad character range" else return p
++        | _ => return p
+       | none => match literalEscape? e with
+         | some l => pure l
+         | none => throw s!"unsupported escape \\{e}"
+@@ -81,8 +87,9 @@ partial def classItems (acc : List (Char → Bool)) (first : Bool) : P (List (Ch
+   | none => throw "unterminated character set"
+   | some ']' =>
+     if first then
+-      discard next
+-      classItems (acc ++ [(· == ']')]) false
++      -- a leading `]` is a literal, and can start a range (`[]-a]`)
++      let a ← classAtom
++      classItems (acc ++ [a]) false
+     else discard next; return acc
+   | some _ => do
+     let a ← classAtom
+@@ -119,6 +126,15 @@ partial def sequence : P Rx := do
+ 
+ partial def quantified : P Rx := do
+   let a ← atom
++  -- sre_parse: a repeat of an `AT` code (`$`) is "nothing to repeat"
++  if a matches .eol then
++    match ← get with
++    | '*' :: _ | '+' :: _ | '?' :: _ => throw "nothing to repeat"
++    | '{' :: t =>
++      let ds := t.dropWhile Char.isDigit
++      let ds := match ds with | ',' :: u => u.dropWhile Char.isDigit | u => u
++      if t.head? != some '}' && ds.head? == some '}' then throw "nothing to repeat"
++    | _ => pure ()
+   let r ← match ← peek with
+     | some '*' => discard next; pure (Rx.rep a 0 none)
+     | some '+' => discard next; pure (Rx.rep a 1 none)
+@@ -171,6 +187,14 @@ partial def atom : P Rx := do
+   | '*' | '+' | '?' => throw "nothing to repeat"
+   | '^' => throw "'^' is supported only at the start of the pattern"
+   | ')' => throw "unbalanced parenthesis"
++  | '{' =>
++    -- sre_parse: `{` is in REPEAT_CHARS; `{m}`, `{m,}`, `{,n}`, `{m,n}` where an
++    -- atom is expected is "nothing to repeat"; any other `{` is a literal
++    let t ← get
++    let ds := t.dropWhile Char.isDigit
++    let ds := match ds with | ',' :: u => u.dropWhile Char.isDigit | u => u
++    if t.head? != some '}' && ds.head? == some '}' then throw "nothing to repeat"
++    return .cls (· == '{')
+   | c => return .cls (· == c)
+ end
+ 
+diff --git a/HALean/Helpers/Timer.lean b/HALean/Helpers/Timer.lean
+index c9ff43e..333e8de 100644
+--- a/HALean/Helpers/Timer.lean
++++ b/HALean/Helpers/Timer.lean
+@@ -77,7 +77,7 @@ structure Entity where
+   cfg : Config
+   state : Status := .idle
+   /-- `_last_transition` -/
+-  lastTransition : Option String := none
++  lastTransition : Option Value := none
+   /-- `_running_duration` (µs) -/
+   running : Int
+   /-- `_remaining` (µs) -/
+@@ -98,16 +98,14 @@ def Entity.create (cfg : Config) (last : Option (String × Attrs)) : Option Enti
+   match cfg.restore, last with
+   | true, some (st, attrs) =>
+     if st == "idle" then
+-      some { e with lastTransition := match attrs.lookup "last_transition" with
+-        | some (.str s) => some s
+-        | _ => none }
++      some { e with lastTransition := attrs.lookup "last_transition" }
+     else none
+   | _, _ => some e
+ 
+ /-- `extra_state_attributes`, then `icon` and `friendly_name`. -/
+ def Entity.attrs (e : Entity) : Attrs :=
+   [("duration", .str (formatTd e.running)), ("editable", .bool false),
+-   ("last_transition", match e.lastTransition with | some s => .str s | none => .none)] ++
++   ("last_transition", match e.lastTransition with | some v => v | none => .none)] ++
+   (match e.end_ with | some t => [("finishes_at", Value.str (isoformat t (some 0)))] | none => []) ++
+   (match e.remaining with | some r => [("remaining", Value.str (formatTd r))] | none => []) ++
+   (if e.cfg.restore then [("restore", .bool true)] else []) ++
+@@ -122,10 +120,17 @@ def write : HM Entity Unit := do
+ after `timer.`; the state is written, then the event fired. -/
+ def fireAndWrite (event : String) (extra : Attrs := []) : HM Entity Unit := do
+   let e ← getEnt
+-  setEnt { e with lastTransition := some ((event.drop 6).toString) }
++  setEnt { e with lastTransition := some (.str (event.drop 6).toString) }
+   write
+   emit (.fire event ([("entity_id", .str e.entityId)] ++ extra))
+ 
++/-- `datetime.min` and `datetime.max` (UTC) in µs since the epoch: a
++`datetime + timedelta` outside them raises `OverflowError`. -/
++def DT_MIN : Int := -62135596800000000
++def DT_MAX : Int := 253402300799999999
++
++def dtOverflow {α} : HM Entity α := raise "OverflowError" "date value out of range"
++
+ /-- A `timedelta` is truthy when it is not zero. -/
+ def tdTruthy : Option Int → Bool
+   | some r => r != 0
+@@ -140,6 +145,11 @@ def start (now : Int) (duration : Int) : HM Entity Unit := do
+     if duration != 0 then (duration, duration)
+     else if !tdTruthy e.remaining then (e.running, e.running)
+     else (e.remaining.getD 0, e.running)
++  if start + remaining < DT_MIN || start + remaining > DT_MAX then
++    -- `self._end = start + self._remaining` raises after the listener was
++    -- cancelled and `_state`, `_remaining`, `_running_duration` were set
++    setEnt { e with state := .active, remaining := some remaining, running, scheduled := false }
++    dtOverflow
+   setEnt { e with state := .active, remaining := some remaining, running,
+                   end_ := some (start + remaining), scheduled := true }
+   fireAndWrite event
+@@ -151,6 +161,7 @@ def change (now : Int) (duration : Int) : HM Entity Unit := do
+     | raise "HomeAssistantError" s!"Timer {e.entityId} is not running, only active timers can be changed"
+   if !e.scheduled then
+     raise "HomeAssistantError" s!"Timer {e.entityId} is not running, only active timers can be changed"
++  if end_ + duration < DT_MIN || end_ + duration > DT_MAX then dtOverflow
+   let newRemaining := (end_ + duration) - nowSec now
+   if tdTruthy e.remaining && newRemaining > e.running then
+     raise "HomeAssistantError" s!"Not possible to change timer {e.entityId} beyond duration"

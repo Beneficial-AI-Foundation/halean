@@ -1,0 +1,26 @@
+# Review cases: operations HALean answers `unsupported` (HA's own answers: cases/refused/, logs/ha-only-refused.log).
+- name: h_refused_context_empty_id
+  # Context(id="") draws a fresh ULID upstream (`self.id = id or ulid_now()`); the driver refuses it
+  ops:
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: x, context: {id: "", user_id: u}, unsupported: true}
+    - {op: set, entity_id: light.a, state: "on", context: {id: ""}, unsupported: true}
+    - {op: call, domain: test, service: nope, blocking: true, context: {id: ""}, unsupported: true}
+    - {op: fire, event_type: x, context: {id: " "}}
+
+- name: h_refused_falsy_non_dict_data_and_target
+  # `service_data or {}` and `if target:` accept any falsy value upstream
+  ops:
+    - {op: register, domain: test, service: e, handler: {echo: true}, supports_response: optional}
+    - {op: call, domain: test, service: e, blocking: true, return_response: true, data: [], unsupported: true}
+    - {op: call, domain: test, service: e, blocking: true, return_response: true, data: {a: 1}, target: [], unsupported: true}
+    - {op: call, domain: test, service: e, blocking: true, return_response: true, data: {a: 1}, target: {}}
+
+- name: h_refused_resolve_twice_top_level
+  manual: true
+  ops:
+    - {op: resolve, id: f}
+    - {op: resolve, id: f, unsupported: true}
+    - {op: listen, id: a, event_type: go, async: true, react: [{wait: f}, {fire: {event_type: no_suspension}}]}
+    - {op: listen, id: m, event_type: "*"}
+    - {op: fire, event_type: go}

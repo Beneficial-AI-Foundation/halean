@@ -1,0 +1,16 @@
+diff --git a/HALean/Helpers/Pattern.lean b/HALean/Helpers/Pattern.lean
+index 853096a..517dbd5 100644
+--- a/HALean/Helpers/Pattern.lean
++++ b/HALean/Helpers/Pattern.lean
+@@ -81,8 +81,9 @@ partial def classItems (acc : List (Char → Bool)) (first : Bool) : P (List (Ch
+   | none => throw "unterminated character set"
+   | some ']' =>
+     if first then
+-      discard next
+-      classItems (acc ++ [(· == ']')]) false
++      -- a leading `]` is a literal, and can start a range (`[]-a]`)
++      let a ← classAtom
++      classItems (acc ++ [a]) false
+     else discard next; return acc
+   | some _ => do
+     let a ← classAtom

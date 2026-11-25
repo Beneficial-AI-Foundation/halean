@@ -1,1 +1,2670 @@
-FFFEFFFEFFFFFFFE....
+FFFEFFFEFFFFFFFE....................FF...                                [100%]
+==================================== ERRORS ====================================
+________ ERROR at teardown of test_core[async_listener_calls_services] _________
+
+event = <Event go[L]>
+
+    async def listener(event) -> None:
+        nonlocal count
+        count += 1
+        self.trace.append({"delivery": lid, "event": jsonable(event.as_dict())})
+        if times is None or count <= times:
+>           await self.run_async(react, event.context)
+
+/home/user/halean/tests/differential/test_core.py:181: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/user/halean/tests/differential/test_core.py:219: in run_async
+    await self.call(c, self._context(c.get("context"), inherited), c.get("catch", False))
+/home/user/halean/tests/differential/test_core.py:229: in call
+    r = await self.hass.services.async_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <homeassistant.core.ServiceRegistry object at 0x7fc0f2d27070>
+domain = 'test', service = 'nope', service_data = {}, blocking = True
+context = <homeassistant.core.Context object at 0x7fc0f2b80450>, target = None
+return_response = False
+
+    async def async_call(
+        self,
+        domain: str,
+        service: str,
+        service_data: dict[str, Any] | None = None,
+        blocking: bool = False,
+        context: Context | None = None,
+        target: dict[str, Any] | None = None,
+        return_response: bool = False,
+    ) -> ServiceResponse:
+        """Call a service.
+    
+        Specify blocking=True to wait until service is executed.
+    
+        If return_response=True, indicates that the caller can consume return values
+        from the service, if any. Return values are a dict that can be returned by the
+        standard JSON serialization process. Return values can only
+        be used with blocking=True.
+    
+        This method will fire an event to indicate the service has been called.
+    
+        Because the service is sent as an event you are not allowed to use
+        the keys ATTR_DOMAIN and ATTR_SERVICE in your service_data.
+    
+        This method is a coroutine.
+        """
+        context = context or Context()
+        service_data = service_data or {}
+    
+        try:
+            handler = self._services[domain][service]
+        except KeyError:
+            # Almost all calls are already lower case, so we avoid
+            # calling lower() on the arguments in the common case.
+            domain = domain.lower()
+            service = service.lower()
+            try:
+                handler = self._services[domain][service]
+            except KeyError:
+>               raise ServiceNotFound(domain, service) from None
+E               homeassistant.exceptions.ServiceNotFound: Action test.nope not found
+
+/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py:2896: ServiceNotFound
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-22' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89872.160 seconds
+ERROR:homeassistant:Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 219, in run_async
+    await self.call(c, self._context(c.get("context"), inherited), c.get("catch", False))
+  File "/home/user/halean/tests/differential/test_core.py", line 229, in call
+    r = await self.hass.services.async_call(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        c["domain"], c["service"], copy.deepcopy(c.get("data")), c.get("blocking", False),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ctx, copy.deepcopy(c.get("target")), c.get("return_response", False))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 2896, in async_call
+    raise ServiceNotFound(domain, service) from None
+homeassistant.exceptions.ServiceNotFound: Action test.nope not found
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-22' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89872.160 seconds
+ERROR    homeassistant:runner.py:221 Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 219, in run_async
+    await self.call(c, self._context(c.get("context"), inherited), c.get("catch", False))
+  File "/home/user/halean/tests/differential/test_core.py", line 229, in call
+    r = await self.hass.services.async_call(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        c["domain"], c["service"], copy.deepcopy(c.get("data")), c.get("blocking", False),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ctx, copy.deepcopy(c.get("target")), c.get("return_response", False))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 2896, in async_call
+    raise ServiceNotFound(domain, service) from None
+homeassistant.exceptions.ServiceNotFound: Action test.nope not found
+____________ ERROR at teardown of test_core[async_listener_errors] _____________
+
+event = <Event go[L]>
+
+    async def listener(event) -> None:
+        nonlocal count
+        count += 1
+        self.trace.append({"delivery": lid, "event": jsonable(event.as_dict())})
+        if times is None or count <= times:
+>           await self.run_async(react, event.context)
+
+/home/user/halean/tests/differential/test_core.py:181: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/user/halean/tests/differential/test_core.py:225: in run_async
+    self.act(a, inherited, in_listener=False)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_core.Runner object at 0x7fc0f2ba5250>
+a = {'message': 'boom a', 'raise': 'ValueError'}
+inherited = <homeassistant.core.Context object at 0x7fc0f2b83240>
+in_listener = False
+
+    def act(self, a: dict, inherited: Context | None, in_listener: bool) -> None:
+        """One action of a script (a service call only in a listener; a handler
+        awaits its calls itself)."""
+        hass = self.hass
+        if "fire" in a:
+            self.fire(a["fire"], inherited)
+        elif "listen" in a:
+            self.listen(a["listen"], False)
+        elif "listen_once" in a:
+            self.listen(a["listen_once"], True)
+        elif "unsub" in a:
+            self.handles[a["unsub"]]()
+        elif "raise" in a:
+>           raise EXCEPTIONS[a["raise"]](a.get("message", ""))
+E           ValueError: boom a
+
+/home/user/halean/tests/differential/test_core.py:263: ValueError
+----------------------------- Captured stderr call -----------------------------
+ERROR:homeassistant:Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 225, in run_async
+    self.act(a, inherited, in_listener=False)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/tests/differential/test_core.py", line 263, in act
+    raise EXCEPTIONS[a["raise"]](a.get("message", ""))
+RuntimeError: boom c
+WARNING:asyncio:Executing <Task pending name='Task-47' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89871.478 seconds
+ERROR:homeassistant:Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 225, in run_async
+    self.act(a, inherited, in_listener=False)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/tests/differential/test_core.py", line 263, in act
+    raise EXCEPTIONS[a["raise"]](a.get("message", ""))
+ValueError: boom a
+------------------------------ Captured log call -------------------------------
+ERROR    homeassistant:runner.py:221 Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 225, in run_async
+    self.act(a, inherited, in_listener=False)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/tests/differential/test_core.py", line 263, in act
+    raise EXCEPTIONS[a["raise"]](a.get("message", ""))
+RuntimeError: boom c
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-47' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89871.478 seconds
+ERROR    homeassistant:runner.py:221 Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 225, in run_async
+    self.act(a, inherited, in_listener=False)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/tests/differential/test_core.py", line 263, in act
+    raise EXCEPTIONS[a["raise"]](a.get("message", ""))
+ValueError: boom a
+_______ ERROR at teardown of test_core[block_till_done_with_task_error] ________
+
+event = <Event go[L]>
+
+    async def listener(event) -> None:
+        nonlocal count
+        count += 1
+        self.trace.append({"delivery": lid, "event": jsonable(event.as_dict())})
+        if times is None or count <= times:
+>           await self.run_async(react, event.context)
+
+/home/user/halean/tests/differential/test_core.py:181: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/user/halean/tests/differential/test_core.py:225: in run_async
+    self.act(a, inherited, in_listener=False)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_core.Runner object at 0x7fc0f2357930>
+a = {'message': 'late', 'raise': 'ValueError'}
+inherited = <homeassistant.core.Context object at 0x7fc0f236b420>
+in_listener = False
+
+    def act(self, a: dict, inherited: Context | None, in_listener: bool) -> None:
+        """One action of a script (a service call only in a listener; a handler
+        awaits its calls itself)."""
+        hass = self.hass
+        if "fire" in a:
+            self.fire(a["fire"], inherited)
+        elif "listen" in a:
+            self.listen(a["listen"], False)
+        elif "listen_once" in a:
+            self.listen(a["listen_once"], True)
+        elif "unsub" in a:
+            self.handles[a["unsub"]]()
+        elif "raise" in a:
+>           raise EXCEPTIONS[a["raise"]](a.get("message", ""))
+E           ValueError: late
+
+/home/user/halean/tests/differential/test_core.py:263: ValueError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task finished name='Task-104' coro=<test_core() done, defined at /home/user/halean/tests/differential/test_core.py:386> exception=AssertionError("op 4: HALean rejected {'op': 'block_till_done', 'expect': {'deliveries': ['m:slow_done']}}: loop fuel\nassert 'unsupported' not in {'unsupported': 'loop fuel'}") created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89870.307 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task finished name='Task-104' coro=<test_core() done, defined at /home/user/halean/tests/differential/test_core.py:386> exception=AssertionError("op 4: HALean rejected {'op': 'block_till_done', 'expect': {'deliveries': ['m:slow_done']}}: loop fuel\nassert 'unsupported' not in {'unsupported': 'loop fuel'}") created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89870.307 seconds
+--------------------------- Captured stderr teardown ---------------------------
+ERROR:homeassistant:Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 225, in run_async
+    self.act(a, inherited, in_listener=False)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/tests/differential/test_core.py", line 263, in act
+    raise EXCEPTIONS[a["raise"]](a.get("message", ""))
+ValueError: late
+---------------------------- Captured log teardown -----------------------------
+ERROR    homeassistant:runner.py:221 Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 225, in run_async
+    self.act(a, inherited, in_listener=False)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/tests/differential/test_core.py", line 263, in act
+    raise EXCEPTIONS[a["raise"]](a.get("message", ""))
+ValueError: late
+=================================== FAILURES ===================================
+__________________ test_core[two_async_listeners_interleave] ___________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f48f2a50>
+engine = <function engine.<locals>.ask at 0x7fc0f4913a00>
+case = {'manual': True, 'name': 'two_async_listeners_interleave', 'ops': [{'async': True, 'event_type': 'go', 'id': 'a', 'op'...{'expect': {'deliveries': ['m:a2', 'm:b2']}, 'op': 'sleep'}, {'expect': {'deliveries': ['m:a3']}, 'op': 'sleep'}, ...]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+                    assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+                    lean["trace"] += settle["trace"]
+                assert op.get("domain", "x").lower() not in baseline
+    
+                freezer.move_to(EPOCH + timedelta(microseconds=now))
+                runner.trace.clear()
+                result = await runner.op(op)
+                if not manual:
+                    await hass.async_block_till_done()
+                ha = rename_ha({"result": result, "trace": list(runner.trace)})
+                lean = rename_lean(lean)
+                if ha != lean:
+>                   pytest.fail(_diff(i, op, ha, lean))
+E                   Failed: op 4 sleep: trace lengths differ (2 vs 0)
+E                   HA:     [{'delivery': 'm', 'event': {'context': {'id': 'ctx#3', 'parent_id': None, 'user_id': None}, 'data': {}, 'event_type': 'a2', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}, {'delivery': 'm', 'event': {'context': {'id': 'ctx#4', 'parent_id': None, 'user_id': None}, 'data': {}, 'event_type': 'b2', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}]
+E                   HALean: []
+
+/home/user/halean/tests/differential/test_core.py:445: Failed
+---------------------------- Captured stderr setup -----------------------------
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+------------------------------ Captured log setup ------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-6' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89872.644 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-6' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89872.644 seconds
+_______________ test_core[async_listener_fires_after_suspending] _______________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f48de490>
+engine = <function engine.<locals>.ask at 0x7fc0f2bd5dd0>
+case = {'name': 'async_listener_fires_after_suspending', 'ops': [{'async': True, 'event_type': 'state_changed', 'filter': {'e...hanged', 'm:state_changed', 'm:x', 'm:state_changed', ...]}, 'op': 'set', ...}, {'entity_id': 'light.c', 'op': 'get'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+>                   assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+E                       AssertionError: op 3: HALean rejected the block_till_done after {'op': 'set', 'entity_id': 'light.a', 'state': 'on', 'context': {'id': 'user-ctx'}, 'expect': {'deliveries': ['late:state_changed', 'sync:state_changed', 'm:state_changed', 'm:state_changed', 'm:x', 'm:state_changed', 'm:late_done']}}: loop fuel
+E                       assert 'unsupported' not in {'unsupported': 'loop fuel'}
+
+/home/user/halean/tests/differential/test_core.py:432: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-14' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:441> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89872.414 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-14' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:441> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89872.414 seconds
+___________________ test_core[async_listener_calls_services] ___________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f48dfd90>
+engine = <function engine.<locals>.ask at 0x7fc0f2d0ecf0>
+case = {'manual': True, 'name': 'async_listener_calls_services', 'ops': [{'domain': 'test', 'handler': {'do': [{'fire': {...}...ll_service', 'm:slow_started']}, 'op': 'sleep'}, {'expect': {'deliveries': ['m:slow_done']}, 'op': 'block_till_done'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+                    assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+                    lean["trace"] += settle["trace"]
+                assert op.get("domain", "x").lower() not in baseline
+    
+                freezer.move_to(EPOCH + timedelta(microseconds=now))
+                runner.trace.clear()
+                result = await runner.op(op)
+                if not manual:
+                    await hass.async_block_till_done()
+                ha = rename_ha({"result": result, "trace": list(runner.trace)})
+                lean = rename_lean(lean)
+                if ha != lean:
+>                   pytest.fail(_diff(i, op, ha, lean))
+E                   Failed: op 4 sleep: trace lengths differ (8 vs 0)
+E                   HA:     [{'delivery': 'm', 'event': {'context': {'id': 'ctx#1', 'parent_id': None, 'user_id': None}, 'data': {}, 'event_type': 'slow_done', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}, {'call': 'first', 'ok': "{'ok': 1}"}, {'delivery': 'm', 'event': {'context': {'id': 'ctx#2', 'parent_id': None, 'user_id': None}, 'data': {}, 'event_type': 'after_first', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}, {'call': 'missing', 'error': {'error_kind': 'ha_error', 'exception': 'ServiceNotFound', 'message': 'Action test.nope not found', 'translation_domain': 'homeassistant', 'translation_key': 'service_not_found', 'translation_placeholders': {'domain': 'test', 'service': 'nope'}}}, {'delivery': 'm', 'event': {'context': {'id': 'ctx#3', 'parent_id': None, 'user_id': None}, 'data': {'domain': 'test', 'service': 'slow', 'service_data': {}}, 'event_type': 'call_service', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}, {'delivery': 'm', 'event': {'context': {'id': 'ctx#3', 'parent_id': None, 'user_id': None}, 'data': {}, 'event_type': 'slow_started', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}, {'call': 'background', 'ok': 'None'}, {'call': 'broken', 'error': {'error_kind': 'ha_error', 'exception': 'ServiceNotFound', 'message': 'Action test.nope not found', 'translation_domain': 'homeassistant', 'translation_key': 'service_not_found', 'translation_placeholders': {'domain': 'test', 'service': 'nope'}}}]
+E                   HALean: []
+
+/home/user/halean/tests/differential/test_core.py:445: Failed
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-22' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89872.160 seconds
+ERROR:homeassistant:Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 219, in run_async
+    await self.call(c, self._context(c.get("context"), inherited), c.get("catch", False))
+  File "/home/user/halean/tests/differential/test_core.py", line 229, in call
+    r = await self.hass.services.async_call(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        c["domain"], c["service"], copy.deepcopy(c.get("data")), c.get("blocking", False),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ctx, copy.deepcopy(c.get("target")), c.get("return_response", False))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 2896, in async_call
+    raise ServiceNotFound(domain, service) from None
+homeassistant.exceptions.ServiceNotFound: Action test.nope not found
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-22' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89872.160 seconds
+ERROR    homeassistant:runner.py:221 Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 219, in run_async
+    await self.call(c, self._context(c.get("context"), inherited), c.get("catch", False))
+  File "/home/user/halean/tests/differential/test_core.py", line 229, in call
+    r = await self.hass.services.async_call(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        c["domain"], c["service"], copy.deepcopy(c.get("data")), c.get("blocking", False),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ctx, copy.deepcopy(c.get("target")), c.get("return_response", False))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 2896, in async_call
+    raise ServiceNotFound(domain, service) from None
+homeassistant.exceptions.ServiceNotFound: Action test.nope not found
+____________ test_core[async_listener_unsubscribed_while_suspended] ____________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f2d30fc0>
+engine = <function engine.<locals>.ask at 0x7fc0f2d0eae0>
+case = {'manual': True, 'name': 'async_listener_unsubscribed_while_suspended', 'ops': [{'async': True, 'event_type': 'go', 'i...t': {'id': 'second'}, 'event_type': 'go', 'expect': {'deliveries': ['m:go']}, 'op': 'fire'}, {'op': 'listeners'}, ...]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+                    assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+                    lean["trace"] += settle["trace"]
+                assert op.get("domain", "x").lower() not in baseline
+    
+                freezer.move_to(EPOCH + timedelta(microseconds=now))
+                runner.trace.clear()
+                result = await runner.op(op)
+                if not manual:
+                    await hass.async_block_till_done()
+                ha = rename_ha({"result": result, "trace": list(runner.trace)})
+                lean = rename_lean(lean)
+                if ha != lean:
+>                   pytest.fail(_diff(i, op, ha, lean))
+E                   Failed: op 6 sleep: trace lengths differ (1 vs 0)
+E                   HA:     [{'delivery': 'm', 'event': {'context': {'id': 'first', 'parent_id': None, 'user_id': None}, 'data': {}, 'event_type': 'l_done', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}]
+E                   HALean: []
+
+/home/user/halean/tests/differential/test_core.py:445: Failed
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-31' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89871.865 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-31' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89871.865 seconds
+_________________ test_core[async_listen_once_and_react_times] _________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f2d6a650>
+engine = <function engine.<locals>.ask at 0x7fc0f2d0cf60>
+case = {'name': 'async_listen_once_and_react_times', 'ops': [{'async': True, 'event_type': 'go', 'id': 'once', 'op': 'listen_...op': 'fire'}, {'event_type': 'go', 'expect': {'deliveries': ['twice:go', 'm:go']}, 'op': 'fire'}, {'op': 'listeners'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+>                   assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+E                       AssertionError: op 3: HALean rejected the block_till_done after {'op': 'fire', 'event_type': 'go', 'expect': {'deliveries': ['once:go', 'twice:go', 'm:go', 'm:once_done', 'm:twice_done']}}: loop fuel
+E                       assert 'unsupported' not in {'unsupported': 'loop fuel'}
+
+/home/user/halean/tests/differential/test_core.py:432: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-39' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:441> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89871.648 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-39' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:441> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89871.648 seconds
+_______________________ test_core[async_listener_errors] _______________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f2ba4dd0>
+engine = <function engine.<locals>.ask at 0x7fc0f2b7e8d0>
+case = {'manual': True, 'name': 'async_listener_errors', 'ops': [{'async': True, 'event_type': 'go', 'id': 'a', 'op': 'listen...'event_type': 'go', 'expect': {'deliveries': ['a:go', 'c:go', 'b:go', 'd:go', 'm:go', 'm:c_ran']}, 'op': 'fire'}, ...]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+                    assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+                    lean["trace"] += settle["trace"]
+                assert op.get("domain", "x").lower() not in baseline
+    
+                freezer.move_to(EPOCH + timedelta(microseconds=now))
+                runner.trace.clear()
+                result = await runner.op(op)
+                if not manual:
+                    await hass.async_block_till_done()
+                ha = rename_ha({"result": result, "trace": list(runner.trace)})
+                lean = rename_lean(lean)
+                if ha != lean:
+>                   pytest.fail(_diff(i, op, ha, lean))
+E                   Failed: op 6 sleep: trace lengths differ (1 vs 0)
+E                   HA:     [{'delivery': 'm', 'event': {'context': {'id': 'ctx#2', 'parent_id': None, 'user_id': None}, 'data': {}, 'event_type': 'b2', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}]
+E                   HALean: []
+
+/home/user/halean/tests/differential/test_core.py:445: Failed
+----------------------------- Captured stderr call -----------------------------
+ERROR:homeassistant:Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 225, in run_async
+    self.act(a, inherited, in_listener=False)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/tests/differential/test_core.py", line 263, in act
+    raise EXCEPTIONS[a["raise"]](a.get("message", ""))
+RuntimeError: boom c
+WARNING:asyncio:Executing <Task pending name='Task-47' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89871.478 seconds
+ERROR:homeassistant:Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 225, in run_async
+    self.act(a, inherited, in_listener=False)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/tests/differential/test_core.py", line 263, in act
+    raise EXCEPTIONS[a["raise"]](a.get("message", ""))
+ValueError: boom a
+------------------------------ Captured log call -------------------------------
+ERROR    homeassistant:runner.py:221 Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 225, in run_async
+    self.act(a, inherited, in_listener=False)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/tests/differential/test_core.py", line 263, in act
+    raise EXCEPTIONS[a["raise"]](a.get("message", ""))
+RuntimeError: boom c
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-47' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89871.478 seconds
+ERROR    homeassistant:runner.py:221 Error doing job: Task exception was never retrieved (task: None):   File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/havenv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    super().runtest()
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/havenv/lib/python3.14/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/havenv/lib/python3.14/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/opt/havenv/lib/python3.14/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    runner.run(coro, context=context)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py", line 2048, in _run_once
+    handle._run()
+  File "/root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/user/halean/tests/differential/test_core.py", line 439, in test_core
+    result = await runner.op(op)
+  File "/home/user/halean/tests/differential/test_core.py", line 301, in op
+    self.fire(op, None)
+  File "/home/user/halean/tests/differential/test_core.py", line 245, in fire
+    self.hass.bus.async_fire(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1584, in async_fire
+    return self.async_fire_internal(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1635, in async_fire_internal
+    self._async_dispatch(event_type, event_data, origin, context, time_fired)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 1678, in _async_dispatch
+    self._hass.async_run_hass_job(job, event)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 938, in async_run_hass_job
+    return self._async_add_hass_job(hassjob, *args, background=background)
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 753, in _async_add_hass_job
+    task = create_eager_task(
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/util/async_.py", line 42, in create_eager_task
+    return Task(coro, loop=loop, name=name, eager_start=True)
+Traceback (most recent call last):
+  File "/home/user/halean/tests/differential/test_core.py", line 181, in listener
+    await self.run_async(react, event.context)
+  File "/home/user/halean/tests/differential/test_core.py", line 225, in run_async
+    self.act(a, inherited, in_listener=False)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/tests/differential/test_core.py", line 263, in act
+    raise EXCEPTIONS[a["raise"]](a.get("message", ""))
+ValueError: boom a
+___________________ test_core[async_listener_errors_settled] ___________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f22de690>
+engine = <function engine.<locals>.ask at 0x7fc0f2c57e20>
+case = {'name': 'async_listener_errors_settled', 'ops': [{'async': True, 'event_type': 'go', 'id': 'a', 'op': 'listen', ...},..., 'op': 'listen'}, {'event_type': 'go', 'expect': {'deliveries': ['a:go', 'k:go', 'sc:state_changed']}, 'op': 'fire'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+>                   assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+E                       AssertionError: op 3: HALean rejected the block_till_done after {'op': 'fire', 'event_type': 'go', 'expect': {'deliveries': ['a:go', 'k:go', 'sc:state_changed']}}: loop fuel
+E                       assert 'unsupported' not in {'unsupported': 'loop fuel'}
+
+/home/user/halean/tests/differential/test_core.py:432: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-56' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:441> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89871.224 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-56' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:441> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89871.224 seconds
+________________ test_core[blocking_call_to_suspending_handler] ________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f2c35260>
+engine = <function engine.<locals>.ask at 0x7fc0f2becca0>
+case = {'manual': True, 'name': 'blocking_call_to_suspending_handler', 'ops': [{'domain': 'test', 'handler': {'do': [{'set': ...e_changed'], 'result': {'ok': "{'done': True}"}}, ...}, {'expect': {'deliveries': ['m:watcher_done']}, 'op': 'sleep'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+                    assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+                    lean["trace"] += settle["trace"]
+                assert op.get("domain", "x").lower() not in baseline
+    
+                freezer.move_to(EPOCH + timedelta(microseconds=now))
+                runner.trace.clear()
+                result = await runner.op(op)
+                if not manual:
+                    await hass.async_block_till_done()
+                ha = rename_ha({"result": result, "trace": list(runner.trace)})
+                lean = rename_lean(lean)
+                if ha != lean:
+>                   pytest.fail(_diff(i, op, ha, lean))
+E                   Failed: op 3 call: trace entry 3 differs
+E                   HA:     {'delivery': 'm', 'event': {'context': {'id': 'caller', 'parent_id': None, 'user_id': None}, 'data': {}, 'event_type': 'watcher_mid', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}
+E                   HALean: {'delivery': 'm', 'event': {'context': {'id': 'caller', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'switch.b', 'new_state': {'attributes': {}, 'context': {'id': 'caller', 'parent_id': None, 'user_id': None}, 'entity_id': 'switch.b', 'last_changed': '2026-11-26T16:30:45.123456+00:00', 'last_reported': '2026-11-26T16:30:45.123456+00:00', 'last_updated': '2026-11-26T16:30:45.123456+00:00', 'state': 'on'}, 'old_state': None}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}
+
+/home/user/halean/tests/differential/test_core.py:445: Failed
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-64' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89871.077 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-64' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89871.077 seconds
+__________ test_core[handler_waits_for_a_future_a_listener_resolves] ___________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f2299850>
+engine = <function engine.<locals>.ask at 0x7fc0f2c71b10>
+case = {'manual': True, 'name': 'handler_waits_for_a_future_a_listener_resolves', 'ops': [{'domain': 'test', 'handler': {'do'....}, {'expect': {'deliveries': ['m:resolver_done']}, 'op': 'sleep'}, {'id': 'f', 'op': 'resolve', 'unsupported': True}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+                    assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+                    lean["trace"] += settle["trace"]
+                assert op.get("domain", "x").lower() not in baseline
+    
+                freezer.move_to(EPOCH + timedelta(microseconds=now))
+                runner.trace.clear()
+                result = await runner.op(op)
+                if not manual:
+                    await hass.async_block_till_done()
+                ha = rename_ha({"result": result, "trace": list(runner.trace)})
+                lean = rename_lean(lean)
+                if ha != lean:
+>                   pytest.fail(_diff(i, op, ha, lean))
+E                   Failed: op 3 call: trace entry 4 differs
+E                   HA:     {'delivery': 'm', 'event': {'context': {'id': 'ctx#0', 'parent_id': None, 'user_id': None}, 'data': {}, 'event_type': 'woken', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}
+E                   HALean: {'delivery': 'm', 'event': {'context': {'id': 'ctx#2', 'parent_id': None, 'user_id': None}, 'data': {}, 'event_type': 'resolver_done', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}
+
+/home/user/halean/tests/differential/test_core.py:445: Failed
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-72' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> wait_for=<Future pending cb=[Task.task_wakeup()] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:459> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89870.910 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-72' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> wait_for=<Future pending cb=[Task.task_wakeup()] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:459> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89870.910 seconds
+______________ test_core[non_blocking_call_to_suspending_handler] ______________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f2299950>
+engine = <function engine.<locals>.ask at 0x7fc0f2befcc0>
+case = {'manual': True, 'name': 'non_blocking_call_to_suspending_handler', 'ops': [{'domain': 'test', 'handler': {'do': [{'se... 'op': 'get'}, {'expect': {'deliveries': ['m:state_changed']}, 'op': 'sleep'}, {'entity_id': 'sensor.s', 'op': 'get'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+                    assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+                    lean["trace"] += settle["trace"]
+                assert op.get("domain", "x").lower() not in baseline
+    
+                freezer.move_to(EPOCH + timedelta(microseconds=now))
+                runner.trace.clear()
+                result = await runner.op(op)
+                if not manual:
+                    await hass.async_block_till_done()
+                ha = rename_ha({"result": result, "trace": list(runner.trace)})
+                lean = rename_lean(lean)
+                if ha != lean:
+>                   pytest.fail(_diff(i, op, ha, lean))
+E                   Failed: op 4 sleep: trace lengths differ (2 vs 0)
+E                   HA:     [{'delivery': 'm', 'event': {'context': {'id': 'bg', 'parent_id': None, 'user_id': None}, 'data': {'entity_id': 'sensor.s', 'new_state': {'attributes': {}, 'context': {'id': 'bg', 'parent_id': None, 'user_id': None}, 'entity_id': 'sensor.s', 'last_changed': '2026-11-26T16:30:45.123456+00:00', 'last_reported': '2026-11-26T16:30:45.123456+00:00', 'last_updated': '2026-11-26T16:30:45.123456+00:00', 'state': '2'}, 'old_state': {'attributes': {}, 'context': {'id': 'bg', 'parent_id': None, 'user_id': None}, 'entity_id': 'sensor.s', 'last_changed': '2026-11-26T16:30:45.123456+00:00', 'last_reported': '2026-11-26T16:30:45.123456+00:00', 'last_updated': '2026-11-26T16:30:45.123456+00:00', 'state': '1'}}, 'event_type': 'state_changed', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}}, {'log': {'exception': 'HomeAssistantError: failed late', 'level': 'error', 'message': 'Error executing service: <ServiceCall test.slow_fail (c:bg): n=1>'}}]
+E                   HALean: []
+
+/home/user/halean/tests/differential/test_core.py:445: Failed
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-80' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89870.776 seconds
+ERROR:homeassistant.core:Error executing service: <ServiceCall test.slow_fail (c:bg): n=1>
+Traceback (most recent call last):
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 2983, in _run_service_call_catch_exceptions
+    await coro_or_task
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 3006, in _execute_service
+    return await target(service_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/tests/differential/test_core.py", line 205, in handler
+    raise EXCEPTIONS[spec["raise"]](spec.get("message", ""))
+homeassistant.exceptions.HomeAssistantError: failed late
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-80' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:439> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89870.776 seconds
+ERROR    homeassistant.core:core.py:2993 Error executing service: <ServiceCall test.slow_fail (c:bg): n=1>
+Traceback (most recent call last):
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 2983, in _run_service_call_catch_exceptions
+    await coro_or_task
+  File "/opt/havenv/lib/python3.14/site-packages/homeassistant/core.py", line 3006, in _execute_service
+    return await target(service_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/halean/tests/differential/test_core.py", line 205, in handler
+    raise EXCEPTIONS[spec["raise"]](spec.get("message", ""))
+homeassistant.exceptions.HomeAssistantError: failed late
+______________ test_core[handler_awaits_nested_suspending_calls] _______________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f4902a80>
+engine = <function engine.<locals>.ask at 0x7fc0f2bd5590>
+case = {'name': 'handler_awaits_nested_suspending_calls', 'ops': [{'domain': 'test', 'handler': {'do': [{'sleep': 0}, {'fire'...s': ['cb:go', 'm:go', 'm:call_service', 'm:call_service', 'm:cb_after_call', 'm:inner_ran', ...]}, 'op': 'fire'}, ...]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+>                   assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+E                       AssertionError: op 5: HALean rejected the block_till_done after {'op': 'fire', 'event_type': 'go', 'expect': {'deliveries': ['cb:go', 'm:go', 'm:call_service', 'm:call_service', 'm:cb_after_call', 'm:inner_ran', 'm:call_service', 'm:outer_done'], 'calls': ['nested:ok', 'nested_fail:error', 'from_cb:ok']}}: loop fuel
+E                       assert 'unsupported' not in {'unsupported': 'loop fuel'}
+
+/home/user/halean/tests/differential/test_core.py:432: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-88' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:441> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89870.617 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-88' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:441> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89870.617 seconds
+_____________________ test_core[block_till_done_ordering] ______________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f22fa300>
+engine = <function engine.<locals>.ask at 0x7fc0f22ef110>
+case = {'manual': True, 'name': 'block_till_done_ordering', 'ops': [{'async': True, 'event_type': 'go', 'id': 'a', 'op': 'lis...: {'deliveries': ['m:b1', 'm:b2', 'm:a_woken', 'c:again', 'm:again', 'm:a_done', ...]}, 'op': 'block_till_done'}, ...]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+>               assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+E               AssertionError: op 5: HALean rejected {'op': 'block_till_done', 'expect': {'deliveries': ['m:b1', 'm:b2', 'm:a_woken', 'c:again', 'm:again', 'm:a_done', 'm:c_done']}}: loop fuel
+E               assert 'unsupported' not in {'unsupported': 'loop fuel'}
+
+/home/user/halean/tests/differential/test_core.py:428: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task finished name='Task-96' coro=<test_core() done, defined at /home/user/halean/tests/differential/test_core.py:386> exception=AssertionError("op 5: HALean rejected {'op': 'block_till_done', 'expect': {'deliveries': ['m:b1', 'm:b2', 'm:a_woken', 'c:again', 'm:again', 'm:a_done', 'm:c_done']}}: loop fuel\nassert 'unsupported' not in {'unsupported': 'loop fuel'}") created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89870.480 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task finished name='Task-96' coro=<test_core() done, defined at /home/user/halean/tests/differential/test_core.py:386> exception=AssertionError("op 5: HALean rejected {'op': 'block_till_done', 'expect': {'deliveries': ['m:b1', 'm:b2', 'm:a_woken', 'c:again', 'm:again', 'm:a_done', 'm:c_done']}}: loop fuel\nassert 'unsupported' not in {'unsupported': 'loop fuel'}") created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89870.480 seconds
+__________________ test_core[block_till_done_with_task_error] __________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f2355470>
+engine = <function engine.<locals>.ask at 0x7fc0f23380f0>
+case = {'manual': True, 'name': 'block_till_done_with_task_error', 'ops': [{'async': True, 'event_type': 'go', 'id': 'bad', '...: 'listen'}, {'event_type': 'go', 'op': 'fire'}, {'expect': {'deliveries': ['m:slow_done']}, 'op': 'block_till_done'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+>               assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+E               AssertionError: op 4: HALean rejected {'op': 'block_till_done', 'expect': {'deliveries': ['m:slow_done']}}: loop fuel
+E               assert 'unsupported' not in {'unsupported': 'loop fuel'}
+
+/home/user/halean/tests/differential/test_core.py:428: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task finished name='Task-104' coro=<test_core() done, defined at /home/user/halean/tests/differential/test_core.py:386> exception=AssertionError("op 4: HALean rejected {'op': 'block_till_done', 'expect': {'deliveries': ['m:slow_done']}}: loop fuel\nassert 'unsupported' not in {'unsupported': 'loop fuel'}") created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89870.307 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task finished name='Task-104' coro=<test_core() done, defined at /home/user/halean/tests/differential/test_core.py:386> exception=AssertionError("op 4: HALean rejected {'op': 'block_till_done', 'expect': {'deliveries': ['m:slow_done']}}: loop fuel\nassert 'unsupported' not in {'unsupported': 'loop fuel'}") created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89870.307 seconds
+_______________________ test_core[async_rejected_inputs] _______________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f221aa80>
+engine = <function engine.<locals>.ask at 0x7fc0f2bd73d0>
+case = {'name': 'async_rejected_inputs', 'ops': [{'event_type': 'x', 'id': 'a', 'op': 'listen', 'react': [{'sleep': 0}], ...}...e': 's', ...}, {'async': True, 'event_type': 'x', 'id': 'ok', 'op': 'listen', ...}, {'event_type': 'x', 'op': 'fire'}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+            return
+    
+        runner = Runner(hass)
+        records = _Records(runner.trace)
+        ha_logger = logging.getLogger("homeassistant")
+        ha_logger.addHandler(records)
+        # HA's own loop exception handler (`homeassistant.runner.configure_event_loop`)
+        loop = asyncio.get_running_loop()
+        test_handler = loop.get_exception_handler()
+        loop.set_exception_handler(ha_runner._async_loop_exception_handler)
+        rename_ha, rename_lean = Renamer(HA_ULID), Renamer(LEAN_ULID)
+        manual = case.get("manual", False)
+        ops = case["ops"] + ([{"op": "block_till_done"}] if manual else [])
+        try:
+            for i, op in enumerate(ops):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+                if op.get("unsupported"):
+                    assert "unsupported" in lean, f"op {i}: HALean should reject {op}, got {lean}"
+                    continue
+                assert "unsupported" not in lean, f"op {i}: HALean rejected {op}: {lean['unsupported']}"
+                if not manual:
+                    settle = engine({"op": "block_till_done", "now": now})
+                    # HA would never return from `async_block_till_done`
+>                   assert "unsupported" not in settle, \
+                        f"op {i}: HALean rejected the block_till_done after {op}: {settle['unsupported']}"
+E                       AssertionError: op 5: HALean rejected the block_till_done after {'op': 'fire', 'event_type': 'x'}: loop fuel
+E                       assert 'unsupported' not in {'unsupported': 'loop fuel'}
+
+/home/user/halean/tests/differential/test_core.py:432: AssertionError
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-281' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:441> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89865.648 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-281' coro=<test_core() running at /home/user/halean/tests/differential/test_core.py:441> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89865.648 seconds
+__________________ test_core[async_never_returning_rejected] ___________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fc0f203c410>
+engine = <function engine.<locals>.ask at 0x7fc0f2bd7060>
+case = {'engine_only': True, 'manual': True, 'name': 'async_never_returning_rejected', 'ops': [{'async': True, 'event_type': ...k_till_done'}, {'domain': 'test', 'handler': {'do': [{'wait': 'never2'}]}, 'op': 'register', 'service': 'stuck'}, ...]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_core(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                        case: dict) -> None:
+        # the exception messages come from the homeassistant integration's strings
+        await async_load_integrations(hass, {"homeassistant"})
+        await hass.async_block_till_done()
+        assert hass.states.async_entity_ids() == []
+        baseline = set(hass.services.async_services())
+        # the listeners HA already has; the model starts from the same table
+        base = [[k, v] for k, v in hass.bus.async_listeners().items()]
+        init = engine({"op": "init", "listeners": base, "now": 0})
+        assert init["result"] == {"ok": None}, init
+    
+        now = case.get("now", NOW)
+        if case.get("engine_only"):
+            # rejections HA cannot show (it would never return): the model only
+            for i, op in enumerate(case["ops"]):
+                now = op.get("now", now)
+                msg = {k: v for k, v in op.items() if k not in ("unsupported", "expect")}
+                lean = engine({**msg, "now": now})
+>               assert ("unsupported" in lean) == bool(op.get("unsupported")), f"op {i} {op}: {lean}"
+E               AssertionError: op 4 {'op': 'block_till_done'}: {'unsupported': 'loop fuel'}
+E               assert ('unsupported' in {'unsupported': 'loop fuel'}) == False
+E                +  where False = bool(None)
+E                +    where None = <built-in method get of dict object at 0x7fc0f4883740>('unsupported')
+E                +      where <built-in method get of dict object at 0x7fc0f4883740> = {'op': 'block_till_done'}.get
+
+/home/user/halean/tests/differential/test_core.py:406: AssertionError
+=========================== short test summary info ============================
+FAILED tests/differential/test_core.py::test_core[two_async_listeners_interleave]
+FAILED tests/differential/test_core.py::test_core[async_listener_fires_after_suspending]
+FAILED tests/differential/test_core.py::test_core[async_listener_calls_services]
+FAILED tests/differential/test_core.py::test_core[async_listener_unsubscribed_while_suspended]
+FAILED tests/differential/test_core.py::test_core[async_listen_once_and_react_times]
+FAILED tests/differential/test_core.py::test_core[async_listener_errors] - Fa...
+FAILED tests/differential/test_core.py::test_core[async_listener_errors_settled]
+FAILED tests/differential/test_core.py::test_core[blocking_call_to_suspending_handler]
+FAILED tests/differential/test_core.py::test_core[handler_waits_for_a_future_a_listener_resolves]
+FAILED tests/differential/test_core.py::test_core[non_blocking_call_to_suspending_handler]
+FAILED tests/differential/test_core.py::test_core[handler_awaits_nested_suspending_calls]
+FAILED tests/differential/test_core.py::test_core[block_till_done_ordering]
+FAILED tests/differential/test_core.py::test_core[block_till_done_with_task_error]
+FAILED tests/differential/test_core.py::test_core[async_rejected_inputs] - As...
+FAILED tests/differential/test_core.py::test_core[async_never_returning_rejected]
+ERROR tests/differential/test_core.py::test_core[async_listener_calls_services]
+ERROR tests/differential/test_core.py::test_core[async_listener_errors] - Val...
+ERROR tests/differential/test_core.py::test_core[block_till_done_with_task_error]
+15 failed, 23 passed, 3 errors in 8.44s

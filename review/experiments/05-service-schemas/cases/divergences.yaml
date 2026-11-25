@@ -7,14 +7,23 @@
   ops:
     - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
        schema: {fields: [{key: s, type: str}]}}
-    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {s: "a b"}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {s: "a\u00a0b"}}
 
 - name: hw_sch2_path_non_printable_key
   # SCH-2, in a message: the path of an unknown key
   ops:
     - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
        schema: {fields: [{key: s, type: str}]}}
-    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {"​": 1}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {"\u200b": 1}}
+
+- name: hw_sch2_event_repr
+  # SCH-2 in the call_service event: cv.boolean strips U+00A0 / U+3000 on both
+  # sides (same result), but the event carries repr() of the raw data
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: b, value: {cv: boolean}}]}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {b: "TRUE\u00a0"}}
+    - {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {b: "\u3000off\u2003"}}
 
 - name: hw_sch3_control
   # the datum of SCH-3 on a schema validated fewer than 50 times: both say "expected float"

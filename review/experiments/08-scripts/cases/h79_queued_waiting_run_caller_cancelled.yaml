@@ -1,0 +1,17 @@
+description: >
+  A queued script has one run in a service call and a second run waiting for the lock, started by
+  another script. That script is turned off; the waiting run goes away. `current` of the queued script.
+scripts:
+  q:
+    mode: queued
+    sequence:
+      - action: test.q
+  outer:
+    sequence:
+      - action: script.q
+steps:
+  - {at: 1, call: q}
+  - {at: 2, call: outer}
+  - {at: 3, call: turn_off, data: {entity_id: script.outer}}
+  - {at: 4}
+  - {at: 5, result: 0}

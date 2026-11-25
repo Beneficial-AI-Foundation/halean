@@ -1,0 +1,22 @@
+21a22
+> import os
+35c36,37
+< CASES = [c for f in sorted((ROOT / "tests" / "core" / "states").glob("*.yaml"))
+---
+> CASE_DIR = Path(os.environ.get("HALEAN_CASES", Path(__file__).resolve().parent.parent / "cases" / "states"))
+> CASES = [c for f in sorted(CASE_DIR.glob("*.yaml"))
+37c39
+< ENGINE = ROOT / ".lake" / "build" / "bin" / "halean-core-states"
+---
+> ENGINE = Path(os.environ.get("HALEAN_BIN", "/home/user/halean/.lake/build/bin")) / "halean-core-states"
+23a24
+> import os
+37c38,39
+< CASES = [c for f in sorted((ROOT / "tests" / "core" / "events").glob("*.yaml"))
+---
+> CASE_DIR = Path(os.environ.get("HALEAN_CASES", Path(__file__).resolve().parent.parent / "cases" / "events"))
+> CASES = [c for f in sorted(CASE_DIR.glob("*.yaml"))
+39c41
+< ENGINE = ROOT / ".lake" / "build" / "bin" / "halean-core-events"
+---
+> ENGINE = Path(os.environ.get("HALEAN_BIN", "/home/user/halean/.lake/build/bin")) / "halean-core-events"

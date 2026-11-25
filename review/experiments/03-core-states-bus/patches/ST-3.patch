@@ -1,0 +1,11 @@
+--- a/Exe/CoreStates.lean	2026-11-25 15:36:36.702568391 +0000
++++ b/Exe/CoreStates.lean	2026-11-25 15:36:36.800218469 +0000
+@@ -116,6 +116,8 @@
+       pure ((sm.asyncSet eid st attrs force ctx now).map fun (sm, ev) => (.null, sm, ev))
+     else
+       let st ← getStr j "state"
++      -- `valid_entity_id` is translated for ASCII only (`\d` matches Unicode digits upstream)
++      if !isAscii eid then throw s!"non-ASCII entity_id (Python's \\d is Unicode-aware): {eid}"
+       pure ((sm.asyncSetInternal eid st attrs force ctx now).map fun (sm, ev) => (.null, sm, ev))
+   | "remove" =>
+     let eid ← getStr j "entity_id"

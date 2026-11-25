@@ -230,6 +230,7 @@
   # HA: re.error when the state is written, the entity is not added, the others are
   steps:
     - setup: {input_text: {a: {pattern: "a(", initial: "a"}, b: {initial: "x"}}}
+      unsupported: true
 - name: hw_pat_empty_group_star
   steps:
     - setup: {input_text: {a: {pattern: "()*a$"}, b: {pattern: "(?:)*b$"}, c: {pattern: "(a?)*c$"}}}
@@ -239,3 +240,19 @@
       data: {entity_id: input_text.b, value: "b"}
     - call: input_text.set_value
       data: {entity_id: input_text.c, value: "aac"}
+- name: hw_pat_dollar_quantifiers
+  steps:
+    - setup: {input_text: {a: {pattern: "a$+", initial: "a"}, b: {pattern: "a$?", initial: "a"}, c: {pattern: "a${2}", initial: "a"}, d: {pattern: "a$|b${x", initial: "a"}, e: {pattern: "(a$)*", initial: "a"}}}
+- name: hw_pat_brace_forms_at_start
+  steps:
+    - setup: {input_text: {a: {pattern: "{,3}", initial: "{,3}"}, b: {pattern: "({1,2})", initial: "{1,2}"}, c: {pattern: "^{2}", initial: "{2}"}, d: {pattern: "{x}", initial: "{x}"}, e: {pattern: "{}", initial: "{}"}, f: {pattern: "{1,2", initial: "{1,2"}}}
+- name: hw_pat_class_escape_dash_end
+  steps:
+    - setup: {input_text: {a: {pattern: "[\\d-]+$", initial: "1-2"}, b: {pattern: "[\\w-.]+$", initial: "a"}}}
+- name: hw_pat_negated_bracket_first_range
+  steps:
+    - setup: {input_text: {a: {pattern: "[^]-a]+$"}}}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "-"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: "_"}

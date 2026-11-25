@@ -124,3 +124,16 @@
     - {op: is_state, entity_id: sensor.b, state: "", expect: false}
     - {op: set, entity_id: sensor.a, state: " ", now: "2026-11-20T16:31:00+00:00"}
     - {op: all}
+
+# A lone surrogate is a valid Python str character (json.loads accepts "\ud800").
+- name: state_lone_surrogate
+  ops:
+    - {op: set, entity_id: s.a, state: "a\ud800b"}
+    - {op: is_state, entity_id: s.a, state: "a\udfffb", expect: false}
+    - {op: is_state, entity_id: s.a, state: "a�b", expect: false}
+    - {op: set, entity_id: s.a, state: "a\udfffb", now: "2026-11-20T16:31:00+00:00"}
+
+- name: attr_lone_surrogates_differ
+  ops:
+    - {op: set, entity_id: s.a, state: x, attributes: {a: "\ud800"}}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: "\udfff"}, now: "2026-11-20T16:31:00+00:00"}

@@ -1,0 +1,13 @@
+diff --git a/HALean/Core/Hass.lean b/HALean/Core/Hass.lean
+index 743d124..a7f95aa 100644
+--- a/HALean/Core/Hass.lean
++++ b/HALean/Core/Hass.lean
+@@ -800,7 +800,7 @@ def step (now : Nat) (h : Hass) : Op → Hass × Out × Except PyError Result
+     (r.1, r.2.1, r.2.2.map .value)
+   | .blockTillDone =>
+     -- `await asyncio.sleep(0)`, then the `while tasks := [...]` loop
+-    let r := drive now (h, [], .susp .soon [.btdCheck])
++    let r := drive now (resume FUEL now h [.btdCheck] (.ok .none))
+     (r.1, r.2.1, r.2.2.map .value)
+ 
+ end HALean.Core.Hass

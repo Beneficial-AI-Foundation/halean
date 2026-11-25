@@ -1,0 +1,25 @@
+diff --git a/HALean/Helpers/Component.lean b/HALean/Helpers/Component.lean
+index 1ef014e..c6cfc63 100644
+--- a/HALean/Helpers/Component.lean
++++ b/HALean/Helpers/Component.lean
+@@ -147,7 +147,19 @@ def Helpers.setup (h : Helpers) (domain : String) (cfg : Value)
+     | "input_boolean" => (InputBoolean.decodeConfig cfg).map fun cs =>
+       (cs.map fun c => .ok (.inputBoolean (InputBoolean.Entity.create c (last s!"input_boolean.{c.id}"))), [])
+     | "input_number" => (InputNumber.decodeConfig cfg).map fun cs =>
+-      (cs.map fun c => .ok (.inputNumber (InputNumber.Entity.create c (last s!"input_number.{c.id}"))), [])
++      (cs.map fun c =>
++        -- `float()` of a str maps Unicode spaces and decimal digits to ASCII
++        -- first (not modelled: refused), then skips `" \t\n\r\x0b\x0c"` around
++        -- the number (`parseFloatStr` trims `" \t\n\r"` only)
++        let pad (ch : Char) : Bool := ch == ' ' || (9 ≤ ch.toNat && ch.toNat ≤ 13)
++        let strip (s : String) : String :=
++          String.ofList ((s.toList.dropWhile pad).reverse.dropWhile pad).reverse
++        match last s!"input_number.{c.id}" with
++        | some s =>
++          if c.initial.isNone && !(s.toList.all (·.toNat < 128)) then
++            .error s!"input_number.{c.id}: float() of a non-ASCII last state is not modelled"
++          else .ok (.inputNumber (InputNumber.Entity.create c (some (strip s))))
++        | none => .ok (.inputNumber (InputNumber.Entity.create c none)), [])
+     | "input_select" => (InputSelect.decodeConfig cfg).map fun cs =>
+       (cs.map fun (c, _) => .ok (.inputSelect (InputSelect.Entity.create c (last s!"input_select.{c.id}"))),
+        cs.filterMap fun (_, w) => w.map (.log "warning"))

@@ -1,0 +1,206 @@
+FFF.                                                                     [100%]
+=================================== FAILURES ===================================
+____________________ test_helpers[hw_pat_nonascii_initial] _____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f5f63a02cf0>
+engine = <function engine.<locals>.ask at 0x7f5f63c40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f5f63acb4d0>
+case = {'name': 'hw_pat_nonascii_initial', 'steps': [{'setup': {'input_text': {'a': {'initial': 'été', 'pattern': '\\w+$'}}}}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+>           assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E           AssertionError: step 0: {'setup': {'input_text': {'a': {'pattern': '\\w+$', 'initial': 'été'}}}}
+E             HALean rejected it: input_text.a: matching non-ASCII text against \d, \w or \s is not modelled
+E           assert 'unsupported' not in {'unsupported': 'input_text.a: matching non-ASCII text against \\d, \\w or \\s is not modelled'}
+
+harness/test_helpers.py:165: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+------------------------------ Captured log setup ------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+____________________ test_helpers[hw_pat_nonascii_restore] _____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f5f63b55bd0>
+engine = <function engine.<locals>.ask at 0x7f5f63c40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f5f63b57250>
+case = {'name': 'hw_pat_nonascii_restore', 'steps': [{'restore': [['input_text.a', 'été', {}]], 'setup': {'input_text': {'a': {'pattern': '\\w+$'}}}}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+>           assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E           AssertionError: step 0: {'setup': {'input_text': {'a': {'pattern': '\\w+$'}}}, 'restore': [['input_text.a', 'été', {}]]}
+E             HALean rejected it: input_text.a: matching non-ASCII text against \d, \w or \s is not modelled
+E           assert 'unsupported' not in {'unsupported': 'input_text.a: matching non-ASCII text against \\d, \\w or \\s is not modelled'}
+
+harness/test_helpers.py:165: AssertionError
+_________________ test_helpers[hw_pat_nonascii_digit_initial] __________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f5f63b54e10>
+engine = <function engine.<locals>.ask at 0x7f5f63c40bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f5f61e2b110>
+case = {'name': 'hw_pat_nonascii_digit_initial', 'steps': [{'setup': {'input_text': {'a': {'initial': '١٢', 'pattern': '\\d+$'}}}}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+>           assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E           AssertionError: step 0: {'setup': {'input_text': {'a': {'pattern': '\\d+$', 'initial': '١٢'}}}}
+E             HALean rejected it: input_text.a: matching non-ASCII text against \d, \w or \s is not modelled
+E           assert 'unsupported' not in {'unsupported': 'input_text.a: matching non-ASCII text against \\d, \\w or \\s is not modelled'}
+
+harness/test_helpers.py:165: AssertionError
+=========================== short test summary info ============================
+FAILED harness/test_helpers.py::test_helpers[hw_pat_nonascii_initial] - Asser...
+FAILED harness/test_helpers.py::test_helpers[hw_pat_nonascii_restore] - Asser...
+FAILED harness/test_helpers.py::test_helpers[hw_pat_nonascii_digit_initial]
+3 failed, 1 passed, 186 deselected in 1.31s

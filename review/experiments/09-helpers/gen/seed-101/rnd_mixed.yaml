@@ -1,0 +1,3470 @@
+- name: rnd_mixed_s101_0
+  steps:
+  - setup:
+      input_number:
+        b:
+          min: 1
+          max: 10
+          step: 1
+        c:
+          min: 1
+          max: 10
+          step: 1
+  - setup:
+      input_select:
+        a:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      input_text:
+        z9_q: null
+        long_name:
+          initial: t
+          max: 5
+  - advance: 1
+  - call: input_number.increment
+    data:
+      entity_id: input_number.b
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.c
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.b
+  - advance: 5
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.c
+      value: 4
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.c
+- name: rnd_mixed_s101_1
+  steps:
+  - setup:
+      input_boolean:
+        c: null
+        z9_q: null
+  - setup:
+      input_select:
+        c:
+          options:
+          - a
+          - b
+          - c
+        a:
+          options:
+          - a
+          - b
+          - c
+  - call: input_boolean.turn_off
+    data:
+      entity_id:
+      - input_boolean.c
+      - input_select.c
+  - call: input_boolean.turn_off
+    data:
+      entity_id:
+      - input_boolean.c
+      - input_select.a
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.c
+      - input_boolean.z9_q
+      options:
+      - x
+      - b
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.z9_q
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.c
+  - advance: 5
+  - advance: 10
+- name: rnd_mixed_s101_2
+  steps:
+  - setup:
+      input_text:
+        x1:
+          initial: t
+          max: 5
+        z9_q: null
+  - setup:
+      input_select:
+        a:
+          options:
+          - a
+          - b
+          - c
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+  - advance: 10
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+  - advance: 10
+  - call: input_text.set_value
+    data:
+      entity_id: input_select.a
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.x1
+      - input_select.a
+      value: new
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+- name: rnd_mixed_s101_3
+  steps:
+  - setup:
+      input_boolean:
+        x1: null
+  - setup:
+      timer:
+        c: null
+  - advance: 5
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.x1
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.x1
+  - call: input_boolean.turn_on
+    data:
+      entity_id:
+      - input_boolean.x1
+      - timer.c
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.x1
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.x1
+  - call: timer.cancel
+    data:
+      entity_id: input_boolean.x1
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+- name: rnd_mixed_s101_4
+  steps:
+  - setup:
+      input_boolean:
+        x1: null
+  - setup:
+      input_number:
+        b:
+          min: 1
+          max: 10
+          step: 2.5
+        z9_q:
+          min: 1
+          max: 10
+          step: 1
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.x1
+  - call: input_number.increment
+    data:
+      entity_id: input_number.z9_q
+  - call: input_number.increment
+    data:
+      entity_id: input_number.z9_q
+  - call: input_number.increment
+    data:
+      entity_id: input_number.b
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.z9_q
+  - advance: 5
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.z9_q
+      value: 4
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.x1
+  - call: input_number.increment
+    data:
+      entity_id: input_number.b
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_number.z9_q
+- name: rnd_mixed_s101_5
+  steps:
+  - setup:
+      counter:
+        b:
+          initial: 5
+          step: 2
+  - setup:
+      input_boolean:
+        c:
+          initial: true
+        long_name: null
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 2
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.long_name
+  - call: counter.decrement
+    data:
+      entity_id: counter.b
+  - call: counter.set_value
+    data:
+      entity_id:
+      - counter.b
+      - input_boolean.c
+      value: 2
+  - call: counter.reset
+    data:
+      entity_id: input_boolean.long_name
+  - call: counter.reset
+    data:
+      entity_id: counter.b
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.b
+      - input_boolean.c
+  - call: counter.reset
+    data:
+      entity_id:
+      - counter.b
+      - input_boolean.long_name
+  - call: counter.reset
+    data:
+      entity_id: counter.b
+- name: rnd_mixed_s101_6
+  steps:
+  - setup:
+      input_number:
+        long_name:
+          min: 1
+          max: 10
+          step: 2.5
+  - setup:
+      counter:
+        x1: null
+  - setup:
+      input_text:
+        long_name: null
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: input_number.increment
+    data:
+      entity_id: input_number.long_name
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: input_number.decrement
+    data:
+      entity_id: input_text.long_name
+- name: rnd_mixed_s101_7
+  steps:
+  - setup:
+      counter:
+        a:
+          initial: 5
+          step: 2
+  - setup:
+      input_text:
+        c: null
+        a:
+          initial: t
+          max: 5
+  - setup:
+      input_boolean:
+        c:
+          initial: true
+        b: null
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.a
+      value: new
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.c
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.a
+      value: new
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.c
+- name: rnd_mixed_s101_8
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 10
+  - setup:
+      counter:
+        c:
+          initial: 5
+          step: 2
+        a:
+          initial: 5
+          step: 2
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 2
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: 3
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: 3
+  - call: counter.set_value
+    data:
+      entity_id: counter.c
+      value: 2
+  - advance: 2
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+- name: rnd_mixed_s101_9
+  steps:
+  - setup:
+      counter:
+        x1:
+          initial: 5
+          step: 2
+        long_name: null
+  - setup:
+      timer:
+        a:
+          duration: 10
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 2
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: timer.pause
+    data:
+      entity_id:
+      - timer.a
+      - counter.x1
+  - advance: 2
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - advance: 1
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+- name: rnd_mixed_s101_10
+  steps:
+  - setup:
+      timer:
+        long_name:
+          duration: 10
+  - setup:
+      input_boolean:
+        long_name:
+          initial: true
+        a:
+          initial: true
+  - setup:
+      input_select:
+        x1:
+          options:
+          - a
+          - b
+          - c
+        b:
+          options:
+          - a
+          - b
+          - c
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+  - call: timer.finish
+    data:
+      entity_id: timer.long_name
+  - advance: 10
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.a
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+  - call: input_boolean.turn_on
+    data:
+      entity_id:
+      - input_boolean.a
+      - input_select.b
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.x1
+      - input_boolean.long_name
+      option: b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.b
+      option: b
+- name: rnd_mixed_s101_11
+  steps:
+  - setup:
+      input_boolean:
+        x1:
+          initial: true
+  - setup:
+      input_number:
+        long_name:
+          min: 1
+          max: 10
+          step: 2.5
+        x1:
+          min: 1
+          max: 10
+          step: 1
+  - setup:
+      input_select:
+        c:
+          options:
+          - a
+          - b
+          - c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - x
+      - b
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.x1
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.x1
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - advance: 5
+  - advance: 10
+- name: rnd_mixed_s101_12
+  steps:
+  - setup:
+      input_boolean:
+        x1: null
+        long_name: null
+  - setup:
+      input_number:
+        x1:
+          min: 1
+          max: 10
+          step: 1
+        b:
+          min: 1
+          max: 10
+          step: 2.5
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - a
+          - b
+          - c
+        a:
+          options:
+          - a
+          - b
+          - c
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.a
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.a
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_number.x1
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.long_name
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.x1
+      value: 4
+  - call: input_select.select_next
+    data:
+      entity_id: input_boolean.x1
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.a
+      - input_boolean.x1
+      option: b
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.x1
+  - call: input_number.increment
+    data:
+      entity_id: input_number.b
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.long_name
+- name: rnd_mixed_s101_13
+  steps:
+  - setup:
+      input_text:
+        a: null
+        x1:
+          initial: t
+          max: 5
+  - setup:
+      input_boolean:
+        long_name:
+          initial: true
+  - setup:
+      input_number:
+        b:
+          min: 1
+          max: 10
+          step: 2.5
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - advance: 2
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.b
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.b
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.b
+      value: 4
+  - advance: 5
+  - advance: 10
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.a
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.a
+      value: new
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.long_name
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.a
+      value: new
+- name: rnd_mixed_s101_14
+  steps:
+  - setup:
+      input_number:
+        z9_q:
+          min: 1
+          max: 10
+          step: 1
+        a:
+          min: 1
+          max: 10
+          step: 1
+  - setup:
+      input_text:
+        long_name: null
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.a
+      value: 4
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.z9_q
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.z9_q
+      value: 4
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.long_name
+      - input_number.a
+      value: new
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.a
+      value: 4
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - advance: 2
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.long_name
+      - input_number.a
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.a
+- name: rnd_mixed_s101_15
+  steps:
+  - setup:
+      input_select:
+        a:
+          options:
+          - a
+          - b
+          - c
+        c:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      input_boolean:
+        b:
+          initial: true
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.a
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.b
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.c
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.b
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.b
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.c
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.b
+  - call: input_boolean.toggle
+    data:
+      entity_id:
+      - input_boolean.b
+      - input_select.a
+  - advance: 2
+- name: rnd_mixed_s101_16
+  steps:
+  - setup:
+      input_boolean:
+        x1: null
+        b:
+          initial: true
+  - setup:
+      counter:
+        c:
+          initial: 5
+          step: 2
+        x1: null
+  - advance: 2
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.b
+  - advance: 10
+  - advance: 2
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 2
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.b
+- name: rnd_mixed_s101_17
+  steps:
+  - setup:
+      input_boolean:
+        a: null
+        c:
+          initial: true
+  - setup:
+      input_number:
+        b:
+          min: 1
+          max: 10
+          step: 1
+        a:
+          min: 1
+          max: 10
+          step: 1
+  - setup:
+      counter:
+        b:
+          minimum: 0
+          maximum: 3
+  - call: counter.decrement
+    data:
+      entity_id: counter.b
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.a
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.a
+  - advance: 10
+  - advance: 10
+  - advance: 10
+  - call: counter.set_value
+    data:
+      entity_id:
+      - counter.b
+      - input_boolean.c
+      value: 2
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.c
+  - advance: 5
+  - advance: 10
+- name: rnd_mixed_s101_18
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 10
+  - setup:
+      input_number:
+        z9_q:
+          min: 1
+          max: 10
+          step: 1
+        long_name:
+          min: 1
+          max: 10
+          step: 2.5
+  - setup:
+      input_boolean:
+        x1:
+          initial: true
+        long_name:
+          initial: true
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.x1
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.c
+      - input_boolean.long_name
+      duration: 3
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.z9_q
+      value: 4
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.long_name
+      value: 4
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: input_number.increment
+    data:
+      entity_id: input_number.z9_q
+  - advance: 10
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.long_name
+- name: rnd_mixed_s101_19
+  steps:
+  - setup:
+      counter:
+        long_name:
+          initial: 5
+          step: 2
+  - setup:
+      input_boolean:
+        long_name: null
+  - setup:
+      input_text:
+        long_name: null
+        c:
+          initial: t
+          max: 5
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: input_boolean.toggle
+    data:
+      entity_id:
+      - input_boolean.long_name
+      - counter.long_name
+  - advance: 2
+  - advance: 1
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.long_name
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.long_name
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.long_name
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.long_name
+- name: rnd_mixed_s101_20
+  steps:
+  - setup:
+      input_text:
+        x1: null
+        z9_q: null
+  - setup:
+      input_number:
+        long_name:
+          min: 1
+          max: 10
+          step: 2.5
+        x1:
+          min: 1
+          max: 10
+          step: 1
+  - setup:
+      counter:
+        z9_q: null
+  - call: input_number.increment
+    data:
+      entity_id:
+      - input_number.x1
+      - counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: input_number.x1
+  - advance: 1
+  - call: input_text.set_value
+    data:
+      entity_id: input_number.x1
+      value: new
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id: counter.z9_q
+  - call: input_number.increment
+    data:
+      entity_id: input_number.long_name
+  - call: input_number.increment
+    data:
+      entity_id: input_text.x1
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: counter.increment
+    data:
+      entity_id: counter.z9_q
+- name: rnd_mixed_s101_21
+  steps:
+  - setup:
+      input_boolean:
+        x1: null
+  - setup:
+      input_select:
+        b:
+          options:
+          - a
+          - b
+          - c
+        x1:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      counter:
+        c:
+          minimum: 0
+          maximum: 3
+        x1:
+          minimum: 0
+          maximum: 3
+  - advance: 10
+  - advance: 10
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: b
+  - call: counter.decrement
+    data:
+      entity_id: counter.c
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - call: counter.decrement
+    data:
+      entity_id: counter.x1
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.x1
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.x1
+- name: rnd_mixed_s101_22
+  steps:
+  - setup:
+      input_select:
+        b:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      timer:
+        long_name:
+          duration: 10
+        c: null
+  - call: timer.finish
+    data:
+      entity_id: timer.long_name
+  - advance: 10
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.b
+      - timer.c
+      options:
+      - x
+      - b
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_next
+    data:
+      entity_id:
+      - input_select.b
+      - timer.c
+- name: rnd_mixed_s101_23
+  steps:
+  - setup:
+      input_select:
+        x1:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      timer:
+        long_name:
+          duration: 10
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - x
+      - b
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.x1
+      option: b
+  - advance: 1
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration: 3
+  - call: timer.finish
+    data:
+      entity_id: input_select.x1
+  - advance: 5
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.x1
+  - call: timer.cancel
+    data:
+      entity_id: timer.long_name
+  - call: timer.pause
+    data:
+      entity_id: timer.long_name
+- name: rnd_mixed_s101_24
+  steps:
+  - setup:
+      counter:
+        c:
+          minimum: 0
+          maximum: 3
+  - setup:
+      input_text:
+        a:
+          initial: t
+          max: 5
+  - setup:
+      timer:
+        c:
+          duration: 10
+        a:
+          duration: 10
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.a
+      value: new
+  - call: timer.start
+    data:
+      entity_id: timer.a
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.a
+      value: new
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: timer.a
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - advance: 2
+- name: rnd_mixed_s101_25
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 10
+        x1: null
+  - setup:
+      input_number:
+        c:
+          min: 1
+          max: 10
+          step: 1
+        long_name:
+          min: 1
+          max: 10
+          step: 1
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.long_name
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.c
+  - advance: 10
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.x1
+      - input_number.c
+  - call: timer.cancel
+    data:
+      entity_id: timer.x1
+  - advance: 2
+  - call: input_number.increment
+    data:
+      entity_id: input_number.c
+- name: rnd_mixed_s101_26
+  steps:
+  - setup:
+      input_boolean:
+        c:
+          initial: true
+        b:
+          initial: true
+  - setup:
+      input_number:
+        z9_q:
+          min: 1
+          max: 10
+          step: 1
+  - setup:
+      timer:
+        long_name: null
+  - advance: 10
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_number.z9_q
+  - call: timer.pause
+    data:
+      entity_id: timer.long_name
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.z9_q
+      value: 4
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.b
+  - advance: 10
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.b
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.long_name
+      - input_boolean.b
+- name: rnd_mixed_s101_27
+  steps:
+  - setup:
+      input_number:
+        z9_q:
+          min: 1
+          max: 10
+          step: 1
+        x1:
+          min: 1
+          max: 10
+          step: 2.5
+  - setup:
+      timer:
+        b:
+          duration: 10
+  - setup:
+      input_boolean:
+        z9_q:
+          initial: true
+        c:
+          initial: true
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.z9_q
+  - advance: 5
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.c
+  - advance: 2
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+  - advance: 5
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.z9_q
+- name: rnd_mixed_s101_28
+  steps:
+  - setup:
+      input_boolean:
+        b:
+          initial: true
+        z9_q: null
+  - setup:
+      timer:
+        long_name:
+          duration: 10
+        b:
+          duration: 10
+  - setup:
+      input_select:
+        b:
+          options:
+          - a
+          - b
+          - c
+  - call: timer.start
+    data:
+      entity_id: input_select.b
+      duration: 3
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.b
+  - call: timer.finish
+    data:
+      entity_id: input_boolean.z9_q
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.b
+  - advance: 10
+  - call: input_boolean.turn_on
+    data:
+      entity_id: timer.long_name
+- name: rnd_mixed_s101_29
+  steps:
+  - setup:
+      input_boolean:
+        b:
+          initial: true
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - a
+          - b
+          - c
+        c:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      input_text:
+        a:
+          initial: t
+          max: 5
+  - advance: 2
+  - advance: 10
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.a
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.a
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.a
+      value: new
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.b
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.a
+      value: new
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.b
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.a
+      value: new
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.long_name
+- name: rnd_mixed_s101_30
+  steps:
+  - setup:
+      counter:
+        a:
+          initial: 5
+          step: 2
+        c:
+          minimum: 0
+          maximum: 3
+  - setup:
+      input_select:
+        b:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      input_number:
+        long_name:
+          min: 1
+          max: 10
+          step: 2.5
+        a:
+          min: 1
+          max: 10
+          step: 2.5
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.a
+      value: 4
+  - call: counter.increment
+    data:
+      entity_id: counter.a
+  - call: input_number.increment
+    data:
+      entity_id: input_number.long_name
+  - advance: 1
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.a
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.long_name
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.long_name
+      value: 4
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.b
+      options:
+      - x
+      - b
+  - advance: 5
+  - call: input_select.select_previous
+    data:
+      entity_id: counter.c
+- name: rnd_mixed_s101_31
+  steps:
+  - setup:
+      timer:
+        b: null
+  - setup:
+      input_select:
+        c:
+          options:
+          - a
+          - b
+          - c
+        z9_q:
+          options:
+          - a
+          - b
+          - c
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.b
+      - input_select.c
+  - advance: 1
+  - advance: 1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.z9_q
+      options:
+      - x
+      - b
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.z9_q
+  - call: timer.start
+    data:
+      entity_id: input_select.z9_q
+      duration: 3
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.c
+      options:
+      - x
+      - b
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+- name: rnd_mixed_s101_32
+  steps:
+  - setup:
+      counter:
+        a:
+          initial: 5
+          step: 2
+  - setup:
+      input_text:
+        z9_q:
+          initial: t
+          max: 5
+        b:
+          initial: t
+          max: 5
+  - setup:
+      input_boolean:
+        c:
+          initial: true
+        a: null
+  - advance: 5
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.c
+  - advance: 10
+  - call: counter.set_value
+    data:
+      entity_id: counter.a
+      value: 2
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.c
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_text.b
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.b
+      value: new
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+- name: rnd_mixed_s101_33
+  steps:
+  - setup:
+      input_select:
+        b:
+          options:
+          - a
+          - b
+          - c
+        c:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      input_text:
+        c:
+          initial: t
+          max: 5
+        x1: null
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.c
+      value: new
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.x1
+      - input_select.c
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_select.b
+      value: new
+  - advance: 2
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.c
+      value: new
+- name: rnd_mixed_s101_34
+  steps:
+  - setup:
+      input_text:
+        b:
+          initial: t
+          max: 5
+        z9_q:
+          initial: t
+          max: 5
+  - setup:
+      input_number:
+        b:
+          min: 1
+          max: 10
+          step: 2.5
+  - advance: 1
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.b
+      value: new
+  - advance: 2
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.b
+      value: new
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.b
+      value: 4
+  - call: input_number.increment
+    data:
+      entity_id:
+      - input_number.b
+      - input_text.z9_q
+  - advance: 2
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.b
+      value: 4
+  - advance: 5
+  - advance: 5
+- name: rnd_mixed_s101_35
+  steps:
+  - setup:
+      input_select:
+        x1:
+          options:
+          - a
+          - b
+          - c
+        c:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      counter:
+        z9_q: null
+        long_name:
+          initial: 5
+          step: 2
+  - setup:
+      input_boolean:
+        a: null
+        c:
+          initial: true
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.a
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.x1
+  - advance: 2
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.a
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.c
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.c
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: input_select.select_first
+    data:
+      entity_id:
+      - input_select.x1
+      - counter.long_name
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.c
+- name: rnd_mixed_s101_36
+  steps:
+  - setup:
+      timer:
+        x1: null
+  - setup:
+      counter:
+        a:
+          minimum: 0
+          maximum: 3
+  - advance: 10
+  - advance: 1
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+      duration: 3
+  - call: timer.pause
+    data:
+      entity_id: timer.x1
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+  - call: timer.finish
+    data:
+      entity_id: timer.x1
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+- name: rnd_mixed_s101_37
+  steps:
+  - setup:
+      input_number:
+        z9_q:
+          min: 1
+          max: 10
+          step: 1
+  - setup:
+      timer:
+        x1:
+          duration: 10
+  - setup:
+      input_select:
+        a:
+          options:
+          - a
+          - b
+          - c
+  - call: timer.finish
+    data:
+      entity_id:
+      - timer.x1
+      - input_number.z9_q
+  - advance: 1
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.x1
+      - input_number.z9_q
+      duration: 3
+  - call: timer.start
+    data:
+      entity_id: input_number.z9_q
+      duration: 3
+  - advance: 2
+  - call: input_select.select_last
+    data:
+      entity_id: timer.x1
+  - call: input_number.increment
+    data:
+      entity_id: input_number.z9_q
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.z9_q
+      value: 4
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.z9_q
+  - call: input_number.increment
+    data:
+      entity_id: input_number.z9_q
+- name: rnd_mixed_s101_38
+  steps:
+  - setup:
+      input_number:
+        c:
+          min: 1
+          max: 10
+          step: 2.5
+        x1:
+          min: 1
+          max: 10
+          step: 2.5
+  - setup:
+      input_text:
+        long_name:
+          initial: t
+          max: 5
+  - setup:
+      input_boolean:
+        b:
+          initial: true
+  - call: input_number.set_value
+    data:
+      entity_id: input_text.long_name
+      value: 4
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.b
+  - advance: 10
+  - advance: 5
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.b
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.long_name
+      - input_boolean.b
+      value: new
+  - advance: 2
+  - advance: 1
+- name: rnd_mixed_s101_39
+  steps:
+  - setup:
+      counter:
+        long_name:
+          initial: 5
+          step: 2
+        c: null
+  - setup:
+      timer:
+        long_name:
+          duration: 10
+        z9_q: null
+  - setup:
+      input_boolean:
+        x1:
+          initial: true
+        b: null
+  - call: timer.cancel
+    data:
+      entity_id: counter.c
+  - call: timer.cancel
+    data:
+      entity_id: timer.z9_q
+  - call: counter.set_value
+    data:
+      entity_id:
+      - counter.long_name
+      - timer.z9_q
+      value: 2
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+      duration: 3
+- name: rnd_mixed_s101_40
+  steps:
+  - setup:
+      input_boolean:
+        x1:
+          initial: true
+        c: null
+  - setup:
+      input_number:
+        x1:
+          min: 1
+          max: 10
+          step: 2.5
+        c:
+          min: 1
+          max: 10
+          step: 1
+  - advance: 5
+  - call: input_number.increment
+    data:
+      entity_id: input_number.c
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.x1
+  - advance: 2
+  - call: input_boolean.turn_off
+    data:
+      entity_id:
+      - input_boolean.x1
+      - input_number.x1
+  - call: input_boolean.toggle
+    data:
+      entity_id:
+      - input_boolean.c
+      - input_number.c
+  - call: input_number.set_value
+    data:
+      entity_id: input_boolean.c
+      value: 4
+  - call: input_number.increment
+    data:
+      entity_id:
+      - input_number.c
+      - input_boolean.c
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.c
+      value: 4
+- name: rnd_mixed_s101_41
+  steps:
+  - setup:
+      input_text:
+        c: null
+        z9_q: null
+  - setup:
+      timer:
+        z9_q:
+          duration: 10
+        a: null
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.z9_q
+      - input_text.c
+      duration: 3
+  - advance: 2
+  - call: timer.finish
+    data:
+      entity_id:
+      - timer.z9_q
+      - input_text.c
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.c
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.c
+      - timer.z9_q
+      value: new
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+- name: rnd_mixed_s101_42
+  steps:
+  - setup:
+      input_number:
+        b:
+          min: 1
+          max: 10
+          step: 2.5
+  - setup:
+      input_text:
+        c:
+          initial: t
+          max: 5
+  - setup:
+      timer:
+        long_name:
+          duration: 10
+        z9_q:
+          duration: 10
+  - advance: 10
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.b
+      value: 4
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.z9_q
+      - input_number.b
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.c
+      value: new
+  - call: timer.pause
+    data:
+      entity_id: input_number.b
+  - call: timer.pause
+    data:
+      entity_id: timer.z9_q
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.c
+      - timer.long_name
+      value: new
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+  - advance: 1
+  - call: input_number.increment
+    data:
+      entity_id: input_number.b
+  - call: timer.start
+    data:
+      entity_id: timer.long_name
+      duration: 3
+- name: rnd_mixed_s101_43
+  steps:
+  - setup:
+      timer:
+        x1: null
+  - setup:
+      input_boolean:
+        a: null
+        b: null
+  - setup:
+      counter:
+        c:
+          minimum: 0
+          maximum: 3
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.b
+  - call: input_boolean.turn_off
+    data:
+      entity_id:
+      - input_boolean.a
+      - timer.x1
+  - advance: 5
+  - advance: 5
+  - call: timer.finish
+    data:
+      entity_id: timer.x1
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.b
+  - call: timer.start
+    data:
+      entity_id: timer.x1
+- name: rnd_mixed_s101_44
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - a
+          - b
+          - c
+        b:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      input_boolean:
+        b:
+          initial: true
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_select.z9_q
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.b
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.b
+      - input_boolean.b
+      option: b
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.b
+      - input_boolean.b
+      options:
+      - x
+      - b
+  - advance: 1
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.b
+      - input_boolean.b
+      options:
+      - x
+      - b
+  - advance: 5
+- name: rnd_mixed_s101_45
+  steps:
+  - setup:
+      input_number:
+        z9_q:
+          min: 1
+          max: 10
+          step: 1
+  - setup:
+      input_text:
+        x1: null
+        b:
+          initial: t
+          max: 5
+  - advance: 10
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.z9_q
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.b
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.z9_q
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+- name: rnd_mixed_s101_46
+  steps:
+  - setup:
+      input_boolean:
+        a:
+          initial: true
+        x1:
+          initial: true
+  - setup:
+      input_number:
+        long_name:
+          min: 1
+          max: 10
+          step: 1
+  - setup:
+      counter:
+        a:
+          initial: 5
+          step: 2
+        b:
+          minimum: 0
+          maximum: 3
+  - call: input_number.increment
+    data:
+      entity_id: input_number.long_name
+  - advance: 2
+  - call: input_boolean.toggle
+    data:
+      entity_id:
+      - input_boolean.x1
+      - counter.a
+  - advance: 10
+  - call: input_number.decrement
+    data:
+      entity_id: input_boolean.a
+  - call: input_number.increment
+    data:
+      entity_id: input_boolean.x1
+  - advance: 1
+- name: rnd_mixed_s101_47
+  steps:
+  - setup:
+      input_number:
+        z9_q:
+          min: 1
+          max: 10
+          step: 1
+  - setup:
+      input_boolean:
+        x1:
+          initial: true
+        z9_q: null
+  - setup:
+      input_text:
+        z9_q:
+          initial: t
+          max: 5
+  - advance: 1
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.z9_q
+  - advance: 2
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.z9_q
+      - input_boolean.x1
+      value: new
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.z9_q
+  - call: input_number.increment
+    data:
+      entity_id: input_number.z9_q
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.z9_q
+  - call: input_number.increment
+    data:
+      entity_id: input_number.z9_q
+- name: rnd_mixed_s101_48
+  steps:
+  - setup:
+      input_text:
+        b: null
+        x1:
+          initial: t
+          max: 5
+  - setup:
+      input_boolean:
+        a:
+          initial: true
+  - setup:
+      counter:
+        c: null
+        a:
+          initial: 5
+          step: 2
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.b
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.b
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: counter.increment
+    data:
+      entity_id: input_text.x1
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.a
+- name: rnd_mixed_s101_49
+  steps:
+  - setup:
+      counter:
+        long_name: null
+        z9_q:
+          minimum: 0
+          maximum: 3
+  - setup:
+      input_number:
+        x1:
+          min: 1
+          max: 10
+          step: 1
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - advance: 10
+  - call: input_number.increment
+    data:
+      entity_id: input_number.x1
+  - advance: 2
+  - call: input_number.increment
+    data:
+      entity_id:
+      - input_number.x1
+      - counter.long_name
+  - advance: 5
+  - call: input_number.increment
+    data:
+      entity_id: input_number.x1
+  - call: counter.increment
+    data:
+      entity_id: counter.long_name
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.x1
+      value: 4
+- name: rnd_mixed_s101_50
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      counter:
+        a:
+          initial: 5
+          step: 2
+  - setup:
+      input_boolean:
+        c: null
+  - call: input_select.set_options
+    data:
+      entity_id:
+      - input_select.z9_q
+      - input_boolean.c
+      options:
+      - x
+      - b
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.c
+  - call: counter.reset
+    data:
+      entity_id: counter.a
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.c
+  - advance: 1
+  - call: input_boolean.turn_on
+    data:
+      entity_id:
+      - input_boolean.c
+      - counter.a
+- name: rnd_mixed_s101_51
+  steps:
+  - setup:
+      timer:
+        a:
+          duration: 10
+        c:
+          duration: 10
+  - setup:
+      input_number:
+        b:
+          min: 1
+          max: 10
+          step: 1
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - a
+          - b
+          - c
+  - call: input_select.select_previous
+    data:
+      entity_id:
+      - input_select.long_name
+      - timer.a
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.b
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.b
+      value: 4
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - advance: 2
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.long_name
+      options:
+      - x
+      - b
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: b
+- name: rnd_mixed_s101_52
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: 10
+        c:
+          duration: 10
+  - setup:
+      counter:
+        x1:
+          minimum: 0
+          maximum: 3
+        b:
+          minimum: 0
+          maximum: 3
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 2
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - call: counter.decrement
+    data:
+      entity_id: counter.b
+  - call: timer.pause
+    data:
+      entity_id:
+      - timer.c
+      - counter.b
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 2
+  - advance: 10
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - call: timer.finish
+    data:
+      entity_id:
+      - timer.c
+      - counter.x1
+  - call: counter.increment
+    data:
+      entity_id: timer.b
+  - call: counter.set_value
+    data:
+      entity_id:
+      - counter.x1
+      - timer.b
+      value: 2
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - advance: 2
+- name: rnd_mixed_s101_53
+  steps:
+  - setup:
+      input_boolean:
+        x1:
+          initial: true
+  - setup:
+      input_text:
+        x1: null
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - advance: 5
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.x1
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.x1
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: input_boolean.turn_off
+    data:
+      entity_id:
+      - input_boolean.x1
+      - input_text.x1
+- name: rnd_mixed_s101_54
+  steps:
+  - setup:
+      input_boolean:
+        c:
+          initial: true
+        long_name:
+          initial: true
+  - setup:
+      input_text:
+        long_name: null
+        x1:
+          initial: t
+          max: 5
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - advance: 2
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - advance: 2
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.long_name
+  - advance: 10
+  - advance: 2
+- name: rnd_mixed_s101_55
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: 10
+  - setup:
+      input_select:
+        a:
+          options:
+          - a
+          - b
+          - c
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.a
+      - timer.b
+      option: b
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.a
+  - advance: 5
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.a
+  - advance: 5
+- name: rnd_mixed_s101_56
+  steps:
+  - setup:
+      counter:
+        long_name:
+          minimum: 0
+          maximum: 3
+        z9_q:
+          initial: 5
+          step: 2
+  - setup:
+      timer:
+        b: null
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: timer.cancel
+    data:
+      entity_id: timer.b
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.b
+      - counter.z9_q
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: counter.decrement
+    data:
+      entity_id:
+      - counter.long_name
+      - timer.b
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+- name: rnd_mixed_s101_57
+  steps:
+  - setup:
+      input_text:
+        z9_q:
+          initial: t
+          max: 5
+        x1: null
+  - setup:
+      timer:
+        long_name:
+          duration: 10
+        c: null
+  - setup:
+      input_boolean:
+        c: null
+        a: null
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - advance: 2
+  - call: timer.pause
+    data:
+      entity_id: timer.c
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.x1
+      - timer.c
+      value: new
+  - advance: 5
+  - advance: 2
+  - advance: 5
+  - call: timer.start
+    data:
+      entity_id: input_text.x1
+  - call: input_boolean.turn_off
+    data:
+      entity_id:
+      - input_boolean.a
+      - input_text.z9_q
+- name: rnd_mixed_s101_58
+  steps:
+  - setup:
+      input_boolean:
+        long_name: null
+        x1:
+          initial: true
+  - setup:
+      input_text:
+        long_name:
+          initial: t
+          max: 5
+        c:
+          initial: t
+          max: 5
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.x1
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.x1
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.long_name
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.x1
+  - advance: 10
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - advance: 10
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.x1
+- name: rnd_mixed_s101_59
+  steps:
+  - setup:
+      input_boolean:
+        z9_q:
+          initial: true
+  - setup:
+      timer:
+        a:
+          duration: 10
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.z9_q
+  - advance: 2
+  - call: timer.pause
+    data:
+      entity_id: timer.a
+  - advance: 1
+  - advance: 1
+  - advance: 10
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.z9_q
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.z9_q
+  - advance: 1
+  - advance: 1
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.z9_q
+- name: rnd_mixed_s101_60
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - a
+          - b
+          - c
+        b:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      input_boolean:
+        z9_q:
+          initial: true
+  - setup:
+      input_number:
+        a:
+          min: 1
+          max: 10
+          step: 2.5
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_select.b
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.z9_q
+  - advance: 10
+  - call: input_boolean.toggle
+    data:
+      entity_id:
+      - input_boolean.z9_q
+      - input_select.b
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.z9_q
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.z9_q
+  - advance: 10
+  - advance: 2
+  - advance: 5
+- name: rnd_mixed_s101_61
+  steps:
+  - setup:
+      input_boolean:
+        x1: null
+  - setup:
+      input_text:
+        a:
+          initial: t
+          max: 5
+        x1:
+          initial: t
+          max: 5
+  - setup:
+      input_number:
+        x1:
+          min: 1
+          max: 10
+          step: 2.5
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.x1
+      value: 4
+  - advance: 2
+  - call: input_number.decrement
+    data:
+      entity_id:
+      - input_number.x1
+      - input_boolean.x1
+  - advance: 5
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.x1
+      value: 4
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.a
+      - input_number.x1
+      value: new
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_number.x1
+- name: rnd_mixed_s101_62
+  steps:
+  - setup:
+      timer:
+        b:
+          duration: 10
+  - setup:
+      input_boolean:
+        x1:
+          initial: true
+        long_name:
+          initial: true
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.b
+      - input_boolean.x1
+  - call: timer.finish
+    data:
+      entity_id: timer.b
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.x1
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.x1
+  - call: timer.start
+    data:
+      entity_id: timer.b
+  - advance: 5
+- name: rnd_mixed_s101_63
+  steps:
+  - setup:
+      input_select:
+        z9_q:
+          options:
+          - a
+          - b
+          - c
+        x1:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      input_boolean:
+        z9_q:
+          initial: true
+  - setup:
+      input_text:
+        z9_q: null
+        a:
+          initial: t
+          max: 5
+  - advance: 1
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.z9_q
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_text.z9_q
+  - call: input_select.select_previous
+    data:
+      entity_id: input_text.z9_q
+  - call: input_boolean.turn_on
+    data:
+      entity_id:
+      - input_boolean.z9_q
+      - input_select.x1
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_select.z9_q
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+- name: rnd_mixed_s101_64
+  steps:
+  - setup:
+      timer:
+        c:
+          duration: 10
+  - setup:
+      input_select:
+        x1:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      input_number:
+        c:
+          min: 1
+          max: 10
+          step: 1
+        long_name:
+          min: 1
+          max: 10
+          step: 2.5
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - x
+      - b
+  - call: timer.start
+    data:
+      entity_id: input_number.long_name
+      duration: 3
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.long_name
+  - call: input_select.select_previous
+    data:
+      entity_id: input_number.long_name
+  - call: timer.finish
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.x1
+  - call: input_select.select_last
+    data:
+      entity_id: input_select.x1
+  - call: input_select.set_options
+    data:
+      entity_id: input_select.x1
+      options:
+      - x
+      - b
+  - advance: 10
+- name: rnd_mixed_s101_65
+  steps:
+  - setup:
+      input_text:
+        z9_q: null
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      input_number:
+        x1:
+          min: 1
+          max: 10
+          step: 1
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.z9_q
+      - input_number.x1
+      value: new
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.long_name
+  - call: input_select.select_option
+    data:
+      entity_id: input_select.long_name
+      option: b
+  - advance: 1
+  - call: input_number.increment
+    data:
+      entity_id: input_select.long_name
+  - call: input_number.set_value
+    data:
+      entity_id:
+      - input_number.x1
+      - input_select.long_name
+      value: 4
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+- name: rnd_mixed_s101_66
+  steps:
+  - setup:
+      input_text:
+        x1: null
+  - setup:
+      timer:
+        c: null
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: timer.start
+    data:
+      entity_id:
+      - timer.c
+      - input_text.x1
+  - call: timer.start
+    data:
+      entity_id: timer.c
+      duration: 3
+  - advance: 1
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.x1
+      value: new
+- name: rnd_mixed_s101_67
+  steps:
+  - setup:
+      input_select:
+        b:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      input_text:
+        c:
+          initial: t
+          max: 5
+        x1:
+          initial: t
+          max: 5
+  - setup:
+      input_boolean:
+        b: null
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.b
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.b
+  - advance: 5
+  - call: input_boolean.turn_off
+    data:
+      entity_id:
+      - input_boolean.b
+      - input_text.x1
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.c
+      value: new
+  - call: input_select.select_option
+    data:
+      entity_id:
+      - input_select.b
+      - input_text.c
+      option: b
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.x1
+      - input_select.b
+      value: new
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.b
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.b
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_text.c
+  - call: input_select.select_first
+    data:
+      entity_id: input_text.c
+- name: rnd_mixed_s101_68
+  steps:
+  - setup:
+      input_boolean:
+        z9_q:
+          initial: true
+  - setup:
+      input_select:
+        c:
+          options:
+          - a
+          - b
+          - c
+        b:
+          options:
+          - a
+          - b
+          - c
+  - setup:
+      timer:
+        c: null
+        z9_q:
+          duration: 10
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.z9_q
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+  - advance: 5
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.z9_q
+  - call: timer.start
+    data:
+      entity_id: timer.c
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.b
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.z9_q
+  - call: input_select.select_next
+    data:
+      entity_id: input_select.b
+  - call: input_select.select_previous
+    data:
+      entity_id: input_select.c
+  - advance: 10
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.z9_q
+  - call: timer.pause
+    data:
+      entity_id: input_select.c
+- name: rnd_mixed_s101_69
+  steps:
+  - setup:
+      input_number:
+        c:
+          min: 1
+          max: 10
+          step: 1
+  - setup:
+      input_boolean:
+        x1:
+          initial: true
+  - setup:
+      input_select:
+        long_name:
+          options:
+          - a
+          - b
+          - c
+        c:
+          options:
+          - a
+          - b
+          - c
+  - call: input_boolean.turn_on
+    data:
+      entity_id:
+      - input_boolean.x1
+      - input_number.c
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.x1
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.x1
+  - advance: 10
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.c
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.c
+- name: rnd_mixed_s101_70
+  steps:
+  - setup:
+      input_boolean:
+        long_name: null
+        a: null
+  - setup:
+      timer:
+        z9_q: null
+  - advance: 10
+  - call: timer.start
+    data:
+      entity_id: input_boolean.a
+  - advance: 2
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.a
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+      duration: 3
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.long_name
+  - call: timer.start
+    data:
+      entity_id: timer.z9_q
+      duration: 3
+- name: rnd_mixed_s101_71
+  steps:
+  - setup:
+      counter:
+        x1: null
+        long_name:
+          minimum: 0
+          maximum: 3
+  - setup:
+      input_select:
+        x1:
+          options:
+          - a
+          - b
+          - c
+  - call: counter.reset
+    data:
+      entity_id: counter.long_name
+  - call: input_select.select_previous
+    data:
+      entity_id: counter.long_name
+  - call: input_select.select_first
+    data:
+      entity_id: input_select.x1
+  - advance: 2
+  - call: counter.set_value
+    data:
+      entity_id: input_select.x1
+      value: 2
+- name: rnd_mixed_s101_72
+  steps:
+  - setup:
+      counter:
+        b:
+          minimum: 0
+          maximum: 3
+        x1:
+          minimum: 0
+          maximum: 3
+  - setup:
+      input_boolean:
+        x1:
+          initial: true
+  - setup:
+      input_text:
+        z9_q:
+          initial: t
+          max: 5
+        long_name:
+          initial: t
+          max: 5
+  - call: counter.reset
+    data:
+      entity_id: counter.x1
+  - call: counter.set_value
+    data:
+      entity_id: counter.b
+      value: 2
+  - advance: 2
+  - call: input_text.set_value
+    data:
+      entity_id:
+      - input_text.long_name
+      - counter.b
+      value: new
+  - call: counter.increment
+    data:
+      entity_id: counter.b
+  - advance: 1
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.x1
+- name: rnd_mixed_s101_73
+  steps:
+  - setup:
+      input_text:
+        z9_q: null
+        a:
+          initial: t
+          max: 5
+  - setup:
+      input_boolean:
+        z9_q: null
+        b: null
+  - advance: 1
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.z9_q
+  - advance: 1
+  - advance: 2
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.z9_q
+- name: rnd_mixed_s101_74
+  steps:
+  - setup:
+      input_number:
+        z9_q:
+          min: 1
+          max: 10
+          step: 2.5
+  - setup:
+      counter:
+        c:
+          minimum: 0
+          maximum: 3
+  - call: input_number.increment
+    data:
+      entity_id:
+      - input_number.z9_q
+      - counter.c
+  - call: counter.reset
+    data:
+      entity_id:
+      - counter.c
+      - input_number.z9_q
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.c
+  - advance: 2
+- name: rnd_mixed_s101_75
+  steps:
+  - setup:
+      counter:
+        a:
+          initial: 5
+          step: 2
+        z9_q:
+          initial: 5
+          step: 2
+  - setup:
+      input_text:
+        long_name: null
+  - setup:
+      input_number:
+        x1:
+          min: 1
+          max: 10
+          step: 1
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: input_number.increment
+    data:
+      entity_id: input_number.x1
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: input_number.increment
+    data:
+      entity_id: counter.z9_q
+  - call: input_number.increment
+    data:
+      entity_id: input_number.x1
+  - call: counter.decrement
+    data:
+      entity_id: counter.a
+- name: rnd_mixed_s101_76
+  steps:
+  - setup:
+      input_text:
+        z9_q:
+          initial: t
+          max: 5
+        long_name:
+          initial: t
+          max: 5
+  - setup:
+      counter:
+        z9_q:
+          minimum: 0
+          maximum: 3
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: counter.reset
+    data:
+      entity_id: counter.z9_q
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.z9_q
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - advance: 5
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+  - call: input_text.set_value
+    data:
+      entity_id: input_text.long_name
+      value: new
+- name: rnd_mixed_s101_77
+  steps:
+  - setup:
+      input_number:
+        z9_q:
+          min: 1
+          max: 10
+          step: 2.5
+  - setup:
+      counter:
+        x1:
+          minimum: 0
+          maximum: 3
+        c: null
+  - call: counter.reset
+    data:
+      entity_id: counter.c
+  - call: counter.set_value
+    data:
+      entity_id: counter.x1
+      value: 2
+  - call: input_number.increment
+    data:
+      entity_id: input_number.z9_q
+  - advance: 2
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.z9_q
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.z9_q
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.z9_q
+  - call: counter.increment
+    data:
+      entity_id: counter.x1
+- name: rnd_mixed_s101_78
+  steps:
+  - setup:
+      counter:
+        a: null
+        long_name: null
+  - setup:
+      input_number:
+        c:
+          min: 1
+          max: 10
+          step: 1
+        b:
+          min: 1
+          max: 10
+          step: 2.5
+  - setup:
+      input_boolean:
+        c: null
+        long_name:
+          initial: true
+  - call: input_number.decrement
+    data:
+      entity_id:
+      - input_number.c
+      - counter.a
+  - advance: 10
+  - advance: 10
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.b
+  - call: counter.decrement
+    data:
+      entity_id: counter.long_name
+  - call: input_boolean.turn_off
+    data:
+      entity_id: input_boolean.long_name
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.c
+  - call: input_number.increment
+    data:
+      entity_id: input_number.c
+- name: rnd_mixed_s101_79
+  steps:
+  - setup:
+      input_number:
+        c:
+          min: 1
+          max: 10
+          step: 1
+        x1:
+          min: 1
+          max: 10
+          step: 2.5
+  - setup:
+      input_boolean:
+        long_name:
+          initial: true
+  - setup:
+      counter:
+        long_name:
+          initial: 5
+          step: 2
+        c:
+          minimum: 0
+          maximum: 3
+  - call: input_number.decrement
+    data:
+      entity_id: input_number.x1
+  - call: counter.decrement
+    data:
+      entity_id: input_number.x1
+  - call: input_number.increment
+    data:
+      entity_id: input_number.x1
+  - call: input_number.set_value
+    data:
+      entity_id: input_number.c
+      value: 4
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.long_name
+  - advance: 2
+  - advance: 5
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.long_name
+  - call: input_boolean.turn_on
+    data:
+      entity_id: input_boolean.long_name
+  - call: input_boolean.toggle
+    data:
+      entity_id: input_boolean.long_name
+  - call: counter.increment
+    data:
+      entity_id: input_boolean.long_name

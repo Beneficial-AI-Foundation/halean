@@ -149,3 +149,23 @@
         - [input_select.c, "b", {}]
         - [input_select.d, "unknown", {}]
         - [input_select.e, "B", {options: [B]}]
+
+- name: hw_is_dup_warning_with_invalid_sibling_icon
+  steps:
+    - setup: {input_select: {c: {options: [a, a]}, l: {options: [b], icon: 5}}}
+- name: hw_is_dup_warning_with_invalid_sibling_extra_key
+  steps:
+    - setup: {input_select: {x: {options: [a, a]}, y: {options: [b], bogus: 1}}}
+- name: hw_is_dup_warning_with_invalid_sibling_first
+  steps:
+    - setup: {input_select: {l: {options: [b], initial: q}, z: {options: [u, u]}}}
+- name: hw_is_dup_and_invalid_same_item
+  steps:
+    - setup: {input_select: {z: {options: [u, u], bogus: 1}}}
+- name: hw_is_set_options_long_current_lost
+  steps:
+    - setup: {input_select: {a: {options: [a, b], initial: b}}}
+    - call: input_select.set_options
+      data: {entity_id: input_select.a, options: ["x\x7fy", "tab\t", "nl\n"]}
+    - call: input_select.select_next
+      data: {entity_id: input_select.a}

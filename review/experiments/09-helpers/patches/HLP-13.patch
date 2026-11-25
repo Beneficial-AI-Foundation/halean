@@ -1,0 +1,38 @@
+diff --git a/HALean/Helpers/Timer.lean b/HALean/Helpers/Timer.lean
+index c9ff43e..f855b98 100644
+--- a/HALean/Helpers/Timer.lean
++++ b/HALean/Helpers/Timer.lean
+@@ -126,6 +126,13 @@ def fireAndWrite (event : String) (extra : Attrs := []) : HM Entity Unit := do
+   write
+   emit (.fire event ([("entity_id", .str e.entityId)] ++ extra))
+ 
++/-- `datetime.min` and `datetime.max` (UTC) in µs since the epoch: a
++`datetime + timedelta` outside them raises `OverflowError`. -/
++def DT_MIN : Int := -62135596800000000
++def DT_MAX : Int := 253402300799999999
++
++def dtOverflow {α} : HM Entity α := raise "OverflowError" "date value out of range"
++
+ /-- A `timedelta` is truthy when it is not zero. -/
+ def tdTruthy : Option Int → Bool
+   | some r => r != 0
+@@ -140,6 +147,11 @@ def start (now : Int) (duration : Int) : HM Entity Unit := do
+     if duration != 0 then (duration, duration)
+     else if !tdTruthy e.remaining then (e.running, e.running)
+     else (e.remaining.getD 0, e.running)
++  if start + remaining < DT_MIN || start + remaining > DT_MAX then
++    -- `self._end = start + self._remaining` raises after the listener was
++    -- cancelled and `_state`, `_remaining`, `_running_duration` were set
++    setEnt { e with state := .active, remaining := some remaining, running, scheduled := false }
++    dtOverflow
+   setEnt { e with state := .active, remaining := some remaining, running,
+                   end_ := some (start + remaining), scheduled := true }
+   fireAndWrite event
+@@ -151,6 +163,7 @@ def change (now : Int) (duration : Int) : HM Entity Unit := do
+     | raise "HomeAssistantError" s!"Timer {e.entityId} is not running, only active timers can be changed"
+   if !e.scheduled then
+     raise "HomeAssistantError" s!"Timer {e.entityId} is not running, only active timers can be changed"
++  if end_ + duration < DT_MIN || end_ + duration > DT_MAX then dtOverflow
+   let newRemaining := (end_ + duration) - nowSec now
+   if tdTruthy e.remaining && newRemaining > e.running then
+     raise "HomeAssistantError" s!"Not possible to change timer {e.entityId} beyond duration"

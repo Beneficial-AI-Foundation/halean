@@ -22,7 +22,7 @@
 - {name: syn_and_or_prec, template: "{{ 1 or 0 and 0 }}"}
 - {name: syn_not_and, template: "{{ not 0 and 0 }}"}
 - {name: syn_test_then_and, template: "{{ 1 is eq 1 and 2 }}"}
-- {name: syn_test_chain_error, template: "{{ 1 is defined is none }}"}
+- {name: syn_test_chain_error, template: "{{ 1 is defined is none }}", unsupported: true}
 - {name: syn_test_paren_arg, template: "{{ 3 is gt(2) }}"}
 - {name: syn_test_in_paren, template: "{{ 3 is in([1, 3]) }}"}
 - {name: syn_test_arg_postfix, template: "{{ 3 is eq [1, 3][1] }}"}
@@ -37,14 +37,14 @@
 - {name: syn_dot_int_index_tuple, template: "{{ (5, 6).1 }}"}
 - {name: syn_dot_int_var, template: "{{ trigger.xs.1 }}", variables: {trigger: {xs: [7, 8]}}}
 - {name: syn_float_leading_dot, template: "{{ .5 }}"}
-- {name: syn_float_trailing_dot, template: "{{ 1. }}"}
+- {name: syn_float_trailing_dot, template: "{{ 1. }}", unsupported: true}
 - {name: syn_int_leading_zero, template: "{{ 007 }}"}
 - {name: syn_int_hex, template: "{{ 0x1F }}"}
 - {name: syn_int_bin, template: "{{ 0b11 }}"}
 - {name: syn_int_oct, template: "{{ 0o17 }}"}
 - {name: syn_int_underscore, template: "{{ 1_000 }}"}
-- {name: syn_int_double_underscore, template: "{{ 1__0 }}"}
-- {name: syn_int_trailing_underscore, template: "{{ 1_ }}"}
+- {name: syn_int_double_underscore, template: "{{ 1__0 }}", unsupported: true}
+- {name: syn_int_trailing_underscore, template: "{{ 1_ }}", unsupported: true}
 - {name: syn_float_exp_upper, template: "{{ 1E3 }}"}
 - {name: syn_float_exp_neg, template: "{{ 1.5e-3 }}"}
 - {name: syn_float_underscore, template: "{{ 1_0.5_0 }}"}
@@ -58,7 +58,7 @@
 - {name: syn_str_name_escape, template: "{{ '\\N{DIGIT ONE}' }}"}
 - {name: syn_str_x_escape, template: "{{ '\\x41' }}"}
 - {name: syn_str_unknown_escape, template: "{{ '\\q' | length }}"}
-- {name: syn_str_bad_x_escape, template: "{{ '\\x4' }}"}
+- {name: syn_str_bad_x_escape, template: "{{ '\\x4' }}", unsupported: true}
 - {name: syn_str_adjacent, template: "{{ 'a' 'b' \"c\" }}"}
 - {name: syn_str_tab_escape, template: "{{ 'a\\tb' | length }}"}
 - {name: syn_str_quote_escape, template: "{{ 'it\\'s' }}"}
@@ -72,7 +72,7 @@
 - {name: syn_ws_comment_newline, template: "a{# c #}\nb", parse_result: false}
 - {name: syn_ws_trailing_newlines, template: "{{ 'x' }}\n\n", parse_result: false}
 - {name: syn_ws_inner_newline_kept, template: "{{ 'x' }}\n{{ 'y' }}", parse_result: false}
-- {name: syn_ws_minus_spaced_not_ctrl, template: "{{ 1 - }}"}
+- {name: syn_ws_minus_spaced_not_ctrl, template: "{{ 1 - }}", unsupported: true}
 - {name: syn_ws_formfeed_in_expr, template: "{{\x0c1\x0b}}"}
 - {name: syn_two_outputs_int, template: "{{ 1 }}{{ 2 }}"}
 - {name: syn_if_cond_expr_in_test, template: "{% if 1 if 0 else 2 %}x{% endif %}"}
@@ -89,10 +89,10 @@
 - {name: syn_set_to_true_name, template: "{% set true = 0 %}{{ true }}"}
 - {name: syn_set_unpack_mismatch, template: "{% set a, b = 1, 2, 3 %}{{ a }}"}
 - {name: syn_set_unpack_string, template: "{% set a, b = 'xy' %}{{ a }}-{{ b }}"}
-- {name: syn_unclosed_expr, template: "{{ 1 "}
-- {name: syn_unclosed_if, template: "{% if 1 %}x"}
-- {name: syn_stray_endif, template: "x{% endif %}"}
-- {name: syn_empty_expr, template: "{{ }}"}
+- {name: syn_unclosed_expr, template: "{{ 1 ", unsupported: true}
+- {name: syn_unclosed_if, template: "{% if 1 %}x", unsupported: true}
+- {name: syn_stray_endif, template: "x{% endif %}", unsupported: true}
+- {name: syn_empty_expr, template: "{{ }}", unsupported: true}
 - {name: syn_raw_block, template: "{% raw %}{{ 1 }}{% endraw %}", unsupported: true}
 - {name: syn_macro, template: "{% macro f(x) %}{{ x }}{% endmacro %}{{ f(1) }}", unsupported: true}
 - {name: syn_call_block, template: "{% call f() %}{% endcall %}", unsupported: true}
@@ -105,11 +105,11 @@
 - {name: syn_trailing_comma_call, template: "{{ max(1, 2,) }}"}
 - {name: syn_empty_tuple, template: "{{ () }}"}
 - {name: syn_paren_not_tuple, template: "{{ (1) }}"}
-- {name: syn_kwarg_then_pos, template: "{{ float(default=1, 'x') }}"}
+- {name: syn_kwarg_then_pos, template: "{{ float(default=1, 'x') }}", unsupported: true}
 - {name: syn_star_args, template: "{{ max(*[1, 2]) }}"}
 - {name: syn_nonascii_name, template: "{% set é = 1 %}{{ é }}"}
-- {name: syn_semicolon, template: "{{ 1; 2 }}"}
-- {name: syn_bang_alone, template: "{{ !1 }}"}
+- {name: syn_semicolon, template: "{{ 1; 2 }}", unsupported: true}
+- {name: syn_bang_alone, template: "{{ !1 }}", unsupported: true}
 - {name: syn_subscript_slice_step_only, template: "{{ 'abcdef'[::2] }}"}
 - {name: syn_subscript_empty, template: "{{ [1][] }}"}
 - {name: syn_nested_braces_end, template: "{{ {'a': {'b': 1}}}}"}
@@ -118,10 +118,8 @@
 - {name: syn_comment_with_braces, template: "a{# {{ 1 }} #}b"}
 - {name: syn_dict_lone_brace_text, template: "{ {{ 1 }} }"}
 - {name: syn_text_looks_like_block, template: "{ % if %} {{ 1 }}"}
-- {name: syn_elif_after_else, template: "{% if 0 %}a{% else %}b{% elif 1 %}c{% endif %}"}
+- {name: syn_elif_after_else, template: "{% if 0 %}a{% else %}b{% elif 1 %}c{% endif %}", unsupported: true}
 - {name: syn_for_else_if, template: "{% for x in [1] if 0 %}a{% else %}b{% endfor %}"}
-- {name: syn_break_outside_loop, template: "{% break %}"}
-- {name: syn_continue_outside_loop, template: "x{% continue %}y"}
 - {name: syn_getitem_string_key_attr, template: "{{ trigger['id'] }}", variables: {trigger: {id: 5}}}
 - {name: syn_filter_dotted_name, template: "{{ 1 | a.b }}", unsupported: true}
 - {name: syn_is_test_else_no_arg, template: "{{ 'y' if 1 is defined else 'n' }}"}

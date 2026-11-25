@@ -1,0 +1,28 @@
+# harness copy against the patched binaries, reproducer cases only
+..FFF                                                                    [100%]
+=================================== FAILURES ===================================
+__________________ test_states[id_set_internal_unicode_digit] __________________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'set_internal', 'entity_id': 'sensor.x١', 'state': '1'}
+E     HALean rejected it: non-ASCII entity_id (Python's \d is Unicode-aware): sensor.x١
+E   assert 'unsupported' not in {'unsupported': "non-ASCII entity_id (Python's \\d is Unicode-aware): sensor.x١"}
+_____________ test_states[id_set_internal_fullwidth_digit_domain] ______________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'set_internal', 'entity_id': '１.a', 'state': '1'}
+E     HALean rejected it: non-ASCII entity_id (Python's \d is Unicode-aware): １.a
+E   assert 'unsupported' not in {'unsupported': "non-ASCII entity_id (Python's \\d is Unicode-aware): １.a"}
+________________ test_states[id_set_internal_non_ascii_letter] _________________
+test_states.py:204: in test_states
+    assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E   AssertionError: op 0: {'op': 'set_internal', 'entity_id': 'sensor.é', 'state': '1'}
+E     HALean rejected it: non-ASCII entity_id (Python's \d is Unicode-aware): sensor.é
+E   assert 'unsupported' not in {'unsupported': "non-ASCII entity_id (Python's \\d is Unicode-aware): sensor.é"}
+=========================== short test summary info ============================
+FAILED test_states.py::test_states[id_set_internal_unicode_digit] - Assertion...
+FAILED test_states.py::test_states[id_set_internal_fullwidth_digit_domain] - ...
+FAILED test_states.py::test_states[id_set_internal_non_ascii_letter] - Assert...
+3 failed, 2 passed, 88 deselected in 1.48s
+..                                                                       [100%]
+2 passed, 42 deselected in 1.32s

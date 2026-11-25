@@ -139,3 +139,16 @@
     - {op: set, entity_id: s.a, state: x, now: "2026-11-20T16:31:04+00:00"}
     - {op: inspect, entity_id: s.a}
     - {op: all}
+
+# 2**33 s = 2242-03-16T12:56:32Z: from here on a float timestamp has a spacing of 1.9 µs
+- name: time_just_before_2pow33_seconds
+  ops:
+    - {op: set, entity_id: s.a, state: x, now: "2242-03-16T12:56:31.999999+00:00", context: {id: c1}}
+    - {op: set, entity_id: s.a, state: x, attributes: {a: 1}, now: "2242-03-16T12:56:31.999998+00:00", context: {id: c1}}
+    - {op: inspect, entity_id: s.a}
+    - {op: get, entity_id: s.a}
+
+- name: time_just_after_2pow33_seconds
+  ops:
+    - {op: set, entity_id: s.a, state: x, now: "2242-03-16T12:56:32.000001+00:00", context: {id: c1}}
+    - {op: get, entity_id: s.a}

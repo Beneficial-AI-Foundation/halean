@@ -1,0 +1,20 @@
+description: >
+  A restart script in a delay, awaited by a caller, is restarted by an outside call. The order of the
+  caller's next step and the new run's first step.
+scripts:
+  r:
+    mode: restart
+    fields:
+      n: {}
+    sequence:
+      - event: r_enter
+        event_data: {n: "{{ n }}"}
+      - delay: 5
+  caller:
+    sequence:
+      - action: script.r
+        data: {n: 1}
+      - event: caller_after
+steps:
+  - {at: 1, call: caller}
+  - {at: 2, call: r, data: {n: 2}}

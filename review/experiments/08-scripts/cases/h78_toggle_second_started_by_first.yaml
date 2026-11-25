@@ -1,0 +1,15 @@
+description: >
+  toggle of two idle scripts; the first one starts the second (which then waits in a service call).
+  HA looks at the second script when it gets to it: it is running by then, so it is stopped.
+scripts:
+  a:
+    sequence:
+      - action: script.b
+      - event: a_never
+  b:
+    mode: parallel
+    sequence:
+      - action: test.b
+steps:
+  - {at: 1, call: toggle, data: {entity_id: [script.a, script.b]}}
+  - {at: 2}

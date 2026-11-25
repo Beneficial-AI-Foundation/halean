@@ -1,0 +1,11 @@
+# restart with a live run and two triggers firing on one state change: HA awaits the old run's
+# stop before the new run starts, so the second trigger restarts a run that never ran a step
+automations:
+  - alias: rst
+    mode: restart
+    triggers: [{trigger: state, entity_id: sensor.a, id: first}, {trigger: state, entity_id: sensor.a, id: second}]
+    actions: [{event: m_step, event_data: {id: "{{ trigger.id }}"}}, {delay: 10}]
+states: [{entity_id: sensor.a, state: "0"}]
+steps:
+  - {at: 1, set: [sensor.a, "1"]}
+  - {at: 2, set: [sensor.a, "2"]}

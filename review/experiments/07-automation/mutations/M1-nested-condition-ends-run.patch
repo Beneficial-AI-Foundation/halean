@@ -1,0 +1,13 @@
+diff --git a/HALean/Automation/Script.lean b/HALean/Automation/Script.lean
+index 2936ac4..59f8995 100644
+--- a/HALean/Automation/Script.lean
++++ b/HALean/Automation/Script.lean
+@@ -198,7 +198,7 @@ that sub-script ends ("aborted"), its parent continues. Popping the root
+ ends the run. -/
+ def conditionFail (r : Run) : StepOut :=
+   match r.frames with
+-  | _ :: rest@(_ :: _) => .next { r with frames := rest }
++  | _ :: _rest@(_ :: _) => .done .conditionFailed
+   | _ => .done .conditionFailed
+ 
+ /-- Unwind an exception through the frames. A frame whose action had

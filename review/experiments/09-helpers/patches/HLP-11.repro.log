@@ -1,0 +1,74 @@
+F..                                                                      [100%]
+=================================== FAILURES ===================================
+______________________ test_helpers[hw_in_restore_forms] _______________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f86b14c2cf0>
+engine = <function engine.<locals>.ask at 0x7f86b16fcbf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7f86b038f4d0>
+case = {'name': 'hw_in_restore_forms', 'steps': [{'restore': [['input_number.a', '42', {}], ['input_number.b', ' 4.2e1 ', {}]...{'max': 100, 'min': 0}, 'b': {'max': 100, 'min': 0}, 'c': {'max': 100, 'min': 0}, 'd': {'max': 100, 'min': 0}, ...}}}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+>           assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E           AssertionError: step 0: {'setup': {'input_number': {'a': {'min': 0, 'max': 100}, 'b': {'min': 0, 'max': 100}, 'c': {'min': 0, 'max': 100}, 'd': {'min': 0, 'max': 100}, 'e': {'min': 0, 'max': 100}, 'f': {'min': 0, 'max': 100}, 'g': {'min': 0, 'max': 100}, 'h': {'min': 0, 'max': 100, 'initial': 7}, 'i': {'min': -5, 'max': 100}, 'j': {'min': 0, 'max': 100}, 'k': {'min': 0, 'max': 100}, 'l': {'min': 0, 'max': 100}}}, 'restore': [['input_number.a', '42', {}], ['input_number.b', ' 4.2e1 ', {}], ['input_number.c', 'unknown', {}], ['input_number.d', '100.0000001', {}], ['input_number.e', 'nan', {}], ['input_number.f', '1_0', {}], ['input_number.g', '-0.0', {}], ['input_number.h', '50', {}], ['input_number.i', 'unavailable', {}], ['input_number.j', '+.5', {}], ['input_number.k', '5.', {}], ['input_number.l', '٤٢', {}]]}
+E             HALean rejected it: input_number.l: float() of a non-ASCII last state is not modelled
+E           assert 'unsupported' not in {'unsupported': 'input_number.l: float() of a non-ASCII last state is not modelled'}
+
+harness/test_helpers.py:165: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+------------------------------ Captured log setup ------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+=========================== short test summary info ============================
+FAILED harness/test_helpers.py::test_helpers[hw_in_restore_forms] - Assertion...
+1 failed, 2 passed, 187 deselected in 1.51s

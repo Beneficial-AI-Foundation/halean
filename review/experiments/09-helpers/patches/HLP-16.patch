@@ -1,0 +1,16 @@
+diff --git a/HALean/Helpers/Component.lean b/HALean/Helpers/Component.lean
+index 1ef014e..677a63f 100644
+--- a/HALean/Helpers/Component.lean
++++ b/HALean/Helpers/Component.lean
+@@ -173,6 +173,11 @@ def Helpers.setup (h : Helpers) (domain : String) (cfg : Value)
+       match r with
+       | .error why => return .unsupported why
+       | .ok e =>
++        -- `cv.slug("")` passes, and `<domain>.` is not a valid entity id: the
++        -- entity is not added (upstream logs the error)
++        if e.entityId.endsWith "." then
++          outs := outs ++ [.log "error" s!"Error adding entity {e.entityId} for domain {domain} with platform {domain}: HomeAssistantError: Invalid entity ID: {e.entityId}"]
++        else
+         match initialWrite e with
+         | .ok w =>
+           let (h2, o) := applyEffects { h with entities := h.entities ++ [e] } [w]

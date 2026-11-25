@@ -1,0 +1,13 @@
+diff --git a/HALean/Core/Hass.lean b/HALean/Core/Hass.lean
+index 743d124..ad6dd27 100644
+--- a/HALean/Core/Hass.lean
++++ b/HALean/Core/Hass.lean
+@@ -716,7 +716,7 @@ def runHandle (n now : Nat) (h : Hass) : Handle → Hass × Out
+   | .done t => match h.findTask t with
+     | none => (h, [])
+     | some task =>
+-      if task.pinned then (h.updTask t fun x => { x with inSet := false }, [])
++      if task.pinned && false then (h.updTask t fun x => { x with inSet := false }, [])
+       else ({ h with tasks := h.tasks.filter (·.id != t) }, (task.exc.map gcLog).toList)
+   | .onc _ =>
+     if h.roundLeft ≤ 1 then ({ h with roundLeft := 0 }.enqueue (.step 0), [])

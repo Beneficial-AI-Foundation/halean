@@ -1,0 +1,12 @@
+# restart with a live run: the new run starts after the other listeners of the same event
+automations:
+  - alias: rst
+    mode: restart
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_rst}, {delay: 10}]
+  - alias: other
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{event: m_other}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: event, event_type: e}}

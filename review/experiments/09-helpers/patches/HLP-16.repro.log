@@ -1,0 +1,70 @@
+....F.                                                                   [100%]
+=================================== FAILURES ===================================
+_______________________ test_helpers[hw_ib_slug_unicode] _______________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7fb27f0d15b0>
+engine = <function engine.<locals>.ask at 0x7fb280e80bf0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7fb27f0d1810>
+case = {'name': 'hw_ib_slug_unicode', 'steps': [{'setup': {'input_boolean': {'é': None}}}]}
+
+    @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+    async def test_helpers(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine, caplog,
+                           case: dict) -> None:
+        await hass.config.async_set_time_zone("UTC")
+        now = T0
+        freezer.move_to(now)
+        assert "unsupported" not in engine({"op": "reset"})
+        outs: list = []
+    
+        @callback
+        def listener(event: Event) -> None:
+            if event.event_type == EVENT_STATE_CHANGED:
+                new = event.data["new_state"]
+                if new is not None and _is_helper(new.entity_id):
+                    outs.append(["state_changed", new.entity_id, new.state, _attrs(new.attributes)])
+            elif event.event_type.startswith("timer."):
+                outs.append(["event", event.event_type, repr(_plain(dict(event.data)))])
+    
+        hass.bus.async_listen(MATCH_ALL, listener)
+        caplog.set_level(logging.WARNING)
+    
+        def warnings() -> list:
+            return [["warning", r.getMessage()] for r in caplog.records
+                    if r.levelno == logging.WARNING
+                    and r.name in {f"homeassistant.components.{d}" for d in DOMAINS}]
+    
+        for i, step in enumerate(case["steps"]):
+            where = f"step {i}: {step}"
+            outs.clear()
+            caplog.clear()
+            sort_outs = False
+            if "setup" in step:
+                ((domain, cfg),) = step["setup"].items()
+                msg = {"op": "setup", "domain": domain, "config": cfg, "now": _us(now),
+                       "restore": step.get("restore", [])}
+            elif "call" in step:
+                domain, service = step["call"].split(".", 1)
+                data = step.get("data", {})
+                msg = {"op": "call", "domain": domain, "service": service, "data": data, "now": _us(now)}
+                eids = data.get("entity_id")
+                sort_outs = isinstance(eids, list) and len(eids) > 1 or eids == "all"
+            elif "advance" in step:
+                now = now + timedelta(seconds=step["advance"])
+                msg = {"op": "tick", "now": _us(now)}
+            else:
+                raise ValueError(f"unknown step {step}")
+    
+            lean = engine(msg)
+            if step.get("unsupported"):
+                assert "unsupported" in lean, f"{where}\nHALean should reject this, got {lean}"
+                break
+>           assert "unsupported" not in lean, f"{where}\nHALean rejected it: {lean['unsupported']}"
+E           AssertionError: step 0: {'setup': {'input_boolean': {'é': None}}}
+E             HALean rejected it: text outside printable ASCII in a value a text-handling validator reads
+E           assert 'unsupported' not in {'unsupported': 'text outside printable ASCII in a value a text-handling validator reads'}
+
+harness/test_helpers.py:165: AssertionError
+=========================== short test summary info ============================
+FAILED harness/test_helpers.py::test_helpers[hw_ib_slug_unicode] - AssertionE...
+1 failed, 5 passed, 184 deselected in 2.28s

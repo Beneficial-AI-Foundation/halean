@@ -107,28 +107,36 @@ def candidates(sc: dict):
 
 
 def run(cands: list[dict], prefix: str) -> dict | None:
-    tmp = Path(tempfile.mkdtemp(prefix="min-", dir=os.environ.get("MIN_TMP")))
-    try:
-        for i, c in enumerate(cands):
-            (tmp / f"c{i:04d}.yaml").write_text(yaml.safe_dump(c, sort_keys=False, width=200))
-        p = subprocess.run(
-            ["/opt/havenv/bin/python", "-m", "pytest", str(HERE.parent / "harness" / "test_scripts.py"),
-             "-p", "no:cacheprovider", "-q", "--tb=short"],
-            env={**os.environ, "HALEAN_CASES": str(tmp)}, capture_output=True, text=True)
-        res = parse(p.stdout)
-        for i, c in enumerate(cands):
-            d = res.get(f"c{i:04d}")
-            if d is None or isinstance(d, str):
-                continue
-            try:
-                sig, _ = signature(c, d)
-            except Exception:  # noqa: BLE001
-                continue
-            if sig.startswith(prefix):
-                return c
-        return None
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+    """The first candidate that still fails with a wanted signature. pytest
+    stops at the first failure (--maxfail=1); a failure with another
+    signature is skipped and the rest is run again."""
+    start = 0
+    while start < len(cands):
+        tmp = Path(tempfile.mkdtemp(prefix="min-", dir=os.environ.get("MIN_TMP")))
+        try:
+            for i in range(start, len(cands)):
+                (tmp / f"c{i:04d}.yaml").write_text(yaml.safe_dump(cands[i], sort_keys=False, width=200))
+            p = subprocess.run(
+                ["/opt/havenv/bin/python", "-m", "pytest", str(HERE.parent / "harness" / "test_scripts.py"),
+                 "-p", "no:cacheprovider", "-q", "--tb=short", "--maxfail=1"],
+                env={**os.environ, "HALEAN_CASES": str(tmp)}, capture_output=True, text=True)
+            res = parse(p.stdout)
+            if not res:
+                return None
+            name = sorted(res)[0]
+            i = int(name[1:])
+            d = res[name]
+            if not isinstance(d, str):
+                try:
+                    sig, _ = signature(cands[i], d)
+                except Exception:  # noqa: BLE001
+                    sig = ""
+                if sig.startswith(prefix):
+                    return cands[i]
+            start = i + 1
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    return None
 
 
 def main() -> None:

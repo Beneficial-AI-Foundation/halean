@@ -1,0 +1,23 @@
+diff --git a/HALean/Helpers/Component.lean b/HALean/Helpers/Component.lean
+index 1ef014e..e0a706d 100644
+--- a/HALean/Helpers/Component.lean
++++ b/HALean/Helpers/Component.lean
+@@ -152,7 +152,17 @@ def Helpers.setup (h : Helpers) (domain : String) (cfg : Value)
+       (cs.map fun (c, _) => .ok (.inputSelect (InputSelect.Entity.create c (last s!"input_select.{c.id}"))),
+        cs.filterMap fun (_, w) => w.map (.log "warning"))
+     | "input_text" => (InputText.decodeConfig cfg).map fun cs =>
+-      (cs.map fun c => .ok (.inputText (InputText.Entity.create c (last s!"input_text.{c.id}"))), [])
++      (cs.map fun c =>
++        let e := InputText.Entity.create c (last s!"input_text.{c.id}")
++        -- an initial or restored value is matched like a `set_value` one: the
++        -- same refusal as `unsupportedArgs`
++        let nonAscii := match e.value with | some v => !(v.toList.all (·.toNat < 128)) | none => false
++        match c.pattern with
++        | some (p, _) =>
++          if nonAscii && Pattern.usesClassEscape p then
++            .error s!"input_text.{c.id}: matching non-ASCII text against \\d, \\w or \\s is not modelled"
++          else .ok (.inputText e)
++        | none => .ok (.inputText e), [])
+     | "counter" => (Counter.decodeConfig cfg).map fun cs =>
+       (cs.map fun c => match Counter.Entity.create c (last s!"counter.{c.id}") with
+         | some e => .ok (.counter e)

@@ -1,0 +1,9 @@
+# harness note: a call with response_variable answered without a response. HA's ServiceRegistry
+# raises ("expected a dictionary"); the engine leaves that check to HA and continues
+automations:
+  - alias: respnone
+    triggers: [{trigger: event, event_type: e}]
+    actions: [{action: test.get, response_variable: r}, {event: m_after}]
+steps:
+  - {at: 1, send: {type: event, event_type: e}}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: true}}

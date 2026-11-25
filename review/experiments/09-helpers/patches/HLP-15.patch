@@ -1,0 +1,13 @@
+diff --git a/HALean/Helpers/InputSelect.lean b/HALean/Helpers/InputSelect.lean
+index d0fa4c8..1cf27a7 100644
+--- a/HALean/Helpers/InputSelect.lean
++++ b/HALean/Helpers/InputSelect.lean
+@@ -56,7 +56,7 @@ def decode (id : String) (v : Value) : Except VErr (Config × Option String) :=
+   let name := lkStr kvs "name"
+   let uniq := dedup options
+   let warn := if uniq.length != options.length then
+-      some s!"Input select '{name.getD "<unnamed>"}' with options {(pyRepr (.list (options.map .str))).toOption.getD "?"} had duplicated options, the duplicates have been removed"
++      some s!"Input select '{match name with | some n => if n.isEmpty then "<unnamed>" else n | none => "<unnamed>"}' with options {(pyRepr (.list (options.map .str))).toOption.getD "?"} had duplicated options, the duplicates have been removed"
+     else none
+   return ({ id, name, options := uniq, initial, icon := lkStr kvs "icon" }, warn)
+ 

@@ -127,8 +127,6 @@
     - call: input_number.set_value
       data: {entity_id: input_number.a, value: "1_0"}
     - call: input_number.set_value
-      data: {entity_id: input_number.a, value: "٣"}
-    - call: input_number.set_value
       data: {entity_id: input_number.a, value: -5}
     - call: input_number.set_value
       data: {entity_id: input_number.a, value: 123456789012345678901234567890}
@@ -255,3 +253,9 @@
         - [input_number.a, "\x0c5\x0b", {}]
         - [input_number.b, "5\x1c", {}]
         - [input_number.c, "\t6\r\n", {}]
+- name: hw_in_set_value_arabic_digit_refused
+  steps:
+    - setup: {input_number: {a: {min: 0, max: 5}}}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: "٣"}
+      unsupported: true

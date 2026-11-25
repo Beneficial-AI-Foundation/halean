@@ -207,6 +207,7 @@
 - name: hw_t_too_huge_duration_config
   steps:
     - setup: {timer: {t: {duration: {days: 1000000000}}}}
+      unsupported: true
 - name: hw_t_restore_idle_attrs
   steps:
     - setup: {timer: {a: {restore: true, duration: 5}, b: {restore: true}, c: {restore: true}}}
@@ -242,16 +243,19 @@
       data: {entity_id: timer.t, duration: "1:2:3:4"}
     - call: timer.start
       data: {entity_id: timer.t, duration: {days: 1000000000}}
+      unsupported: true
 - name: hw_t_start_nan
   steps:
     - setup: {timer: {t: {duration: 5}}}
     - call: timer.start
       data: {entity_id: timer.t, duration: "nan"}
+      unsupported: true
 - name: hw_t_start_big_float
   steps:
     - setup: {timer: {t: {duration: 5}}}
     - call: timer.start
       data: {entity_id: timer.t, duration: 1e300}
+      unsupported: true
 - name: hw_t_rounding_microseconds
   steps:
     - setup: {timer: {t: {duration: 5}}}
@@ -264,3 +268,20 @@
     - call: timer.start
       data: {entity_id: timer.t, duration: 2.675}
     - advance: 5
+- name: hw_t_far_future_then_cancel
+  # the OverflowError leaves the entity object "active" (no write): cancel then fires an event
+  steps:
+    - setup: {timer: {t: {duration: {days: 3000000}}}}
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - call: timer.pause
+      data: {entity_id: timer.t}
+    - call: timer.cancel
+      data: {entity_id: timer.t}
+- name: hw_t_far_past_start
+  steps:
+    - setup: {timer: {t: {duration: 5}}}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: {days: -800000}}
+    - call: timer.finish
+      data: {entity_id: timer.t}

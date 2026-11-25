@@ -198,3 +198,9 @@
     - {op: fire, event_type: x, data: {s: "é😀\n\0", n: null, i: -5, f: 2.5, b: false, l: [1, [2, {z: null}]], d: {y: {x: []}}, "": "", " k ": 1}}
     - {op: fire, event_type: x, data: {event_type: other, origin: REMOTE, time_fired: 0, data: {data: 1}}}
     - {op: fire, event_type: x, data: {big: 123456789012345678901234567890, small: 1.0e-7, neg: -0.5}}
+
+# A lone surrogate is a valid Python str character.
+- name: event_type_lone_surrogates
+  ops:
+    - {op: listen, id: hi, event_type: "\ud800"}
+    - {op: fire, event_type: "\udfff", expect: {deliveries: []}}

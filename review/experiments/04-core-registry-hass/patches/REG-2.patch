@@ -1,0 +1,15 @@
+diff --git a/Exe/CoreServices.lean b/Exe/CoreServices.lean
+index e10ae31..51485cf 100644
+--- a/Exe/CoreServices.lean
++++ b/Exe/CoreServices.lean
+@@ -81,7 +81,9 @@ def step (r : Registry) (msg : Value) : Except String (Registry × Json) := do
+       data := ← getDict? msg "data", target := ← getDict? msg "target",
+       blocking := ← getBool msg "blocking" false,
+       returnResponse := ← getBool msg "return_response" false,
+-      context := ← decodeContext (msg.get? "context") }
++      -- `Context.__init__`: `self.id = id or ulid_now()`, so an empty id is a fresh one
++      context := (← decodeContext (msg.get? "context")).map fun c =>
++        if c.id.isEmpty then { c with id := Registry.freshContext.id } else c }
+     if let some why := r.unsupportedCall? args then throw why
+     let out := r.asyncCall args now
+     return (r, reply (out.result.map fun v => .str (reprOr v)) out.events out.logs)

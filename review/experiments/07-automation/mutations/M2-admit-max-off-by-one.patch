@@ -1,0 +1,13 @@
+diff --git a/HALean/Automation/Engine.lean b/HALean/Automation/Engine.lean
+index 82637a7..1fa2f19 100644
+--- a/HALean/Automation/Engine.lean
++++ b/HALean/Automation/Engine.lean
+@@ -494,7 +494,7 @@ inductive Admit where
+ def admit (mode : Mode) (maxRuns existing : Nat) : Admit :=
+   if existing = 0 then .start
+   else if mode = .single then .reject "Already running"
+-  else if mode ≠ .restart ∧ existing = maxRuns then .reject "Maximum number of runs exceeded"
++  else if mode ≠ .restart ∧ existing > maxRuns then .reject "Maximum number of runs exceeded"
+   else match mode with
+     | .queued => .enqueue
+     | .restart => .restart

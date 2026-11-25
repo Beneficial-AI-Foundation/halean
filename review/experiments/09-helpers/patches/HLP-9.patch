@@ -1,0 +1,15 @@
+diff --git a/HALean/Helpers/Pattern.lean b/HALean/Helpers/Pattern.lean
+index 853096a..37df508 100644
+--- a/HALean/Helpers/Pattern.lean
++++ b/HALean/Helpers/Pattern.lean
+@@ -19,7 +19,9 @@ namespace HALean.Helpers.Pattern
+ open HALean.Template
+ 
+ def isWordChar (c : Char) : Bool := c.isAlphanum || c == '_'
+-def isSpaceChar (c : Char) : Bool := c == ' ' || c == '\t' || c == '\n' || c == '\r' || c.toNat == 11 || c.toNat == 12
++def isSpaceChar (c : Char) : Bool := c == ' ' || c == '\t' || c == '\n' || c == '\r' || c.toNat == 11 || c.toNat == 12 ||
++  -- `str.isspace()` is also true for the separators U+001C..U+001F
++  (28 ≤ c.toNat && c.toNat ≤ 31)
+ 
+ /-- The predicate of `\d \D \w \W \s \S`. -/
+ def classEscape? : Char → Option (Char → Bool)

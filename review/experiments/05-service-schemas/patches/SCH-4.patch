@@ -1,0 +1,13 @@
+diff --git a/HALean/Core/ConfigValidation.lean b/HALean/Core/ConfigValidation.lean
+index acf6959..a0ad3bb 100644
+--- a/HALean/Core/ConfigValidation.lean
++++ b/HALean/Core/ConfigValidation.lean
+@@ -60,6 +60,8 @@ def pyIter (v : Value) : Except VErr (List Value) :=
+   match v with
+   | .list xs => pure xs
+   | .dict kvs => pure (kvs.map (·.1))
++  -- the message prints `tp_name`, which is qualified for `datetime.timedelta`
++  | .timedelta _ => throw (.raise "TypeError" "'datetime.timedelta' object is not iterable")
+   | v => throw (.raise "TypeError" s!"'{typeName v}' object is not iterable")
+ 
+ /-- `cv.entity_ids` (`_entity_ids(value, allow_uuid=False)`): a string is split

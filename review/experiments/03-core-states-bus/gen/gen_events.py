@@ -68,8 +68,11 @@ class Gen:
             spec["run_immediately"] = rng.choice([True, False, None])
         if depth > 0 and rng.random() < 0.6:
             spec["react"] = [self.reaction(depth - 1) for _ in range(rng.randint(1, 3))]
-            if rng.random() < 0.8:
-                spec["react_times"] = rng.choice([0, 1, 1, 1, 2, 2, 3])
+            adds = any("listen" in r or "listen_once" in r for r in spec["react"])
+            # a listener that adds listeners on every receipt of a looping event would grow the
+            # table without bound (10,000 queued events each adding listeners): cap its reactions
+            if adds or rng.random() < 0.8:
+                spec["react_times"] = rng.choice([1, 1, 2] if adds else [0, 1, 1, 1, 2, 2, 3])
         return spec
 
     def reaction(self, depth: int) -> dict:

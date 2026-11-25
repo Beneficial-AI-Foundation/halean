@@ -8,9 +8,9 @@ N=$1; SA=$2; SB=$3; SW=$4
 HERE=$(cd "$(dirname "$0")" && pwd)
 PY=/opt/havenv/bin/python
 cd "$HERE/harness"
-run() {  # run <label> <case dir>
+run() {  # run <label> <case dir> [pytest option]
   rm -f "$HERE/logs/run$N-$1.jsonl"
-  SCH_CASES="$2" SCH_RECORD="$HERE/logs/run$N-$1.jsonl" $PY -m pytest test_services.py -p no:cacheprovider -q -rf \
+  SCH_CASES="$2" SCH_RECORD="$HERE/logs/run$N-$1.jsonl" $PY -m pytest test_services.py -p no:cacheprovider -q -rf ${3:-} \
     > "$HERE/logs/run$N-$1.log" 2>&1
   echo "run$N-$1: $(tail -1 "$HERE/logs/run$N-$1.log")"
   touch "$HERE/logs/run$N-$1.jsonl"
@@ -25,9 +25,10 @@ OUT="$HERE/gen/out/run$N"; rm -rf "$OUT"; mkdir -p "$OUT/a" "$OUT/b" "$OUT/warm"
 $PY "$HERE/gen/gen_random.py" --seed $SA --schemas 1000 --data 12 --out "$OUT/a/seed-$SA.yaml" | tee "$HERE/logs/run$N-gen.log"
 $PY "$HERE/gen/gen_random.py" --seed $SB --schemas 1000 --data 12 --out "$OUT/b/seed-$SB.yaml" | tee -a "$HERE/logs/run$N-gen.log"
 $PY "$HERE/gen/gen_random.py" --seed $SW --schemas 60 --data 70 --out "$OUT/warm/seed-$SW.yaml" | tee -a "$HERE/logs/run$N-gen.log"
-run random-a "$OUT/a"
-run random-b "$OUT/b"
-run random-warm "$OUT/warm"
+# --tb=line: the two answers of every differing operation are in the .jsonl
+run random-a "$OUT/a" --tb=line
+run random-b "$OUT/b" --tb=line
+run random-warm "$OUT/warm" --tb=line
 $PY "$HERE/gen/classify.py" "$HERE"/logs/run$N-hand.jsonl "$HERE"/logs/run$N-crash-sch1.jsonl "$HERE"/logs/run$N-crash-sch1b.jsonl \
   "$HERE"/logs/run$N-random-a.jsonl "$HERE"/logs/run$N-random-b.jsonl "$HERE"/logs/run$N-random-warm.jsonl \
   > "$HERE/logs/run$N-classify.log" 2>&1

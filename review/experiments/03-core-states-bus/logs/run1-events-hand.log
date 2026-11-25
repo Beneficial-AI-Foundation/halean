@@ -1,0 +1,39 @@
+.........................F.........F........F                            [100%]
+=================================== FAILURES ===================================
+__________ test_events[system_listener_event_then_generated_context] ___________
+test_events.py:242: in test_events
+    pytest.fail(f"op {i} {op['op']}: {key} differ\nHA:     {hk}\nHALean: {lk}")
+E   Failed: op 2 fire: deliveries differ
+E   HA:     (0, {'listener': 'a', 'event': {'event_type': 'x', 'data': {}, 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00', 'context': {'id': 'ulid@1795710645123#0', 'parent_id': None, 'user_id': None}}})
+E   HALean: (0, {'event': {'context': {'id': 'ulid@1795710645123#1', 'parent_id': None, 'user_id': None}, 'data': {}, 'event_type': 'x', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}, 'listener': 'a'})
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-206' coro=<test_events() running at /home/user/halean/review/experiments/03-core-states-bus/harness/test_events.py:230> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89465.768 seconds
+DEBUG:homeassistant.core:Bus:Handling <Event x[L]>
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-206' coro=<test_events() running at /home/user/halean/review/experiments/03-core-states-bus/harness/test_events.py:230> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89465.768 seconds
+DEBUG    homeassistant.core:core.py:1607 Bus:Handling <Event x[L]>
+___________________ test_events[filter_eq_float_1e23_vs_int] ___________________
+test_events.py:242: in test_events
+    pytest.fail(f"op {i} {op['op']}: {key} differ\nHA:     {hk}\nHALean: {lk}")
+E   Failed: op 1 fire: deliveries differ
+E   HA:     (0, [])
+E   HALean: (1, [{'event': {'context': {'id': 'ulid@1795710645123#0', 'parent_id': None, 'user_id': None}, 'data': {'k': 100000000000000000000000}, 'event_type': 'x', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}, 'listener': 'f23'}])
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-286' coro=<test_events() running at /home/user/halean/review/experiments/03-core-states-bus/harness/test_events.py:230> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89462.954 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-286' coro=<test_events() running at /home/user/halean/review/experiments/03-core-states-bus/harness/test_events.py:230> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89462.954 seconds
+___________________ test_events[event_type_lone_surrogates] ____________________
+test_events.py:242: in test_events
+    pytest.fail(f"op {i} {op['op']}: {key} differ\nHA:     {hk}\nHALean: {lk}")
+E   Failed: op 1 fire: deliveries differ
+E   HA:     (0, [])
+E   HALean: (1, [{'event': {'context': {'id': 'ulid@1795710645123#0', 'parent_id': None, 'user_id': None}, 'data': {}, 'event_type': '�', 'origin': 'LOCAL', 'time_fired': '2026-11-26T16:30:45.123456+00:00'}, 'listener': 'hi'}])
+----------------------------- Captured stderr call -----------------------------
+WARNING:asyncio:Executing <Task pending name='Task-358' coro=<test_events() running at /home/user/halean/review/experiments/03-core-states-bus/harness/test_events.py:230> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89460.472 seconds
+------------------------------ Captured log call -------------------------------
+WARNING  asyncio:base_events.py:2051 Executing <Task pending name='Task-358' coro=<test_events() running at /home/user/halean/review/experiments/03-core-states-bus/harness/test_events.py:230> cb=[_run_until_complete_cb() at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py:181] created at /root/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py:110> took 89460.472 seconds
+=========================== short test summary info ============================
+FAILED test_events.py::test_events[system_listener_event_then_generated_context]
+FAILED test_events.py::test_events[filter_eq_float_1e23_vs_int] - Failed: op ...
+FAILED test_events.py::test_events[event_type_lone_surrogates] - Failed: op 1...
+3 failed, 42 passed in 20.28s

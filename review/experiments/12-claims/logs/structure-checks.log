@@ -1,12 +1,5 @@
 ## lean files without a built .olean (library coverage of 'lake build')
   97 lean files under HALean/, 0 without olean
-## sorry / axiom / admit in HALean
-HALean/Automation/EngineSpec2.lean:140:admission (`admit`). -/
-HALean/Automation/EngineSpec3.lean:128:    (hr : admit a.mode a.maxRuns (runsOf e ai).length = .reject why) :
-HALean/Automation/EngineSpec3.lean:146:    (hr : admit a.mode a.maxRuns (runsOf e ai).length = .enqueue) :
-HALean/Automation/EngineSpec3.lean:168:    (hr : admit a.mode a.maxRuns (runsOf e ai).length = .start) :
-HALean/Automation/EngineSpec3.lean:191:    (hr : admit a.mode a.maxRuns (runsOf e ai).length = .restart) :
-  (end)
 ## LICENSE / NOTICE / LICENSES
 Apache License
 Version 2.0, January 2004
@@ -61,14 +54,9 @@ Upstream works, their licenses and where the license texts are:
 182:- python: helpers/script.py::Script.async_run
 ## astral pin: HA requirement vs README:76 'astral==2.2'
 14:astral==2.2
-installed astral 2.2
-## HA websocket commands (README:502, 720, 732)
-
-/opt/havenv/lib/python3.14/site-packages/homeassistant/components/mqtt/__init__.py:631:        probatio.Required("type"): "mqtt/subscribe",
-/opt/havenv/lib/python3.14/site-packages/homeassistant/components/webhook/__init__.py:277:        probatio.Required("type"): "webhook/handle",
 ## Engine references to Helpers (README:566 not connected)
-HALean/Automation/EngineBound.lean
-## theorems about queued order / restart newest (README:781 lists them as left)
+HALean/Automation/EngineBound.lean:201:/-! ## Helpers that never touch runs -/
+## theorems whose names contain queued/restart/fifo/arrival (README:781 lists the run-order properties as left)
 HALean/Automation/EngineSpec3.lean:184:theorem triggerAutomation_restart (ai : Nat) (tv : TriggerVars) (e : Engine) (acc : List Cmd)
 HALean/Automation/EngineBound.lean:357:theorem admit_restart {a : Automation} {n : Nat} (h : (admit a.mode a.maxRuns n == .restart) = true) 
 HALean/Automation/Proofs.lean:64:theorem restart_never_rejects (m n : Nat) (why : String) :
@@ -79,5 +67,20 @@ HALean/Core/HassSchedProofs.lean:338:theorem runHandle_fifo (n now : Nat) (h : H
 HALean/Core/HassSchedProofs.lean:348:theorem resume_main_fifo (n now : Nat) (h : Hass) (rest : List Handle) :
 ## util/color in manifest (README:776 lists it as left)
 0
-## scenario generator in repo (README:790 lists it as a next step)
+## scenario generator among tracked files outside review/ (README:790 lists it as a next step)
   none
+## numeric limits in the Lean sources
+182:def REPEAT_TERMINATE_ITERATIONS : Nat := 10000
+466:def STEP_FUEL : Nat := 1000000
+927:opaque ENGINE_FUEL : Nat := 10000
+1029:opaque LOOP_FUEL : Nat := 100000
+1586:def TIME_CHANGE_MICROSECOND : Int := 500000
+1761:  let start := max (e.lastSec + 1) (if target > 86400 then target - 86400 else 0)
+241:def MAX_CALL_DEPTH : Nat := 32
+247:def LOOP_FUEL : Nat := 100000
+31:def MAX_LENGTH_EVENT_EVENT_TYPE : Nat := 64
+38:def MAX_QUEUED_EVENT_DISPATCHES : Nat := 10000
+263:/-- Python's `int(str)`: `parseIntStr`, and CPython's limit of 4300 digits
+267:  if (s.toList.filter Char.isDigit).length > 4300 then none
+439:  if reprs.length > 40 then
+33:partial def Validator.run (extra : Extra) : Validator → Value → VResult

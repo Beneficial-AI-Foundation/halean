@@ -1,0 +1,67 @@
+diff --git a/Exe/CoreEvents.lean b/Exe/CoreEvents.lean
+index b0f7514..8d7dcc2 100644
+--- a/Exe/CoreEvents.lean
++++ b/Exe/CoreEvents.lean
+@@ -142,31 +142,51 @@ def resultJson : Result → Json
+   | .listeners cs => Json.mkObj [("listeners", Json.arr (cs.map fun (et, n) =>
+       Json.arr #[.str et, (n : Json)]).toArray)]
+ 
+-/-- Handle one line; returns the new bus and the output line. -/
+-def handleLine (b : Bus) (line : String) : Bus × Json :=
++/-- The differential test numbers HA's generated contexts in the order they first appear in a
++delivery. The model numbers them as `Event.__init__` makes them, which also counts events that
++only reached opaque (`init`) listeners. Renumber a generated id (`ulid@<ms>#<n>`) by first
++appearance; `seen` holds the model ids seen so far. -/
++def renameGenerated (seen : List String) (id : String) : List String × String :=
++  if !id.startsWith "ulid@" then (seen, id) else
++  let (seen, idx) := match seen.findIdx? (· == id) with
++    | some i => (seen, i)
++    | none => (seen ++ [id], seen.length)
++  (seen, (id.splitOn "#").headD id ++ "#" ++ toString idx)
++
++def deliveriesJson (seen : List String) : List Delivery → List String × List Json
++  | [] => (seen, [])
++  | d :: ds =>
++    let (seen, id) := renameGenerated seen d.event.context.id
++    let ev := { d.event with context := { d.event.context with id } }
++    let (seen, rest) := deliveriesJson seen ds
++    (seen, Json.mkObj [("listener", .str d.listener), ("event", ev.asDict)] :: rest)
++
++/-- Handle one line; returns the new bus, the generated ids seen and the output line. -/
++def handleLine (b : Bus) (seen : List String) (line : String) : Bus × List String × Json :=
+   match Json.parse line >>= decodeOp with
+-  | .error e => (b, Json.mkObj [("unsupported", e)])
++  | .error e => (b, seen, Json.mkObj [("unsupported", e)])
+   | .ok (now, op) =>
+     let (b', res) := step now b op
+     let newDeliv := (b'.deliveries.take (b'.deliveries.length - b.deliveries.length)).reverse
+     let newLogs := (b'.logs.take (b'.logs.length - b.logs.length)).reverse
+-    (b', Json.mkObj [
++    let (seen, deliv) := deliveriesJson seen newDeliv
++    (b', seen, Json.mkObj [
+       ("result", resultJson res),
+-      ("deliveries", Json.arr (newDeliv.map fun d =>
+-        Json.mkObj [("listener", .str d.listener), ("event", d.event.asDict)]).toArray),
++      ("deliveries", Json.arr deliv.toArray),
+       ("logs", Json.arr (newLogs.map fun l => Json.str (logStr l)).toArray)])
+ 
+-partial def loop (stdin : IO.FS.Stream) (stdout : IO.FS.Stream) (b : Bus) : IO Unit := do
++partial def loop (stdin : IO.FS.Stream) (stdout : IO.FS.Stream) (b : Bus) (seen : List String) :
++    IO Unit := do
+   let line ← stdin.getLine
+   if line.isEmpty then return
+   let line := line.trimAscii.toString
+-  if line.isEmpty then loop stdin stdout b else
+-  let (b', out) := handleLine b line
++  if line.isEmpty then loop stdin stdout b seen else
++  let (b', seen', out) := handleLine b seen line
+   stdout.putStrLn out.compress
+   stdout.flush
+-  loop stdin stdout b'
++  loop stdin stdout b' seen'
+ 
+ end Exe.CoreEvents
+ 
+ def main : IO Unit := do
+-  Exe.CoreEvents.loop (← IO.getStdin) (← IO.getStdout) Bus.new
++  Exe.CoreEvents.loop (← IO.getStdin) (← IO.getStdout) Bus.new []

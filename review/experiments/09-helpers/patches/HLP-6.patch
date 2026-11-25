@@ -1,0 +1,19 @@
+diff --git a/HALean/Helpers/Pattern.lean b/HALean/Helpers/Pattern.lean
+index 853096a..2dfbc7d 100644
+--- a/HALean/Helpers/Pattern.lean
++++ b/HALean/Helpers/Pattern.lean
+@@ -171,6 +171,14 @@ partial def atom : P Rx := do
+   | '*' | '+' | '?' => throw "nothing to repeat"
+   | '^' => throw "'^' is supported only at the start of the pattern"
+   | ')' => throw "unbalanced parenthesis"
++  | '{' =>
++    -- sre_parse: `{` is in REPEAT_CHARS; `{m}`, `{m,}`, `{,n}`, `{m,n}` where an
++    -- atom is expected is "nothing to repeat"; any other `{` is a literal
++    let t ← get
++    let ds := t.dropWhile Char.isDigit
++    let ds := match ds with | ',' :: u => u.dropWhile Char.isDigit | u => u
++    if t.head? != some '}' && ds.head? == some '}' then throw "nothing to repeat"
++    return .cls (· == '{')
+   | c => return .cls (· == c)
+ end
+ 

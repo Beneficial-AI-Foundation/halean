@@ -1,0 +1,32 @@
+diff --git a/HALean/Core/ServicesJson.lean b/HALean/Core/ServicesJson.lean
+index c9a5294..3a84237 100644
+--- a/HALean/Core/ServicesJson.lean
++++ b/HALean/Core/ServicesJson.lean
+@@ -42,15 +42,18 @@ def getOptStr (v : Value) (k : String) : Except String (Option String) :=
+ 
+ def decodeHandler : Option Value → Except String HandlerSpec
+   | some h =>
+-    if let some v := h.get? "return" then .ok (.ret v)
+-    else if (match h.get? "echo" with | some (.bool true) => true | _ => false) then .ok .echo
+-    else match h.get? "raise" with
+-      | some (.str exc) =>
+-        if handlerExceptions.contains exc then do
+-          let msg := match h.get? "message" with | some (.str m) => m | _ => ""
+-          .ok (.raise exc msg)
+-        else .error s!"handler exception {exc} is not modelled"
+-      | _ => .error "handler must be {\"return\": ...}, {\"echo\": true} or {\"raise\": ...}"
++    -- the harnesses read a spec with several of the keys as raise, then echo, then return
++    match h.get? "raise" with
++    | some (.str exc) =>
++      if handlerExceptions.contains exc then do
++        let msg := match h.get? "message" with | some (.str m) => m | _ => ""
++        .ok (.raise exc msg)
++      else .error s!"handler exception {exc} is not modelled"
++    | some _ => .error "handler 'raise' must be an exception name"
++    | none =>
++      if (match h.get? "echo" with | some (.bool true) => true | _ => false) then .ok .echo
++      else if let some v := h.get? "return" then .ok (.ret v)
++      else .error "handler must be {\"return\": ...}, {\"echo\": true} or {\"raise\": ...}"
+   | none => .error "missing 'handler'"
+ 
+ /-! ## Schemas

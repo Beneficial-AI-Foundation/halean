@@ -1,0 +1,14 @@
+--- a/Exe/CoreStates.lean	2026-11-25 15:36:36.702568391 +0000
++++ b/Exe/CoreStates.lean	2026-11-25 15:36:36.800161395 +0000
+@@ -108,7 +108,10 @@
+   | "set" | "set_internal" =>
+     let eid ← getStr j "entity_id"
+     let attrs ← getAttributes j
+-    let force := match j.getObjVal? "force_update" with | .ok (.bool b) => b | _ => false
++    -- `force_update` is used as a truth value upstream (`not force_update`)
++    let force := match j.getObjVal? "force_update" with
++      | .ok v => HALean.Template.truthy (HALean.Template.Value.ofJson v)
++      | .error _ => false
+     let ctx ← getContext j
+     let now ← getNow j
+     if op == "set" then

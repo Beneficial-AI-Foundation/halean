@@ -1,0 +1,17 @@
+diff --git a/HALean/Helpers/Pattern.lean b/HALean/Helpers/Pattern.lean
+index 853096a..3cc8767 100644
+--- a/HALean/Helpers/Pattern.lean
++++ b/HALean/Helpers/Pattern.lean
+@@ -55,7 +55,11 @@ def classAtom : P (Char → Bool) := do
+   let lo ← if c == '\\' then do
+       let e ← next
+       match classEscape? e with
+-      | some p => return p
++      | some p =>
++        -- sre_parse: a class escape cannot start a range (`[\\d-z]`)
++        match ← get with
++        | '-' :: d :: _ => if d != ']' then throw "bad character range" else return p
++        | _ => return p
+       | none => match literalEscape? e with
+         | some l => pure l
+         | none => throw s!"unsupported escape \\{e}"

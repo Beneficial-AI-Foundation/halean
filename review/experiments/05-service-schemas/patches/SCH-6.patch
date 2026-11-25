@@ -1,0 +1,13 @@
+diff --git a/HALean/Core/ServicesJson.lean b/HALean/Core/ServicesJson.lean
+index c9a5294..e25dbdc 100644
+--- a/HALean/Core/ServicesJson.lean
++++ b/HALean/Core/ServicesJson.lean
+@@ -198,6 +198,8 @@ partial def decodeValidator (v : Value) : Except String Validator := do
+   | "port" => pure .port
+   | "at_least_one" => do
+     let .list ks := arg | throw "at_least_one needs a list of keys"
++    -- `AtLeastOne()` raises `SchemaError("needs at least one key")`
++    if ks.isEmpty then throw "at_least_one needs at least one key"
+     specText arg
+     pure (.atLeastOne (← ks.mapM fun k => match k with
+       | .str s => pure s

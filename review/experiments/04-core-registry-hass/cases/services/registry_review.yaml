@@ -373,3 +373,20 @@
     - {op: register, domain: test_a, service: echo, handler: {echo: true}, supports_response: optional, schema: {fields: [], extra: remove}}
     - {op: call, domain: test_a, service: bad, data: {a: 1}, context: {id: c1}}
     - {op: call, domain: test_a, service: echo, blocking: true, return_response: true, data: {a: 1}, target: {b: 2}}
+
+- name: s_handler_spec_with_raise_and_return
+  # the spec format says one of return / echo / raise; both harness and driver accept more than one
+  ops:
+    - {op: register, domain: test_a, service: both, handler: {raise: ValueError, message: v, return: {a: 1}}, supports_response: optional}
+    - {op: call, domain: test_a, service: both, blocking: true, return_response: true}
+
+- name: s_handler_spec_with_echo_and_return
+  ops:
+    - {op: register, domain: test_a, service: both, handler: {echo: true, return: {a: 1}}, supports_response: optional}
+    - {op: call, domain: test_a, service: both, blocking: true, return_response: true}
+
+- name: s_repr_log_after_schema_coercion
+  ops:
+    - {op: register, domain: test_a, service: bad, handler: {raise: ValueError, message: v}, schema: {fields: [{key: n, value: {coerce: int}}, {key: s, value: {coerce: str}}, {key: d, type: int, default: 4}]}}
+    - {op: call, domain: test_a, service: bad, data: {s: 1.5, n: "12"}, context: {id: c1}}
+    - {op: call, domain: test_a, service: bad, context: {id: c2}}

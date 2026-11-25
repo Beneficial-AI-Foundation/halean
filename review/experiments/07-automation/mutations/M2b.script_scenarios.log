@@ -1,0 +1,29 @@
+PASS  automations
+PASS  call_response
+FAIL  modes
+  step 6 (at=4)
+    want: {"call_done": [[4, true, null]]}
+    got:  {"call_service": [["test", "many", {"n": 3}]], "fire_event": [["script_started", {"entity_id": "script.many", "name": "many"}]], "call_done": [], "states": {"script.again": ["off", {"last_triggered": null, "mode": "restart", "current": 0, "friendly_name": "again"}], "script.line": ["off", {"last_triggered": null, "mode": "queued", "current": 0, "max": 10, "friendly_name": "line"}], "script.many": ["on", {"last_triggered": "2023-11-14T22:13:24+00:00", "mode": "parallel", "current": 3, "max": 2, "friendly_name": "many"}], "script.one": ["off", {"last_triggered": "2023-11-14T22:13:21+00:00", "mode": "single", "current": 0, "friendly_name": "one"}]}}
+  step 11 (at=7)
+    want: {"call_service": [["test", "line", {"n": 2}]], "call_done": [[5, true, null]]}
+    got:  {"call_service": [], "fire_event": [], "call_done": [[4, true, null]], "states": {"script.again": ["off", {"last_triggered": null, "mode": "restart", "current": 0, "friendly_name": "again"}], "script.line": ["on", {"last_triggered": "2023-11-14T22:13:26+00:00", "mode": "queued", "current": 2, "max": 10, "friendly_name": "line"}], "script.many": ["off", {"last_triggered": "2023-11-14T22:13:24+00:00", "mode": "parallel", "current": 0, "max": 2, "friendly_name": "many"}], "script.one": ["off", {"last_triggered": "2023-11-14T22:13:21+00:00", "mode": "single", "current": 0, "friendly_name": "one"}]}}
+  step 16 (at=12)
+    want: {"call_done": [[8, true, null]], "call_service": [["test", "again", {"n": 3}]]}
+    got:  {"call_service": [["test", "again", {"n": 3}]], "fire_event": [["script_started", {"entity_id": "script.again", "name": "again"}]], "call_done": [[8, false, "cancelled"]], "states": {"script.again": ["on", {"last_triggered": "2023-11-14T22:13:32+00:00", "mode": "restart", "current": 1, "friendly_name": "again"}], "script.line": ["on", {"last_triggered": "2023-11-14T22:13:26+00:00", "mode": "queued", "current": 1, "max": 10, "friendly_name": "line"}], "script.many": ["off", {"last_triggered": "2023-11-14T22:13:24+00:00", "mode": "parallel", "current": 0, "max": 2, "friendly_name": "many"}], "script.one": ["off", {"last_triggered": "2023-11-14T22:13:21+00:00", "mode": "single", "current": 0, "friendly_name": "one"}]}}
+  step 18 (at=16)
+    want: {"call_service": [["test", "again_done", {"n": 3}]]}
+    got:  {"call_service": [], "fire_event": [], "call_done": [], "states": {"script.again": ["on", {"last_triggered": "2023-11-14T22:13:32+00:00", "mode": "restart", "current": 1, "friendly_name": "again"}], "script.line": ["on", {"last_triggered": "2023-11-14T22:13:26+00:00", "mode": "queued", "current": 1, "max": 10, "friendly_name": "line"}], "script.many": ["off", {"last_triggered": "2023-11-14T22:13:24+00:00", "mode": "parallel", "current": 0, "max": 2, "friendly_name": "many"}], "script.one": ["off", {"last_triggered": "2023-11-14T22:13:21+00:00", "mode": "single", "current": 0, "friendly_name": "one"}]}}
+  step 19 (at=17)
+    want: {"call_done": [[9, true, null]]}
+    got:  {"call_service": [], "fire_event": [], "call_done": [], "states": {"script.again": ["on", {"last_triggered": "2023-11-14T22:13:32+00:00", "mode": "restart", "current": 1, "friendly_name": "again"}], "script.line": ["on", {"last_triggered": "2023-11-14T22:13:26+00:00", "mode": "queued", "current": 1, "max": 10, "friendly_name": "line"}], "script.many": ["off", {"last_triggered": "2023-11-14T22:13:24+00:00", "mode": "parallel", "current": 0, "max": 2, "friendly_name": "many"}], "script.one": ["off", {"last_triggered": "2023-11-14T22:13:21+00:00", "mode": "single", "current": 0, "friendly_name": "one"}]}}
+PASS  nested_errors
+PASS  reload
+PASS  restart_reentry
+PASS  service_errors
+PASS  sub_scripts
+PASS  turn_on_off
+PASS  unsupported
+PASS  variables
+
+10/11 script scenarios passed
+exit=1

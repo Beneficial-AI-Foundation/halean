@@ -1,0 +1,20 @@
+diff --git a/HALean/Template/Value.lean b/HALean/Template/Value.lean
+index 2ef5b08..da9f80b 100644
+--- a/HALean/Template/Value.lean
++++ b/HALean/Template/Value.lean
+@@ -186,9 +186,13 @@ def parseFloatStr (s : String) : Option Float := do
+       some (if eneg then -(ed.toNat! : Int) else ed.toNat!)
+   let m := (ip ++ fp).toNat!
+   let exp : Int := e - fp.length
++  if m == 0 then return (if neg then -0.0 else 0.0)
++  -- `m * 10^exp` lies in `[10^(d-1+exp), 10^(d+exp))` for a `d`-digit `m`:
++  -- beyond the double range the answer is known without computing the power
++  let d : Int := (toString m).length
++  if d - 1 + exp ≥ 310 then return (if neg then -1.0 / 0.0 else 1.0 / 0.0)
++  if d + exp ≤ -400 then return (if neg then -0.0 else 0.0)
+   if exp ≥ 0 then return ratToFloat neg (m * 10 ^ exp.toNat) 1
+-  -- huge negative exponents underflow to zero anyway; cap the work
+-  if exp < -400 && m < 10 ^ 400 then return (if neg then -0.0 else 0.0)
+   return ratToFloat neg m (10 ^ (-exp).toNat)
+ 
+ /-- Python `int(s)` (base 10): whitespace, sign, underscores between digits.

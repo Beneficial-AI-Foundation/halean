@@ -1,0 +1,10 @@
+# harness note: a delay that ends in the second a time pattern fires. The engine ends the delay
+# first (so the single-mode automation is free); the harness fires HA's timers in heap order
+automations:
+  - alias: tick
+    triggers: [{trigger: event, event_type: e}, {trigger: time_pattern, seconds: 26}]
+    actions: [{event: m_run, event_data: {p: "{{ trigger.platform }}"}}, {delay: 1}]
+steps:
+  - {at: 5, send: {type: event, event_type: e}}
+  - {at: 6, send: {type: event, event_type: tick}}
+  - {at: 8, send: {type: event, event_type: tick}}

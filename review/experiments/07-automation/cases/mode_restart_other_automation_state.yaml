@@ -1,0 +1,15 @@
+# same with state triggers: `other` runs before the restarted run's first step
+automations:
+  - alias: rst
+    mode: restart
+    triggers: [{trigger: state, entity_id: sensor.a}]
+    actions: [{action: test.rst}, {delay: 10}]
+  - alias: other
+    triggers: [{trigger: state, entity_id: sensor.a}]
+    actions: [{action: test.other}]
+states: [{entity_id: sensor.a, state: "0"}]
+steps:
+  - {at: 1, set: [sensor.a, "1"]}
+  - {at: 2, send: {type: service_result, call_id: 0, ok: true}}
+  - {at: 3, send: {type: service_result, call_id: 1, ok: true}}
+  - {at: 4, set: [sensor.a, "2"]}

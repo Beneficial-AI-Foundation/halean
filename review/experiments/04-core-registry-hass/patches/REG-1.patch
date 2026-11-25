@@ -1,0 +1,26 @@
+diff --git a/HALean/Core/ServiceRegistry.lean b/HALean/Core/ServiceRegistry.lean
+index fef31fc..cab3a99 100644
+--- a/HALean/Core/ServiceRegistry.lean
++++ b/HALean/Core/ServiceRegistry.lean
+@@ -128,9 +128,19 @@ def exceptionTemplate : String → Option String
+     some "Failed to process the returned action response data, expected a dictionary, but got {response_data_type}."
+   | _ => none
+ 
+-/-- `str.format(**placeholders)` for templates whose fields are plain names. -/
++/-- `str.format(**placeholders)` for templates whose fields are plain names:
++one pass over the template, so a substituted value is never scanned again
++(a domain named `{service}` stays `{service}`). -/
+ def formatPlaceholders (tpl : String) (ph : List (String × String)) : String :=
+-  ph.foldl (fun acc (k, v) => acc.replace ("{" ++ k ++ "}") v) tpl
++  match tpl.splitOn "{" with
++  | [] => tpl
++  | first :: rest => rest.foldl (fun acc p =>
++      match p.splitOn "}" with
++      | name :: tail@(_ :: _) =>
++        match ph.lookup name with
++        | some v => acc ++ v ++ "}".intercalate tail
++        | none => acc ++ "{" ++ p
++      | _ => acc ++ "{" ++ p) first
+ 
+ /-- `str.rstrip(".")` -/
+ def rstripDots (s : String) : String :=

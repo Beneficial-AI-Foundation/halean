@@ -1,0 +1,20 @@
+diff --git a/HALean/Helpers/Pattern.lean b/HALean/Helpers/Pattern.lean
+index 853096a..c864ee5 100644
+--- a/HALean/Helpers/Pattern.lean
++++ b/HALean/Helpers/Pattern.lean
+@@ -119,6 +119,15 @@ partial def sequence : P Rx := do
+ 
+ partial def quantified : P Rx := do
+   let a ← atom
++  -- sre_parse: a repeat of an `AT` code (`$`) is "nothing to repeat"
++  if a matches .eol then
++    match ← get with
++    | '*' :: _ | '+' :: _ | '?' :: _ => throw "nothing to repeat"
++    | '{' :: t =>
++      let ds := t.dropWhile Char.isDigit
++      let ds := match ds with | ',' :: u => u.dropWhile Char.isDigit | u => u
++      if t.head? != some '}' && ds.head? == some '}' then throw "nothing to repeat"
++    | _ => pure ()
+   let r ← match ← peek with
+     | some '*' => discard next; pure (Rx.rep a 0 none)
+     | some '+' => discard next; pure (Rx.rep a 1 none)

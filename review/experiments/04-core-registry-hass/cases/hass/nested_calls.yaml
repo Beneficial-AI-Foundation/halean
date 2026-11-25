@@ -189,3 +189,9 @@
     - {op: register, domain: test, service: s10, handler: {do: [{call: {id: c10, domain: test, service: s11, blocking: true}}]}}
     - {op: listen, id: m, event_type: bottom}
     - {op: call, domain: test, service: s10, blocking: true}
+
+- name: h_handler_spec_with_raise_and_return
+  # the spec format says one of return / echo / raise; both harness and driver accept more than one
+  ops:
+    - {op: register, domain: test, service: both, handler: {raise: ValueError, message: v, return: {a: 1}}, supports_response: optional}
+    - {op: call, domain: test, service: both, blocking: true, return_response: true}

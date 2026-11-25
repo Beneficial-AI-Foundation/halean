@@ -1,0 +1,41 @@
+diff --git a/HALean/Helpers/Timer.lean b/HALean/Helpers/Timer.lean
+index c9ff43e..e662c86 100644
+--- a/HALean/Helpers/Timer.lean
++++ b/HALean/Helpers/Timer.lean
+@@ -77,7 +77,7 @@ structure Entity where
+   cfg : Config
+   state : Status := .idle
+   /-- `_last_transition` -/
+-  lastTransition : Option String := none
++  lastTransition : Option Value := none
+   /-- `_running_duration` (µs) -/
+   running : Int
+   /-- `_remaining` (µs) -/
+@@ -98,16 +98,14 @@ def Entity.create (cfg : Config) (last : Option (String × Attrs)) : Option Enti
+   match cfg.restore, last with
+   | true, some (st, attrs) =>
+     if st == "idle" then
+-      some { e with lastTransition := match attrs.lookup "last_transition" with
+-        | some (.str s) => some s
+-        | _ => none }
++      some { e with lastTransition := attrs.lookup "last_transition" }
+     else none
+   | _, _ => some e
+ 
+ /-- `extra_state_attributes`, then `icon` and `friendly_name`. -/
+ def Entity.attrs (e : Entity) : Attrs :=
+   [("duration", .str (formatTd e.running)), ("editable", .bool false),
+-   ("last_transition", match e.lastTransition with | some s => .str s | none => .none)] ++
++   ("last_transition", match e.lastTransition with | some v => v | none => .none)] ++
+   (match e.end_ with | some t => [("finishes_at", Value.str (isoformat t (some 0)))] | none => []) ++
+   (match e.remaining with | some r => [("remaining", Value.str (formatTd r))] | none => []) ++
+   (if e.cfg.restore then [("restore", .bool true)] else []) ++
+@@ -122,7 +120,7 @@ def write : HM Entity Unit := do
+ after `timer.`; the state is written, then the event fired. -/
+ def fireAndWrite (event : String) (extra : Attrs := []) : HM Entity Unit := do
+   let e ← getEnt
+-  setEnt { e with lastTransition := some ((event.drop 6).toString) }
++  setEnt { e with lastTransition := some (.str (event.drop 6).toString) }
+   write
+   emit (.fire event ([("entity_id", .str e.entityId)] ++ extra))
+ 
