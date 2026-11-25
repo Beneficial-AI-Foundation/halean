@@ -1,0 +1,107 @@
+# counter: config, increment / decrement / reset / set_value, bounds, step,
+# restore.
+- name: counter_services
+  steps:
+    - setup:
+        counter:
+          c:
+          d: {initial: 10, maximum: 5, minimum: 0, step: 2, name: Dee, icon: "mdi:counter"}
+          e: {initial: "-3", step: "3", minimum: null}
+    - call: counter.increment
+      data: {entity_id: counter.c}
+    - call: counter.increment
+      data: {entity_id: counter.c}
+    - call: counter.decrement
+      data: {entity_id: counter.c}
+    - call: counter.reset
+      data: {entity_id: counter.c}
+    - call: counter.reset
+      data: {entity_id: counter.d}
+    - call: counter.increment
+      data: {entity_id: counter.d}
+    - call: counter.decrement
+      data: {entity_id: counter.d}
+    - call: counter.decrement
+      data: {entity_id: counter.d}
+    - call: counter.decrement
+      data: {entity_id: counter.d}
+    - call: counter.decrement
+      data: {entity_id: counter.d}
+    - call: counter.set_value
+      data: {entity_id: counter.d, value: 3}
+    - call: counter.set_value
+      data: {entity_id: counter.d, value: 6}
+    - call: counter.set_value
+      data: {entity_id: counter.d, value: -2}
+    - call: counter.set_value
+      data: {entity_id: counter.d, value: 4}
+    - call: counter.set_value
+      data: {entity_id: counter.d, value: "2"}
+    - call: counter.set_value
+      data: {entity_id: counter.d, value: 2.7}
+    - call: counter.set_value
+      data: {entity_id: counter.d, value: two}
+    - call: counter.set_value
+      data: {entity_id: counter.e, value: -9}
+    - call: counter.set_value
+      data: {entity_id: counter.e, value: -10}
+    - call: counter.decrement
+      data: {entity_id: [counter.c, counter.e]}
+    - call: counter.increment
+      data: {entity_id: all}
+    - call: counter.reload
+      data: {}
+
+- name: counter_initial_outside_bounds
+  steps:
+    - setup:
+        counter:
+          a: {initial: 10, maximum: 5}
+          b: {initial: -1, minimum: 0, maximum: 3}
+          c: {minimum: 5, maximum: 1}
+    - call: counter.increment
+      data: {entity_id: counter.b}
+    - call: counter.increment
+      data: {entity_id: counter.c}
+    - call: counter.reset
+      data: {entity_id: counter.a}
+
+- name: counter_step_zero
+  steps:
+    - setup:
+        counter:
+          z: {step: 0}
+    - call: counter.increment
+      data: {entity_id: counter.z}
+    - call: counter.set_value
+      data: {entity_id: counter.z, value: 3}
+
+- name: counter_config_negative_step
+  steps:
+    - setup:
+        counter:
+          x: {step: -1}
+- name: counter_config_bad_initial
+  steps:
+    - setup:
+        counter:
+          x: {initial: 1.5}
+- name: counter_config_bad_restore
+  steps:
+    - setup:
+        counter:
+          x: {restore: perhaps}
+
+- name: counter_restore
+  steps:
+    - setup:
+        counter:
+          a:
+          b: {maximum: 3}
+          c: {restore: false, initial: 7}
+          d: {initial: 4}
+      restore:
+        - [counter.a, "12", {}]
+        - [counter.b, "12", {}]
+        - [counter.c, "12", {}]
+        - [counter.d, " 5 ", {}]

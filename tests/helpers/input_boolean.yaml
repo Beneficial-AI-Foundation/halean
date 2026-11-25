@@ -1,0 +1,99 @@
+# input_boolean: config, turn_on / turn_off / toggle, targets, restore.
+- name: input_boolean_services
+  steps:
+    - setup:
+        input_boolean:
+          a:
+          b: {name: Bee, initial: true, icon: "mdi:bee"}
+          c: {initial: "off", name: ""}
+    - call: input_boolean.turn_on
+      data: {entity_id: input_boolean.a}
+    - call: input_boolean.turn_on
+      data: {entity_id: input_boolean.a}
+    - call: input_boolean.toggle
+      data: {entity_id: input_boolean.b}
+    - call: input_boolean.toggle
+      data: {entity_id: input_boolean.b}
+    - call: input_boolean.turn_off
+      data: {entity_id: [input_boolean.a, input_boolean.c]}
+    - call: input_boolean.toggle
+      data: {entity_id: all}
+    - call: input_boolean.toggle
+      data: {entity_id: none}
+    - call: input_boolean.turn_on
+      data: {entity_id: "input_boolean.missing"}
+    - call: input_boolean.turn_on
+      data: {entity_id: "INPUT_BOOLEAN.A, input_boolean.c"}
+    - call: input_boolean.turn_on
+      data: {}
+    - call: input_boolean.turn_on
+      data: {entity_id: input_boolean.a, foo: 1}
+    - call: input_boolean.turn_on
+      data: {entity_id: not_an_entity}
+    - call: input_boolean.turn_on
+      data: {entity_id: input_boolean.a, metadata: {x: 1}}
+    - call: input_boolean.turn_on
+      data: {entity_id: input_boolean.a, metadata: 3}
+    - call: input_boolean.flip
+      data: {entity_id: input_boolean.a}
+    - call: input_number.set_value
+      data: {entity_id: input_number.a, value: 1}
+    - call: input_boolean.turn_on
+      data: {area_id: none}
+
+- name: input_boolean_config_errors
+  steps:
+    - setup:
+        input_boolean:
+          a: 3
+- name: input_boolean_config_bad_boolean
+  steps:
+    - setup:
+        input_boolean:
+          a: {initial: maybe}
+- name: input_boolean_config_bad_slug
+  steps:
+    - setup:
+        input_boolean:
+          Bad: {}
+- name: input_boolean_config_extra_key
+  steps:
+    - setup:
+        input_boolean:
+          a: {inital: true}
+- name: input_boolean_config_bad_icon
+  steps:
+    - setup:
+        input_boolean:
+          a: {icon: bee}
+- name: input_boolean_config_not_a_dict
+  steps:
+    - setup:
+        input_boolean: [a, b]
+- name: input_boolean_config_cv_values
+  steps:
+    - setup:
+        input_boolean:
+          a: {initial: "yes", name: 12}
+          b: {initial: 0}
+          c: {initial: "  ON "}
+
+- name: input_boolean_restore
+  steps:
+    - setup:
+        input_boolean:
+          a:
+          b:
+          c: {initial: false}
+      restore:
+        - [input_boolean.a, "on", {}]
+        - [input_boolean.b, "unavailable", {}]
+        - [input_boolean.c, "on", {}]
+
+- name: input_boolean_device_target
+  steps:
+    - setup:
+        input_boolean: {a: }
+    - call: input_boolean.turn_on
+      data: {device_id: abc}
+      unsupported: true

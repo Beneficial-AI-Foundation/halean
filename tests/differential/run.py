@@ -6,7 +6,7 @@
 """Run the differential tests (real Home Assistant vs the Lean engine).
 
 Needs the engines built first (`lake build halean-automation halean-script halean-template
-halean-core halean-core-states halean-core-services halean-core-events`). Extra args go to pytest, e.g.
+halean-core halean-core-states halean-core-services halean-core-events halean-helpers`). Extra args go to pytest, e.g.
   uv run tests/differential/run.py -k mode_queued -vv
 """
 

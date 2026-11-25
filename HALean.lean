@@ -10,6 +10,8 @@
   * `HALean.Core.Hass` – the joined core: states, bus, services and the event
     loop's tasks together, proofs in `HassProofs` and `HassSchedProofs`
   * `HALean.Script`      – service 3: scripts (`script.*` entities and services)
+  * `HALean.Helpers`     – service 4: the helper integrations (`input_*`, `counter`,
+    `timer`) as state machines, proofs in `HALean.Helpers.Proofs`
 -/
 import HALean.Core.Types
 import HALean.Core.EventBus
@@ -32,6 +34,7 @@ import HALean.Core.Hass
 import HALean.Core.HassProofs
 import HALean.Core.HassSchedProofs
 import HALean.Script
+import HALean.Helpers
 import HALean.Automation.ConditionSpec
 import HALean.Automation.ConfigSpec
 import HALean.Automation.EngineSpec

@@ -1,0 +1,150 @@
+# input_text: config (length bounds, pattern, mode), set_value (length
+# checked by the service, pattern checked when the state is written), restore.
+- name: input_text_services
+  steps:
+    - setup:
+        input_text:
+          t:
+          p: {pattern: "[a-z]+", initial: abc, name: Lower}
+          l: {min: 2, max: 4, mode: password, unit_of_measurement: chars, icon: "mdi:text"}
+          z: {pattern: "^\\d{3}-\\d{2}$|none", initial: none}
+    - call: input_text.set_value
+      data: {entity_id: input_text.t, value: hello}
+    - call: input_text.set_value
+      data: {entity_id: input_text.t, value: 12}
+    - call: input_text.set_value
+      data: {entity_id: input_text.t, value: ""}
+    - call: input_text.set_value
+      data: {entity_id: input_text.t}
+    - call: input_text.set_value
+      data: {entity_id: input_text.t, value: null}
+    - call: input_text.set_value
+      data: {entity_id: input_text.p, value: ABC}
+    - call: input_text.set_value
+      data: {entity_id: input_text.p, value: ABC}
+    - call: input_text.set_value
+      data: {entity_id: input_text.p, value: abc1}
+    - call: input_text.set_value
+      data: {entity_id: input_text.p, value: xyz}
+    - call: input_text.set_value
+      data: {entity_id: input_text.l, value: a}
+    - call: input_text.set_value
+      data: {entity_id: input_text.l, value: abcde}
+    - call: input_text.set_value
+      data: {entity_id: input_text.l, value: abcd}
+    - call: input_text.set_value
+      data: {entity_id: input_text.z, value: 123-45}
+    - call: input_text.set_value
+      data: {entity_id: input_text.z, value: 123-456}
+    - call: input_text.set_value
+      data: {entity_id: input_text.z, value: "12-45"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.z, value: "nonex"}
+    - call: input_text.set_value
+      data: {entity_id: [input_text.t, input_text.l], value: abc}
+
+- name: input_text_patterns
+  steps:
+    - setup:
+        input_text:
+          a: {pattern: "(ab|c)*d?$"}
+          b: {pattern: "[^0-9 ]{2,3}"}
+          c: {pattern: "a.c|\\.x", max: 255}
+          d: {pattern: "[\\w-]+@[a-z]+\\.(com|org)"}
+          e: {pattern: "x{2,}y{,2}z?", min: 0}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: ababcd}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: abx}
+    - call: input_text.set_value
+      data: {entity_id: input_text.a, value: ""}
+    - call: input_text.set_value
+      data: {entity_id: input_text.b, value: "ab"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.b, value: "a1"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "abc"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: ".x"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.c, value: "ax"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.d, value: "me-1@home.org"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.d, value: "me@home.net"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.e, value: "xxyyz"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.e, value: "x{,2}"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.e, value: "xy"}
+
+- name: input_text_initial_does_not_match
+  steps:
+    - setup:
+        input_text:
+          p: {pattern: "[a-z]+", initial: ABC}
+          q: {initial: x}
+    - call: input_text.set_value
+      data: {entity_id: input_text.p, value: abc}
+
+- name: input_text_config_bounds
+  steps:
+    - setup:
+        input_text:
+          x: {min: 5, max: 3}
+- name: input_text_config_initial_length
+  steps:
+    - setup:
+        input_text:
+          x: {max: 3, initial: abcd}
+- name: input_text_config_max_too_big
+  steps:
+    - setup:
+        input_text:
+          x: {max: 256}
+- name: input_text_config_min_negative
+  steps:
+    - setup:
+        input_text:
+          x: {min: -1}
+- name: input_text_config_bad_mode
+  steps:
+    - setup:
+        input_text:
+          x: {mode: secret}
+- name: input_text_config_falsy
+  steps:
+    - setup:
+        input_text:
+          x: 0
+          y: ""
+
+- name: input_text_restore
+  steps:
+    - setup:
+        input_text:
+          a:
+          b: {max: 3}
+          c: {initial: init}
+          d:
+      restore:
+        - [input_text.a, "kept", {}]
+        - [input_text.b, "too long", {}]
+        - [input_text.c, "restored", {}]
+        - [input_text.d, "unknown", {}]
+
+- name: input_text_unsupported_pattern
+  steps:
+    - setup:
+        input_text:
+          x: {pattern: "(?i)abc"}
+      unsupported: true
+- name: input_text_unsupported_unicode
+  steps:
+    - setup:
+        input_text:
+          x: {pattern: "\\w+"}
+    - call: input_text.set_value
+      data: {entity_id: input_text.x, value: "été"}
+      unsupported: true

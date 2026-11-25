@@ -1,0 +1,173 @@
+# timer: config (duration formats), start / pause / cancel / finish /
+# change, restarts, the scheduled finish (`advance` moves the clock), events.
+# The clock starts at 16:30:45.123456 UTC: timers round "now" down to the
+# second.
+- name: timer_start_and_finish
+  steps:
+    - setup:
+        timer:
+          t: {duration: "00:00:05", name: Tea, icon: "mdi:timer"}
+          u:
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - advance: 3
+    - advance: 1
+    - advance: 1
+    - advance: 1
+    - call: timer.start
+      data: {entity_id: timer.t, duration: "00:00:02"}
+    - advance: 2
+    - call: timer.start
+      data: {entity_id: timer.u}
+    - call: timer.start
+      data: {entity_id: timer.u, duration: 1.5}
+    - advance: 1
+    - advance: 1
+
+- name: timer_pause_resume_restart
+  steps:
+    - setup:
+        timer:
+          t: {duration: 30, restore: true}
+    - call: timer.pause
+      data: {entity_id: timer.t}
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - advance: 10
+    - call: timer.pause
+      data: {entity_id: timer.t}
+    - call: timer.pause
+      data: {entity_id: timer.t}
+    - advance: 100
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - advance: 5
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - advance: 5
+    - call: timer.start
+      data: {entity_id: timer.t, duration: {minutes: 1, seconds: 2.5}}
+    - advance: 30
+    - call: timer.cancel
+      data: {entity_id: timer.t}
+    - call: timer.cancel
+      data: {entity_id: timer.t}
+    - advance: 60
+
+- name: timer_finish_and_change
+  steps:
+    - setup:
+        timer:
+          t: {duration: "0:10"}
+          u: {duration: "1:00:00"}
+    - call: timer.finish
+      data: {entity_id: timer.t}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: 5}
+    - call: timer.start
+      data: {entity_id: timer.t}
+    - advance: 60
+    - call: timer.change
+      data: {entity_id: timer.t, duration: 30}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: 120}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: -600}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: "-00:05:00"}
+    - call: timer.change
+      data: {entity_id: timer.t}
+    - advance: 120
+    - call: timer.pause
+      data: {entity_id: timer.t}
+    - call: timer.change
+      data: {entity_id: timer.t, duration: 5}
+    - call: timer.finish
+      data: {entity_id: timer.t}
+    - call: timer.start
+      data: {entity_id: [timer.t, timer.u]}
+    - advance: 10
+    - call: timer.finish
+      data: {entity_id: timer.u}
+    - call: timer.cancel
+      data: {entity_id: all}
+    - advance: 600
+
+- name: timer_zero_and_negative
+  steps:
+    - setup:
+        timer:
+          z:
+          n: {duration: "-00:00:05"}
+    - call: timer.start
+      data: {entity_id: timer.z}
+    - call: timer.start
+      data: {entity_id: timer.n}
+    - advance: 1
+    - call: timer.start
+      data: {entity_id: timer.z, duration: -3}
+    - call: timer.start
+      data: {entity_id: timer.z, duration: 0.000001}
+    - advance: 1
+
+- name: timer_service_errors
+  steps:
+    - setup:
+        timer:
+          t: {duration: 10}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: soon}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: 10}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: "10"}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: {hours: 1, seconds: 1}}
+    - call: timer.start
+      data: {entity_id: timer.t, duration: {weeks: 1}}
+    - call: timer.pause
+      data: {entity_id: timer.t, duration: 1}
+    - call: timer.reload
+      data: {}
+      unsupported: true
+
+- name: timer_config_durations
+  steps:
+    - setup:
+        timer:
+          a: {duration: 90}
+          b: {duration: "1:30"}
+          c: {duration: "01:02:03.5"}
+          d: {duration: {hours: 25}}
+          e: {duration: 0.75}
+          f: {duration: "+0:0:7"}
+- name: timer_config_bad_duration
+  steps:
+    - setup:
+        timer:
+          a: {duration: "1:2:3:4"}
+- name: timer_config_bad_restore
+  steps:
+    - setup:
+        timer:
+          a: {restore: sometimes}
+
+- name: timer_restore_idle
+  steps:
+    - setup:
+        timer:
+          a: {restore: true}
+          b: {restore: false}
+          c:
+      restore:
+        - [timer.a, "idle", {last_transition: finished, duration: "0:00:00"}]
+        - [timer.b, "idle", {last_transition: finished}]
+        - [timer.c, "paused", {last_transition: paused, duration: "0:00:10", remaining: "0:00:05"}]
+- name: timer_restore_paused
+  steps:
+    - setup:
+        timer:
+          a: {restore: true}
+      restore:
+        - [timer.a, "paused", {last_transition: paused, duration: "0:00:10", remaining: "0:00:05"}]
+      unsupported: true
