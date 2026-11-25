@@ -627,8 +627,10 @@ listeners before anything else is delivered).
   used to look up the next event can differ from HA's.
 * `STEP_FUEL` (1M steps per drive) is a safety net HA doesn't have. HA would
   block its event loop instead.
-* `drive`/`finishRun`/`fireDue` are `partial`, so nothing has been proved about
-  them yet. Making them total with explicit measures is the next proof step.
+* The run handlers and timer loops are total but run on fuel (`ENGINE_FUEL`,
+  `LOOP_FUEL`): a chain of nested handler calls deeper than 10,000, or more than
+  100,000 timer rounds within one input, is cut off with an error log. HA has
+  no such limits.
 * `this` describes the automation entity HA would create for the automation.
   When the bridge runs an automation, HA has no such entity, so HALean derives
   it the way HA would: the entity id comes from the name, de-duplicated only
@@ -644,6 +646,31 @@ listeners before anything else is delivered).
   0 s timers to the next time change), so `templated_for_zero` is engine-only.
 * The bridge is unverified. It subscribes to events after `get_states`, so a
   change in that window can be missed at startup.
+
+## What is left to convert
+
+HALean covers 302 upstream functions (`manifest.yaml`), 28 of them proved.
+What is still missing, roughly in order of value:
+
+1. **What makes real automations fail to load today.**
+   * Trigger platforms: `homeassistant` (start / shutdown), `mqtt`, `webhook`,
+     `calendar`, `tag`, `persistent_notification`, `conversation`, `device`
+     (device triggers come from each integration, so they are the hardest).
+   * Templates where HALean only takes literals: durations (`delay`,
+     timeouts), a whole `data` or `target` template, action names, `enabled`,
+     `trigger_variables`.
+2. **HA's helper entities as state machines.** `input_boolean`, `input_number`,
+   `input_select`, `input_text`, `counter`, `timer`, `schedule`, `group`. With
+   them an `automations.yaml` and the helpers it drives form a closed system,
+   which is what user-level properties need (next steps, item 3); `group`
+   would also let `expand` see groups in other domains (known gaps).
+3. **Pure utility code.** `util/color.py` (the `light` color conversions, with
+   round-trip proofs); time zones in `util/dt.py` (a zone database, to fix the
+   DST deviation above); probatio's compiled schema path, so that whole
+   schemas can be proved.
+4. **Proofs about what is translated** (more in [PROPERTIES.md](PROPERTIES.md)):
+   `queued` runs in arrival order, `restart` leaves the newest run, and the run
+   bound with script entities.
 
 ## Next steps
 
