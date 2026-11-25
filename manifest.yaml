@@ -408,9 +408,23 @@ entries:
   - HALean.Automation.step
   - HALean.Automation.normalizeTarget
   status: translated
-  notes: templated action names and whole-data templates rejected; templated entity_id normalised like
-    comp_entity_ids_or_uuids (no registry UUIDs)
+  notes: 'static or templated names (cv.service after rendering); data then data_template, each must render
+    to a mapping; a mapping or whole-template target; the action''s own entity_id (comp_entity_ids, HALean
+    compEntityIds) written into the target last; templated entity_id normalised like comp_entity_ids_or_uuids
+    (no registry UUIDs)'
   hash: bacbd2c6d576e1d4
+- python: helpers/config_validation.py::service
+  lean:
+  - HALean.Automation.decodeAction
+  status: translated
+  notes: lower-cased, then the entity id format; also applied to a rendered name
+  hash: 75fce80638e2e719
+- python: helpers/config_validation.py::_backward_compat_service_schema
+  lean:
+  - HALean.Automation.decodeAction
+  status: translated
+  notes: '`service` is the old name of `action`; both together is an error'
+  hash: 1ea52171546cae2f
 - python: helpers/config_validation.py::template_complex
   lean:
   - HALean.Automation.decodeComplex

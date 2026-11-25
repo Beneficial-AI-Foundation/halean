@@ -1,0 +1,56 @@
+# The forms a service call can take (cv.SERVICE_SCHEMA and
+# async_prepare_call_from_config): a static name in any case, an action-level
+# entity_id, a templated name, data_template, whole-data and whole-target
+# templates, and the errors they can raise
+automations:
+  - id: register      # never runs; makes test.tmpl a known service for the harness
+    triggers: [{trigger: event, event_type: never}]
+    actions: [{action: test.tmpl}]
+  - id: mixed_case
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: Test.Mixed_Case}]
+  - id: entity_id
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: test.svc, entity_id: light.x, target: {area_id: kitchen}}]
+  - id: tmpl_name
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: "test.{{ 'tmpl' }}", data: {n: 1}}]
+  - id: data_template
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: test.svc, data: {a: 1, b: 1}, data_template: {b: "{{ 2 }}", c: "{{ 1 + 2 }}"}}]
+  - id: whole_data
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: test.svc, data: "{{ {'w': 1} }}"}]
+  - id: whole_target
+    triggers: [{trigger: event, event_type: go}]
+    actions: [{action: test.svc, target: "{{ {'entity_id': 'light.y'} }}"}]
+  - id: data_not_dict
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - {action: test.svc, data: "{{ 5 }}", continue_on_error: true}
+      - {event: after_data_not_dict}
+  - id: bad_name
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - {action: "{{ 'nodot' }}", continue_on_error: true}
+      - {event: after_bad_name}
+steps:
+  - at: 1
+    send: {type: event, event_type: go}
+    expect:
+      - {type: automation_triggered, id: mixed_case}
+      - {type: call_service, domain: test, service: mixed_case}
+      - {type: automation_triggered, id: entity_id}
+      - {type: call_service, service: svc, target: {area_id: kitchen, entity_id: [light.x]}}
+      - {type: automation_triggered, id: tmpl_name}
+      - {type: call_service, service: tmpl, data: {n: 1}}
+      - {type: automation_triggered, id: data_template}
+      - {type: call_service, service: svc, data: {a: 1, b: 2, c: 3}}
+      - {type: automation_triggered, id: whole_data}
+      - {type: call_service, service: svc, data: {w: 1}}
+      - {type: automation_triggered, id: whole_target}
+      - {type: call_service, service: svc, target: {entity_id: [light.y]}}
+      - {type: automation_triggered, id: data_not_dict}
+      - {type: fire_event, event_type: after_data_not_dict}
+      - {type: automation_triggered, id: bad_name}
+      - {type: fire_event, event_type: after_bad_name}

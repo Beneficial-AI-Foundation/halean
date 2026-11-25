@@ -228,19 +228,51 @@ def step (ctx : ExecCtx) (r : Run) : StepOut × List Cmd × ExecCtx :=
     let r' := { r with frames := cur }
     let rec run (coe : Bool) : Action → StepOut × List Cmd × ExecCtx
       | .continueOnError a => run true a
-      | .service d s data tgt rv =>
-        -- `async_prepare_call_from_config` runs inside the step: a template
-        -- error is a HomeAssistantError raised by the step itself.
-        let prepared : Except String (Json × Json) := do
-          let tj ← renderComplex env tgt
-          let tj ← if tgt.hasTemplate then normalizeTarget tj else pure tj
-          let dj ← renderComplex env data
-          pure (dj, tj)
+      | .service name datas tgt eid rv =>
+        -- `async_prepare_call_from_config` runs inside the step: its errors
+        -- are raised by the step itself (`HomeAssistantError`, except a
+        -- target that renders to something `dict.update` cannot take)
+        let prepared : Except (ErrKind × String) (String × String × Json × Json) := do
+          let haErr {α : Type} (e : Except String α) : Except (ErrKind × String) α :=
+            e.mapError fun m => (.haError, m)
+          -- the name: rendered, then `cv.service`
+          let (d, s) ← match name with
+            | .static d s => pure (d, s)
+            | .tmpl t =>
+              let v ← haErr ((Template.render t env.tmplCtx true).mapError
+                fun m => s!"Error rendering service name template: {m}")
+              let str ← match v with
+                | .str x => pure x
+                | .none => throw (.haError, "Template rendered invalid service: None")
+                | v => haErr (Template.pyStr v)
+              let svc := str.toLower
+              match svc.splitOn "." with
+              | [d, s] =>
+                if Template.validEntityId svc then pure (d, s)
+                else throw (.haError, s!"Template rendered invalid service: {str}")
+              | _ => throw (.haError, s!"Template rendered invalid service: {str}")
+          -- the target
+          let tj ← haErr ((renderComplex env tgt).mapError
+            fun m => s!"Error rendering service target template: {m}")
+          let .obj _ := tj
+            | throw (.other, s!"ValueError: the target rendered to {tj.compress}, not a mapping")
+          let tj ← if tgt.hasTemplate then haErr (normalizeTarget tj) else pure tj
+          -- the data: `data`, then `data_template`
+          let dj ← datas.foldlM (init := Json.mkObj []) fun acc c => do
+            let v ← haErr ((renderComplex env c).mapError fun m => s!"Error rendering data template: {m}")
+            let .obj kvs := v
+              | throw (.haError, "Error rendering data template: Result is not a Dictionary")
+            pure (kvs.toList.foldl (fun a (k, x) => a.setObjVal! k x) acc)
+          -- the action's own `entity_id`
+          let tj := match eid with
+            | some ids => tj.setObjVal! "entity_id" ids
+            | none => tj
+          pure (d, s, dj, tj)
         match prepared with
-        | .error msg =>
-          let out := if coe then StepOut.next r' else unwindError r' .haError msg
+        | .error (k, msg) =>
+          let out := if coe && k == .haError then StepOut.next r' else unwindError r' k msg
           (out, [.log "error" msg], ctx)
-        | .ok (dj, tj) =>
+        | .ok (d, s, dj, tj) =>
           let cid := ctx.nextCallId
           -- `return_response = response_variable is not None`
           (.blocked { r' with wait := .service cid coe rv },

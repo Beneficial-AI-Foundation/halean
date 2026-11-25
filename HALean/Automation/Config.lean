@@ -130,9 +130,22 @@ structure Trigger where
   kind : TriggerKind
   deriving Repr, Inhabited
 
+/-- The service an action calls (`cv.service` or `dynamic_template`). -/
+inductive SvcName where
+  /-- Validated and lower-cased when the automation loads. -/
+  | static (domain service : String)
+  /-- Rendered when the step runs, then validated like a static name. -/
+  | tmpl (t : Template.Tmpl)
+  deriving Repr, Inhabited
+
 inductive Action where
-  /-- `respVar`: `response_variable`, assigned the service's response. -/
-  | service (domain service : String) (data target : Complex) (respVar : Option String)
+  /-- A service call (`async_prepare_call_from_config`): `data` holds `data`
+  then `data_template`, each rendered to a mapping and merged in that order;
+  `target` is rendered (a mapping or a whole template); `entityId` is the
+  action's own `entity_id` (`comp_entity_ids`), written into the target
+  last. `respVar`: `response_variable`, assigned the service's response. -/
+  | service (name : SvcName) (data : List Complex) (target : Complex) (entityId : Option Json)
+      (respVar : Option String)
   | delay (ms : Nat)
   /-- A templated `delay` (`cv.positive_time_period_template`), rendered
   when the step runs. -/
@@ -620,6 +633,22 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
     | p => throw s!"trigger platform '{p}' is not supported"
   return some { id, idx, alias := str? j "alias", kind }
 
+/-- `cv.comp_entity_ids`: `all` / `none` (any case), or entity ids
+(`ensure_list_csv`, each lower-cased and validated). -/
+def compEntityIds (v : Json) : D Json := do
+  let ids ← match v with
+    | .str s =>
+      if s.toLower == "all" || s.toLower == "none" then return .str s.toLower
+      pure ((s.splitOn ",").map String.trim)
+    | .arr xs => xs.toList.mapM fun x => match x with
+      | .str s => pure s
+      | x => throw s!"Entity ID {x.compress} is an invalid entity ID"
+    | v => throw s!"Entity ID {v.compress} is an invalid entity ID"
+  let ids := ids.map String.toLower
+  for e in ids do
+    if !Template.validEntityId e then throw s!"Entity ID {e} is an invalid entity ID"
+  return .arr (ids.map Json.str).toArray
+
 partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Option Action) := do
   if !(← isEnabled j) then return none
   let coe := match field? j "continue_on_error" with | some (.bool true) => true | _ => false
@@ -631,21 +660,48 @@ partial def decodeAction (j : Json) (nm : List String := TEMPLATE_VARS) : D (Opt
     let xs ← (ensureList v).mapM (decodeAction · nm)
     pure (xs.filterMap (fun x => x))
   let conds (v : Json) : D (List Condition) := (ensureList v).mapM (decodeCondition · nm)
-  if let some svc := (str? j "action").orElse (fun _ => str? j "service") then
-    if Template.isTemplateString svc then throw s!"templated action names are not supported: {svc}"
-    match svc.splitOn "." with
-    | [d, s] =>
-      noTemplate j "data_template"
-      let data ← match field? j "data" with
-        | none => pure (Json.mkObj [])
-        | some d@(.obj _) => pure d
-        | some _ => throw "service data must be a mapping (a whole-data template is not supported)"
-      let target ← match field? j "target" with
-        | none => pure (Json.mkObj [])
-        | some t@(.obj _) => pure t
-        | some _ => throw "target must be a mapping (a whole-target template is not supported)"
-      return wrap (.service d s (← decodeComplex data nm) (← decodeComplex target nm) (← responseVariable? j))
-    | _ => throw s!"bad service name {svc}"
+  if has j "action" || has j "service" || has j "service_template" then
+    -- `_backward_compat_service_schema`: `service` is the old name of `action`
+    if has j "action" && has j "service" then
+      throw "Cannot specify both 'service' and 'action'. Please use 'action' only."
+    if (has j "action" || has j "service") && has j "service_template" then
+      throw "two or more values in the same group of exclusion 'service name'"
+    let nameJ := ((field? j "action").orElse fun _ => (field? j "service").orElse fun _ =>
+      field? j "service_template").getD .null
+    let name ← match nameJ with
+      | .str svc =>
+        if Template.isTemplateString svc then pure (SvcName.tmpl (← compileTemplate svc nm))
+        else
+          -- `cv.service`: lower-case, then the entity id format
+          let svc := svc.toLower
+          if !Template.validEntityId svc then
+            throw s!"Service {svc} does not match format <domain>.<name>"
+          match svc.splitOn "." with
+          | [d, sv] => pure (SvcName.static d sv)
+          | _ => throw s!"Service {svc} does not match format <domain>.<name>"
+      | v => throw s!"invalid service name {v.compress}"
+    -- `data` / `data_template`: `Any(template, All(dict, template_complex))`
+    let dataOf (k : String) : D (Option Complex) := do
+      match field? j k with
+      | none => pure none
+      | some d@(.obj _) => some <$> decodeComplex d nm
+      | some (.str t) => some <$> (Complex.tmpl <$> compileTemplate t nm)
+      | some v@(.num _) | some v@(.bool _) => pure (some (.lit v))
+      | some v => throw s!"invalid {k}: {v.compress}"
+    let data := (← dataOf "data").toList ++ (← dataOf "data_template").toList
+    -- `target`: a mapping (templates inside) or one `dynamic_template`
+    let target ← match field? j "target" with
+      | none => pure (Complex.obj [])
+      | some t@(.obj _) => decodeComplex t nm
+      | some (.str t) =>
+        if Template.isTemplateString t then Complex.tmpl <$> compileTemplate t nm
+        else throw s!"target: template value does not contain a dynamic template"
+      | some v => throw s!"invalid target {v.compress}"
+    -- the action's own `entity_id` (`cv.comp_entity_ids`)
+    let entityId ← match field? j "entity_id" with
+      | none => pure none
+      | some v => some <$> compEntityIds v
+    return wrap (.service name data target entityId (← responseVariable? j))
   if has j "delay" then
     match ← forPeriod? j "delay" nm with
     | some (.tmpl c) => return wrap (.delayT c)
