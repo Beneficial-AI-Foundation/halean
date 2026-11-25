@@ -25,6 +25,11 @@ only; it never feeds back into the engine's decisions.
 Automations the engine does not support are reported and left to HA. For the
 ones it runs, turn the HA copy off (automation.turn_off) so they don't run twice.
 
+MQTT triggers are fed through HA's MQTT connection: the bridge subscribes with
+`mqtt/subscribe` (needs an admin token). Webhook triggers cannot be fed: HA
+receives the HTTP request itself and its WebSocket API does not pass it on, so
+automations with webhook triggers should stay in HA (the bridge warns).
+
 --scripts runs scripts.yaml in the same engine (halean-script): the engine's
 automations then call these scripts, not HA's. HA's WebSocket API cannot
 register services, so HA itself (the UI, its own automations) cannot call
@@ -157,6 +162,8 @@ class Bridge:
         self.dry_run = dry_run
         self.ids = itertools.count(1)
         self.pending: dict[int, asyncio.Future] = {}
+        # ids of our `mqtt/subscribe` subscriptions
+        self.mqtt_ids: set[int] = set()
 
     async def request(self, payload: dict) -> dict:
         msg_id = next(self.ids)
@@ -246,11 +253,33 @@ class Bridge:
             msg["message"] = err.get("message", "")
         await self.handle_cmds(await self.engine.send(msg))
 
+    async def subscribe_mqtt(self, filters: list[tuple[str, int]]) -> None:
+        """`mqtt/subscribe` (admin only): HA forwards every message on these
+        filters, retained ones included, which the engine dispatches to its
+        mqtt triggers."""
+        for topic, qos in filters:
+            msg_id = next(self.ids)
+            self.mqtt_ids.add(msg_id)
+            fut = asyncio.get_running_loop().create_future()
+            self.pending[msg_id] = fut
+            await self.ws.send(json.dumps({"id": msg_id, "type": "mqtt/subscribe",
+                                           "topic": topic, "qos": qos}))
+            res = await fut
+            if not res.get("success"):
+                self.mqtt_ids.discard(msg_id)
+                _LOG.error("mqtt/subscribe %s failed (is the MQTT integration set up?): %s",
+                           topic, res.get("error"))
+
     async def reader(self) -> None:
         async for raw in self.ws:
             msg = json.loads(raw)
             if msg.get("type") == "result" and msg.get("id") in self.pending:
                 self.pending.pop(msg["id"]).set_result(msg)
+            elif msg.get("type") == "event" and msg.get("id") in self.mqtt_ids:
+                m = msg["event"]
+                out = {"type": "mqtt", "topic": m["topic"], "payload": m["payload"],
+                       "qos": m.get("qos", 0), "retain": m.get("retain", False), **now_fields()}
+                await self.handle_cmds(await self.engine.send(out))
             elif msg.get("type") == "event":
                 ev = msg["event"]
                 if ev["event_type"] == "state_changed":
@@ -267,6 +296,35 @@ class Bridge:
         while True:
             await asyncio.sleep(1 - (time.time() % 1) + 0.005)  # just after each second
             await self.handle_cmds(await self.engine.send({"type": "tick", **now_fields()}))
+
+
+def _triggers(node, platform: str) -> list[dict]:
+    """Every trigger config of a platform in automations or scripts
+    (wait_for_trigger too)."""
+    found = []
+    if isinstance(node, dict):
+        if (node.get("trigger") or node.get("platform")) == platform:
+            found.append(node)
+        for v in node.values():
+            found += _triggers(v, platform)
+    elif isinstance(node, list):
+        for v in node:
+            found += _triggers(v, platform)
+    return found
+
+
+def mqtt_filters(automations, scripts) -> list[tuple[str, int]]:
+    """What the bridge subscribes to when there are mqtt triggers: `#`, plus
+    `<level>/#` for each `$` top level a trigger names (`#` does not match
+    topics starting with `$`), at the highest qos a trigger asks for."""
+    trigs = _triggers([automations, scripts], "mqtt")
+    if not trigs:
+        return []
+    qos = max(int(t.get("qos", 0)) if str(t.get("qos", 0)).strip().isdigit() else 0
+              for t in trigs)
+    dollar = sorted({str(t["topic"]).split("/")[0] for t in trigs
+                     if str(t.get("topic", "")).startswith("$")})
+    return [("#", qos)] + [(f"{level}/#", qos) for level in dollar]
 
 
 async def main() -> None:
@@ -302,6 +360,14 @@ async def main() -> None:
             init["scripts"] = protocol_scripts(scripts)
         await bridge.handle_cmds(await engine.send(init))
         await bridge.request({"type": "subscribe_events"})  # all events
+        if filters := mqtt_filters(automations, scripts):
+            await bridge.subscribe_mqtt(filters)
+        # HA's WebSocket API has no way to receive webhook requests (only to
+        # send one, `webhook/handle`), so webhook triggers never fire here
+        for a in automations:
+            if isinstance(a, dict) and _triggers(a, "webhook"):
+                _LOG.warning("%s has a webhook trigger, which the bridge cannot feed: keep it in HA",
+                             a.get("id", a.get("alias", "?")))
         _LOG.info("engine running %d automations%s", len(automations),
                   f" and {len(scripts)} scripts" if scripts is not None else "")
         bridge.announce(f"engine started with {len(automations)} automations")

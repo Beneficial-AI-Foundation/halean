@@ -9,7 +9,8 @@ Checks the full loop: auth, get_states, subscribe, a state_changed event,
 the engine's call_service reaching "HA", and a fire_event after the result.
 With --scripts (second run): the automation calls a script that HALean runs,
 the script's call reaches "HA", and the script entity's states are written
-over the REST API (a tiny fake HTTP server).
+over the REST API (a tiny fake HTTP server). Third run: an mqtt trigger; the
+bridge subscribes with `mqtt/subscribe` and a message reaches the engine.
 """
 
 from __future__ import annotations
@@ -41,17 +42,29 @@ AUTOMATIONS_SCRIPTS = [
         "actions": [{"action": "script.lights"}, {"event": "light_done"}],
     }
 ]
+# third run: an mqtt trigger, fed by the bridge's `mqtt/subscribe`
+AUTOMATIONS_MQTT = [
+    {
+        "id": "door",
+        "triggers": [{"trigger": "mqtt", "topic": "home/+", "payload": "open"}],
+        "actions": [
+            {"action": "light.turn_on", "target": {"entity_id": "light.hall"}},
+            {"event": "light_done"},
+        ],
+    }
+]
 SCRIPTS = {"lights": {"sequence": [{"action": "light.turn_on", "target": {"entity_id": "light.hall"}}]}}
 STATE_OFF = {"entity_id": "binary_sensor.motion", "state": "off", "attributes": {},
              "last_changed": "2026-01-01T00:00:00+00:00"}
 
 
-async def run(with_scripts: bool) -> bool:
+async def run(with_scripts: bool, mqtt: bool = False) -> bool:
     loop = asyncio.get_running_loop()
     got: dict[str, asyncio.Future] = {
         k: loop.create_future() for k in ("call_service", "fire_event")
     }
     posted: list[tuple[str, dict]] = []  # REST state writes
+    mqtt_topics: list[str] = []  # what the bridge subscribed to
 
     async def rest(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         head = (await reader.readuntil(b"\r\n\r\n")).decode()
@@ -87,12 +100,20 @@ async def run(with_scripts: bool) -> bool:
             elif msg["type"] == "subscribe_events":
                 sub = msg["id"]
                 await ws.send(json.dumps({"id": sub, "type": "result", "success": True}))
+                if mqtt:
+                    continue
                 await asyncio.sleep(0.3)
                 on = {**STATE_OFF, "state": "on", "last_changed": "2026-01-01T00:00:05+00:00"}
                 await ws.send(json.dumps({"id": sub, "type": "event", "event": {
                     "event_type": "state_changed",
                     "data": {"entity_id": "binary_sensor.motion", "old_state": STATE_OFF,
                              "new_state": on}}}))
+            elif msg["type"] == "mqtt/subscribe":
+                mqtt_topics.append(msg["topic"])
+                await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True}))
+                await asyncio.sleep(0.3)
+                await ws.send(json.dumps({"id": msg["id"], "type": "event", "event": {
+                    "topic": "home/door", "payload": "open", "qos": 0, "retain": False}}))
             elif msg["type"] in got:
                 await ws.send(json.dumps({"id": msg["id"], "type": "result", "success": True,
                                           "result": {}}))
@@ -102,7 +123,8 @@ async def run(with_scripts: bool) -> bool:
 
     tmpdir = Path(os.environ.get("TMPDIR", "/tmp"))
     tmp = tmpdir / "halean_e2e_automations.json"
-    tmp.write_text(json.dumps(AUTOMATIONS_SCRIPTS if with_scripts else AUTOMATIONS))
+    tmp.write_text(json.dumps(AUTOMATIONS_MQTT if mqtt else
+                              AUTOMATIONS_SCRIPTS if with_scripts else AUTOMATIONS))
     args = [str(tmp)]
     if with_scripts:
         sc = tmpdir / "halean_e2e_scripts.json"
@@ -130,7 +152,9 @@ async def run(with_scripts: bool) -> bool:
         seq = [(p, b["state"]) for p, b in posted]
         ok = ok and seq[:1] == [("/api/states/script.lights", "off")] \
             and ("/api/states/script.lights", "on") in seq and seq[-1] == ("/api/states/script.lights", "off")
-    name = "bridge end-to-end" + (" with scripts" if with_scripts else "")
+    if mqtt:
+        ok = ok and mqtt_topics == ["#"]
+    name = "bridge end-to-end" + (" with scripts" if with_scripts else "") + (" with mqtt" if mqtt else "")
     print(f"PASS {name}" if ok else f"FAIL {name}: {call} {event} {posted}")
     return ok
 
@@ -138,6 +162,7 @@ async def run(with_scripts: bool) -> bool:
 async def main() -> int:
     ok = await run(False)
     ok = await run(True) and ok
+    ok = await run(False, mqtt=True) and ok
     return 0 if ok else 1
 
 
