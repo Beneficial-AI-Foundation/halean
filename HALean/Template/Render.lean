@@ -847,6 +847,17 @@ def pySum (start : Value) (items : List Value) : R Value := do
   | .float f => sumFloat f 0 items
   | _ => sumGeneric start items
 
+/-- `==` / `!=` HALean cannot decide: `Event` has no `__eq__` (identity,
+which HALean does not model: two events can look alike), and multidict's
+equality is not modelled. -/
+def eqRefusal (a b : Value) : Option String :=
+  match a, b with
+  | .pyobj "Event" _, .pyobj "Event" _ =>
+    some "comparing two Event objects (by identity) is not supported by HALean"
+  | .pyobj "MultiDictProxy" _, .pyobj "MultiDictProxy" _ | .pyobj "MultiDictProxy" _, .dict _
+  | .dict _, .pyobj "MultiDictProxy" _ => some "comparing a MultiDictProxy is not supported by HALean"
+  | _, _ => none
+
 def cmpOp (ctx : Ctx) (op : String) (a b : Value) : R Bool := do
   let lt (x y : Value) : R Bool :=
     if isOpaqueOrUndef x || isOpaqueOrUndef y then
@@ -857,8 +868,12 @@ def cmpOp (ctx : Ctx) (op : String) (a b : Value) : R Bool := do
   if let .opaque w := a then throw s!"{w} values are not supported by HALean"
   if let .opaque w := b then throw s!"{w} values are not supported by HALean"
   match op with
-  | "==" => pure (pyEq a b)
-  | "!=" => pure (!pyEq a b)
+  | "==" => match eqRefusal a b with
+    | some e => throw e
+    | none => pure (pyEq a b)
+  | "!=" => match eqRefusal a b with
+    | some e => throw e
+    | none => pure (!pyEq a b)
   | "<" => lt a b
   | ">" => lt b a
   | "<=" => do pure ((← lt a b) || (pyEq a b && a.num?.isSome == b.num?.isSome))

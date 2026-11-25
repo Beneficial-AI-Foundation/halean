@@ -1,0 +1,18 @@
+description: >
+  `Context.__eq__` compares ids: a script run's `context` equals itself and
+  differs from other values.
+scripts:
+  ctx:
+    sequence:
+      - event: ctx
+        event_data:
+          self: "{{ context == context }}"
+          not_self: "{{ context != context }}"
+          other: "{{ context == 'x' }}"
+steps:
+  - at: 1
+    call: ctx
+    expect:
+      fire_event:
+        - [script_started, {name: ctx, entity_id: script.ctx}]
+        - [ctx, {self: true, not_self: false, other: false}]

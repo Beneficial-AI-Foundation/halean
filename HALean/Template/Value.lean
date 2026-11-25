@@ -429,6 +429,10 @@ partial def pyEq : Value → Value → Bool
   | .datetime a (some _), .datetime b (some _) => a == b
   | .datetime a none, .datetime b none => a == b
   | .timedelta a, .timedelta b => a == b
+  -- `Context.__eq__` compares ids. Every `Context` a render can see is its
+  -- run's own `context` (`contextValue`; a run only sees its own variables),
+  -- so two of them are the same context
+  | .pyobj "Context" _, .pyobj "Context" _ => true
   -- key and item views compare like sets (`dict_values` only by identity)
   | .gen "dict_keys" a, .gen "dict_keys" b | .gen "dict_items" a, .gen "dict_items" b =>
     a.length == b.length && a.all fun x => b.any (pyEq x)

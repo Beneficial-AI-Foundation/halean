@@ -646,7 +646,7 @@ theorem arith_naive_aware (x y o : Int) (s : RS) :
 /-- `!=` is the negation of `==`. -/
 theorem cmpOp_ne (ctx : Ctx) (a b : Value) (s : RS) :
     (runR (cmpOp ctx "!=" a b) s).1 = (runR (cmpOp ctx "==" a b) s).1.map (!·) := by
-  cases a <;> cases b <;> rfl
+  cases h : eqRefusal a b <;> cases a <;> cases b <;> simp only [cmpOp, h] <;> rfl
 
 /-- `not in` is the negation of `in`. -/
 theorem cmpOp_notin (ctx : Ctx) (a : Value) (xs : List Value) (s : RS) (h : ∀ w, a ≠ .opaque w) :

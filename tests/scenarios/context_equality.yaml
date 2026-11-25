@@ -1,0 +1,19 @@
+# `Context.__eq__` compares ids: the run's `context` equals itself and differs
+# from other values. (Copying it into a variable gives its str(), with a random
+# object address, which HALean refuses to print.)
+automations:
+  - id: ctx_eq
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - event: ctx
+        event_data:
+          self: "{{ context == context }}"
+          not_self: "{{ context != context }}"
+          other: "{{ context == 'x' }}"
+          in_list: "{{ context in [1, context] }}"
+steps:
+  - at: 1
+    send: {type: event, event_type: go}
+    expect:
+      - {type: automation_triggered}
+      - {type: fire_event, event_type: ctx, data: {self: true, not_self: false, other: false, in_list: true}}

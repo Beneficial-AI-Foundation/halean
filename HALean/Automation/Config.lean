@@ -1333,7 +1333,9 @@ def decodeAutomation (j : Json) (listNo : Nat := 0) (entityId : Option String :=
   let tnm := tvals.map (·.1)
   let trigs ← ((ensureList (pick "triggers" "trigger")).zipIdx).mapM fun (t, i) => decodeTrigger i t tnm (some tvals)
   let conds ← (ensureList (pick "conditions" "condition")).mapM (decodeCondition · nm)
-  let acts ← (ensureList (pick "actions" "action")).mapM (decodeAction · nm)
+  -- the actions also see the run's `context` (`Script.async_run` sets it after
+  -- the variables are rendered and the conditions checked)
+  let acts ← (ensureList (pick "actions" "action")).mapM (decodeAction · (nm ++ ["context"]))
   let mode ← match str? j "mode" with
     | none | some "single" => pure Mode.single
     | some "restart" => pure .restart
