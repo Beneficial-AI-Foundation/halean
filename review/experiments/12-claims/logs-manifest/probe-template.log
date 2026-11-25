@@ -1,0 +1,92 @@
+M-56 | is_static on the unstripped text; source stripped |   42   
+    -> {"ok":true,"repr":"42","type":"int"}
+M-56 | static text with a brace-free body keeps inner spaces |  a  b  
+    -> {"ok":true,"repr":"'a  b'","type":"str"}
+M-57 | output stripped | {{ '  x  ' }} 
+    -> {"ok":true,"repr":"'x'","type":"str"}
+M-57 | MAX_TEMPLATE_OUTPUT (256 KiB) enforced | {{ 'x' * 262145 }} 
+    -> {"error":"Template output exceeded maximum size of 262144 characters","ok":false}
+M-57 | control: 262144 characters pass | {{ ('x' * 262144) | length }} 
+    -> {"ok":true,"repr":"262144","type":"int"}
+M-58 | fast numeric path | {{ '0012' }} 
+    -> {"ok":true,"repr":"'0012'","type":"str"}
+M-59 | literal_eval: tuple | (1, 'a', None, True) 
+    -> {"ok":true,"repr":"(1, 'a', None, True)","type":"tuple"}
+M-59 | literal_eval: set becomes a list | {{ '{1, 2}' }} 
+    -> {"ok":true,"repr":"[1, 2]","type":"list"}
+M-59 | literal_eval: bytes stay a string | {{ "b'ab'" }} 
+    -> {"ok":true,"repr":"\"b'ab'\"","type":"str"}
+M-59 | literal_eval: dict | {{ "{'a': [1, 2.5]}" }} 
+    -> {"ok":true,"repr":"{'a': [1, 2.5]}","type":"dict"}
+M-63 | states() with rounded | {{ states('sensor.a', rounded=True) }} 
+    -> {"error":"states() with rounded/with_unit is not supported by HALean","ok":false}
+M-63 | states() with with_unit | {{ states('sensor.a', with_unit=True) }} 
+    -> {"error":"states() with rounded/with_unit is not supported by HALean","ok":false}
+M-65 | state.last_changed | {{ states.sensor.a.last_changed }} 
+    -> {"ok":true,"repr":"'2023-11-14 22:13:20+00:00'","type":"str"}
+M-65 | state.last_updated | {{ states.sensor.a.last_updated }} 
+    -> {"ok":true,"repr":"'2023-11-14 22:13:20+00:00'","type":"str"}
+M-65 | state.last_changed of a state sent without timestamps | {{ states.sensor.b.last_changed }} 
+    -> {"ok":true,"repr":"'1970-01-01 00:00:00+00:00'","type":"str"}
+M-65 | state.context | {{ states.sensor.a.context }} 
+    -> {"error":"state.context values are not supported by HALean","ok":false}
+M-65 | state.last_reported | {{ states.sensor.a.last_reported }} 
+    -> {"error":"state.last_reported values are not supported by HALean","ok":false}
+M-72 | int with base 16 | {{ 'ff' | int(0, 16) }} 
+    -> {"error":"int() with a base other than 10 is not supported by HALean","ok":false}
+M-72 | int base 10 explicit | {{ '12' | int(0, 10) }} 
+    -> {"ok":true,"repr":"12","type":"int"}
+M-74 | round half cases on the binary value | {{ [2.675 | round(2), 0.5 | round, 1.5 | round, 2.5 | round(0, 'half')] }} 
+    -> {"ok":true,"repr":"[2.67, 0, 2, 2]","type":"list"}
+M-98 | now() uses the engine clock | {{ now() }} 
+    -> {"ok":true,"repr":"'2023-11-14 22:13:20+00:00'","type":"str"}
+M-101 | as_timestamp of a naive datetime string | {{ as_timestamp('2023-11-14 22:13:20') }} 
+    -> {"error":"timestamps of naive datetimes (system time zone) are not supported by HALean","ok":false}
+M-101 | as_timestamp of an aware datetime string | {{ as_timestamp('2023-11-14T22:13:20+00:00') }} 
+    -> {"ok":true,"repr":"1700000000.0","type":"float"}
+M-104 | timestamp_custom with %Z | {{ 0 | timestamp_custom('%Z') }} 
+    -> {"error":"strftime %Z (time zone names) is not supported by HALean","ok":false}
+M-104 | timestamp_custom with an unlisted directive %E | {{ 0 | timestamp_custom('%Ey') }} 
+    -> {"error":"strftime directive %E is not supported by HALean","ok":false}
+M-104 | timestamp_custom default format (TPL-22) | {{ 0 | timestamp_custom }} 
+    -> {"ok":true,"repr":"'1970-01-01'","type":"str"}
+M-107 | parse through as_datetime: regex form | {{ as_datetime('2023-11-14 22:13:20+01:00') }} 
+    -> {"ok":true,"repr":"'2023-11-14 22:13:20+01:00'","type":"str"}
+M-107 | parse through as_datetime: ciso8601-only form (date only) | {{ as_datetime('2023-11-14') }} 
+    -> {"error":"parsing '2023-11-14' as a date/time is not supported by HALean","ok":false}
+M-107 | parse through as_datetime: ciso8601-only form (basic format) | {{ as_datetime('20231114T221320') }} 
+    -> {"error":"parsing '20231114T221320' as a date/time is not supported by HALean","ok":false}
+M-107 | parse through as_datetime: T24:00:00 (TPL-23) | {{ as_datetime('2023-11-14T24:00:00') }} 
+    -> {"ok":true,"repr":"None","type":"NoneType"}
+M-103 | as_local uses the current offset (tz=3600) | {{ as_local(as_datetime('2023-07-01T12:00:00+00:00')) }} {'tz': 3600}
+    -> {"ok":true,"repr":"'2023-07-01 13:00:00+01:00'","type":"str"}
+M-125 | expand: stack order, group members | {{ expand('group.g', 'sensor.b') | map(attribute='entity_id') | list }} 
+    -> {"ok":true,"repr":"['sensor.b', 'sensor.a']","type":"list"}
+M-125 | expand: zone persons | {{ expand('zone.home') | map(attribute='entity_id') | list }} 
+    -> {"ok":true,"repr":"['sensor.b']","type":"list"}
+M-125 | expand: non-group entity with an entity_id attribute | {{ expand('light.withids') | map(attribute='entity_id') | list }} 
+    -> {"error":"expand: light.withids has an entity_id attribute; whether HA expands it depends on its entity source, which HALean does not know","ok":false}
+M-125 | expand: unavailable non-group entity returned as is | {{ expand('light.lg') | map(attribute='entity_id') | list }} 
+    -> {"ok":true,"repr":"['light.lg']","type":"list"}
+M-126 | expand uses the lower-case retry | {{ expand('SENSOR.A') | map(attribute='entity_id') | list }} 
+    -> {"ok":true,"repr":"['sensor.a']","type":"list"}
+M-126 | states() does not use the lower-case retry (TPL-6) | {{ states('SENSOR.A') }} 
+    -> {"ok":true,"repr":"'unknown'","type":"str"}
+M-127 | strptime with %Z | {{ strptime('2023 UTC', '%Y %Z') }} 
+    -> {"error":"strptime directive %Z is not supported by HALean (it matches the host's time.tzname)","ok":false}
+M-127 | strptime with a locale directive %c | {{ strptime('x', '%c') }} 
+    -> {"error":"strptime directive %c is not supported by HALean (locale formats)","ok":false}
+M-127 | strptime with non-ASCII input | {{ strptime('２０２３', '%Y') }} 
+    -> {"error":"strptime on non-ASCII text is not supported by HALean","ok":false}
+M-127 | strptime plain | {{ strptime('2023-11-14 05', '%Y-%m-%d %H') }} 
+    -> {"ok":true,"repr":"'2023-11-14 05:00:00'","type":"str"}
+M-135 | as_timedelta: standard, ISO 8601, PostgreSQL forms | {{ [as_timedelta('1 02:03:04'), as_timedelta('P1DT2H'), as_timedelta('3 days 04:05:06'), as_timedelt… 
+    -> {"ok":true,"repr":"'[datetime.timedelta(days=1, seconds=7384), datetime.timedelta(days=1, seconds=7200), datetime.timedelta(days=3, seconds=14706), None]'","type":"str"}
+M-115 | iterated states do not collect entities (info) | {% for s in states.sensor %}{{ s.state }}{% endfor %} {'info': True}
+    -> {"info":{"all_states":false,"all_states_lifecycle":false,"domains":["sensor"],"domains_lifecycle":[],"entities":[]},"ok":true,"repr":"12","type":"int"}
+M-115 | a state reached through states.sensor.a collects (info) | {{ states.sensor.a.state }} {'info': True}
+    -> {"info":{"all_states":false,"all_states_lifecycle":false,"domains":[],"domains_lifecycle":[],"entities":["sensor.a"]},"ok":true,"repr":"1","type":"int"}
+M-78 | condition mode: 'TRUE' counts, 1 does not | {{ 'TRUE' }} {'condition': True}
+    -> {"ok":true,"repr":"True","type":"bool"}
+M-78 | condition mode: 1 is not 'true' | {{ 1 }} {'condition': True}
+    -> {"ok":true,"repr":"False","type":"bool"}

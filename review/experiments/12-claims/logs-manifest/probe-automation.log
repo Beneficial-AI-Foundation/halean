@@ -1,0 +1,300 @@
+=== M-33: state trigger with a templated for: loads and fires after the rendered period (note: 'templated for rejected')
+  > init @+0
+  > state_changed:sensor.x @+1000
+  > tick: @+2500
+  > tick: @+3000
+      {"id": "a", "name": "automation 0", "source": "state of sensor.x", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "0:00:02"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+=== M-33: state trigger with explicit null 'to': not match-all (attribute-only change does not fire), state change fires
+  > init @+0
+  > state_changed:sensor.x @+1000
+  > state_changed:sensor.x @+2000
+      {"id": "a", "name": "automation 0", "source": "state of sensor.x", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "fired"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+=== M-33: control: state trigger without from/to (match-all): attribute-only change fires
+  > init @+0
+  > state_changed:sensor.x @+1000
+      {"id": "a", "name": "automation 0", "source": "state of sensor.x", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "fired"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+=== M-87: template trigger using a trigger_variable and a templated for (note: 'static for only; trigger_variables unsupported')
+  > init @+0
+  > state_changed:sensor.x @+1000
+  > tick: @+2000
+      {"id": "a", "name": "automation 0", "source": "sensor.x via template", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "0:00:01"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+=== M-87: template trigger using an undefined variable: refused at load
+  > init @+0
+      {"id": "a", "reason": "template uses 'foo', which HALean does not support", "type": "unsupported"}
+=== M-34: numeric_state value_template sees state and trigger.{platform,entity_id,below,above,attribute}
+  > init @+0
+  > state_changed:sensor.x @+1000
+      {"id": "a", "name": "automation 0", "source": "numeric state of sensor.x", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": 2.5}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+=== M-8: time condition, after: a timestamp sensor whose state only ciso8601 parses (date only). Note: 'raise unsupported'
+  > init @+0
+  > event:go @+1000
+      {"level": "debug", "message": "automation 0: conditions not met", "type": "log"}
+=== M-8: time condition, after: a timestamp sensor with an aware ISO time; tz offset +3600 from the shell
+  > init @+0
+  > event:go @+1000
+      {"level": "debug", "message": "automation 0: conditions not met", "type": "log"}
+  > event:go @+2000
+      {"level": "debug", "message": "automation 0: conditions not met", "type": "log"}
+  > event:go @+1200000
+      {"id": "a", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "ran"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+=== M-8: time condition, before: a time entity read with strptime %H:%M:%S; bad text gives False (before) 
+  > init @+0
+  > event:go @+1000
+      {"id": "a", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "ran"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+  > state_changed:time.t @+2000
+  > event:go @+3000
+      {"level": "debug", "message": "automation 0: conditions not met", "type": "log"}
+=== M-6: state condition: for without state; for with attribute; for with an input entity state
+  > init @+0
+      {"id": "nostate", "reason": "dependency violation - key \"for\" requires key \"state\" to exist", "type": "unsupported"}
+      {"id": "attr", "reason": "Cannot use 'for' with an attribute", "type": "unsupported"}
+      {"id": "input", "reason": "Cannot use 'for' with a state referencing an entity", "type": "unsupported"}
+=== M-5: state condition with templated for, rendered at check time from a run variable
+  > init @+0
+  > event:go @+1000
+      {"id": "a", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "ran"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+      {"level": "debug", "message": "automation 1: conditions not met", "type": "log"}
+=== M-12: condition enabled: word, limited template, platform condition
+  > init @+0
+      {"id": "tmpl_states", "reason": "'states' in a templated 'enabled' is not supported by HALean", "type": "unsupported"}
+      {"id": "platform", "reason": "condition 'light.is_on' is not supported", "type": "unsupported"}
+  > event:go @+1000
+      {"id": "word_off", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "ran"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+      {"id": "tmpl_false", "name": "automation 1", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 1, "data": {"m": "ran"}, "domain": "x", "return_response": false, "run_id": 1, "service": "say", "target": {}, "type": "call_service"}
+=== M-16: action enabled: template false drops the step; template that fails to render is refused at load
+  > init @+0
+      {"id": "fail", "reason": "Error rendering enabled template: ZeroDivisionError: division by zero", "type": "unsupported"}
+  > event:go @+1000
+      {"id": "drop", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {}, "domain": "x", "return_response": false, "run_id": 0, "service": "two", "target": {}, "type": "call_service"}
+=== M-23: stop with a response_variable that is not defined
+  > init @+0
+  > event:go @+1000
+      {"id": "a", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"level": "debug", "message": "automation 0 aborted: Response variable 'nope' is not defined", "type": "log"}
+=== M-25: event action: event_data then event_data_template merged; a failing one is logged and left out
+  > init @+0
+  > event:go @+1000
+      {"id": "a", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"data": {"a": 1, "b": 2}, "event_type": "e1", "type": "fire_event"}
+      {"level": "error", "message": "Error rendering event data template: ZeroDivisionError: division by zero", "type": "log"}
+      {"data": {"b": 2}, "event_type": "e2", "type": "fire_event"}
+=== M-26: templated delay rendered when the step runs; an error aborts the run
+  > init @+0
+  > event:go @+1000
+      {"id": "a", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"id": "b", "name": "automation 1", "source": "event 'go'", "type": "automation_triggered"}
+      {"level": "error", "message": "Error rendering delay template: invalid time period: expected 'HH:MM', 'HH:MM:SS', seconds or a mapping", "type": "log"}
+      {"level": "debug", "message": "automation 1 aborted: Error rendering delay template: invalid time period: expected 'HH:MM', 'HH:MM:SS', seconds or a mapping", "type": "log"}
+  > tick: @+2999
+  > tick: @+3000
+      {"call_id": 0, "data": {}, "domain": "x", "return_response": false, "run_id": 0, "service": "after", "target": {}, "type": "call_service"}
+=== M-96: variables action whose template fails, with continue_on_error: true
+  > init @+0
+  > event:go @+1000
+      {"id": "a", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"level": "error", "message": "ZeroDivisionError: division by zero", "type": "log"}
+      {"level": "error", "message": "Error while executing automation automation 0: ZeroDivisionError: division by zero", "type": "log"}
+=== M-22: repeat: templated count, for_each, while, until; repeat is undefined after the loop is refused/absent
+  > init @+0
+  > event:go @+1000
+      {"id": "a", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "c1False"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+  > service_result: @+1000
+      {"call_id": 1, "data": {"m": "c2True"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+  > service_result: @+1001
+      {"call_id": 2, "data": {"m": "fp"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+  > service_result: @+1002
+      {"call_id": 3, "data": {"m": "fq"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+  > service_result: @+1003
+      {"call_id": 4, "data": {"m": "w1"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+  > service_result: @+1004
+      {"call_id": 5, "data": {"m": "w2"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+  > service_result: @+1005
+      {"call_id": 6, "data": {"m": "u1"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+  > service_result: @+1006
+      {"call_id": 7, "data": {"m": "u2"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+  > service_result: @+1007
+  > service_result: @+1008
+  > service_result: @+1009
+=== M-142/M-144/M-145: automation names and entity ids: no alias -> 'automation <n>'; collisions get _2; ids in config order (seen through this.entity_id)
+  > init @+0
+  > event:go @+1000
+      {"id": "", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "automation.automation_0|automation 0"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+      {"id": "", "name": "Automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 1, "data": {"m": "automation.automation_0_2|Automation 0"}, "domain": "x", "return_response": false, "run_id": 1, "service": "say", "target": {}, "type": "call_service"}
+      {"id": "", "name": "taken", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 2, "data": {"m": "automation.taken_2|taken"}, "domain": "x", "return_response": false, "run_id": 2, "service": "say", "target": {}, "type": "call_service"}
+=== M-143: slugify: non-ASCII alias makes `this` a load error
+  > init @+0
+      {"id": "?", "reason": "template uses 'this', which HALean does not support", "type": "unsupported"}
+=== M-38: homeassistant start fires once on homeassistant_started; shutdown refused
+  > init @+0
+      {"id": "shutdown", "reason": "the homeassistant shutdown trigger is not supported: HA runs it as a shutdown job, before any event the shell sees", "type": "unsupported"}
+  > event:homeassistant_started @+1000
+      {"id": "start", "name": "automation 0", "source": "Home Assistant starting", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "started"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+  > event:homeassistant_started @+2000
+=== M-39: tag trigger: tag_id and device_id sets
+  > init @+0
+  > event:tag_scanned @+1000
+      {"id": "a", "name": "automation 0", "source": "Tag scanned", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "t2"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+  > event:tag_scanned @+2000
+  > event:tag_scanned @+3000
+=== M-37: event trigger: templated type and data with trigger_variables; 1 == 1.0 == True; nested mapping; nested list refused; context refused
+  > init @+0
+      {"id": "list", "reason": "a list in nested event_data is not supported", "type": "unsupported"}
+      {"id": "ctx", "reason": "'context' (templates) is not supported", "type": "unsupported"}
+  > event:go2 @+1000
+      {"id": "a", "name": "automation 0", "source": "event 'go2'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "fired"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+  > event:go2 @+2000
+  > event:go2 @+3000
+=== M-35: time trigger: templated at with trigger_variables; at reading the clock refused; at rendering to a non-time refused; in wait_for_trigger refused
+  > init @+0
+      {"id": "clock", "reason": "'now' in a templated time trigger 'at' is not supported by HALean", "type": "unsupported"}
+      {"id": "bad", "reason": "invalid time trigger 'at: zz'", "type": "unsupported"}
+      {"id": "wait", "reason": "templated time trigger 'at: {{ '10:00' }}' is not supported here", "type": "unsupported"}
+  > tick: @+5000
+      {"id": "ok", "name": "automation 0", "source": "time", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "2023-11-14 22:13:25.500000+00:00"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+=== M-35: time trigger on an input_datetime with a missing attribute: logged at attach
+  > init @+0
+      {"level": "error", "message": "Error in time trigger for input_datetime.d: KeyError: 'has_time'", "type": "log"}
+=== M-112: time trigger: trigger.now is 500 ms into the second, fired at the whole-second tick
+  > init @+0
+  > tick: @+5000
+      {"id": "a", "name": "automation 0", "source": "time pattern", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "2023-11-14 22:13:25.500000+00:00"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+=== M-40..M-50: mqtt: templated topic with trigger_variables; payload rendered with value=None; qos from the message; retained filter; $ topics; simple before wildcard
+  > init @+0
+      {"id": "bytes", "reason": "an mqtt payload that reads as a Python bytes literal is not supported by HALean: b'x'", "type": "unsupported"}
+      {"id": "latin", "reason": "mqtt encoding 'latin-1' is not supported by HALean (the shell delivers UTF-8 text)", "type": "unsupported"}
+      {"id": "badtopic", "reason": "Single-level wildcard must occupy an entire level of the filter", "type": "unsupported"}
+      {"id": "badtmpltopic", "reason": "Multi-level wildcard must be the last character in the topic filter.", "type": "unsupported"}
+      {"id": "qos3", "reason": "value must be one of [0, 1, 2] for dictionary value @ data['qos']", "type": "unsupported"}
+  > mqtt:a/b @+1000
+      {"id": "simple", "name": "automation 1", "source": "mqtt topic a/b", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "simple x qos=1"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+      {"id": "wild", "name": "automation 0", "source": "mqtt topic a/b", "type": "automation_triggered"}
+      {"call_id": 1, "data": {"m": "wild a/b qos=1"}, "domain": "x", "return_response": false, "run_id": 1, "service": "say", "target": {}, "type": "call_service"}
+      {"id": "hash", "name": "automation 2", "source": "mqtt topic a/b", "type": "automation_triggered"}
+      {"call_id": 2, "data": {"m": "hash a/b"}, "domain": "x", "return_response": false, "run_id": 2, "service": "say", "target": {}, "type": "call_service"}
+  > mqtt:a/b @+2000
+  > mqtt:$SYS/b @+3000
+  > mqtt:j/t @+4000
+      {"id": "vt", "name": "automation 3", "source": "mqtt topic j/t", "type": "automation_triggered"}
+      {"call_id": 3, "data": {"m": "vt 7"}, "domain": "x", "return_response": false, "run_id": 3, "service": "say", "target": {}, "type": "call_service"}
+      {"level": "warning", "message": "automation 2: Already running", "type": "log"}
+  > mqtt:j/t @+5000
+      {"level": "debug", "message": "automation 3: Error parsing value: UndefinedError: 'value_json' is undefined (value: not json, template: {{ value_json.n }})", "type": "log"}
+      {"level": "warning", "message": "automation 2: Already running", "type": "log"}
+=== M-51..M-54: webhook: first trigger's methods/local_only count; json vs form; MultiDict first value; iteration is a render error; HEAD ignored; unknown id; bad JSON
+  > init @+0
+  > webhook:hook @+1000
+      {"id": "first", "name": "automation 0", "source": "webhook", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "first 5 q=1"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+      {"id": "second", "name": "automation 1", "source": "webhook", "type": "automation_triggered"}
+      {"call_id": 1, "data": {"m": "second"}, "domain": "x", "return_response": false, "run_id": 1, "service": "say", "target": {}, "type": "call_service"}
+  > webhook:hook @+2000
+      {"level": "warning", "message": "automation 0: Already running", "type": "log"}
+      {"level": "warning", "message": "automation 1: Already running", "type": "log"}
+  > webhook:hook @+3000
+      {"level": "warning", "message": "Webhook hook only supports POST methods but GET was received", "type": "log"}
+  > webhook:hook @+4000
+  > webhook:hook @+5000
+      {"level": "warning", "message": "Received remote request for local webhook hook", "type": "log"}
+  > webhook:nope @+6000
+      {"level": "info", "message": "Received message for unregistered webhook nope", "type": "log"}
+  > webhook:hook @+7000
+      {"level": "error", "message": "Error processing webhook hook: expected a string key", "type": "log"}
+  > webhook:hook2 @+8000
+      {"id": "iter", "name": "automation 2", "source": "webhook", "type": "automation_triggered"}
+      {"level": "error", "message": "Error rendering data template: iterating a MultiDictProxy is not supported by HALean", "type": "log"}
+      {"level": "error", "message": "Error while executing automation automation 2: Error rendering data template: iterating a MultiDictProxy is not supported by HALean", "type": "log"}
+  > webhook:hook3 @+9000
+      {"id": "printit", "name": "automation 3", "source": "webhook", "type": "automation_triggered"}
+      {"level": "error", "message": "Error rendering data template: printing a MultiDictProxy object is not supported by HALean", "type": "log"}
+      {"level": "error", "message": "Error while executing automation automation 3: Error rendering data template: printing a MultiDictProxy object is not supported by HALean", "type": "log"}
+  > webhook:hook4 @+10000
+      {"id": "meth", "name": "automation 4", "source": "webhook", "type": "automation_triggered"}
+      {"level": "error", "message": "Error rendering data template: MultiDictProxy.get is not supported by HALean", "type": "log"}
+      {"level": "error", "message": "Error while executing automation automation 4: Error rendering data template: MultiDictProxy.get is not supported by HALean", "type": "log"}
+=== M-55: automation variables rendered before conditions (error stops the trigger); conditions before mode; this.attributes.current
+  > init @+0
+  > event:go @+1000
+      {"level": "error", "message": "automation 0: Error rendering variables: ZeroDivisionError: division by zero", "type": "log"}
+      {"id": "condvar", "name": "automation 1", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "cur=0"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+=== M-93/M-97: trigger_variables: limited render at load; key named this skipped; uses of states refused; variables see trigger_variables
+  > init @+0
+      {"id": "st", "reason": "'states' in templated trigger_variables is not supported by HALean", "type": "unsupported"}
+      {"id": "this", "reason": "template uses 'this', which HALean does not support", "type": "unsupported"}
+  > event:go @+1000
+      {"id": "a", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "10 11 12"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+=== M-80: service call: templated name; data then data_template; whole-template target; own entity_id last; target entity_id csv lower-cased
+  > init @+0
+  > event:go @+1000
+      {"id": "a", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"a": 1, "b": 2}, "domain": "light", "return_response": false, "run_id": 0, "service": "turn_on", "target": {"entity_id": ["light.a", "light.b"]}, "type": "call_service"}
+  > service_result: @+1001
+      {"call_id": 1, "data": {}, "domain": "x", "return_response": false, "run_id": 0, "service": "y", "target": {"area_id": "k", "entity_id": ["light.own"]}, "type": "call_service"}
+  > service_result: @+1002
+      {"level": "error", "message": "Template rendered invalid service: nodot", "type": "log"}
+      {"level": "error", "message": "Error while executing automation automation 0: Template rendered invalid service: nodot", "type": "log"}
+=== M-81/M-82: cv.service: upper case lower-cased; bad format refused; service and action together refused
+  > init @+0
+      {"id": "bad", "reason": "Service light does not match format <domain>.<name>", "type": "unsupported"}
+      {"id": "both", "reason": "Cannot specify both 'service' and 'action'. Please use 'action' only.", "type": "unsupported"}
+  > event:go @+1000
+      {"id": "up", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {}, "domain": "light", "return_response": false, "run_id": 0, "service": "turn_on", "target": {}, "type": "call_service"}
+      {"id": "old", "name": "automation 3", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 1, "data": {}, "domain": "a", "return_response": false, "run_id": 1, "service": "c", "target": {}, "type": "call_service"}
+=== M-149/M-154: wait_template: wait.remaining None without timeout; with a timeout it is an error to use after a wake-up; 0.0 after a timeout
+  > init @+0
+  > event:go @+1000
+      {"id": "no_to", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"id": "to", "name": "automation 1", "source": "event 'go'", "type": "automation_triggered"}
+      {"id": "to2", "name": "automation 2", "source": "event 'go'", "type": "automation_triggered"}
+  > state_changed:sensor.x @+2000
+      {"call_id": 0, "data": {"m": "True None"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+      {"level": "error", "message": "Error rendering data template: wait.remaining values are not supported by HALean", "type": "log"}
+      {"level": "error", "message": "Error while executing automation automation 1: Error rendering data template: wait.remaining values are not supported by HALean", "type": "log"}
+  > tick: @+3000
+      {"call_id": 1, "data": {"m": "False 0.0"}, "domain": "x", "return_response": false, "run_id": 2, "service": "say", "target": {}, "type": "call_service"}
+=== M-156: wait_for_trigger: trigger templates see variables without wait; two triggers in one round: the later overwrites wait.trigger
+  > init @+0
+  > event:go @+1000
+      {"id": "a", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+  > event:w @+2000
+      {"call_id": 0, "data": {"m": "second"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+=== M-158/M-159: parallel: all branches run to the end; first raising branch re-raises; disabled branch dropped
+  > init @+0
+  > event:go @+1000
+      {"id": "a", "name": "automation 0", "source": "event 'go'", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "b3"}, "domain": "x", "return_response": false, "run_id": 2, "service": "say", "target": {}, "type": "call_service"}
+  > service_result: @+1001
+      {"level": "debug", "message": "automation 0 aborted: s1", "type": "log"}
+=== M-171/M-173: sun trigger: offset as given; fires at the first whole-second tick at or after the event
+  > init @+0
+  > tick: @+86400000
+      {"id": "a", "name": "automation 0", "source": "sun event sunset", "type": "automation_triggered"}
+      {"call_id": 0, "data": {"m": "sunset -1 day, 23:30:00"}, "domain": "x", "return_response": false, "run_id": 0, "service": "say", "target": {}, "type": "call_service"}
+=== M-164: zone condition with a non-numeric coordinate
+  > init @+0
+  > event:go @+1000
+      {"level": "debug", "message": "automation 0: conditions not met", "type": "log"}

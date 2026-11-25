@@ -1,0 +1,34 @@
+M-281 | cv.time_period_str('0:0:nan') called directly (does a translated cv function raise ValueError?)
+    -> raises builtins.ValueError: cannot convert float NaN to integer
+M-281 | the same under probatio.Schema({'t': cv.time_period_str})
+    -> raises probatio.error.MultipleInvalid: not a valid value: cannot convert float NaN to integer at 't'
+M-281 | cv.positive_timedelta / time_period_dict with NaN: probatio.Schema({'t': cv.time_period_dict})({'t': {'seconds': nan}})
+    -> raises probatio.error.MultipleInvalid: not a valid value: cannot convert float NaN to integer at 't'
+M-281 | cv.time_period_seconds(nan)
+    -> raises probatio.error.Invalid: Expected seconds, got nan
+M-316 | cv.entity_ids(5): iterating a scalar
+    -> raises builtins.TypeError: 'int' object is not iterable
+M-316 | cv.entity_ids(timedelta) (SCH-4)
+    -> raises builtins.TypeError: 'datetime.timedelta' object is not iterable
+M-107 | dt_util.parse_datetime('2023-11-14') (ciso8601 path)
+    -> datetime.datetime(2023, 11, 14, 0, 0)
+M-107 | dt_util.parse_datetime('2023-11-14T24:00:00') (TPL-23)
+    -> datetime.datetime(2023, 11, 15, 0, 0)
+M-107 | the name parse_datetime in util/dt.py: number of definitions and the first one's decorators
+    -> '@overload\ndef parse_datetime(dt_str: str) -> dt.datetime | None:\n    ...'
+M-342 | input_number _cv_input_number message with swapped bounds
+    -> raises probatio.error.Invalid: Maximum (5.0) is not greater than minimum (1.0)
+M-370 | input_text _cv_input_text message with swapped bounds
+    -> raises probatio.error.Invalid: Max len (5) is not greater than min len (1)
+M-391 | timer _format_timedelta(timedelta(days=1, seconds=3661, microseconds=500000))
+    -> '25:01:01'
+M-331 | f'{0.1 + 0.2:.15}', f'{1e16:.15}', f'{123456789012345678.0:.15}'
+    -> ['0.3', '1e+16', '1.23456789012346e+17']
+M-303 | probatio.Lower on non-ASCII text
+    -> 'àb'
+M-301 | probatio In message ordering: mixed container
+    -> raises probatio.error.MultipleInvalid: value must be one of ['b', 1, 'a']
+M-301 | probatio In message ordering: strings sort
+    -> raises probatio.error.MultipleInvalid: value must be one of ['a', 'b']
+M-301 | probatio In message ordering: None with one other
+    -> raises probatio.error.MultipleInvalid: value must be one of [None, 'a']

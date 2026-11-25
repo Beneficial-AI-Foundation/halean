@@ -51,3 +51,22 @@ The claim rows, verdicts and the "Not correct" texts live in `probes/build_claim
 * The mutation claims at README lines 115-116 and 410-413 are out of scope.
 * For table cells that list many features, the row says how many were checked.
 * Probes are deterministic. The template probe and the two new scenarios were each run twice with the same result.
+
+## Consolidated claim verdicts (manifest, PROPERTIES.md, docstrings)
+
+Three more files, built from the six theorem reviews in `review/experiments/10-theorems/class/`:
+
+| File | Content |
+|---|---|
+| `CLAIMS-MANIFEST-PROVEN.md` | the 53 `manifest.yaml` entries with status `proven`, and the 10 `translated` entries whose notes name a theorem |
+| `CLAIMS-PROPERTIES.md` | one row per factual claim in `PROPERTIES.md` |
+| `CLAIMS-DOCSTRINGS.md` | totals per area, every docstring or header claim that is not `correct`, and a check of every claim marked `false` |
+
+```bash
+/opt/havenv/bin/python -B review/experiments/12-claims/probes/consolidate.py   # rewrites the three files; prints the count tables (logs/consolidate.log)
+export PATH=$HOME/.elan/bin:$PATH; cd /home/user/halean
+lake env lean review/experiments/12-claims/scratch/false_claims.lean           # output kept in scratch/false_claims.out
+lake env lean review/experiments/12-claims/scratch/props.lean                  # output kept in scratch/props.out
+```
+
+Verdicts and evidence are in `probes/consolidate_data_manifest.py`, `consolidate_data_properties.py`, `consolidate_data_docstrings.py`. The script counts the rows, checks that every cited theorem exists in `HALean/`, and checks the per-area docstring counts against the rows.
