@@ -1,0 +1,265 @@
+# Hand-written cases: cv.* validators.
+
+- name: hw_cv_boolean_string
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: b, value: {cv: boolean}}, {key: s, value: {cv: string}}]}}
+    - &c1 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {b: "tRuE"}}
+    - {<<: *c1, data: {b: "\tON\n"}}
+    - {<<: *c1, data: {b: "Enable"}}
+    - {<<: *c1, data: {b: "DISABLE "}}
+    - {<<: *c1, data: {b: "enabled"}}
+    - {<<: *c1, data: {b: "y"}}
+    - {<<: *c1, data: {b: "01"}}
+    - {<<: *c1, data: {b: "1.0"}}
+    - {<<: *c1, data: {b: ""}}
+    - {<<: *c1, data: {b: "  "}}
+    - {<<: *c1, data: {b: " N O "}}
+    - {<<: *c1, data: {b: "TRUE "}}
+    - {<<: *c1, data: {b: "　off "}}
+    - {<<: *c1, data: {b: -0.0}}
+    - {<<: *c1, data: {b: 5.0e-324}}
+    - {<<: *c1, data: {b: -7}}
+    - {<<: *c1, data: {b: 100000000000000000000000000000000000000}}
+    - {<<: *c1, data: {b: []}}
+    - {<<: *c1, data: {b: [true]}}
+    - {<<: *c1, data: {b: {"on": true}}}
+    - {<<: *c1, data: {s: ""}}
+    - {<<: *c1, data: {s: 1.0e+16}}
+    - {<<: *c1, data: {s: -0.0}}
+    - {<<: *c1, data: {s: true}}
+    - {<<: *c1, data: {s: 12345678901234567890123}}
+    - {<<: *c1, data: {s: "é"}}
+    - {<<: *c1, data: {s: []}}
+
+- name: hw_cv_entity
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: one, value: {cv: entity_id}}, {key: many, value: {cv: entity_ids}},
+                         {key: comp, value: {cv: comp_entity_ids}},
+                         {key: dom, value: {cv: entity_domain, domain: light}},
+                         {key: doms, value: {cv: entity_domain, domain: [light, "switch"]}},
+                         {key: nodom, value: {cv: entity_domain, domain: []}}]}}
+    - &c2 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {one: "LIGHT.A_B1"}}
+    - {<<: *c2, data: {one: "light.a__b"}}
+    - {<<: *c2, data: {one: "li__ght.a"}}
+    - {<<: *c2, data: {one: "l_.a"}}
+    - {<<: *c2, data: {one: "_l.a"}}
+    - {<<: *c2, data: {one: "light.a_"}}
+    - {<<: *c2, data: {one: "1.2"}}
+    - {<<: *c2, data: {one: 1.2}}
+    - {<<: *c2, data: {one: "light.a.b"}}
+    - {<<: *c2, data: {one: " light.a"}}
+    - {<<: *c2, data: {one: "light.a "}}
+    - {<<: *c2, data: {one: "light.a\n\n"}}
+    - {<<: *c2, data: {one: "light.a\r"}}
+    - {<<: *c2, data: {one: "light.a-b"}}
+    - {<<: *c2, data: {one: ""}}
+    - {<<: *c2, data: {one: true}}
+    - {<<: *c2, data: {one: [light.a]}}
+    - {<<: *c2, data: {one: {light.a: 1}}}
+    - {<<: *c2, data: {many: ""}}
+    - {<<: *c2, data: {many: " light.a ,\tSWITCH.B\n"}}
+    - {<<: *c2, data: {many: "light.a,"}}
+    - {<<: *c2, data: {many: []}}
+    - {<<: *c2, data: {many: {}}}
+    - {<<: *c2, data: {many: {"Light.A": null, " light.b": 1}}}
+    - {<<: *c2, data: {many: ["light.a,light.b"]}}
+    - {<<: *c2, data: {many: [null]}}
+    - {<<: *c2, data: {many: [1.5]}}
+    - {<<: *c2, data: {many: 1.5}}
+    - {<<: *c2, data: {many: false}}
+    - {<<: *c2, data: {comp: " ALL"}}
+    - {<<: *c2, data: {comp: "None"}}
+    - {<<: *c2, data: {comp: "all,none"}}
+    - {<<: *c2, data: {comp: ["all"]}}
+    - {<<: *c2, data: {comp: [ALL]}}
+    - {<<: *c2, data: {comp: []}}
+    - {<<: *c2, data: {comp: null}}
+    - {<<: *c2, data: {comp: 1.5}}
+    - {<<: *c2, data: {comp: {"Light.K": 1}}}
+    - {<<: *c2, data: {comp: "light.none"}}
+    - {<<: *c2, data: {dom: "LIGHT.A"}}
+    - {<<: *c2, data: {dom: ["light.a"]}}
+    - {<<: *c2, data: {dom: "lights.a"}}
+    - {<<: *c2, data: {dom: "light.a,light.b"}}
+    - {<<: *c2, data: {dom: "switch.a,light.b"}}
+    - {<<: *c2, data: {dom: ""}}
+    - {<<: *c2, data: {dom: null}}
+    - {<<: *c2, data: {dom: 5}}
+    - {<<: *c2, data: {dom: {light.z: 0}}}
+    - {<<: *c2, data: {doms: "Switch.X\n"}}
+    - {<<: *c2, data: {doms: "sensor.x"}}
+    - {<<: *c2, data: {doms: [switch.a, light.b]}}
+    - {<<: *c2, data: {nodom: "light.a"}}
+
+- name: hw_cv_time_period_forms
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: s, value: {cv: time_period_str}}, {key: sec, value: {cv: time_period_seconds}},
+                         {key: d, value: {cv: time_period_dict}}, {key: tp, value: {cv: time_period}},
+                         {key: pos, value: {cv: positive_time_period}}, {key: pd, value: {cv: positive_time_period_dict}},
+                         {key: str, value: {all: [{cv: time_period}, {coerce: str}]}}]}}
+    - &c3 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {s: "24:00"}}
+    - {<<: *c3, data: {s: "1:99:99.5"}}
+    - {<<: *c3, data: {s: "-0:00:00.0000005"}}
+    - {<<: *c3, data: {s: "0:00:00.0000015"}}
+    - {<<: *c3, data: {s: "0:00:00.0000025"}}
+    - {<<: *c3, data: {s: "1:-30"}}
+    - {<<: *c3, data: {s: "-1:-30"}}
+    - {<<: *c3, data: {s: "--1:30"}}
+    - {<<: *c3, data: {s: "+-1:30"}}
+    - {<<: *c3, data: {s: " 1:30"}}
+    - {<<: *c3, data: {s: "- 1:30"}}
+    - {<<: *c3, data: {s: " 1 : 30 : 1.5 "}}
+    - {<<: *c3, data: {s: "1_0:3_0:1_0.5"}}
+    - {<<: *c3, data: {s: "1:30:1e2"}}
+    - {<<: *c3, data: {s: "1:30:-5"}}
+    - {<<: *c3, data: {s: "1:30:"}}
+    - {<<: *c3, data: {s: ":30"}}
+    - {<<: *c3, data: {s: "1.5:30"}}
+    - {<<: *c3, data: {s: "1:30.5"}}
+    - {<<: *c3, data: {s: "90"}}
+    - {<<: *c3, data: {s: ""}}
+    - {<<: *c3, data: {s: "+"}}
+    - {<<: *c3, data: {s: 90}}
+    - {<<: *c3, data: {s: false}}
+    - {<<: *c3, data: {s: 1.5}}
+    - {<<: *c3, data: {s: null}}
+    - {<<: *c3, data: {s: ["1:30"]}}
+    - {<<: *c3, data: {s: "23999999975:59:59.999999"}}
+    - {<<: *c3, data: {s: "-23999999976:00:00"}}
+    - {<<: *c3, data: {sec: "1_0"}}
+    - {<<: *c3, data: {sec: " 1.5e1 "}}
+    - {<<: *c3, data: {sec: 0.0000005}}
+    - {<<: *c3, data: {sec: 0.0000015}}
+    - {<<: *c3, data: {sec: -0.0000025}}
+    - {<<: *c3, data: {sec: 86399999999999}}
+    - {<<: *c3, data: {sec: -86399999999999.9}}
+    - {<<: *c3, data: {sec: "x"}}
+    - {<<: *c3, data: {sec: null}}
+    - {<<: *c3, data: {sec: []}}
+    - {<<: *c3, data: {sec: {seconds: 1}}}
+    - {<<: *c3, data: {sec: false}}
+    - {<<: *c3, data: {d: {milliseconds: 0.5, seconds: 0.0000005}}}
+    - {<<: *c3, data: {d: {days: 0.5, hours: -12, minutes: "0.5", seconds: true, milliseconds: "1e3"}}}
+    - {<<: *c3, data: {d: {seconds: 0.1, minutes: 0.1, hours: 0.1, days: 0.1, milliseconds: 0.1}}}
+    - {<<: *c3, data: {d: {}}}
+    - {<<: *c3, data: {d: {weeks: 1}}}
+    - {<<: *c3, data: {d: {hours: 1, Hours: 2}}}
+    - {<<: *c3, data: {d: {hours: null}}}
+    - {<<: *c3, data: {d: {hours: [1], minutes: "x"}}}
+    - {<<: *c3, data: {d: [1]}}
+    - {<<: *c3, data: {d: "1:30"}}
+    - {<<: *c3, data: {d: {days: 999999999, hours: 23.999999999}}}
+    - {<<: *c3, data: {tp: {secs: 1}}}
+    - {<<: *c3, data: {tp: {seconds: "x"}}}
+    - {<<: *c3, data: {tp: [1]}}
+    - {<<: *c3, data: {tp: null}}
+    - {<<: *c3, data: {tp: true}}
+    - {<<: *c3, data: {tp: "1e3"}}
+    - {<<: *c3, data: {tp: "abc"}}
+    - {<<: *c3, data: {tp: "-0:0:0.5"}}
+    - {<<: *c3, data: {pos: "-0:0:0.0000004"}}
+    - {<<: *c3, data: {pos: -0.0000005}}
+    - {<<: *c3, data: {pos: -0.0000006}}
+    - {<<: *c3, data: {pos: {hours: 1, minutes: -60.00000001}}}
+    - {<<: *c3, data: {pos: "x"}}
+    - {<<: *c3, data: {pd: {seconds: -0.0}}}
+    - {<<: *c3, data: {pd: {days: -1, hours: 24}}}
+    - {<<: *c3, data: {pd: {days: -1, hours: 23.999999999}}}
+    - {<<: *c3, data: {pd: 5}}
+    - {<<: *c3, data: {str: 0}}
+    - {<<: *c3, data: {str: -0.000001}}
+    - {<<: *c3, data: {str: 86400}}
+    - {<<: *c3, data: {str: -86400.5}}
+    - {<<: *c3, data: {str: {days: 2, milliseconds: 1}}}
+    - {<<: *c3, data: {str: "100:00:00.25"}}
+
+- name: hw_cv_slug_color
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: sl, value: {cv: slug}}, {key: hex, value: {cv: color_hex}}]}}
+    - &c4 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {sl: "1,2"}}
+    - {<<: *c4, data: {sl: "1, 2"}}
+    - {<<: *c4, data: {sl: "a,1"}}
+    - {<<: *c4, data: {sl: "12,345,678"}}
+    - {<<: *c4, data: {sl: "1,,2"}}
+    - {<<: *c4, data: {sl: "1',2"}}
+    - {<<: *c4, data: {sl: "'a'"}}
+    - {<<: *c4, data: {sl: "a'-'b"}}
+    - {<<: *c4, data: {sl: "''"}}
+    - {<<: *c4, data: {sl: " "}}
+    - {<<: *c4, data: {sl: "_"}}
+    - {<<: *c4, data: {sl: "a_-_b"}}
+    - {<<: *c4, data: {sl: "A_B"}}
+    - {<<: *c4, data: {sl: "a\tb\n"}}
+    - {<<: *c4, data: {sl: "a&b"}}
+    - {<<: *c4, data: {sl: "a;b"}}
+    - {<<: *c4, data: {sl: "100%"}}
+    - {<<: *c4, data: {sl: "a\x00b\x7f"}}
+    - {<<: *c4, data: {sl: 0}}
+    - {<<: *c4, data: {sl: -5}}
+    - {<<: *c4, data: {sl: 1.0e+16}}
+    - {<<: *c4, data: {sl: false}}
+    - {<<: *c4, data: {sl: []}}
+    - {<<: *c4, data: {sl: {a: 1}}}
+    - {<<: *c4, data: {sl: [a_b]}}
+    - {<<: *c4, data: {hex: "#ff00ff\n\n"}}
+    - {<<: *c4, data: {hex: "\n#ff00ff"}}
+    - {<<: *c4, data: {hex: "#ff00ff "}}
+    - {<<: *c4, data: {hex: "#FfFfFf"}}
+    - {<<: *c4, data: {hex: "#ff00fg"}}
+    - {<<: *c4, data: {hex: "#ff00f\n"}}
+    - {<<: *c4, data: {hex: "#ff00ff\r"}}
+    - {<<: *c4, data: {hex: "#+12345"}}
+    - {<<: *c4, data: {hex: null}}
+    - {<<: *c4, data: {hex: true}}
+    - {<<: *c4, data: {hex: ["#ffffff"]}}
+
+- name: hw_lower_upper_containers
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [{key: lo, value: {lower: null}}, {key: up, value: {upper: null}},
+                         {key: chain, value: {all: [{upper: null}, {in: ["TRUE", "NONE", "1.5E-05", "[1, 'A']"]}]}}]}}
+    - &c5 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {lo: [A, {B: null}, true, 1.0e-5]}}
+    - {<<: *c5, data: {up: {a: [1.5, "it's", 'q"q'], b: false}}}
+    - {<<: *c5, data: {lo: 1.0e+16, up: 1.0e-7}}
+    - {<<: *c5, data: {chain: true}}
+    - {<<: *c5, data: {chain: null}}
+    - {<<: *c5, data: {chain: 0.000015}}
+    - {<<: *c5, data: {chain: [1, a]}}
+    - {<<: *c5, data: {chain: "none "}}
+
+- name: hw_timedelta_through_validators
+  # a timedelta made by cv.time_period, then read by another validator
+  ops:
+    - {op: register, domain: hw, service: v, handler: {echo: true}, supports_response: only,
+       schema: {fields: [
+         {key: bool, value: {all: [{cv: time_period}, {cv: boolean}]}},
+         {key: eid, value: {all: [{cv: time_period}, {cv: entity_id}]}},
+         {key: slug, value: {all: [{cv: time_period}, {cv: slug}]}},
+         {key: tps, value: {all: [{cv: time_period}, {cv: time_period_str}]}},
+         {key: sec, value: {all: [{cv: time_period}, {cv: time_period_seconds}]}},
+         {key: rng, value: {all: [{cv: time_period}, {range: {min: 0}}]}},
+         {key: len, value: {all: [{cv: time_period}, {length: {min: 0}}]}},
+         {key: ci, value: {all: [{cv: time_period}, {coerce: int}]}},
+         {key: port, value: {all: [{cv: time_period}, {port: null}]}},
+         {key: lst, value: {all: [{cv: time_period}, {ensure_list: null}, {list: [timedelta]}]}},
+         {key: lit, value: {all: [{cv: time_period}, {in: [0, "0:00:00"]}]}},
+         {key: td, value: {all: [{cv: time_period}, timedelta, {cv: positive_time_period}]}},
+         {key: lo, value: {all: [{cv: time_period}, {lower: null}]}}]}}
+    - &c6 {op: call, domain: hw, service: v, blocking: true, return_response: true, data: {bool: 0}}
+    - {<<: *c6, data: {eid: "1:30"}}
+    - {<<: *c6, data: {slug: -1.5}}
+    - {<<: *c6, data: {tps: 90061.000001}}
+    - {<<: *c6, data: {sec: {days: 2}}}
+    - {<<: *c6, data: {rng: 5}}
+    - {<<: *c6, data: {len: 5}}
+    - {<<: *c6, data: {ci: 5}}
+    - {<<: *c6, data: {port: 80}}
+    - {<<: *c6, data: {lst: 0}}
+    - {<<: *c6, data: {lit: 0}}
+    - {<<: *c6, data: {td: 172800}}
+    - {<<: *c6, data: {td: -1}}
+    - {<<: *c6, data: {lo: 86400.5}}

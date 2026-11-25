@@ -59,6 +59,7 @@ class Gen:
         for t in TERMINAL:
             self.rank[t] = 1000
         self.n = 0
+        self.nest = 0
         self.listener_ids: list[str] = []
 
     def uid(self, p: str) -> str:
@@ -93,6 +94,10 @@ class Gen:
         return d
 
     def higher_events(self, r: int) -> list[str]:
+        """Events a script of rank r may fire or listen to. A script on a
+        terminal event (rank 1000) may fire nothing."""
+        if r >= 1000:
+            return []
         return [e for e in EVENTS if self.rank[e] > r] + TERMINAL
 
     def higher_services(self, r: int) -> list[str]:
@@ -100,8 +105,11 @@ class Gen:
 
     # ---- actions -----------------------------------------------------------
 
-    def fire(self, r: int, in_script: bool) -> dict:
-        f = {"event_type": self.rng.choice(self.higher_events(r))}
+    def fire(self, r: int, in_script: bool) -> dict | None:
+        evs = self.higher_events(r)
+        if not evs:
+            return None
+        f = {"event_type": self.rng.choice(evs)}
         d = self.data()
         if d is not None:
             f["data"] = d
@@ -197,7 +205,17 @@ class Gen:
             spec["react_times"] = self.rng.randint(0, 2)
         return spec
 
-    def script(self, r: int, coroutine: bool, depth: int = 0) -> list:
+    def script(self, r: int, coroutine: bool, depth: int | None = None) -> list:
+        """A script; `self.nest` counts how deep we are inside scripts that
+        themselves create listeners or services (at most 2 levels)."""
+        depth = self.nest
+        self.nest += 1
+        try:
+            return self._script(r, coroutine, depth)
+        finally:
+            self.nest -= 1
+
+    def _script(self, r: int, coroutine: bool, depth: int) -> list:
         out = []
         for _ in range(self.rng.choice([0, 1, 1, 2, 2, 3, 3, 4])):
             a = self.action(r, coroutine, depth)
@@ -209,11 +227,13 @@ class Gen:
         rng = self.rng
         x = rng.random()
         if x < 0.24:
-            return {"fire": self.fire(r, True)}
+            f = self.fire(r, True)
+            return {"fire": f} if f else None
         if x < 0.40:
             if r < self.rank["call_service"]:
                 return {"call": self.call(r, True, coroutine)}
-            return {"fire": self.fire(r, True)}
+            f = self.fire(r, True)
+            return {"fire": f} if f else None
         if x < 0.50:
             if r < self.rank["state_changed"]:
                 if rng.random() < 0.85:
@@ -221,7 +241,7 @@ class Gen:
                 return {"remove": {"entity_id": rng.choice(ENTITIES)}}
             return None
         if x < 0.56:
-            if r < self.rank["service_registered"] and depth < 1:
+            if r < self.rank["service_registered"] and depth < 2:
                 svcs = self.higher_services(r)
                 if svcs:
                     if rng.random() < 0.6:
@@ -230,7 +250,7 @@ class Gen:
                                                "service": self.case_name(rng.choice(svcs + ["missing"]))}}
             return None
         if x < 0.62:
-            if depth < 1:
+            if depth < 2 and self.higher_events(r):
                 et = rng.choice(self.higher_events(r))
                 key = "listen_once" if rng.random() < 0.3 else "listen"
                 spec = self.listen(et)

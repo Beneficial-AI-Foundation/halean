@@ -1,0 +1,13 @@
+diff --git a/HALean/Helpers/Common.lean b/HALean/Helpers/Common.lean
+index 374bdc7..8f93284 100644
+--- a/HALean/Helpers/Common.lean
++++ b/HALean/Helpers/Common.lean
+@@ -270,7 +270,7 @@ def serviceArgs (data : List (String × Value)) : List (String × Value) :=
+ For explicit ids, HA iterates a `set` (hash order, random per process):
+ HALean runs them in the order given, which is one of HA's possible orders. -/
+ def selectTargets (entityIds : List String) : Target → List Nat
+-  | .all => List.range entityIds.length
++  | .all => (List.range entityIds.length).filter fun i => entityIds[i]? != some ""
+   | .ids ids =>
+     (ids.eraseDups).filterMap fun id => entityIds.idxOf? id
+ 
