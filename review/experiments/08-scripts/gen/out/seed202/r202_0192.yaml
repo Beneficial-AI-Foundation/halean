@@ -1,0 +1,97 @@
+description: random scenario seed=202 index=192
+scripts:
+  s0:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - repeat:
+        count: 2
+        sequence:
+        - action: script.turn_off
+          target:
+            entity_id: script.s1
+    - delay: 3
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s1
+        - script.s2
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+  s1:
+    alias: Script 1 A
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+    - variables:
+        out:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+  s2:
+    alias: Script 2 A
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+steps:
+- at: 1
+  call: s0
+- at: 4
+  call: s1
+  data:
+    v: 4
+  return_response: true
+- at: 5
+  call: s2
+  return_response: true
+- at: 6
+  call: s1
+  data:
+    v: 1
+  return_response: true
+- at: 8
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+- at: 9
+- at: 12
+  call: s1
+  data:
+    v: 0
+  return_response: true
+- at: 12
+  call: s1
+  return_response: true
+- at: 14
+  call: s2
+- at: 15
+  call: s2
+- at: 16
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s0

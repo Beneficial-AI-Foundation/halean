@@ -1,0 +1,151 @@
+description: random scenario seed=202 index=244
+scripts:
+  s0:
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+  s1:
+    alias: Script 1 A
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+  s2:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+steps:
+- at: 1
+  call: s2
+  data:
+    v: 2
+- at: 2
+  call: s0
+- at: 2
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+- at: 3
+  result: 0
+  response:
+    n: 0
+- at: 4
+  call: turn_off
+  data:
+    entity_id: all
+- at: 6
+  call: s0
+  data:
+    v: 0
+- at: 7
+  reload:
+    s0:
+      icon: mdi:script
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+    s1:
+      alias: Reloaded s1
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+    s2:
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+- at: 7
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 8
+  call: s2
+  data:
+    v: 4
+- at: 9
+  reload:
+    s0:
+      icon: mdi:script
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+    s1:
+      alias: Reloaded s1
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+- at: 10
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+    variables:
+      v: 3
+- at: 12
+  call: s1
+  data:
+    v: 0
+  return_response: true
+- at: 15
+  call: turn_off
+  data:
+    entity_id: script.s1

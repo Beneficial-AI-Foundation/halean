@@ -1,0 +1,330 @@
+description: random scenario seed=202 index=200
+scripts:
+  s0:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+  s1:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s2:
+    alias: Script 2 B
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - parallel:
+      - sequence:
+        - action: script.turn_off
+          target:
+            entity_id: script.s2
+        - delay: 1
+      - sequence:
+        - delay: 3
+        - event: mark
+          event_data:
+            id: s2.2
+            v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+steps:
+- at: 1
+  call: s1
+  data:
+    v: 1
+- at: 2
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+- at: 3
+  call: s2
+  data:
+    v: 4
+  return_response: true
+- at: 4
+  reload:
+    s0:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      alias: Reloaded s0
+    s1:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s2:
+      alias: Script 2 B
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - parallel:
+        - sequence:
+          - action: script.turn_off
+            target:
+              entity_id: script.s2
+          - delay: 1
+        - sequence:
+          - delay: 3
+          - event: mark
+            event_data:
+              id: s2.2
+              v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+- at: 7
+  reload:
+    s0:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      alias: Reloaded s0
+    s1:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      alias: Reloaded s1
+    s2:
+      alias: Script 2 B
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - parallel:
+        - sequence:
+          - action: script.turn_off
+            target:
+              entity_id: script.s2
+          - delay: 1
+        - sequence:
+          - delay: 3
+          - event: mark
+            event_data:
+              id: s2.2
+              v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+- at: 10
+  call: s1
+  data:
+    v: 0
+  return_response: true
+- at: 13
+  reload:
+    s0:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      alias: Reloaded s0
+    s1:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      alias: Reloaded s1
+    s2:
+      alias: Reloaded s2
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - parallel:
+        - sequence:
+          - action: script.turn_off
+            target:
+              entity_id: script.s2
+          - delay: 1
+        - sequence:
+          - delay: 3
+          - event: mark
+            event_data:
+              id: s2.2
+              v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+- at: 14
+  call: turn_off
+  data:
+    entity_id:
+    - script.s2
+    - script.s0
+- at: 15
+  call: turn_off
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+- at: 16
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 19
+  reload:
+    s0:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      alias: Reloaded s0
+    s1:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      alias: Reloaded s1
+    s2:
+      alias: Reloaded s2
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - parallel:
+        - sequence:
+          - action: script.turn_off
+            target:
+              entity_id: script.s2
+          - delay: 1
+        - sequence:
+          - delay: 3
+          - event: mark
+            event_data:
+              id: s2.2
+              v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s2.3
+          v: '{{ v | default(0) }}'

@@ -1,0 +1,221 @@
+description: random scenario seed=202 index=196
+scripts:
+  s0:
+    icon: mdi:script
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 2
+  s2:
+    alias: Script 2 B
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+    - action: test.m
+      data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - parallel:
+      - sequence:
+        - repeat:
+            count: 2
+            sequence:
+            - action: script.turn_on
+              target:
+                entity_id:
+                - script.s3
+              data:
+                variables:
+                  v: '{{ v | default(0) + 10 }}'
+      - sequence:
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s3
+  s3:
+    alias: Script 3 A
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s3.3
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s3.4
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s3'') }}'
+        cur: '{{ state_attr(''script.s3'', ''current'') }}'
+    - action: test.m
+      data:
+        id: s3.5
+        v: '{{ v | default(0) }}'
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+steps:
+- at: 1
+  call: s3
+  data:
+    v: 0
+- at: 1
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+    variables:
+      v: 4
+- at: 2
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s3
+- at: 2
+  reload:
+    s0:
+      icon: mdi:script
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 2
+      alias: Reloaded s1
+    s2:
+      alias: Script 2 B
+      mode: parallel
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s3
+      - action: test.m
+        data:
+          id: s2.2
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+      - parallel:
+        - sequence:
+          - repeat:
+              count: 2
+              sequence:
+              - action: script.turn_on
+                target:
+                  entity_id:
+                  - script.s3
+                data:
+                  variables:
+                    v: '{{ v | default(0) + 10 }}'
+        - sequence:
+          - action: script.turn_on
+            target:
+              entity_id:
+              - script.s3
+    s3:
+      alias: Script 3 A
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s3.3
+          v: '{{ v | default(0) }}'
+      - event: mark
+        event_data:
+          id: s3.4
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s3'') }}'
+          cur: '{{ state_attr(''script.s3'', ''current'') }}'
+      - action: test.m
+        data:
+          id: s3.5
+          v: '{{ v | default(0) }}'
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+- at: 3
+  call: turn_off
+  data:
+    entity_id: script.s2
+- at: 6
+- at: 8
+  call: s1
+- at: 9
+  call: s3
+- at: 10
+  result: 1
+  ok: false
+  error_kind: ha_error
+- at: 12
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    variables:
+      v: 1
+- at: 13
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    variables:
+      v: 2
+- at: 16
+  result: 0
+  response:
+    n: 0
+- at: 18
+  call: s1
+  data:
+    v: 1
+- at: 19
+  call: turn_off
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 20
+  result: 3
+  ok: false
+  error_kind: other
+- at: 21
+  call: s1

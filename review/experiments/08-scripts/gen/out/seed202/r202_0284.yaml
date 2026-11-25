@@ -1,0 +1,106 @@
+description: random scenario seed=202 index=284
+scripts:
+  s0:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s2'') }}'
+        cur: '{{ state_attr(''script.s2'', ''current'') }}'
+  s1:
+    icon: mdi:script
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+  s2:
+    alias: Script 2 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+steps:
+- at: 3
+  call: s0
+- at: 5
+  call: s2
+  return_response: true
+- at: 6
+  call: s2
+  data:
+    v: 1
+- at: 9
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+- at: 12
+  result: 0
+  response:
+    n: 0
+- at: 12
+  call: s0
+  return_response: true
+- at: 13
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 14
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 14
+  call: s0
+  data:
+    v: 2
+- at: 17
+  call: s1
+- at: 18
+  result: 1
+  response:
+    n: 1
+- at: 18
+  call: s2
+  data:
+    v: 2
+- at: 19
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+- at: 19
+  call: s2
+- at: 20
+  call: s0
+  data:
+    v: 2

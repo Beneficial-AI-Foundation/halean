@@ -1,0 +1,154 @@
+description: random scenario seed=202 index=162
+scripts:
+  s0:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+    - delay: 1
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+    - variables:
+        out:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+    - delay: 1
+    - delay: 2
+  s3:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - variables:
+          out:
+            id: s3.4
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+      - action: test.m
+        data:
+          id: s3.5
+          v: '{{ v | default(0) }}'
+steps:
+- at: 1
+  call: s0
+  data:
+    v: 1
+- at: 4
+  call: turn_off
+  data:
+    entity_id: all
+- at: 5
+  reload:
+    s0:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 3
+      - delay: 1
+      - delay: 1
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+      - variables:
+          out:
+            id: s1.2
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+    s2:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+      - delay: 1
+      - delay: 2
+    s3:
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - variables:
+            out:
+              id: s3.4
+              v: '{{ v | default(0) }}'
+        - stop: done
+          response_variable: out
+        - action: test.m
+          data:
+            id: s3.5
+            v: '{{ v | default(0) }}'
+- at: 5
+  call: s3
+- at: 7
+  call: s1
+  data:
+    v: 0
+- at: 8
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    variables:
+      v: 3
+- at: 10
+  call: s3
+- at: 13
+  call: s1
+  data:
+    v: 0
+  return_response: true

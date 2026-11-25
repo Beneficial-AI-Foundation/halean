@@ -1,0 +1,173 @@
+description: random scenario seed=202 index=283
+scripts:
+  s0:
+    alias: Script 0 B
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+  s1:
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+  s2:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - stop: bad
+      error: true
+    - action: test.m
+      data:
+        id: s2.1
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+  s3:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+steps:
+- at: 1
+  call: s3
+  data:
+    v: 1
+  return_response: true
+- at: 1
+- at: 2
+  call: s0
+- at: 3
+  call: s3
+  return_response: true
+- at: 4
+  call: s1
+  data:
+    v: 3
+- at: 7
+  call: s1
+  data:
+    v: 3
+- at: 7
+  call: s2
+  data:
+    v: 4
+  return_response: true
+- at: 8
+  call: s0
+- at: 9
+  call: s0
+  data:
+    v: 1
+  return_response: true
+- at: 10
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 10
+  call: s1
+- at: 10
+  call: turn_off
+  data:
+    entity_id: all
+- at: 10
+  reload:
+    s0:
+      alias: Script 0 B
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+    s1:
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 1
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+    s2:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - stop: bad
+        error: true
+      - action: test.m
+        data:
+          id: s2.1
+          v: '{{ v | default(0) }}'
+        response_variable: r
+        continue_on_error: true
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      alias: Reloaded s2
+    s3:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+- at: 10
+  call: turn_off
+  data:
+    entity_id: script.s0
+- at: 12
+  call: s2
+  data:
+    v: 1

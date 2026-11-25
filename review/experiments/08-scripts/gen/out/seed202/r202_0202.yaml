@@ -1,0 +1,181 @@
+description: random scenario seed=202 index=202
+scripts:
+  s0:
+    alias: Script 0 B
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - parallel:
+      - sequence:
+        - action: test.m
+          data:
+            id: s0.1
+            v: '{{ v | default(0) }}'
+      - sequence:
+        - event: mark
+          event_data:
+            id: s0.2
+            v: '{{ v | default(0) }}'
+            r: '{{ r | default(''undef'') }}'
+        - parallel:
+          - sequence:
+            - action: test.m
+              data:
+                id: s0.3
+                v: '{{ v | default(0) }}'
+            - delay: 2
+          - sequence:
+            - action: test.m
+              data:
+                id: s0.4
+                v: '{{ v | default(0) }}'
+              continue_on_error: true
+            - event: mark
+              event_data:
+                id: s0.5
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.6
+        v: '{{ v | default(0) }}'
+  s2:
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - parallel:
+      - sequence:
+        - delay: 1
+      - sequence:
+        - action: script.s4
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          continue_on_error: true
+        - action: script.turn_off
+          target:
+            entity_id: script.s4
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s3
+  s3:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+    - event: mark
+      event_data:
+        id: s3.7
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s3'') }}'
+        cur: '{{ state_attr(''script.s3'', ''current'') }}'
+    - stop: bad
+      error: true
+  s4:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s4.8
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s4.9
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+    - variables:
+        out:
+          id: s4.10
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+steps:
+- at: 1
+  call: s0
+  data:
+    v: 2
+- at: 3
+  result: 0
+  response:
+    n: 0
+- at: 6
+  result: 1
+  response:
+    n: 1
+- at: 7
+  call: s2
+  data:
+    v: 3
+  return_response: true
+- at: 10
+  result: 2
+  response:
+    n: 2
+- at: 12
+  call: s0
+  data:
+    v: 4
+  return_response: true
+- at: 13
+  call: s4
+  data:
+    v: 3
+- at: 16
+  result: 4
+  response:
+    n: 4
+- at: 19
+  result: 5
+  response:
+    n: 5
+- at: 21
+  result: 3
+  response:
+    n: 3
+- at: 22
+  result: 6
+  response:
+    n: 6
+- at: 25
+  call: turn_off
+  data:
+    entity_id: script.s4
+- at: 26
+  result: 7
+  ok: false
+  error_kind: other
+- at: 27
+  result: 8
+  response:
+    n: 8
+- at: 29
+- at: 30
+  call: s0
+  data:
+    v: 4

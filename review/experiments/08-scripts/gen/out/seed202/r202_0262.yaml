@@ -1,0 +1,144 @@
+description: random scenario seed=202 index=262
+scripts:
+  s0:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s4
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s4'') }}'
+        cur: '{{ state_attr(''script.s4'', ''current'') }}'
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s2:
+    alias: Script 2 A
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - delay: 1
+  s3:
+    icon: mdi:script
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s3.4
+        v: '{{ v | default(0) }}'
+    - action: script.s4
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: script.toggle
+      target:
+        entity_id: script.s4
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+  s4:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+steps:
+- at: 1
+  call: turn_on
+  data:
+    entity_id:
+    - script.s3
+    - script.s1
+    variables:
+      v: 0
+- at: 2
+  result: 0
+  response:
+    n: 0
+- at: 5
+  call: turn_off
+  data:
+    entity_id: script.s1
+- at: 6
+- at: 7
+  call: s0
+- at: 8
+  call: s3
+  data:
+    v: 3
+  return_response: true
+- at: 9
+  result: 1
+  response:
+    n: 1
+- at: 11
+  call: s1
+  return_response: true
+- at: 12
+  call: s1
+  data:
+    v: 2
+- at: 15
+  call: s0
+  return_response: true
+- at: 16
+  call: s0
+  data:
+    v: 0
+- at: 16
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+    - script.s3
+- at: 18
+- at: 19
+  call: toggle
+  data:
+    entity_id:
+    - script.s4
+    - script.s2
+- at: 20
+  call: turn_off
+  data:
+    entity_id: all
+- at: 21
+  call: s2
+  return_response: true

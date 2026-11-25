@@ -1,0 +1,116 @@
+description: random scenario seed=202 index=240
+scripts:
+  s0:
+    mode: parallel
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+  s1:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+  s2:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - delay: 1
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+steps:
+- at: 3
+  call: s0
+  return_response: true
+- at: 4
+  call: s0
+  data:
+    v: 3
+  return_response: true
+- at: 7
+  result: 1
+  response:
+    n: 1
+- at: 8
+- at: 8
+  result: 2
+  response:
+    n: 2
+- at: 9
+  call: turn_off
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+- at: 10
+  call: s1
+  data:
+    v: 1
+  return_response: true
+- at: 10
+  result: 3
+  ok: false
+  error_kind: ha_error
+- at: 11
+  call: s2
+- at: 12
+  call: s2
+  data:
+    v: 2
+- at: 13
+  result: 4
+  response:
+    n: 4
+- at: 14
+  result: 0
+  ok: false
+  error_kind: ha_error
+- at: 17
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+- at: 19
+  result: 5
+  response:
+    n: 5
+- at: 20
+  result: 6
+  response:
+    n: 6

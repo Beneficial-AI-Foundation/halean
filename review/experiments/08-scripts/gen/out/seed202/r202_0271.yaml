@@ -1,0 +1,176 @@
+description: random scenario seed=202 index=271
+scripts:
+  s0:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - delay: 3
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.toggle
+      target:
+        entity_id: script.s2
+    - action: test.m
+      data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+    - stop: bad
+      error: true
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s2'') }}'
+        cur: '{{ state_attr(''script.s2'', ''current'') }}'
+    - delay: 1
+  s3:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s3.5
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+steps:
+- at: 2
+  call: s0
+  data:
+    v: 1
+- at: 2
+  call: s1
+- at: 3
+  result: 0
+  response:
+    n: 0
+- at: 6
+  call: s0
+  data:
+    v: 2
+  return_response: true
+- at: 8
+  result: 1
+  response:
+    n: 1
+- at: 10
+  call: s1
+  return_response: true
+- at: 10
+  result: 2
+  response:
+    n: 2
+- at: 13
+  call: s2
+  data:
+    v: 4
+  return_response: true
+- at: 16
+- at: 18
+  call: s0
+  data:
+    v: 4
+- at: 19
+  call: s2
+  return_response: true
+- at: 21
+  reload:
+    s0:
+      mode: queued
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - delay: 3
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+      - event: mark
+        event_data:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.toggle
+        target:
+          entity_id: script.s2
+      - action: test.m
+        data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+      - stop: bad
+        error: true
+      alias: Reloaded s1
+    s2:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s2'') }}'
+          cur: '{{ state_attr(''script.s2'', ''current'') }}'
+      - delay: 1
+    s3:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: test.m
+        data:
+          id: s3.5
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+- at: 24

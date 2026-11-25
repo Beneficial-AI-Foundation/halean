@@ -1,0 +1,121 @@
+description: random scenario seed=202 index=126
+scripts:
+  s0:
+    alias: Script 0 A
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s1:
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s0'') }}'
+        cur: '{{ state_attr(''script.s0'', ''current'') }}'
+  s2:
+    alias: Script 2 B
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - delay: 1
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s3
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s3:
+    icon: mdi:script
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - variables:
+        out:
+          id: s3.3
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+steps:
+- at: 1
+  call: s2
+- at: 4
+  call: s3
+- at: 7
+  call: s2
+  data:
+    v: 2
+- at: 8
+  call: turn_off
+  data:
+    entity_id: script.s0
+- at: 10
+  call: s2
+  data:
+    v: 3
+- at: 13
+  call: s2
+- at: 14
+  call: s2
+  data:
+    v: 1
+- at: 14
+- at: 16
+  call: s3
+- at: 19
+  call: s0
+  data:
+    v: 1
+  return_response: true
+- at: 20
+  call: turn_off
+  data:
+    entity_id:
+    - script.s3
+    - script.s0
+- at: 22
+  call: s0
+  return_response: true
+- at: 22
+  call: s2
+  return_response: true
+- at: 23
+  result: 1
+  response:
+    n: 1
+- at: 25
+  result: 0
+  response:
+    n: 0

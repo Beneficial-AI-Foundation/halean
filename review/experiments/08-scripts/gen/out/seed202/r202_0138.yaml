@@ -1,0 +1,129 @@
+description: random scenario seed=202 index=138
+scripts:
+  s0:
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+  s1:
+    alias: Script 1 B
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+    - variables:
+        out:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+      data:
+        variables:
+          v: '{{ v | default(0) + 10 }}'
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+  s3:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s3.4
+        v: '{{ v | default(0) }}'
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s4
+    - action: script.turn_off
+      target:
+        entity_id: script.s3
+  s4:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+steps:
+- at: 1
+  call: s2
+- at: 2
+  call: s0
+  data:
+    v: 4
+  return_response: true
+- at: 3
+  call: turn_off
+  data:
+    entity_id: script.s0
+- at: 6
+  call: s4
+  data:
+    v: 3
+- at: 9
+  call: s0
+  data:
+    v: 3
+- at: 12
+  call: s2
+  data:
+    v: 4
+  return_response: true
+- at: 13
+  call: turn_off
+  data:
+    entity_id: all
+- at: 15
+  call: s1
+  data:
+    v: 3
+  return_response: true
+- at: 15
+  call: s3
+  return_response: true
+- at: 17
+  result: 0
+  response:
+    n: 0
+- at: 18
+  call: s3
+  data:
+    v: 4
+- at: 19
+  call: turn_off
+  data:
+    entity_id:
+    - script.s2
+    - script.s3

@@ -1,0 +1,79 @@
+description: random scenario seed=202 index=151
+scripts:
+  s0:
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 2
+  s1:
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+  s2:
+    alias: Script 2 A
+    icon: mdi:script
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s1'') }}'
+        cur: '{{ state_attr(''script.s1'', ''current'') }}'
+    - delay: 1
+steps:
+- at: 1
+- at: 1
+  call: s0
+  return_response: true
+- at: 4
+  call: s0
+  return_response: true
+- at: 5
+  call: s1
+  data:
+    v: 0
+  return_response: true
+- at: 6
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+- at: 7
+  call: turn_off
+  data:
+    entity_id: all
+- at: 8
+  result: 0
+  response:
+    n: 0
+- at: 11
+- at: 14
+  call: s1
+  data:
+    v: 0
+- at: 15
+  call: s2
+  data:
+    v: 1
+- at: 16
+  call: s2
+  return_response: true
+- at: 17
+  result: 1
+  response:
+    n: 1

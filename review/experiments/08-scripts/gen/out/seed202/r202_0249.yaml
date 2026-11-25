@@ -1,0 +1,217 @@
+description: random scenario seed=202 index=249
+scripts:
+  s0:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+  s1:
+    alias: Script 1 A
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+    - delay: 3
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - stop: bad
+        error: true
+      - event: mark
+        event_data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+      else:
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s4
+          - script.s3
+    - delay: 2
+  s2:
+    alias: Script 2 A
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - event: mark
+      event_data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+    - variables:
+        out:
+          id: s2.6
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+  s3:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 2
+  s4:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - parallel:
+      - sequence:
+        - stop: bad
+          error: true
+      - sequence:
+        - variables:
+            out:
+              id: s4.7
+              v: '{{ v | default(0) }}'
+        - stop: done
+          response_variable: out
+steps:
+- at: 1
+  call: s3
+- at: 2
+  call: s4
+  data:
+    v: 3
+- at: 3
+  call: turn_off
+  data:
+    entity_id: all
+- at: 6
+  call: s0
+  data:
+    v: 4
+- at: 9
+  result: 0
+  response:
+    n: 0
+- at: 10
+  call: s1
+- at: 12
+  call: s1
+- at: 15
+  reload:
+    s0:
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 3
+    s1:
+      alias: Script 1 A
+      mode: parallel
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+      - delay: 3
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - stop: bad
+          error: true
+        - event: mark
+          event_data:
+            id: s1.3
+            v: '{{ v | default(0) }}'
+        else:
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s4
+            - script.s3
+      - delay: 2
+    s2:
+      alias: Script 2 A
+      icon: mdi:script
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+      - event: mark
+        event_data:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+      - variables:
+          out:
+            id: s2.6
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+    s3:
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 2
+    s4:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - parallel:
+        - sequence:
+          - stop: bad
+            error: true
+        - sequence:
+          - variables:
+              out:
+                id: s4.7
+                v: '{{ v | default(0) }}'
+          - stop: done
+            response_variable: out
+- at: 18
+  call: toggle
+  data:
+    entity_id:
+    - script.s1
+- at: 18
+  call: s4
+  data:
+    v: 4
+- at: 19
+  call: s0
+  return_response: true
+- at: 19
+  call: s2

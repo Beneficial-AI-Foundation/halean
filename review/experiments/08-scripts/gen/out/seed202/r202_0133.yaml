@@ -1,0 +1,86 @@
+description: random scenario seed=202 index=133
+scripts:
+  s0:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s1:
+    mode: parallel
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+  s2:
+    icon: mdi:script
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - variables:
+        out:
+          id: s2.2
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+    - delay: 2
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+    - action: script.turn_off
+      target:
+        entity_id: script.s1
+steps:
+- at: 1
+  call: turn_off
+  data:
+    entity_id:
+    - script.s0
+    - script.s2
+- at: 4
+  call: s0
+  data:
+    v: 2
+- at: 4
+- at: 5
+  call: s0
+  data:
+    v: 0
+  return_response: true
+- at: 6
+  call: s2
+  return_response: true
+- at: 9
+  call: s2
+- at: 10
+  call: s2
+  data:
+    v: 0
+- at: 12
+  call: s2
+  data:
+    v: 0
+  return_response: true
+- at: 13
+  call: s2
+  return_response: true
+- at: 14
+  call: s1
+  data:
+    v: 1
+- at: 14
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1

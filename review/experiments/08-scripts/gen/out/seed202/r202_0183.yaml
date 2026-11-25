@@ -1,0 +1,148 @@
+description: random scenario seed=202 index=183
+scripts:
+  s0:
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+  s2:
+    alias: Script 2 A
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+      continue_on_error: true
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    - delay: 3
+steps:
+- at: 1
+  call: s1
+- at: 3
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+- at: 5
+  reload:
+    s0:
+      icon: mdi:script
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s2
+      alias: Reloaded s1
+    s2:
+      alias: Script 2 A
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+        continue_on_error: true
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - action: script.s0
+          data:
+            v: '{{ v | default(0) + 1 }}'
+      - delay: 3
+- at: 8
+  call: s2
+  data:
+    v: 3
+  return_response: true
+- at: 9
+  call: toggle
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+- at: 10
+  call: s1
+  data:
+    v: 1
+  return_response: true
+- at: 13
+  call: s2
+  return_response: true
+- at: 13
+  call: s2
+  data:
+    v: 0
+  return_response: true
+- at: 13
+  call: s0
+  data:
+    v: 2
+  return_response: true
+- at: 14
+  call: s2
+  data:
+    v: 4
+- at: 15
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+- at: 15
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s0
+- at: 16
+  call: s0
+  return_response: true
+- at: 19
+  call: s2
+- at: 19

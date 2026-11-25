@@ -1,0 +1,198 @@
+description: random scenario seed=202 index=245
+scripts:
+  s0:
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s3
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - delay: 1
+  s1:
+    icon: mdi:script
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+    - stop: bad
+      error: true
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+    - event: mark
+      event_data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s1'') }}'
+        cur: '{{ state_attr(''script.s1'', ''current'') }}'
+  s2:
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s2'') }}'
+        cur: '{{ state_attr(''script.s2'', ''current'') }}'
+    - action: test.m
+      data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - action: test.m
+      data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+    - repeat:
+        count: 2
+        sequence:
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s3
+  s3:
+    alias: Script 3 A
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s3.6
+        v: '{{ v | default(0) }}'
+    - delay: 1
+    - event: mark
+      event_data:
+        id: s3.7
+        v: '{{ v | default(0) }}'
+        st: '{{ states(''script.s0'') }}'
+        cur: '{{ state_attr(''script.s0'', ''current'') }}'
+    - delay: 1
+steps:
+- at: 1
+- at: 1
+  call: s1
+  return_response: true
+- at: 3
+  call: turn_off
+  data:
+    entity_id: script.s0
+- at: 3
+  call: turn_off
+  data:
+    entity_id:
+    - script.s2
+    - script.s0
+- at: 3
+  call: s0
+  data:
+    v: 3
+- at: 5
+  call: s0
+  data:
+    v: 0
+  return_response: true
+- at: 6
+  call: s2
+  data:
+    v: 1
+- at: 8
+  reload:
+    s0:
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s3
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - delay: 1
+    s1:
+      icon: mdi:script
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+      - stop: bad
+        error: true
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+      - event: mark
+        event_data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s1'') }}'
+          cur: '{{ state_attr(''script.s1'', ''current'') }}'
+    s2:
+      mode: queued
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s2'') }}'
+          cur: '{{ state_attr(''script.s2'', ''current'') }}'
+      - action: test.m
+        data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+      - action: test.m
+        data:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+        response_variable: r
+        continue_on_error: true
+      - repeat:
+          count: 2
+          sequence:
+          - action: script.turn_on
+            target:
+              entity_id:
+              - script.s3
+    s3:
+      alias: Reloaded s3
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s3.6
+          v: '{{ v | default(0) }}'
+      - delay: 1
+      - event: mark
+        event_data:
+          id: s3.7
+          v: '{{ v | default(0) }}'
+          st: '{{ states(''script.s0'') }}'
+          cur: '{{ state_attr(''script.s0'', ''current'') }}'
+      - delay: 1

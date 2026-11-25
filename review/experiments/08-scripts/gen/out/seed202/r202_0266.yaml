@@ -1,0 +1,154 @@
+description: random scenario seed=202 index=266
+scripts:
+  s0:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - action: script.toggle
+      target:
+        entity_id: script.s1
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+  s1:
+    alias: Script 1 A
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s1.4
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s1.5
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+  s2:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - delay: 2
+steps:
+- at: 1
+  call: s1
+  data:
+    v: 4
+  return_response: true
+- at: 2
+  call: s1
+  data:
+    v: 2
+  return_response: true
+- at: 3
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+- at: 4
+  call: s1
+  data:
+    v: 4
+- at: 5
+  result: 0
+  response:
+    n: 0
+- at: 6
+  result: 2
+  response:
+    n: 2
+- at: 7
+  call: s1
+  data:
+    v: 2
+- at: 8
+- at: 11
+  result: 3
+  response:
+    n: 3
+- at: 14
+  call: s0
+  data:
+    v: 3
+  return_response: true
+- at: 15
+  result: 4
+  ok: false
+  error_kind: ha_error
+- at: 15
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+- at: 15
+  call: s2
+  data:
+    v: 2
+- at: 15
+  reload:
+    s0:
+      mode: parallel
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s2
+        data:
+          variables:
+            v: '{{ v | default(0) + 10 }}'
+    s1:
+      alias: Script 1 A
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s1.4
+          v: '{{ v | default(0) }}'
+      - event: mark
+        event_data:
+          id: s1.5
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+    s2:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - delay: 2

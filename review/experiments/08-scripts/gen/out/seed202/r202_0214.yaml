@@ -1,0 +1,132 @@
+description: random scenario seed=202 index=214
+scripts:
+  s0:
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+    - delay: 2
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.turn_off
+      target:
+        entity_id: script.s0
+  s2:
+    alias: Script 2 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - action: script.s1
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+steps:
+- at: 1
+  call: s2
+  return_response: true
+- at: 2
+  call: s0
+- at: 3
+  result: 0
+  response:
+    n: 0
+- at: 3
+- at: 4
+  call: turn_off
+  data:
+    entity_id: all
+- at: 7
+  call: turn_off
+  data:
+    entity_id: all
+- at: 9
+  result: 1
+  response:
+    n: 1
+- at: 9
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s0
+    variables:
+      v: 2
+- at: 9
+  reload:
+    s0:
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - condition: template
+        value_template: '{{ v | default(0) < 2 }}'
+      - action: test.m
+        data:
+          id: s0.4
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: script.toggle
+        target:
+          entity_id: script.s1
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.s0
+    s2:
+      alias: Script 2 B
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s2.3
+          v: '{{ v | default(0) }}'
+        continue_on_error: true
+      - action: script.s1
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        response_variable: r
+- at: 10
+  result: 2
+  response:
+    n: 2
+- at: 11
+  call: turn_off
+  data:
+    entity_id:
+    - script.s0
+    - script.s1
+- at: 13
+  result: 3
+  response:
+    n: 3

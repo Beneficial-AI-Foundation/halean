@@ -1,0 +1,75 @@
+description: random scenario seed=202 index=237
+scripts:
+  s0:
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+    - delay: 1
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+    - action: script.turn_off
+      target:
+        entity_id: script.s2
+  s2:
+    alias: Script 2 A
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - event: mark
+      event_data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+steps:
+- at: 2
+  call: s2
+  return_response: true
+- at: 3
+  call: s1
+- at: 4
+  result: 0
+  response:
+    n: 0
+- at: 6
+  call: s1
+  data:
+    v: 3
+- at: 7
+  result: 1
+  ok: false
+  error_kind: other
+- at: 9
+  call: s0
+  data:
+    v: 1
+- at: 10
+  call: s1
+  data:
+    v: 1
+- at: 10
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+- at: 13
+  call: s1

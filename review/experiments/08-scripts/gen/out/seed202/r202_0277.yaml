@@ -1,0 +1,223 @@
+description: random scenario seed=202 index=277
+scripts:
+  s0:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+    - delay: 1
+    - event: mark
+      event_data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+  s1:
+    alias: Script 1 B
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s2:
+    alias: Script 2 B
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 1
+  s3:
+    alias: Script 3 A
+    mode: queued
+    max: 2
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s3.4
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+steps:
+- at: 1
+  call: s2
+  data:
+    v: 4
+- at: 3
+  call: s0
+  return_response: true
+- at: 4
+- at: 5
+  call: s3
+  data:
+    v: 1
+- at: 7
+  call: s0
+- at: 10
+  call: s1
+  data:
+    v: 1
+- at: 11
+  reload:
+    s0:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - delay: 1
+      - event: mark
+        event_data:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+      alias: Reloaded s0
+    s1:
+      alias: Script 1 B
+      icon: mdi:script
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s2:
+      alias: Script 2 B
+      icon: mdi:script
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 1
+    s3:
+      alias: Script 3 A
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s3.4
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+- at: 12
+  call: turn_on
+  data:
+    entity_id:
+    - script.s2
+    - script.s1
+- at: 12
+  result: 0
+  response:
+    n: 0
+- at: 15
+  call: s2
+  data:
+    v: 4
+- at: 17
+  result: 1
+  response:
+    n: 1
+- at: 18
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+    - script.s3
+- at: 19
+  result: 2
+  response:
+    n: 2
+- at: 20
+  reload:
+    s0:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s0.1
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      - delay: 1
+      - event: mark
+        event_data:
+          id: s0.2
+          v: '{{ v | default(0) }}'
+      alias: Reloaded s0
+    s1:
+      alias: Script 1 B
+      icon: mdi:script
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+      - action: script.s0
+        data:
+          v: '{{ v | default(0) + 1 }}'
+    s2:
+      alias: Script 2 B
+      icon: mdi:script
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 1
+    s3:
+      alias: Script 3 A
+      mode: queued
+      max: 2
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s3.4
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'

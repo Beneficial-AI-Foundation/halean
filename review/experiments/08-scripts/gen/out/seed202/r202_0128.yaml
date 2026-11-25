@@ -1,0 +1,186 @@
+description: random scenario seed=202 index=128
+scripts:
+  s0:
+    mode: parallel
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - stop: bad
+      error: true
+    - event: mark
+      event_data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+        r: '{{ r | default(''undef'') }}'
+  s1:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ v | default(0) is even }}'
+      then:
+      - parallel:
+        - sequence:
+          - action: script.turn_on
+            target:
+              entity_id:
+              - script.s2
+            data:
+              variables:
+                v: '{{ v | default(0) + 10 }}'
+        - sequence:
+          - event: mark
+            event_data:
+              id: s1.2
+              v: '{{ v | default(0) }}'
+              st: '{{ states(''script.s2'') }}'
+              cur: '{{ state_attr(''script.s2'', ''current'') }}'
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+      else:
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s2
+        data:
+          variables:
+            v: '{{ v | default(0) + 10 }}'
+      - event: mark
+        event_data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+  s2:
+    alias: Script 2 B
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+    - variables:
+        out:
+          id: s2.5
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+steps:
+- at: 1
+  call: s2
+  data:
+    v: 1
+- at: 2
+  call: s2
+  data:
+    v: 2
+  return_response: true
+- at: 5
+  result: 0
+  response:
+    n: 0
+- at: 7
+  call: s1
+  data:
+    v: 1
+  return_response: true
+- at: 10
+  reload:
+    s1:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      variables:
+        v: 100
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{ v | default(0) is even }}'
+        then:
+        - parallel:
+          - sequence:
+            - action: script.turn_on
+              target:
+                entity_id:
+                - script.s2
+              data:
+                variables:
+                  v: '{{ v | default(0) + 10 }}'
+          - sequence:
+            - event: mark
+              event_data:
+                id: s1.2
+                v: '{{ v | default(0) }}'
+                st: '{{ states(''script.s2'') }}'
+                cur: '{{ state_attr(''script.s2'', ''current'') }}'
+        - action: script.s2
+          data:
+            v: '{{ v | default(0) + 1 }}'
+        else:
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s2
+          data:
+            variables:
+              v: '{{ v | default(0) + 10 }}'
+        - event: mark
+          event_data:
+            id: s1.3
+            v: '{{ v | default(0) }}'
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - action: script.turn_on
+        target:
+          entity_id:
+          - script.s2
+    s2:
+      alias: Script 2 B
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: test.m
+        data:
+          id: s2.4
+          v: '{{ v | default(0) }}'
+      - variables:
+          out:
+            id: s2.5
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+- at: 12
+  call: s1
+  return_response: true
+- at: 13
+  result: 1
+  ok: false
+  error_kind: other
+- at: 16
+  call: s2
+  return_response: true
+- at: 17
+  result: 2
+  response:
+    n: 2

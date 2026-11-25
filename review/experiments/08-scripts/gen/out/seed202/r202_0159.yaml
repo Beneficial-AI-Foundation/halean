@@ -1,0 +1,113 @@
+description: random scenario seed=202 index=159
+scripts:
+  s0:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    variables:
+      v: 100
+    sequence:
+    - action: script.s0
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      response_variable: r
+    - action: test.m
+      data:
+        id: s0.1
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s0.2
+        v: '{{ v | default(0) }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s1:
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - parallel:
+      - sequence:
+        - delay: 1
+        - action: script.s2
+          data:
+            v: '{{ v | default(0) + 1 }}'
+          continue_on_error: true
+      - sequence:
+        - action: script.turn_on
+          target:
+            entity_id:
+            - script.s2
+          data:
+            variables:
+              v: '{{ v | default(0) + 10 }}'
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+    - action: script.turn_on
+      target:
+        entity_id:
+        - script.s2
+  s2:
+    icon: mdi:script
+    mode: queued
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: test.m
+      data:
+        id: s2.3
+        v: '{{ v | default(0) }}'
+      response_variable: r
+      continue_on_error: true
+    - action: test.m
+      data:
+        id: s2.4
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: test.m
+      data:
+        id: s2.5
+        v: '{{ v | default(0) }}'
+      continue_on_error: true
+    - event: mark
+      event_data:
+        id: s2.6
+        v: '{{ v | default(0) }}'
+steps:
+- at: 1
+  call: s1
+  return_response: true
+- at: 3
+  call: s0
+  data:
+    v: 3
+  return_response: true
+- at: 3
+  call: s1
+  data:
+    v: 2
+- at: 6
+  call: turn_on
+  data:
+    entity_id:
+    - script.s1
+- at: 9
+  result: 1
+  response:
+    n: 1
+- at: 12
+  result: 2
+  response:
+    n: 2
+- at: 12
+  result: 0
+  response:
+    n: 0
+- at: 14
+  result: 3
+  response:
+    n: 3

@@ -1,0 +1,227 @@
+description: random scenario seed=202 index=222
+scripts:
+  s0:
+    alias: Script 0 A
+    mode: queued
+    max: 3
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+      continue_on_error: true
+    - delay: 2
+    - delay: 1
+  s1:
+    icon: mdi:script
+    mode: single
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - event: mark
+      event_data:
+        id: s1.1
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s1.2
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s1.3
+        v: '{{ v | default(0) }}'
+    - action: test.m
+      data:
+        id: s1.4
+        v: '{{ v | default(0) }}'
+  s2:
+    alias: Script 2 A
+    icon: mdi:script
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - stop: bad
+      error: true
+    - delay: 1
+    - condition: template
+      value_template: '{{ v | default(0) < 2 }}'
+    - action: script.s2
+      data:
+        v: '{{ v | default(0) + 1 }}'
+  s3:
+    alias: Script 3 B
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - delay: 3
+    - action: test.m
+      data:
+        id: s3.5
+        v: '{{ v | default(0) }}'
+      response_variable: r
+    - action: test.m
+      data:
+        id: s3.6
+        v: '{{ v | default(0) }}'
+  s4:
+    mode: restart
+    fields:
+      v: {}
+      r: {}
+    sequence:
+    - variables:
+        out:
+          id: s4.7
+          v: '{{ v | default(0) }}'
+    - stop: done
+      response_variable: out
+    - action: test.m
+      data:
+        id: s4.8
+        v: '{{ v | default(0) }}'
+    - event: mark
+      event_data:
+        id: s4.9
+        v: '{{ v | default(0) }}'
+        this: '{{ this.state }}/{{ this.attributes.current }}'
+steps:
+- at: 1
+- at: 1
+  call: toggle
+  data:
+    entity_id:
+    - script.s2
+- at: 3
+  reload:
+    s0:
+      alias: Script 0 A
+      mode: queued
+      max: 3
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - action: script.s2
+        data:
+          v: '{{ v | default(0) + 1 }}'
+        continue_on_error: true
+      - delay: 2
+      - delay: 1
+    s1:
+      icon: mdi:script
+      mode: single
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - event: mark
+        event_data:
+          id: s1.1
+          v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s1.2
+          v: '{{ v | default(0) }}'
+      - event: mark
+        event_data:
+          id: s1.3
+          v: '{{ v | default(0) }}'
+      - action: test.m
+        data:
+          id: s1.4
+          v: '{{ v | default(0) }}'
+    s3:
+      alias: Script 3 B
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - delay: 3
+      - action: test.m
+        data:
+          id: s3.5
+          v: '{{ v | default(0) }}'
+        response_variable: r
+      - action: test.m
+        data:
+          id: s3.6
+          v: '{{ v | default(0) }}'
+    s4:
+      mode: restart
+      fields:
+        v: {}
+        r: {}
+      sequence:
+      - variables:
+          out:
+            id: s4.7
+            v: '{{ v | default(0) }}'
+      - stop: done
+        response_variable: out
+      - action: test.m
+        data:
+          id: s4.8
+          v: '{{ v | default(0) }}'
+      - event: mark
+        event_data:
+          id: s4.9
+          v: '{{ v | default(0) }}'
+          this: '{{ this.state }}/{{ this.attributes.current }}'
+- at: 4
+  call: s4
+  data:
+    v: 2
+- at: 5
+  call: s4
+  data:
+    v: 2
+  return_response: true
+- at: 5
+  call: s0
+  data:
+    v: 1
+- at: 5
+  result: 0
+  response:
+    n: 0
+- at: 8
+  call: turn_off
+  data:
+    entity_id: script.s4
+- at: 9
+  call: s3
+  return_response: true
+- at: 10
+  call: s3
+  data:
+    v: 3
+  return_response: true
+- at: 13
+  call: turn_off
+  data:
+    entity_id:
+    - script.s1
+    - script.s3
+- at: 14
+  call: s3
+  data:
+    v: 3
+- at: 16
+  call: turn_on
+  data:
+    entity_id:
+    - script.s0
+    variables:
+      v: 4
+- at: 17
+  call: s3
+  data:
+    v: 4

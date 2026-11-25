@@ -1,0 +1,1043 @@
+FF.FFFFFFFFFF..FFFF.                                                     [100%]
+=================================== FAILURES ===================================
+________________________ test_template[TPL-7 float sum] ________________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f3398f5a900>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-7 float sum', 'template': '{{ [0.1, 0.2, 0.3, 1e100, -1e100] | sum }}'}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+>           assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+E           AssertionError: HA: {'ok': True, 'type': 'float', 'repr': '0.6'}
+E             HALean: {'ok': True, 'repr': '0.0', 'type': 'float'}
+E           assert {'ok': True, ...ype': 'float'} == {'ok': True, ...ype': 'float'}
+E             
+E             Omitting 2 identical items, use -vv to show
+E             Differing items:
+E             {'repr': '0.0'} != {'repr': '0.6'}
+E             Use -v to get more diff
+
+review/experiments/13-verification/harness/test_templates.py:118: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+INFO:homeassistant.loader:Loaded homeassistant from homeassistant.components.homeassistant
+------------------------------ Captured log setup ------------------------------
+INFO     homeassistant.loader:loader.py:801 Loaded homeassistant from homeassistant.components.homeassistant
+____________________ test_template[TPL-7b float sum small] _____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f3398f02210>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-7b float sum small', 'template': '{{ [1e16, 1.0, -1e16] | sum }}'}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+>           assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+E           AssertionError: HA: {'ok': True, 'type': 'float', 'repr': '1.0'}
+E             HALean: {'ok': True, 'repr': '0.0', 'type': 'float'}
+E           assert {'ok': True, ...ype': 'float'} == {'ok': True, ...ype': 'float'}
+E             
+E             Omitting 2 identical items, use -vv to show
+E             Differing items:
+E             {'repr': '0.0'} != {'repr': '1.0'}
+E             Use -v to get more diff
+
+review/experiments/13-verification/harness/test_templates.py:118: AssertionError
+________________ test_template[TPL-12b for-else with continue] _________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f3397207100>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-12b for-else with continue', 'template': '{% for x in [1,2] %}{% continue %}{% else %}E{% endfor %}'}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+>           assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+E           AssertionError: HA: {'ok': True, 'type': 'str', 'repr': "'E'"}
+E             HALean: {'ok': True, 'repr': "''", 'type': 'str'}
+E           assert {'ok': True, ...'type': 'str'} == {'ok': True, ...'type': 'str'}
+E             
+E             Omitting 2 identical items, use -vv to show
+E             Differing items:
+E             {'repr': "''"} != {'repr': "'E'"}
+E             Use -v to get more diff
+
+review/experiments/13-verification/harness/test_templates.py:118: AssertionError
+_____________________ test_template[TPL-20 split maxsplit] _____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f33968bc2b0>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-20 split maxsplit', 'template': "{{ 'a b  c '.split(None, 1) }}"}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+>           assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+E           AssertionError: HA: {'ok': True, 'type': 'list', 'repr': "['a', 'b  c ']"}
+E             HALean: {'ok': True, 'repr': "['a', 'b  c']", 'type': 'list'}
+E           assert {'ok': True, ...type': 'list'} == {'ok': True, ...type': 'list'}
+E             
+E             Omitting 2 identical items, use -vv to show
+E             Differing items:
+E             {'repr': "['a', 'b  c']"} != {'repr': "['a', 'b  c ']"}
+E             Use -v to get more diff
+
+review/experiments/13-verification/harness/test_templates.py:118: AssertionError
+________________ test_template[TPL-22 timestamp_custom default] ________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f33971df9b0>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-22 timestamp_custom default', 'template': '{{ 0 | timestamp_custom }}'}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+>           assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+E           AssertionError: HA: {'ok': True, 'type': 'str', 'repr': "'1969-12-31 16:00:00'"}
+E             HALean: {'ok': True, 'repr': "'1969-12-31'", 'type': 'str'}
+E           assert {'ok': True, ...'type': 'str'} == {'ok': True, ...'type': 'str'}
+E             
+E             Omitting 2 identical items, use -vv to show
+E             Differing items:
+E             {'repr': "'1969-12-31'"} != {'repr': "'1969-12-31 16:00:00'"}
+E             Use -v to get more diff
+
+review/experiments/13-verification/harness/test_templates.py:118: AssertionError
+________________ test_template[TPL-24 strftime year below 1000] ________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f33971ec9e0>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-24 strftime year below 1000', 'template': "{{ strptime('0099-01-02', '%Y-%m-%d').strftime('%Y') }}"}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+>           assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+E           AssertionError: HA: {'ok': True, 'type': 'str', 'repr': "'0099'"}
+E             HALean: {'ok': True, 'repr': '99', 'type': 'int'}
+E           assert {'ok': True, ...'type': 'int'} == {'ok': True, ...'type': 'str'}
+E             
+E             Omitting 1 identical items, use -vv to show
+E             Differing items:
+E             {'repr': '99'} != {'repr': "'0099'"}
+E             {'type': 'int'} != {'type': 'str'}
+E             Use -v to get more diff
+
+review/experiments/13-verification/harness/test_templates.py:118: AssertionError
+________________________ test_template[TPL-3 dict keys] ________________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f33968e5590>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-3 dict keys', 'template': "{{ {'a': 1}.keys() }}"}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+>           assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+E           AssertionError: HA: {'ok': True, 'type': 'str', 'repr': '"dict_keys([\'a\'])"'}
+E             HALean: {'ok': True, 'repr': "['a']", 'type': 'list'}
+E           assert {'ok': True, ...type': 'list'} == {'ok': True, ...'type': 'str'}
+E             
+E             Omitting 1 identical items, use -vv to show
+E             Differing items:
+E             {'repr': "['a']"} != {'repr': '"dict_keys([\'a\'])"'}
+E             {'type': 'list'} != {'type': 'str'}
+E             Use -v to get more diff
+
+review/experiments/13-verification/harness/test_templates.py:118: AssertionError
+___________________ test_template[TPL-6 case-insensitive id] ___________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f33971e5050>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-6 case-insensitive id', 'states': [{'entity_id': 'sensor.a', 'state': '5'}], 'template': "{{ states('Sensor.A') }}"}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+>           assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+E           AssertionError: HA: {'ok': True, 'type': 'int', 'repr': '5'}
+E             HALean: {'ok': True, 'repr': "'unknown'", 'type': 'str'}
+E           assert {'ok': True, ...'type': 'str'} == {'ok': True, ...'type': 'int'}
+E             
+E             Omitting 1 identical items, use -vv to show
+E             Differing items:
+E             {'repr': "'unknown'"} != {'repr': '5'}
+E             {'type': 'str'} != {'type': 'int'}
+E             Use -v to get more diff
+
+review/experiments/13-verification/harness/test_templates.py:118: AssertionError
+___________________ test_template[TPL-30 leading dot float] ____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f33971e7e50>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-30 leading dot float', 'template': '{{ .5 }}'}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+            assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+        else:
+>           assert not lean["ok"], f"HA raised {ha['error']!r}, HALean returned {lean}"
+E           AssertionError: HA raised "TemplateSyntaxError: unexpected '.'", HALean returned {'ok': True, 'repr': '0.5', 'type': 'float'}
+E           assert not True
+
+review/experiments/13-verification/harness/test_templates.py:120: AssertionError
+_____________________ test_template[TPL-35 sum start str] ______________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f3396927a70>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-35 sum start str', 'template': "{{ ['a','b'] | sum(start='') }}"}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+            assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+        else:
+>           assert not lean["ok"], f"HA raised {ha['error']!r}, HALean returned {lean}"
+E           AssertionError: HA raised "TypeError: sum() can't sum strings [use ''.join(seq) instead]", HALean returned {'ok': True, 'repr': "'ab'", 'type': 'str'}
+E           assert not True
+
+review/experiments/13-verification/harness/test_templates.py:120: AssertionError
+____________________ test_template[TPL-9 undefined in list] ____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f33969246e0>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-9 undefined in list', 'parse_result': False, 'template': '{{ [nope] }}'}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+>       assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+E       AssertionError: HALean rejected a supported template: template uses 'nope', which HALean does not support
+E       assert 'unsupported' not in {'unsupported': "template uses 'nope', which HALean does not support"}
+
+review/experiments/13-verification/harness/test_templates.py:92: AssertionError
+___________________ test_template[TPL-2 duplicate dict keys] ___________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f33967ad9b0>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-2 duplicate dict keys', 'template': "{{ {1: 'a', 1.0: 'b'} }}"}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+>           assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+E           AssertionError: HA: {'ok': True, 'type': 'dict', 'repr': "{1: 'b'}"}
+E             HALean: {'ok': True, 'repr': "{1: 'a', 1.0: 'b'}", 'type': 'dict'}
+E           assert {'ok': True, ...type': 'dict'} == {'ok': True, ...type': 'dict'}
+E             
+E             Omitting 2 identical items, use -vv to show
+E             Differing items:
+E             {'repr': "{1: 'a', 1.0: 'b'}"} != {'repr': "{1: 'b'}"}
+E             Use -v to get more diff
+
+review/experiments/13-verification/harness/test_templates.py:118: AssertionError
+______________ test_template[TPL-36 timestamp_local as function] _______________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f33967ee810>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-36 timestamp_local as function', 'template': '{{ timestamp_local(0) }}'}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+            assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+        else:
+>           assert not lean["ok"], f"HA raised {ha['error']!r}, HALean returned {lean}"
+E           AssertionError: HA raised "UndefinedError: 'timestamp_local' is undefined", HALean returned {'ok': True, 'repr': "'1969-12-31T16:00:00-08:00'", 'type': 'str'}
+E           assert not True
+
+review/experiments/13-verification/harness/test_templates.py:120: AssertionError
+----------------------------- Captured stderr call -----------------------------
+ERROR:homeassistant.helpers.template:Template variable error: 'timestamp_local' is undefined when rendering '{{ timestamp_local(0) }}'
+------------------------------ Captured log call -------------------------------
+ERROR    homeassistant.helpers.template:__init__.py:721 Template variable error: 'timestamp_local' is undefined when rendering '{{ timestamp_local(0) }}'
+_____________________ test_template[TPL-4 bool of states] ______________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f3396684290>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-4 bool of states', 'template': "{{ 'y' if states else 'n' }}"}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+>           assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+E           AssertionError: HA: {'ok': True, 'type': 'str', 'repr': "'n'"}
+E             HALean: {'ok': True, 'repr': "'y'", 'type': 'str'}
+E           assert {'ok': True, ...'type': 'str'} == {'ok': True, ...'type': 'str'}
+E             
+E             Omitting 2 identical items, use -vv to show
+E             Differing items:
+E             {'repr': "'y'"} != {'repr': "'n'"}
+E             Use -v to get more diff
+
+review/experiments/13-verification/harness/test_templates.py:118: AssertionError
+____________________ test_template[TPL-33 startswith start] ____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f339667e570>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-33 startswith start', 'template': "{{ 'abc'.startswith('b', 1) }}"}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+>           assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+E           AssertionError: HA: {'ok': True, 'type': 'bool', 'repr': 'True'}
+E             HALean: {'ok': True, 'repr': 'False', 'type': 'bool'}
+E           assert {'ok': True, ...type': 'bool'} == {'ok': True, ...type': 'bool'}
+E             
+E             Omitting 2 identical items, use -vv to show
+E             Differing items:
+E             {'repr': 'False'} != {'repr': 'True'}
+E             Use -v to get more diff
+
+review/experiments/13-verification/harness/test_templates.py:118: AssertionError
+___________________ test_template[TPL-15 range is sequence] ____________________
+
+hass = <HomeAssistant RUNNING>
+freezer = <freezegun.api.FrozenDateTimeFactory object at 0x7f33966a4cb0>
+engine = <function engine.<locals>.ask at 0x7f3398f10a90>
+case = {'name': 'TPL-15 range is sequence', 'template': '{{ range(3) is sequence }}'}
+
+    @pytest.mark.parametrize("case", CASES, ids=[_case_id(c) for c in CASES])
+    async def test_template(hass: HomeAssistant, freezer: FrozenDateTimeFactory, engine,
+                            case: dict) -> None:
+        freezer.move_to(datetime.fromisoformat(case["now"]) if "now" in case else NOW)
+        states = []
+        for s in case.get("states", []):
+            hass.states.async_set(s["entity_id"], s["state"], s.get("attributes", {}))
+            st = hass.states.get(s["entity_id"])
+            states.append({**s, "last_changed_us": _us(st.last_changed),
+                           "last_updated_us": _us(st.last_updated)})
+        variables = case.get("variables")
+        parse = case.get("parse_result", True)
+        is_cond = case.get("condition", False)
+    
+        lean = engine({"template": case["template"], "states": states,
+                       "variables": variables or {}, "parse_result": parse, "condition": is_cond,
+                       "info": bool(case.get("render_info")),
+                       "now": _us(dt_util.utcnow()) // 1000,
+                       "tz": int(dt_util.now().utcoffset().total_seconds())})
+        if case.get("unsupported"):
+            assert "unsupported" in lean, f"HALean should reject this template, got {lean}"
+            return
+        assert "unsupported" not in lean, f"HALean rejected a supported template: {lean['unsupported']}"
+    
+        tpl = Template(case["template"], hass)
+        try:
+            if is_cond:
+                r = condition.async_template(hass, tpl, variables)
+            else:
+                r = tpl.async_render(variables, parse_result=parse)
+            ha = {"ok": True, "type": _typename(r), "repr": repr(r)}
+        except (TemplateError, HomeAssistantError) as err:
+            ha = {"ok": False, "error": str(err)}
+    
+        if case.get("render_info"):
+            # what the render read must match too (template triggers depend on it)
+            info = tpl.async_render_to_info(variables)
+            want = {"entities": sorted(info.entities), "domains": sorted(info.domains),
+                    "domains_lifecycle": sorted(info.domains_lifecycle),
+                    "all_states": info.all_states, "all_states_lifecycle": info.all_states_lifecycle}
+            assert lean.pop("info") == want, f"render info differs: HA {want}"
+        lean.pop("info", None)
+    
+        if case.get("expect_error_in_halean_only"):
+            # HA can print it, HALean refuses at render time instead of guessing
+            assert ha["ok"] and not lean["ok"], f"HA: {ha}\nHALean: {lean}"
+            return
+        if ha["ok"]:
+>           assert lean == ha, f"HA: {ha}\nHALean: {lean}"
+E           AssertionError: HA: {'ok': True, 'type': 'bool', 'repr': 'True'}
+E             HALean: {'ok': True, 'repr': 'False', 'type': 'bool'}
+E           assert {'ok': True, ...type': 'bool'} == {'ok': True, ...type': 'bool'}
+E             
+E             Omitting 2 identical items, use -vv to show
+E             Differing items:
+E             {'repr': 'False'} != {'repr': 'True'}
+E             Use -v to get more diff
+
+review/experiments/13-verification/harness/test_templates.py:118: AssertionError
+=========================== short test summary info ============================
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-7 float sum]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-7b float sum small]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-12b for-else with continue]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-20 split maxsplit]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-22 timestamp_custom default]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-24 strftime year below 1000]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-3 dict keys]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-6 case-insensitive id]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-30 leading dot float]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-35 sum start str]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-9 undefined in list]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-2 duplicate dict keys]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-36 timestamp_local as function]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-4 bool of states]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-33 startswith start]
+FAILED review/experiments/13-verification/harness/test_templates.py::test_template[TPL-15 range is sequence]
+16 failed, 4 passed in 1.05s
