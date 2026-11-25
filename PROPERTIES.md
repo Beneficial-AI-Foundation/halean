@@ -46,8 +46,36 @@ In `HALean/Automation/Proofs.lean` and `HALean/Template/Proofs.lean`:
 | `checkRange_ok`, `checkRange_min`, `checkRange_max`, `checkRange_not_number` | `Range` never accepts a number outside its bounds (inclusive or exclusive), nor a value that is not a number, and returns what it accepts unchanged |
 | `ensureList_is_list`, `checkCoerce_int`, `checkPort_range` | `EnsureList` always yields a list; `Coerce(int)` only yields ints; `Port` only ints from 1 to 65535 |
 
-These are about single functions (e.g. the admission decision `admit`), not
-yet about whole executions of `Engine.step`.
+These are about single functions (e.g. the admission decision `admit`). The
+first theorem about whole executions of `Engine.step` is in
+`HALean/Automation/EngineBound.lean`:
+
+| Theorem | Says |
+|---|---|
+| `runs_bounded` | start the engine with `init` (automations with `max ≥ 1`, no script entities) and feed it any inputs: a `single` or `restart` automation has at most one live run, a `queued` or `parallel` automation at most `max` (live = running or queued, `parallel` branches excluded) |
+| `Inv.step`, `Inv.steps` | the invariant behind it (no script entities, every automation within its bound) holds after any input and any sequence of inputs |
+| `HPres.engine` | every run handler (`drive`, `finishRun`, `releaseQueue`, `finishBranch`, `answer`, `continueNow`, `stopRun`, `cancelRun`, `startScript`, `callLocal`) keeps the invariant, at every nesting depth |
+| `Inv.admitted`, `Inv.restarted` | `triggerAutomation`'s admission keeps the bound: without `restart` one run is added below the bound; with `restart` the new run is added and every older run of the automation removed |
+
+The bound needs `max ≥ 1`. HALean did not enforce that until the proof was
+attempted: the automation decoder took the JSON number's mantissa, so `max: 0`
+or `max: -4` gave 0, with no limit at all (`admit` only rejects at
+`existing = max`, which a running automation never reaches). `max: 2.5` gave 25,
+`10.0` gave 100, and a string such as `"3"` was ignored (10). HA validates `max`
+with `probatio.All(probatio.Coerce(int), probatio.Range(min=2))`
+(`helpers/script.py` `make_script_schema`), and both the automation and the
+script decoders now do the same (`maxRunsOf`, `pyIntOfJson?` in
+`Automation/Config.lean`): 2.5 → 2, `"3"` → 3, and 0, 1, -4, `true`, `null` and
+`"2.5"` are refused. This matches HA 2026.10.4's schema on each of those values
+(checked by running `make_script_schema`). The script decoder had refused 2.5,
+which HA accepts as 2.
+
+The proof needed the engine to be total. The ten mutually recursive run
+handlers take one another as a `Handlers` record, one level down; `handlers n`
+nests them `n` levels deep and `engine = handlers ENGINE_FUEL` (opaque, so the
+kernel never unfolds it). The timer and wake-up loops take fuel
+(`LOOP_FUEL`), and `familyOf` / `rootOf` take `runs.length + 1`. When fuel runs
+out, the engine logs an error and does nothing more.
 
 ## Functions proved to compute what upstream computes
 
@@ -75,20 +103,21 @@ the same proved functions.
 
 ## Engine properties (true for every configuration)
 
-The main obstacle for most of these: `drive`, `finishRun` and `fireDue` in
-`Engine.lean` are `partial`. Making them total, with an explicit measure, is
-probably the first step.
+`Engine.lean` has no `partial` definitions any more (see above), so these
+can now be stated about `Engine.step`. Properties 1 and 2, and the "one run"
+part of 4, are proved (`runs_bounded`) for engines without script entities.
 
-1. **`single` really is single.** For any input sequence, an automation with
+1. **`single` really is single** (proved: `runs_bounded`). For any input sequence, an automation with
    `mode: single` never has two live runs (`runsOf`: the runs in
    `Engine.runs` that are not `parallel` branches). Lifts
    `single_exclusive` from `admit` to all reachable states.
-2. **`max` is respected.** For `queued` / `parallel`, the number of live runs
+2. **`max` is respected** (proved: `runs_bounded`). For `queued` / `parallel`, the number of live runs
    of an automation never exceeds `max`.
 3. **`queued` is first-in, first-out.** Queued runs start in the order their
    triggers arrived.
 4. **`restart` leaves one run.** After a restart, only the newest run of that
-   automation is live.
+   automation is live. At most one run is proved (`runs_bounded`); that it is
+   the newest is not.
 5. **Every step terminates.** `Engine.step` returns for every input. Today a
    step budget (`STEP_FUEL`) guarantees this; the goal is to prove that the
    budget is never reached when `repeat` loops are bounded (HA stops `repeat`

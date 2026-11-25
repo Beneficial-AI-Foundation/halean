@@ -38,6 +38,7 @@ import HALean.Automation.EngineSpec
 import HALean.Automation.EngineSpec2
 import HALean.Automation.EngineSpec3
 import HALean.Automation.EngineSpec4
+import HALean.Automation.EngineBound
 import HALean.Automation.LocationSpec
 import HALean.Automation.ProtocolSpec
 import HALean.Automation.ScriptSpec
