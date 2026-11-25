@@ -42,7 +42,7 @@ and a rebuilt `halean-helpers`: `57 passed` in the named log. Only `HALean/Helpe
 | HLP-1 | `cases/misc.yaml::hw_m_all_hits_other_domains` | `input_boolean.toggle` with `entity_id: all`: only `input_boolean.x` changes; `counter.x` stays `7` | also runs on the entities of the other helper domains: `counter.x` is set to `0` | Silent | no | `patches/HLP-1.patch`; reproducers pass (`patches/HLP-1.repro.log`: `4 passed`); shipped ok (`patches/HLP-1.shipped.log`) |
 | HLP-2 | `cases/input_number.yaml::hw_in_negative_zero_kept` | value `-0.0`, `set_value 0`: no event, state stays `-0.0` | `state_changed` to `0.0` | Silent | no | `patches/HLP-2.patch`; `patches/HLP-2.repro.log`: `3 passed`; shipped ok (`patches/HLP-2.shipped.log`) |
 | HLP-3 | `cases/input_select.yaml::hw_is_long_option`, `cases/counter.yaml::hw_c_state_too_long` | a state longer than 255 characters is written as `unknown` | the long state is written | Silent | no (line 288 lists the rule for the core model only) | `patches/HLP-3.patch`; `patches/HLP-3.repro.log`: `2 passed`; shipped ok (`patches/HLP-3.shipped.log`) |
-| HLP-4 | `cases/input_select.yaml::hw_is_dup_warning_with_invalid_sibling_icon` (also `rnd_input_select_s101_7`, `rnd_input_select_s202_42`) | config refused, and the "had duplicated options" warning of the valid item is logged (once or twice) | config refused with the same error, no warning | Silent | no | no patch (HA logs the warning once or twice depending on the error; not reduced to a rule) |
+| HLP-4 | `cases/input_select.yaml::hw_is_dup_warning_with_invalid_sibling_icon` (also `rnd_input_select_s101_7`, `rnd_input_select_s202_42`) | config refused, and the "had duplicated options" warning of the valid item is logged (once or twice) | config refused with the same error, no warning | Silent | no | no patch (HA logs the warning once or twice; the count was not reduced to a rule) |
 | HLP-5 | `cases/input_text_pattern.yaml::hw_pat_dollar_star_no_initial` | pattern `a$*`: `set_value` raises `PatternError: nothing to repeat at position 2`; with an `initial` the entity is not added | pattern accepted, value `a` matches and is written | Accepts | no | `patches/HLP-5.patch` makes HALean refuse the pattern (`unsupported`), as it does for other patterns Python rejects; `patches/HLP-5.repro.log`: `3 failed, 1 passed` (the 3 are now refusals); shipped ok (`patches/HLP-5.shipped.log`) |
 | HLP-6 | `cases/input_text_pattern.yaml::hw_pat_brace_at_start_no_initial` | pattern `{2}`: `PatternError: nothing to repeat at position 0` | `{2}` read as three literal characters; value `{2}` is written | Accepts | no | `patches/HLP-6.patch` (refuses); `patches/HLP-6.repro.log`: `4 failed, 1 passed` (4 refusals); shipped ok (`patches/HLP-6.shipped.log`) |
 | HLP-7 | `cases/input_text_pattern.yaml::hw_pat_class_escape_range_no_initial` | pattern `[\d-z]`: `PatternError: bad character range \d-z at position 1` | set read as `\d`, `-`, `z`; value `5` is written | Accepts | no | `patches/HLP-7.patch` (refuses); `patches/HLP-7.repro.log`: `3 failed, 1 passed` (3 refusals); shipped ok (`patches/HLP-7.shipped.log`) |
@@ -139,9 +139,10 @@ for the core state machine model, which the helpers model does not use.
 ```
 HA: `{'ok': False, 'error': 'Icons should be specified in the form "prefix:name" at \'input_select.l.icon\'', 'outs': [], 'logs': [['warning', "Input select '<unnamed>' with options ['a', 'a'] had duplicated options, the duplicates have been removed"]], 'states': []}`.
 HALean: same `error`, `'logs': []`.
-With the invalid item first (`hw_is_dup_warning_with_invalid_sibling_first`) HA logs the warning once; with
-an extra key as the error (`hw_is_dup_warning_with_invalid_sibling_extra_key`) twice. When the duplicated
-and the invalid item are the same (`hw_is_dup_and_invalid_same_item`) neither side logs: that case passes.
+The other two hand-written cases (`hw_is_dup_warning_with_invalid_sibling_first`, `…_extra_key`) and
+`rnd_input_select_s101_7` show the warning once; `rnd_input_select_s202_42` shows it twice
+(`logs/run3-random-seed202.log`). The count was not reduced to a rule. When the duplicated and the
+invalid item are the same (`hw_is_dup_and_invalid_same_item`) neither side logs: that case passes.
 
 Root cause: `Schema({str: value_schema})` validates every item and collects errors; `_cv_input_select`
 (`components/input_select/__init__.py:85-94`) logs while validating a valid item. Lean `slugKeys`
