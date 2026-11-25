@@ -240,7 +240,7 @@ theorem decodeInput_event (j : Json) (now : Instant) (h : str? j "type" = some "
 
 theorem decodeInput_unknown (j : Json) (ty : String) (now : Instant)
     (h : str? j "type" = some ty) (hi : decodeInstant j = .ok now)
-    (hty : ty ∉ ["init", "state_changed", "event", "tick", "service_result"]) :
+    (hty : ty ∉ ["init", "state_changed", "event", "tick", "mqtt", "webhook", "service_result"]) :
     decodeInput j = .error s!"unknown message type {ty}" := by
   simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hty
   simp only [decodeInput, h, hi, bind, Except.bind, pure, Except.pure]
@@ -257,14 +257,9 @@ theorem decodeInput_rejected (j : Json) (i : Input) (bad : List (String × Strin
     · cases h
     · split at h
       · exact absurd hs hty
-      · repeat' split at h
+      all_goals
+        repeat' split at h
         all_goals first | (cases h; done) | (cases h; rfl)
-      · repeat' split at h
-        all_goals first | (cases h; done) | (cases h; rfl)
-      · cases h; rfl
-      · repeat' split at h
-        all_goals first | (cases h; done) | (cases h; rfl)
-      · cases h
   · cases h
 
 /-! ### `processLine` -/

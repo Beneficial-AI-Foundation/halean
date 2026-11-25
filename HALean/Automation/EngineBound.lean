@@ -79,16 +79,16 @@ theorem Inv.branches {e e' : Engine} (h : Inv e) (kids : List Run)
     rw [hr, this]; exact Nat.le_refl _
 
 /-- A record update of anything but runs, automations and scripts. -/
-theorem Inv.mk {e : Engine} (h : Inv e) {st now pend armed nri nci npi ls tt lt per wt wk loc sun te sg hs} :
+theorem Inv.mk {e : Engine} (h : Inv e) {st now pend armed nri nci npi ls tt lt per wt wk loc sun te sg hs mr} :
     Inv ⟨e.automations, st, now, pend, armed, e.runs, nri, nci, npi, ls, tt, lt, per, wt, wk, loc, sun,
-      te, e.scripts, sg, hs⟩ :=
+      te, e.scripts, sg, hs, mr⟩ :=
   h.upd rfl rfl rfl
 
 /-- A record update that adds `parallel` branches. -/
 theorem Inv.mkBranches {e : Engine} (h : Inv e) {kids : List Run} (hp : ∀ k ∈ kids, k.parent ≠ none)
-    {st now pend armed nri nci npi ls tt lt per wt wk loc sun te sg hs} :
+    {st now pend armed nri nci npi ls tt lt per wt wk loc sun te sg hs mr} :
     Inv ⟨e.automations, st, now, pend, armed, e.runs ++ kids, nri, nci, npi, ls, tt, lt, per, wt, wk, loc,
-      sun, te, e.scripts, sg, hs⟩ :=
+      sun, te, e.scripts, sg, hs, mr⟩ :=
   h.branches kids rfl rfl rfl hp
 
 open Lean Elab Tactic Meta in
@@ -538,6 +538,13 @@ theorem Pres.onStateChanged (eid : String) (old new : Option EntityState) :
 theorem Pres.onEvent (ty : String) (data : Json) : Pres (onEvent ty data) := by
   unfold HALean.Automation.onEvent; pres [Pres.fire]
 
+theorem Pres.onMqtt (topic payload : String) (qos : Nat) (retain : Bool) :
+    Pres (onMqtt topic payload qos retain) := by
+  unfold HALean.Automation.onMqtt; pres [Pres.fire]
+
+theorem Pres.onWebhook (r : WebhookRequest) : Pres (onWebhook r) := by
+  unfold HALean.Automation.onWebhook; pres [Pres.fire]
+
 theorem Pres.fireTimeTriggers (sec : Nat) (tz : Int) : Pres (fireTimeTriggers sec tz) := by
   unfold HALean.Automation.fireTimeTriggers
   pres [Pres.fire, Pres.getTT, Pres.templateRefresh, Pres.waitRefresh, Pres.resumeRuns, Pres.resumeWoken]
@@ -596,6 +603,10 @@ theorem Pres.handle (i : Input) (hi : i.ok) : Pres (handle i) := by
   | event =>
     dsimp only [HALean.Automation.handle]; pres [Pres.advanceTo, Pres.onEvent, Pres.resumeWoken]
   | tick => dsimp only [HALean.Automation.handle]; exact Pres.advanceTo _
+  | mqtt =>
+    dsimp only [HALean.Automation.handle]; pres [Pres.advanceTo, Pres.onMqtt, Pres.resumeWoken]
+  | webhook =>
+    dsimp only [HALean.Automation.handle]; pres [Pres.advanceTo, Pres.onWebhook, Pres.resumeWoken]
   | serviceResult =>
     dsimp only [HALean.Automation.handle]
     pres [Pres.advanceTo, Pres.drive, Pres.finishRun, Pres.resumeWoken]

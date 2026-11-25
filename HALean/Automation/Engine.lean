@@ -19,6 +19,7 @@ import HALean.Automation.TimePeriod
 import HALean.Automation.Location
 import HALean.Automation.Sun
 import HALean.Script.Entity
+import HALean.Core.PyJson
 open Lean
 
 namespace HALean.Automation
@@ -218,7 +219,30 @@ structure Engine where
   /-- `homeassistant` start triggers still listening for `homeassistant_started`
   (`async_listen_once`). -/
   haStart : List (Owner × Nat) := []
+  /-- The MQTT client's `_retained_topics`: per subscription (owner, trigger
+  idx), the topics it already got a retained message on. -/
+  mqttRetained : List ((Owner × Nat) × List String) := []
   deriving Inhabited
+
+/-- A webhook request as `_handle_webhook` sees it (`aiohttp.web.Request`):
+the shell does the HTTP parsing. -/
+structure WebhookRequest where
+  webhookId : String
+  /-- `request.method` -/
+  method : String
+  /-- The raw `Content-Type` header, if any. -/
+  contentType : Option String := none
+  /-- `await request.text()` -/
+  text : String := ""
+  /-- `await request.post()`: the form fields, in order. -/
+  post : List (String × String) := []
+  /-- `request.query`, in order. -/
+  query : List (String × String) := []
+  /-- Whether `async_handle_webhook` takes the request as local:
+  `not (is_cloud_connection(hass) or request.remote is None)` and
+  `network_util.is_local(ip_address(request.remote))`. -/
+  isLocal : Bool := true
+  deriving Repr, Inhabited
 
 inductive Input where
   | init (automations : List Automation) (states : List EntityState) (now : Instant)
@@ -226,6 +250,11 @@ inductive Input where
   | stateChanged (entityId : String) (old new : Option EntityState) (now : Instant)
   | event (eventType : String) (data : Json) (now : Instant)
   | tick (now : Instant)
+  /-- An MQTT message as HA's MQTT client receives it (payload decoded as
+  UTF-8). -/
+  | mqtt (topic payload : String) (qos : Nat) (retain : Bool) (now : Instant)
+  /-- A request to `/api/webhook/<webhook_id>`. -/
+  | webhook (req : WebhookRequest) (now : Instant)
   | serviceResult (callId : Nat) (ok : Bool) (kind : ErrKind) (msg : String) (now : Instant)
       (response : Json := .null)
 
@@ -1423,6 +1452,127 @@ def onEvent (ty : String) (data : Json) : EM Unit := do
             value := triggerValue t "tag" [("event", ev), ("description", .str "Tag scanned")] }
       | _ => pure ()
 
+/-! ## MQTT (`components/mqtt/trigger.py`, `client.py`) -/
+
+/-- paho's `MQTTMatcher.iter_match` for one filter, level by level (`normal`:
+the topic does not start with `$`, which wildcards at the first level do
+not match). -/
+def mqttLevelsMatch (normal : Bool) : List String → List String → Nat → Bool
+  | [], [], _ => true
+  | ["#"], [], i => normal || i > 0
+  | _, [], _ => false
+  | [], _ :: _, _ => false
+  | f :: fs, t :: ts, i =>
+    (f == t && mqttLevelsMatch normal fs ts (i + 1)) ||
+    (f == "+" && (normal || i > 0) && mqttLevelsMatch normal fs ts (i + 1)) ||
+    (f == "#" && fs.isEmpty && (normal || i > 0))
+
+/-- `is_simple_match`: a filter without wildcards, matched by equality. -/
+def mqttSimple (filter : String) : Bool := !(filter.contains '+' || filter.contains '#')
+
+/-- `_matcher_for_topic(filter)(topic)` -/
+def mqttTopicMatches (filter topic : String) : Bool :=
+  mqttLevelsMatch (!topic.startsWith "$") (filter.splitOn "/") (topic.splitOn "/") 0
+
+/-- `mqtt_automation_listener`'s test: `wanted_payload is None or (payload
+:= value_template(msg.payload, PayloadSentinel.DEFAULT)) and payload is not
+PayloadSentinel.DEFAULT and wanted_payload == payload`. The value template
+(`async_render_with_possible_json_value`) sees `value` and `value_json`; a
+render error gives the sentinel, which matches nothing (the error is
+returned for the log). -/
+def mqttPayloadMatches (e : Engine) (wanted : Option String) (vt : Option Template.Tmpl)
+    (payload : String) (payloadJson : Option Template.Value) : Bool × Option String :=
+  match wanted with
+  | none => (true, none)
+  | some w => match vt with
+    | none => (!payload.isEmpty && payload == w, none)
+    | some tm =>
+      let vars : List (String × Template.Value) := [("value", .str payload)] ++
+        (match payloadJson with | some v => [("value_json", v)] | none => [])
+      match Template.renderString tm { states := e.states, now := e.now, vars } with
+      | .ok r => (!r.isEmpty && r == w, none)
+      | .error m => (false, some s!"Error parsing value: {m} (value: {payload}, template: {tm.src})")
+
+/-- The `trigger` an MQTT trigger hands to its action. -/
+def mqttTriggerVars (t : Trigger) (topic payload : String) (qos : Nat)
+    (payloadJson : Option Template.Value) : TriggerVars :=
+  { id := t.id, idx := t.idx, platform := "mqtt", description := s!"mqtt topic {topic}",
+    value := triggerValue t "mqtt" ([("topic", .str topic), ("payload", .str payload),
+      ("qos", .int qos), ("description", .str s!"mqtt topic {topic}")] ++
+      (match payloadJson with | some v => [("payload_json", v)] | none => [])) }
+
+/-- `MQTT._async_mqtt_on_message` with the triggers' subscriptions
+(`_matching_subscriptions`: the simple ones on this topic, then the
+wildcard ones, each in subscription order), and each trigger's
+`mqtt_automation_listener`. A retained message reaches a subscription once
+per topic. -/
+def onMqtt (topic payload : String) (qos : Nat) (retain : Bool) : EM Unit := do
+  let subs := (← getE).owners.flatMap fun (o, ts) => ts.filterMap fun t => match t.kind with
+    | .mqtt f w vt _ => some (o, t, f, w, vt)
+    | _ => none
+  let simple := subs.filter fun (_, _, f, _) => mqttSimple f && f == topic
+  let wild := subs.filter fun (_, _, f, _) => !mqttSimple f && mqttTopicMatches f topic
+  -- `payload_json` and the template's `value_json` (`json_loads`)
+  let payloadJson := (HALean.Core.orjsonLoads payload).toOption
+  for (o, t, _, wanted, vt) in simple ++ wild do
+    let e ← getE
+    if !e.listening o then continue
+    -- "Skip if the subscription already received a retained message"
+    let seen := ((e.mqttRetained.find? (·.1 == (o, t.idx))).map (·.2)).getD []
+    if retain && seen.contains topic then continue
+    if retain then
+      setE { e with mqttRetained := e.mqttRetained.filter (·.1 != (o, t.idx)) ++ [((o, t.idx), seen ++ [topic])] }
+    let (fires, err) := mqttPayloadMatches e wanted vt payload payloadJson
+    if let some m := err then
+      emit [.log (if (m.splitOn "not supported by HALean").length > 1 then "error" else "debug")
+        s!"{(e.ownerAuto o).alias}: {m}"]
+    if fires then fire o (mqttTriggerVars t topic payload qos payloadJson)
+
+/-! ## Webhooks (`components/webhook/trigger.py`, `__init__.py`) -/
+
+/-- `multidict.MultiDictProxy` of form fields or query items. -/
+def multiDictValue (items : List (String × String)) : Template.Value :=
+  .pyobj "MultiDictProxy" (items.map fun (k, v) => (k, .str v))
+
+/-- `async_handle_webhook` and `_handle_webhook`: the webhook's handler is
+the one the first attached trigger with this id registered (its
+`allowed_methods` and `local_only`); it runs every trigger with the id, in
+the order they attached. -/
+def onWebhook (r : WebhookRequest) : EM Unit := do
+  let regs := (← getE).owners.flatMap fun (o, ts) => ts.filterMap fun t => match t.kind with
+    | .webhook wid ms lo => if wid == r.webhookId then some (o, t, ms, lo) else none
+    | _ => none
+  let some (_, _, methods, localOnly) := regs.head?
+    | emit [.log "info" s!"Received message for unregistered webhook {r.webhookId}"]
+  if !methods.contains r.method then
+    -- "Allow websites to verify that the URL exists."
+    if r.method != "HEAD" then
+      emit [.log "warning" s!"Webhook {r.webhookId} only supports {",".intercalate methods} methods but {r.method} was received"]
+    return
+  if localOnly && !r.isLocal then
+    emit [.log "warning" s!"Received remote request for local webhook {r.webhookId}"]
+    return
+  let body : String × Template.Value ←
+    if ((r.contentType.getD "").splitOn "json").length > 1 then
+      -- "Always attempt to read the body; request.text() returns "" if empty"
+      if r.text.isEmpty then pure ("json", .dict [])
+      else match HALean.Core.orjsonLoads r.text with
+        | .ok v => pure ("json", v)
+        | .error m =>
+          emit [.log "error" s!"Error processing webhook {r.webhookId}: {m}"]
+          return
+    else pure ("data", multiDictValue r.post)
+  let base : List (String × Template.Value) := [("platform", .str "webhook"),
+    ("webhook_id", .str r.webhookId), body, ("query", multiDictValue r.query),
+    ("description", .str "webhook")]
+  for (o, t, _, _) in regs do
+    if !(← getE).listening o then continue
+    -- `{**base_result, **trigger.trigger_info["trigger_data"]}`
+    let data := base ++ [("id", .str t.id), ("idx", .str (toString t.idx)),
+      ("alias", match t.alias with | some a => .str a | none => .none)]
+    fire o { id := t.id, idx := t.idx, platform := "webhook", description := "webhook",
+             value := .dict (data.map fun (k, v) => (.str k, v)) }
+
 def Pattern.matches (p : Pattern) (v : Nat) : Bool :=
   match p with
   | .any => true
@@ -1639,6 +1789,9 @@ def handle : Input → EM Unit
     fireDue now.utc
   | .event ty data now => do advanceTo now; onEvent ty data; resumeWoken
   | .tick now => advanceTo now
+  | .mqtt topic payload qos retain now => do
+    advanceTo now; onMqtt topic payload qos retain; resumeWoken
+  | .webhook r now => do advanceTo now; onWebhook r; resumeWoken
   | .serviceResult cid ok kind msg now resp => do
     advanceTo now
     let e ← getE

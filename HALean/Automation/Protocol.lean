@@ -46,6 +46,18 @@ def decodeErrKind : Option String → ErrKind
   | some "ha_error" => .haError
   | _ => .other
 
+/-- A `[name, value]` pair of strings. -/
+def decodePair (k : String) (p : Json) : Except String (String × String) :=
+  match p with
+  | .arr xs => match xs.toList with
+    | [.str a, .str b] => pure (a, b)
+    | _ => throw s!"webhook '{k}' must be a list of [name, value] string pairs"
+  | _ => throw s!"webhook '{k}' must be a list of [name, value] string pairs"
+
+/-- A list of `[name, value]` pairs (missing: none). -/
+def decodePairs (j : Json) (k : String) : Except String (List (String × String)) :=
+  (ensureList ((field? j k).getD (.arr #[]))).mapM (decodePair k)
+
 /-- Decode an input. `init` also returns the automations that were rejected. -/
 def decodeInput (j : Json) : Except String (Input × List (String × String)) := do
   let some ty := str? j "type" | throw "message without type"
@@ -77,6 +89,21 @@ def decodeInput (j : Json) : Except String (Input × List (String × String)) :=
     let some et := str? j "event_type" | throw "event without event_type"
     return (.event et ((field? j "data").getD (Json.mkObj [])) now, [])
   | "tick" => return (.tick now, [])
+  | "mqtt" =>
+    let some topic := str? j "topic" | throw "mqtt without topic"
+    let retain := match field? j "retain" with | some (.bool b) => b | _ => false
+    let qos := (getNat j "qos").toOption.getD 0
+    return (.mqtt topic ((str? j "payload").getD "") qos retain now, [])
+  | "webhook" =>
+    let some wid := str? j "webhook_id" | throw "webhook without webhook_id"
+    let post ← decodePairs j "data"
+    let query ← decodePairs j "query"
+    let isLocal := match field? j "local" with | some (.bool b) => b | _ => true
+    let method := (str? j "method").getD "POST"
+    let contentType := str? j "content_type"
+    let text := (str? j "body").getD ""
+    let req : WebhookRequest := { webhookId := wid, method, contentType, text, post, query, isLocal }
+    return (.webhook req now, [])
   | "service_result" =>
     let ok := match field? j "ok" with | some (.bool b) => b | _ => false
     return (.serviceResult (← getNat j "call_id") ok (decodeErrKind (str? j "error_kind"))

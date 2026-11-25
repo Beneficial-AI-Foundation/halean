@@ -50,6 +50,36 @@
       "properties": {"type": {"const": "tick"}},
       "description": "Send at least once per second; time triggers, for-timers and delays only advance on input."
     },
+    "mqtt": {
+      "allOf": [{"$ref": "#/$defs/clock"}],
+      "required": ["topic"],
+      "properties": {
+        "type": {"const": "mqtt"},
+        "topic": {"type": "string"},
+        "payload": {"type": "string", "default": "", "description": "The payload decoded as UTF-8"},
+        "qos": {"enum": [0, 1, 2], "default": 0, "description": "The qos the message was delivered with"},
+        "retain": {"type": "boolean", "default": false}
+      },
+      "description": "An MQTT message as HA's MQTT client receives it from the broker; it reaches every mqtt trigger whose topic filter matches."
+    },
+    "webhook": {
+      "allOf": [{"$ref": "#/$defs/clock"}],
+      "required": ["webhook_id"],
+      "properties": {
+        "type": {"const": "webhook"},
+        "webhook_id": {"type": "string"},
+        "method": {"enum": ["GET", "HEAD", "POST", "PUT"], "default": "POST"},
+        "content_type": {"type": ["string", "null"], "description": "The raw Content-Type header"},
+        "body": {"type": "string", "default": "", "description": "await request.text()"},
+        "data": {"type": "array", "items": {"type": "array", "prefixItems": [{"type": "string"}, {"type": "string"}]},
+                 "description": "await request.post(): form fields as [name, value] pairs, in order"},
+        "query": {"type": "array", "items": {"type": "array", "prefixItems": [{"type": "string"}, {"type": "string"}]},
+                  "description": "request.query as [name, value] pairs, in order"},
+        "local": {"type": "boolean", "default": true,
+                  "description": "The request counts as local for local_only webhooks (not a cloud connection, remote address in a local network)"}
+      },
+      "description": "A request to /api/webhook/<webhook_id>."
+    },
     "service_result": {
       "allOf": [{"$ref": "#/$defs/clock"}],
       "required": ["call_id", "ok"],
@@ -120,6 +150,7 @@
   },
   "oneOf": [
     {"$ref": "#/$defs/init"}, {"$ref": "#/$defs/state_changed"}, {"$ref": "#/$defs/event"},
-    {"$ref": "#/$defs/tick"}, {"$ref": "#/$defs/service_result"}
+    {"$ref": "#/$defs/tick"}, {"$ref": "#/$defs/mqtt"}, {"$ref": "#/$defs/webhook"},
+    {"$ref": "#/$defs/service_result"}
   ]
 }

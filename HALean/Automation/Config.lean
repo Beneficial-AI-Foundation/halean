@@ -128,6 +128,17 @@ inductive TriggerKind where
   | tag (tagIds : List String) (deviceIds : Option (List String))
   /-- `template` trigger (`components/template/trigger.py`). -/
   | template (t : Template.Tmpl) (forP : Option ForPeriod)
+  /-- `mqtt` (`components/mqtt/trigger.py`): the subscription's topic filter
+  (rendered when the trigger attached), the wanted payload (`none`: any
+  message; rendered when the trigger attached), the `value_template` a
+  received payload goes through before it is compared, and the
+  subscription's `qos`. -/
+  | mqtt (topic : String) (payload : Option String) (valueTemplate : Option Template.Tmpl)
+      (qos : Nat)
+  /-- `webhook` (`components/webhook/trigger.py`): the webhook id (rendered
+  when the trigger attached), `allowed_methods` and `local_only`, which
+  count only for the trigger that registers the webhook first. -/
+  | webhook (webhookId : String) (allowedMethods : List String) (localOnly : Bool)
   deriving Repr, Inhabited
 
 structure Trigger where
@@ -574,6 +585,125 @@ def limitedRenderJson (vars : List (String × Json)) (what : String) (v : Json) 
       | .error e => throw s!"templated {what} '{s}': {e}"
     | .error e => throw s!"Error rendering {what}: {e}") v
 
+/-- `cv.template`'s `str(value)`: a number or a boolean becomes its Python
+text (`payload: true` is the template `True`). -/
+def cvTemplateText (k : String) (v : Json) : D String :=
+  match v with
+  | .str s => pure s
+  | .num _ | .bool _ => match Template.pyStr (Template.Value.ofJson v) with
+    | .ok s => pure s
+    | .error e => throw e
+  | .null => throw s!"template value is None for dictionary value @ data['{k}']"
+  | _ => throw s!"template value should be a string for dictionary value @ data['{k}']"
+
+/-- `cv.string` of a scalar. -/
+def cvStringOf (k : String) (v : Json) : D String :=
+  match v with
+  | .str s => pure s
+  | .num _ | .bool _ => match Template.pyStr (Template.Value.ofJson v) with
+    | .ok s => pure s
+    | .error e => throw e
+  | .null => throw s!"string value is None for dictionary value @ data['{k}']"
+  | _ => throw s!"expected str for dictionary value @ data['{k}']"
+
+/-- `Template(s).async_render(variables, limited=True, parse_result=False)`
+when a trigger attaches: the variables are the static trigger_variables, so
+the result is known at load time; a template that reads states or the clock
+is refused. -/
+def limitedRenderStr (tv : List (String × Json)) (what s : String) : D String := do
+  let t ← compileTemplate s (tv.map (·.1))
+  for n in (t.nodes.map Template.nodeNames).flatMap (fun p => p.1.1 ++ p.1.2.1 ++ p.1.2.2) do
+    if LIMITED_UNSUPPORTED.contains n then
+      throw s!"'{n}' in a templated {what} is not supported by HALean"
+  match Template.render t { states := [], vars := tv.map fun (k, x) => (k, Template.Value.ofJson x) } false with
+  | .ok (.str r) => pure r
+  | .ok _ => throw s!"templated {what} '{s}' did not render to a string"
+  | .error e => throw s!"templated {what} '{s}' fails to render: {e}"
+
+/-! ### MQTT topics (`components/mqtt/util.py`) -/
+
+/-- `valid_topic` -/
+def mqttValidTopic (t : String) : D Unit := do
+  if t.isEmpty then throw "MQTT topic name/filter must not be empty."
+  if t.utf8ByteSize > 65535 then
+    throw "MQTT topic name/filter must not be longer than 65535 encoded bytes."
+  for c in t.toList do
+    let n := c.toNat
+    if n == 0 then throw "MQTT topic name/filter must not contain null character."
+    if n ≤ 0x1f || (0x7f ≤ n && n ≤ 0x9f) then
+      throw "MQTT topic name/filter must not contain control characters."
+    if (0xfdd0 ≤ n && n ≤ 0xfdef) || n % 0x10000 == 0xfffe || n % 0x10000 == 0xffff then
+      throw "MQTT topic name/filter must not contain non-characters."
+
+/-- `valid_subscribe_topic` -/
+def mqttValidSubscribeTopic (t : String) : D Unit := do
+  mqttValidTopic t
+  let cs := t.toList
+  for (c, i) in cs.zipIdx do
+    if c == '+' then
+      if (i > 0 && cs[i - 1]? != some '/') || (i + 1 < cs.length && cs[i + 1]? != some '/') then
+        throw "Single-level wildcard must occupy an entire level of the filter"
+  match cs.idxOf? '#' with
+  | none => pure ()
+  | some i =>
+    if i != cs.length - 1 then
+      throw "Multi-level wildcard must be the last character in the topic filter."
+    if cs.length > 1 && cs[i - 1]? != some '/' then
+      throw "Multi-level wildcard must be after a topic level separator."
+
+/-- `probatio.All(probatio.Coerce(int), probatio.In([0, 1, 2]))` -/
+def mqttQos (v : Json) : D Nat := do
+  let n : Option Int := match v with
+    | .num n => some (n.mantissa.tdiv (10 ^ n.exponent))  -- `int()` truncates
+    | .bool b => some (if b then 1 else 0)
+    | .str s => s.trim.toInt?
+    | _ => none
+  match n with
+  | some 0 => pure 0
+  | some 1 => pure 1
+  | some 2 => pure 2
+  | some _ => throw "value must be one of [0, 1, 2] for dictionary value @ data['qos']"
+  | none => throw "expected int for dictionary value @ data['qos']"
+
+/-- The names Python's codec registry resolves to `utf_8`
+(`encodings.normalize_encoding`, then the alias table). -/
+def isUtf8Encoding (s : String) : Bool :=
+  let n := (s.toLower.map fun c => if c == '-' || c == ' ' then '_' else c)
+  ["utf_8", "utf8", "u8", "utf", "utf8_ucs2", "utf8_ucs4", "cp65001"].contains n
+
+/-! ### Webhooks (`components/webhook/__init__.py`) -/
+
+/-- `SUPPORTED_METHODS` -/
+def WEBHOOK_METHODS : List String := ["GET", "HEAD", "POST", "PUT"]
+
+/-- `str.upper()` for the strings that can become one of
+`WEBHOOK_METHODS`: ASCII letters, plus the non-ASCII characters whose upper
+case is ASCII (`ı`, `ſ`, `ﬅ`, `ﬆ`). Anything else stays as it is, so it is
+not a method either way. -/
+def pyUpperMethod (s : String) : String :=
+  String.join (s.toList.map fun c =>
+    if c == 'ı' then "I" else if c == 'ſ' then "S"
+    else if c == 'ﬅ' || c == 'ﬆ' then "ST"
+    else toString c.toUpper)
+
+/-- `allowed_methods`: `probatio.All(probatio.EnsureList(),
+[probatio.All(probatio.Upper, probatio.In(SUPPORTED_METHODS))], probatio.Unique())` -/
+def webhookMethods (v : Json) : D (List String) := do
+  let ms ← (ensureList v).mapM fun x => do
+    let s ← match x with
+      | .str s => pure s
+      | .num _ | .bool _ => match Template.pyStr (Template.Value.ofJson x) with
+        | .ok s => pure s
+        | .error e => throw e
+      | x => throw s!"value must be one of {WEBHOOK_METHODS} for dictionary value @ data['allowed_methods']: {x.compress}"
+    let u := pyUpperMethod s
+    if !WEBHOOK_METHODS.contains u then
+      throw s!"value must be one of ['GET', 'HEAD', 'POST', 'PUT'] for dictionary value @ data['allowed_methods']"
+    pure u
+  if ms.eraseDups.length != ms.length then
+    throw s!"contains duplicate items: {(ms.filter fun m => ms.count m > 1).eraseDups} for dictionary value @ data['allowed_methods']"
+  pure ms
+
 /-- `tvals`: the static trigger_variables, when the trigger attaches with
 them (an automation's triggers, not `wait_for_trigger`). -/
 def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
@@ -772,6 +902,82 @@ def decodeTrigger (idx : Nat) (j : Json) (tnm : List String := [])
         | none => pure none
         | some d => some <$> strs "device_id" d
       pure (TriggerKind.tag tags devs)
+    | "mqtt" => do
+      -- `TRIGGER_SCHEMA`, then `async_attach_trigger`
+      let some topicJ := field? j "topic" | throw "required key not provided @ data['topic']"
+      let topicRaw ← cvTemplateText "topic" topicJ
+      let topic ← if Template.isTemplateString topicRaw then do
+          -- `topic_template.async_render(variables, limited=True, parse_result=False)`,
+          -- then `valid_subscribe_topic`; an error fails the attach
+          let some tv := tvals
+            | throw s!"templated mqtt topic '{topicRaw}' is not supported here"
+          let t ← limitedRenderStr tv "mqtt topic" topicRaw
+          mqttValidSubscribeTopic t
+          pure t
+        else do
+          -- `valid_subscribe_topic_template`: a static topic is validated as
+          -- written; the subscription uses the template's (stripped) text
+          mqttValidSubscribeTopic topicRaw
+          pure (← compileTemplate topicRaw []).src
+      -- `MqttCommandTemplate(config.get(CONF_PAYLOAD)).async_render(None, variables)`:
+      -- rendered (not limited, `parse_result=False`) with `value` = None and
+      -- the trigger variables, then `convert_outgoing_mqtt_payload`
+      let payload ← match field? j "payload" with
+        | none => pure none
+        | some pj => do
+          let raw ← cvTemplateText "payload" pj
+          let names := (tvals.getD []).map (·.1) ++ ["value"]
+          let t ← compileTemplate raw names
+          let s ← if t.isStatic then pure t.src else do
+            let some tv := tvals
+              | throw s!"templated mqtt payload '{raw}' is not supported here"
+            for n in (t.nodes.map Template.nodeNames).flatMap (fun p => p.1.1 ++ p.1.2.1 ++ p.1.2.2) do
+              if LIMITED_UNSUPPORTED.contains n then
+                throw s!"'{n}' in a templated mqtt payload is not supported by HALean"
+            let vars := tv.map (fun (k, x) => (k, Template.Value.ofJson x)) ++ [("value", .none)]
+            match Template.render t { states := [], vars } false with
+            | .ok (.str r) => pure r
+            | .ok _ => throw s!"templated mqtt payload '{raw}' did not render to a string"
+            | .error e => throw s!"templated mqtt payload '{raw}' fails to render: {e}"
+          -- a Python bytes literal would become `bytes`, which never equals a
+          -- received (decoded) payload
+          if s.startsWith "b'" || s.startsWith "b\"" then
+            throw s!"an mqtt payload that reads as a Python bytes literal is not supported by HALean: {s}"
+          pure (some s)
+      -- `value_template`: rendered with `value` / `value_json` only
+      let vt ← match field? j "value_template" with
+        | none => pure none
+        | some v => some <$> compileTemplate (← cvTemplateText "value_template" v) ["value", "value_json"]
+      -- `encoding`: the protocol delivers payloads as text (UTF-8)
+      match field? j "encoding" with
+      | none => pure ()
+      | some v =>
+        let enc ← cvStringOf "encoding" v
+        if enc.isEmpty then
+          throw "mqtt encoding '' (raw bytes payloads) is not supported by HALean"
+        if !isUtf8Encoding enc then
+          throw s!"mqtt encoding '{enc}' is not supported by HALean (the shell delivers UTF-8 text)"
+      let qos ← match field? j "qos" with
+        | none => pure 0
+        | some v => mqttQos v
+      pure (TriggerKind.mqtt topic payload vt qos)
+    | "webhook" => do
+      let some idJ := field? j "webhook_id" | throw "required key not provided @ data['webhook_id']"
+      let raw ← cvTemplateText "webhook_id" idJ
+      -- `webhook_id_template.async_render(variables, limited=True, parse_result=False)`
+      let wid ← if Template.isTemplateString raw then do
+          let some tv := tvals
+            | throw s!"templated webhook_id '{raw}' is not supported here"
+          limitedRenderStr tv "webhook_id" raw
+        else pure (← compileTemplate raw []).src
+      let methods ← match field? j "allowed_methods" with
+        | none => pure ["POST", "PUT"]  -- `DEFAULT_METHODS`
+        | some v => webhookMethods v
+      let localOnly ← match field? j "local_only" with
+        | none => pure true
+        | some (.bool b) => pure b
+        | some _ => throw "expected bool for dictionary value @ data['local_only']"
+      pure (TriggerKind.webhook wid methods localOnly)
     | p => throw s!"trigger platform '{p}' is not supported"
   return some { id, idx, alias := str? j "alias", kind, variables := ownVars }
 
