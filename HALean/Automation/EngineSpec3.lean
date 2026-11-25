@@ -68,10 +68,11 @@ def condEnvOf (e : Engine) (tv : TriggerVars) (vars : List (String × Template.V
   { states := e.condEnv.states, now := e.condEnv.now, triggerId := some tv.id, vars,
     location := e.condEnv.location }
 
-/-- The run a trigger starts. -/
+/-- The run a trigger starts: its variables, with `context` set over them. -/
 def newRun (e : Engine) (ai : Nat) (a : Automation) (tv : TriggerVars)
     (vars : List (String × Template.Value)) (wait : Wait) : Run :=
-  { id := e.nextRunId, autoIdx := ai, triggerId := tv.id, vars, frames := [.seq a.actions false], wait }
+  { id := e.nextRunId, autoIdx := ai, triggerId := tv.id, vars := setVar vars "context" contextValue,
+    frames := [.seq a.actions false], wait }
 
 /-- The engine once the run is added: a fresh id is used up and
 `last_triggered` is now. -/

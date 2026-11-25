@@ -188,7 +188,8 @@ entries:
   - HALean.Automation.triggerAutomation
   - HALean.Automation.startScript
   status: proven
-  notes: theorems single_exclusive, restart_never_rejects, admit_bounded, queued_waits
+  notes: theorems single_exclusive, restart_never_rejects, admit_bounded, queued_waits; a top-level run's
+    `context` is set over its variables (contextValue)
   hash: de80e422d227b5fe
 - python: helpers/script.py::_QueuedScriptRun.async_run
   lean:
@@ -661,8 +662,11 @@ entries:
 - python: helpers/script_variables.py::ScriptRunVariables._assign
   lean:
   - HALean.Automation.setVar
+  - HALean.Automation.assignRepeat
   status: translated
-  notes: only `repeat` is ever defined locally, so assignments go to the run's top level
+  notes: only `repeat` is ever defined locally (by its loop), so `repeat` inside a loop is assigned in the
+    loop's scope (the repeat frame's override, cleared at the next iteration) and every other name at the
+    run's top level
   hash: 4bc94edc1767f0c6
 - python: helpers/script.py::_ScriptRun._async_step_variables
   lean:

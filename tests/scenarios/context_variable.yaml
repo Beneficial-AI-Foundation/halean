@@ -1,0 +1,22 @@
+# `Script.async_run` sets the run's `context` after the automation's
+# variables are rendered, so an automation variable named `context` is
+# replaced by the run's Context; a `variables` action inside the run can
+# still assign it. Review item A8.
+automations:
+  - id: auto_var
+    variables: {context: 5}
+    triggers: [{trigger: event, event_type: go}]
+    actions:
+      - event: out
+        event_data: {five: "{{ context == 5 }}", defined: "{{ context is defined }}"}
+  - id: action_var
+    triggers: [{trigger: event, event_type: go2}]
+    actions:
+      - variables: {context: 5}
+      - event: out2
+        event_data: {five: "{{ context == 5 }}"}
+steps:
+  - {at: 1, send: {type: event, event_type: go},
+     expect: [{type: automation_triggered, id: auto_var}, {type: fire_event, event_type: out, data: {five: false, defined: true}}]}
+  - {at: 2, send: {type: event, event_type: go2},
+     expect: [{type: automation_triggered, id: action_var}, {type: fire_event, event_type: out2, data: {five: true}}]}

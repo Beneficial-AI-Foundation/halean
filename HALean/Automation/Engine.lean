@@ -283,6 +283,12 @@ def Engine.ownerAuto (e : Engine) : Owner → Automation
 
 /-! ## Value helpers -/
 
+/-- The run's `context` variable (a `Context`): its ids are random, so
+reading them is an error; it is a defined object that equals no other value. -/
+def contextValue : Template.Value :=
+  .pyobj "Context" [("id", .opaque "context.id"), ("parent_id", .opaque "context.parent_id"),
+    ("user_id", .opaque "context.user_id")]
+
 def valueOf (attr : Option String) : Option EntityState → Json
   | none => .null
   | some s => match attr with
@@ -839,7 +845,7 @@ def startScriptH (h : Handlers) (ai : Nat) (runVars : List (String × Template.V
   let wait : Wait := if decision == .enqueue then .queued else .ready
   -- `variables["context"] = context`
   let run : Run := { id := e.nextRunId, autoIdx := ai, triggerId := "",
-                     vars := setVar vars "context" (.opaque "context"),
+                     vars := setVar vars "context" contextValue,
                      frames := [.seq a.actions false], wait, caller, stack := stack ++ [ai] }
   setE { e with runs := e.runs ++ [run], nextRunId := e.nextRunId + 1 }
   if decision == .restart then
@@ -994,7 +1000,10 @@ def triggerAutomation (ai : Nat) (tv : TriggerVars) : EM Unit := do
     emit [.log "warning" s!"{a.alias}: {why}"]
     return
   let wait : Wait := if decision == .enqueue then .queued else .ready
-  let run : Run := { id := e.nextRunId, autoIdx := ai, triggerId := tv.id, vars,
+  -- `Script.async_run` (top level): `variables["context"] = context`, over
+  -- any automation variable of that name
+  let run : Run := { id := e.nextRunId, autoIdx := ai, triggerId := tv.id,
+                     vars := setVar vars "context" contextValue,
                      frames := [.seq a.actions false], wait }
   -- `self.last_triggered = utcnow()` once the run is added (queued or not)
   let mut e := { e with
