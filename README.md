@@ -79,7 +79,13 @@ uv run tests/differential/run.py # scenarios + template cases through a real Hom
 uv run tests/bridge_e2e.py       # bridge against a fake HA WebSocket server
 uv run --with astral==2.2 tests/sun/compare.py  # sunrise/sunset vs astral, to the microsecond
 uv run tests/live/docker_e2e.py  # bridge + engine driving the pinned HA release in a throwaway Docker container
+lake env lean tools/Axioms.lean  # axiom audit of every HALean theorem
 ```
+
+The executables are not default targets: every `lean_exe` root declares a
+top-level `main`, so importing all of them into one environment (as tools
+that import the default targets do) cannot work (`lakefile.toml`). Build them
+by name, as above.
 
 ## Live test against Home Assistant in Docker
 
@@ -226,8 +232,15 @@ Markdown are skipped.
    `v<version>` with `halean-demo.tar.gz`, the executable archives and
    `SHA256SUMS`.
 
-These builds run only after a merge to master; pull requests run just the Lean
-build (`lean_action_ci.yml`).
+These builds run only after a merge to master. Every push and pull request
+runs `lean_action_ci.yml`: the library and every executable, the axiom audit
+(`tools/Axioms.lean`: every theorem in a `HALean.*` module may use only
+`propext`, `Quot.sound` and `Classical.choice`, and every module under
+`HALean/` must be imported by `HALean.lean`), the scenario suites, the
+differential tests against the pinned Home Assistant release, the sun
+comparison with astral, and `drift.py check` (with `tests/drift_deps.py`)
+against a sparse checkout of the pinned tag. The Docker live test is not run
+in CI.
 
 The version is `<major>.<minor>` from `lakefile.toml` plus the workflow run
 number (`0.1.42`). Bump `version` in `lakefile.toml` to start a new line.
