@@ -71,8 +71,9 @@ def assignRepeat (v : Template.Value) : List Frame → Option (List Frame)
 
 /-- The kind of a failed service call, which decides what
 `continue_on_error` may swallow (`_handle_exception`, `_async_step_call_service`):
-  * `invalid`  – `vol.Invalid` / configuration errors: never swallowed
-  * `haError`  – `HomeAssistantError` (incl. ServiceNotFound): swallowed by any
+  * `invalid`  – `CONFIGURATION_ERRORS` (`probatio.Invalid`, `ServiceNotFound`,
+                 `TemplateError`, ...): never swallowed
+  * `haError`  – any other `HomeAssistantError`: swallowed by any
                  enclosing step with `continue_on_error`
   * `other`    – any other exception: only the service step's own
                  `continue_on_error` converts it to a HomeAssistantError -/

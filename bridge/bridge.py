@@ -75,19 +75,27 @@ ENGINE = Path(os.environ.get("HALEAN_ENGINE") or _default_exe("halean-automation
 SCRIPT_ENGINE = Path(os.environ.get("HALEAN_SCRIPT_ENGINE") or _default_exe("halean-script"))
 _LOG = logging.getLogger("halean.bridge")
 
-# HA WebSocket error codes -> engine ErrKind (see HALean/Script.lean `ErrKind`)
+# HA WebSocket error codes -> engine ErrKind (see HALean/Automation/Script.lean
+# `ErrKind`). `invalid` stands for script.py's CONFIGURATION_ERRORS, which
+# `continue_on_error` never swallows: probatio.Invalid (`invalid_format`) and
+# ServiceNotFound (`not_found`: the called service does not exist).
 ERROR_KIND = {
     "invalid_format": "invalid",
-    "not_found": "ha_error",
+    "not_found": "invalid",
     "home_assistant_error": "ha_error",
     "service_validation_error": "ha_error",
     "unauthorized": "ha_error",
 }
 
-# `_async_step_call_service` raises vol.Invalid (a configuration error) before
-# calling a service whose response support doesn't match the step; over the
-# WebSocket API HA reports the same mismatch with these translation keys.
-INVALID_TRANSLATION_KEYS = {"service_does_not_support_response", "service_lacks_response_request"}
+# Configuration errors HA reports with another code, told apart by the
+# translation key: `_async_step_call_service` raises probatio.Invalid before
+# calling a service whose response support doesn't match the step (the
+# WebSocket API reports the same mismatch with the first two keys), and a
+# ServiceNotFound raised by a service the called one calls is reported as
+# `home_assistant_error` / `child_service_not_found`; in a script run it is
+# still a ServiceNotFound.
+INVALID_TRANSLATION_KEYS = {"service_does_not_support_response", "service_lacks_response_request",
+                            "child_service_not_found"}
 
 
 def now_fields() -> dict:

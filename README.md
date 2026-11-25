@@ -88,7 +88,8 @@ runs the real bridge and engine with three automations, and checks on HA's real
 clock that:
 
 1. a state trigger turns another `input_boolean` on and fires an event,
-2. `continue_on_error` carries on past a call to a service that doesn't exist,
+2. a call to a service that doesn't exist stops the run even with
+   `continue_on_error` (`ServiceNotFound` is one of HA's configuration errors),
 3. a `for: 2s` trigger fires after 2 s and not before.
 
 ## Differential testing against real Home Assistant
@@ -722,6 +723,14 @@ listeners before anything else is delivered).
   trigger for automations loaded before startup finished.
 * The bridge is unverified. It subscribes to events after `get_states`, so a
   change in that window can be missed at startup.
+* The bridge learns a failed call's exception from HA's WebSocket error code
+  and translation key: `invalid_format` (`probatio.Invalid`), `not_found`
+  (`ServiceNotFound`), a nested `ServiceNotFound` and a response-support
+  mismatch are configuration errors, which `continue_on_error` never
+  swallows; every other `home_assistant_error` is a `HomeAssistantError`. A
+  `TemplateError`, `InvalidEntityFormatError` or `NoEntitySpecifiedError`
+  raised inside the called service arrives as a plain `home_assistant_error`,
+  so `continue_on_error` swallows it where HA would not.
 * MQTT through the bridge: when an automation or script has an `mqtt` trigger,
   the bridge subscribes to `#` (plus `$<level>/#` for each `$` topic a trigger
   names) with HA's `mqtt/subscribe` WebSocket command (admin token), so HA's
