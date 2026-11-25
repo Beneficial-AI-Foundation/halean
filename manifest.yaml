@@ -2042,3 +2042,493 @@ entries:
   notes: also positive_time_period, time_period, time_period_dict, positive_int, positive_float, small_float,
     byte, port, ensure_list (probatio objects, ServicesJson.decodeCv)
   hash: 460f9ea8eaf01a24
+- python: helpers/config_validation.py::icon
+  lean:
+  - HALean.Core.cvIcon
+  status: translated
+  notes: CvFn.icon; HALean.Helpers.vIcon
+  hash: 40cecdd93bac2b9b
+- python: helpers/config_validation.py::schema_with_slug_keys
+  lean:
+  - HALean.Helpers.slugKeys
+  status: translated
+  notes: 'keys are checked with cv.slug first (the first bad one raises), then Schema({str: value_schema})
+    collects errors in key order; a non-string key is unsupported'
+  hash: 64afc95b59df4e3b
+- python: helpers/config_validation.py::_make_entity_service_schema
+  lean:
+  - HALean.Helpers.entityServiceFields
+  - HALean.Helpers.validateEntityCall
+  status: translated
+  notes: 'Remove(''metadata''): a dict is dropped, anything else is an unmatched (extra) key'
+  hash: 1da5a4296f81bb01
+- python: probatio:_engine.py::_MappingValidator._apply
+  lean:
+  - HALean.Helpers.validateEntityCall
+  status: translated
+  notes: only the Remove branch (metadata of entity services)
+  hash: 12ad488220465193
+- python: helpers/service.py::entity_service_call
+  lean:
+  - HALean.Helpers.Helpers.call
+  status: translated
+  notes: 'the entity method''s errors: all targets run (gather), the first error is raised'
+  hash: 40812739824046d9
+- python: helpers/service.py::_resolve_entity_service_call_entities
+  lean:
+  - HALean.Helpers.targetOf
+  - HALean.Helpers.selectTargets
+  status: translated
+  notes: no users/permissions; device/area/floor/label targets are unsupported (no registries); missing
+    entities are not logged
+  hash: 9fb8f7182794817e
+- python: helpers/service.py::_get_permissible_entity_candidates
+  lean:
+  - HALean.Helpers.selectTargets
+  status: translated
+  notes: 'explicit ids run in the order given (HA iterates a set: hash order)'
+  hash: ed57a2e58d601be6
+- python: helpers/service.py::_async_handle_entity_calls
+  lean:
+  - HALean.Helpers.Helpers.call
+  status: translated
+  notes: 'gather(return_exceptions=True): every entity runs, the first exception in entity order is raised'
+  hash: 8d7216179cd75307
+- python: helpers/entity.py::Entity._stringify_state
+  lean:
+  - HALean.Helpers.stringifyState
+  - HALean.Helpers.floatPrec15
+  status: translated
+  notes: f'{state:.15}' reproduced digit for digit (exact rounding of the binary value)
+  hash: 13649b0312988975
+- python: helpers/entity.py::Entity.__async_calculate_state
+  lean:
+  - HALean.Helpers.tailAttrs
+  status: translated
+  notes: capability, state, extra attributes, then unit_of_measurement, icon, friendly_name (no registry
+    overrides)
+  hash: a5f57aa304bfb598
+- python: helpers/entity.py::ToggleEntity.async_toggle
+  lean:
+  - HALean.Helpers.InputBoolean.toggle
+  status: proven
+  notes: theorems toggle_toggle, state_toggle
+  hash: 79eb5479bd97e758
+- python: helpers/entity.py::ToggleEntity.state
+  lean:
+  - HALean.Helpers.InputBoolean.Entity.state
+  status: translated
+  hash: c104c60f3ce1d45c
+- python: helpers/event.py::_TrackPointUTCTime.__call__
+  lean:
+  - HALean.Helpers.Timer.Entity.due
+  - HALean.Helpers.Helpers.tick
+  status: translated
+  notes: the callback runs at the first clock at or after the point (and right after a call that scheduled
+    it in the past)
+  hash: 94e28a39288316d0
+- python: components/input_boolean/__init__.py::async_setup
+  lean:
+  - HALean.Helpers.InputBoolean.decodeConfig
+  - HALean.Helpers.InputBoolean.services
+  - HALean.Helpers.Helpers.setup
+  status: translated
+  notes: YAML items only (no storage collection, no reload)
+  hash: c286a0fa2d1bdc68
+- python: components/input_boolean/__init__.py::InputBoolean.__init__
+  lean:
+  - HALean.Helpers.InputBoolean.Entity.create
+  status: translated
+  hash: 291ff79226d94115
+- python: components/input_boolean/__init__.py::InputBoolean.async_added_to_hass
+  lean:
+  - HALean.Helpers.InputBoolean.Entity.create
+  status: translated
+  notes: restore when no initial
+  hash: dc296396bafcb430
+- python: components/input_boolean/__init__.py::InputBoolean.extra_state_attributes
+  lean:
+  - HALean.Helpers.InputBoolean.Entity.attrs
+  status: translated
+  hash: 42c5f663cec0f704
+- python: components/input_boolean/__init__.py::InputBoolean.async_turn_on
+  lean:
+  - HALean.Helpers.InputBoolean.turnOn
+  status: proven
+  notes: theorems turnOn_idem, state_turnOn
+  hash: 0dede2687bf9b2e8
+- python: components/input_boolean/__init__.py::InputBoolean.async_turn_off
+  lean:
+  - HALean.Helpers.InputBoolean.turnOff
+  status: proven
+  notes: theorems turnOff_idem, state_turnOff
+  hash: e5b6f639f3c2fc3d
+- python: components/input_number/__init__.py::_cv_input_number
+  lean:
+  - HALean.Helpers.InputNumber.checkConfig
+  status: translated
+  notes: keeps upstream's swapped bounds in the message
+  hash: 501fec40abc9f04f
+- python: components/input_number/__init__.py::async_setup
+  lean:
+  - HALean.Helpers.InputNumber.decodeConfig
+  - HALean.Helpers.InputNumber.services
+  - HALean.Helpers.Helpers.setup
+  status: translated
+  notes: YAML items only (no storage collection, no reload)
+  hash: 555ff4ead6d6e020
+- python: components/input_number/__init__.py::InputNumber.__init__
+  lean:
+  - HALean.Helpers.InputNumber.Entity.create
+  status: translated
+  hash: 40beb0c321ae48f8
+- python: components/input_number/__init__.py::InputNumber._update_config_attributes
+  lean:
+  - HALean.Helpers.InputNumber.Entity.attrs
+  status: translated
+  hash: 888f49769213f1c0
+- python: components/input_number/__init__.py::InputNumber.async_added_to_hass
+  lean:
+  - HALean.Helpers.InputNumber.Entity.create
+  status: translated
+  notes: 'restore: float() of the last state within the bounds, else min'
+  hash: 848b8081a0922795
+- python: components/input_number/__init__.py::InputNumber.extra_state_attributes
+  lean:
+  - HALean.Helpers.InputNumber.Entity.attrs
+  status: translated
+  hash: 4971fa69e30a7213
+- python: components/input_number/__init__.py::InputNumber.async_set_native_value
+  lean:
+  - HALean.Helpers.InputNumber.setValue
+  status: proven
+  notes: theorems setValue_bounded, setValue_error (NaN passes the check, as upstream)
+  hash: 35e0fc98a0859454
+- python: components/input_number/__init__.py::InputNumber.async_increment
+  lean:
+  - HALean.Helpers.InputNumber.increment
+  - HALean.Helpers.InputNumber.pyMin
+  status: proven
+  notes: theorem increment_bounded
+  hash: d8e812bba9799d15
+- python: components/input_number/__init__.py::InputNumber.async_decrement
+  lean:
+  - HALean.Helpers.InputNumber.decrement
+  - HALean.Helpers.InputNumber.pyMax
+  status: proven
+  notes: theorem decrement_bounded
+  hash: 60f88163bea5fd37
+- python: components/number/__init__.py::NumberEntity.capability_attributes
+  lean:
+  - HALean.Helpers.InputNumber.Entity.attrs
+  status: translated
+  notes: no device class, so no unit conversion
+  hash: ef342532a0283f17
+- python: components/number/__init__.py::NumberEntity.state
+  lean:
+  - HALean.Helpers.InputNumber.Entity.state
+  status: translated
+  hash: de77cb48185f504c
+- python: components/number/__init__.py::NumberEntity._calculate_step
+  lean:
+  - HALean.Helpers.InputNumber.Entity.attrs
+  status: translated
+  notes: an input number always has native_step
+  hash: 1109d4499c1dd330
+- python: components/input_select/__init__.py::_cv_input_select
+  lean:
+  - HALean.Helpers.InputSelect.decode
+  status: translated
+  notes: initial checked before duplicates are removed
+  hash: 42ebb52ad3b1e6c5
+- python: components/input_select/__init__.py::_remove_duplicates
+  lean:
+  - HALean.Helpers.InputSelect.dedup
+  - HALean.Helpers.InputSelect.decode
+  status: translated
+  notes: with its warning
+  hash: f43c6785f07d3953
+- python: components/input_select/__init__.py::async_setup
+  lean:
+  - HALean.Helpers.InputSelect.decodeConfig
+  - HALean.Helpers.InputSelect.services
+  - HALean.Helpers.Helpers.setup
+  status: translated
+  notes: YAML items only (no storage collection, no reload)
+  hash: 4e946af9f3665ead
+- python: components/input_select/__init__.py::InputSelect.__init__
+  lean:
+  - HALean.Helpers.InputSelect.Entity.create
+  status: proven
+  notes: theorem create_valid
+  hash: 2905a66c697af18d
+- python: components/input_select/__init__.py::InputSelect.async_added_to_hass
+  lean:
+  - HALean.Helpers.InputSelect.Entity.create
+  status: proven
+  notes: theorem create_valid
+  hash: b3d033d856ff6693
+- python: components/input_select/__init__.py::InputSelect.extra_state_attributes
+  lean:
+  - HALean.Helpers.InputSelect.Entity.attrs
+  status: translated
+  hash: 3167503a344797f8
+- python: components/input_select/__init__.py::InputSelect.async_select_option
+  lean:
+  - HALean.Helpers.InputSelect.selectOption
+  status: proven
+  notes: theorem selectOption_valid
+  hash: c2218e62c8032efb
+- python: components/input_select/__init__.py::InputSelect.async_set_options
+  lean:
+  - HALean.Helpers.InputSelect.setOptions
+  status: proven
+  notes: theorem setOptions_valid
+  hash: bec325d06d642a17
+- python: components/select/__init__.py::SelectEntity.state
+  lean:
+  - HALean.Helpers.InputSelect.Entity.state
+  status: proven
+  notes: theorem state_of_valid
+  hash: 6c90a9214e05e423
+- python: components/select/__init__.py::SelectEntity.capability_attributes
+  lean:
+  - HALean.Helpers.InputSelect.Entity.attrs
+  status: translated
+  hash: 842d1a4d4cd90c63
+- python: components/select/__init__.py::SelectEntity.async_first
+  lean:
+  - HALean.Helpers.InputSelect.selectIndex
+  status: proven
+  notes: theorem selectIndex_valid
+  hash: da7174cb7d0fb7da
+- python: components/select/__init__.py::SelectEntity.async_last
+  lean:
+  - HALean.Helpers.InputSelect.selectIndex
+  status: proven
+  notes: theorem selectIndex_valid
+  hash: 224525dcb60a4873
+- python: components/select/__init__.py::SelectEntity.async_next
+  lean:
+  - HALean.Helpers.InputSelect.offsetIndex
+  status: proven
+  notes: theorem offsetIndex_valid
+  hash: 9661c88436d89a08
+- python: components/select/__init__.py::SelectEntity.async_previous
+  lean:
+  - HALean.Helpers.InputSelect.offsetIndex
+  status: proven
+  notes: theorem offsetIndex_valid
+  hash: f84a984be6f0b826
+- python: components/select/__init__.py::SelectEntity._async_offset_index
+  lean:
+  - HALean.Helpers.InputSelect.offsetIndex
+  status: proven
+  notes: theorem offsetIndex_valid
+  hash: e46ea0bf1b34874d
+- python: components/select/__init__.py::SelectEntity._async_select_index
+  lean:
+  - HALean.Helpers.InputSelect.selectIndex
+  - HALean.Helpers.InputSelect.atMod
+  status: proven
+  notes: theorem selectIndex_valid
+  hash: 3f82dd7fc2dac9c8
+- python: components/input_text/__init__.py::_cv_input_text
+  lean:
+  - HALean.Helpers.InputText.decode
+  status: translated
+  notes: keeps upstream's swapped bounds in the message
+  hash: 1a5419482d8ab9fd
+- python: components/input_text/__init__.py::async_setup
+  lean:
+  - HALean.Helpers.InputText.decodeConfig
+  - HALean.Helpers.InputText.services
+  - HALean.Helpers.Helpers.setup
+  status: translated
+  notes: YAML items only (no storage collection, no reload); patterns outside HALean.Helpers.Pattern are
+    refused
+  hash: 30a0bcaa1ae7ce41
+- python: components/input_text/__init__.py::InputText.__init__
+  lean:
+  - HALean.Helpers.InputText.Entity.create
+  status: translated
+  hash: 2b7967d04504a879
+- python: components/input_text/__init__.py::InputText._update_config_attributes
+  lean:
+  - HALean.Helpers.InputText.Entity.attrs
+  status: translated
+  hash: a7d094d72ff83cf9
+- python: components/input_text/__init__.py::InputText.async_added_to_hass
+  lean:
+  - HALean.Helpers.InputText.Entity.create
+  status: translated
+  notes: 'restore: any last state (unknown too) of an allowed length'
+  hash: 7d9df8eb16052d82
+- python: components/input_text/__init__.py::InputText.extra_state_attributes
+  lean:
+  - HALean.Helpers.InputText.Entity.attrs
+  status: translated
+  hash: 282802b3f9732d75
+- python: components/input_text/__init__.py::InputText.async_set_value
+  lean:
+  - HALean.Helpers.InputText.setValue
+  - HALean.Helpers.InputText.handle
+  status: translated
+  notes: 'wrong length: warning, no write'
+  hash: 0e18fee63deedfd2
+- python: components/text/__init__.py::TextEntity.state
+  lean:
+  - HALean.Helpers.InputText.Entity.state
+  status: translated
+  notes: ValueError for length or pattern; re.match by HALean.Helpers.Pattern
+  hash: c5b1d91bc314d9f5
+- python: components/text/__init__.py::TextEntity.capability_attributes
+  lean:
+  - HALean.Helpers.InputText.Entity.attrs
+  status: translated
+  hash: 665f2cedb7c7ec94
+- python: components/text/__init__.py::TextEntity.min
+  lean:
+  - HALean.Helpers.InputText.Entity.minLen
+  status: translated
+  hash: b80140592d6281d8
+- python: components/text/__init__.py::TextEntity.max
+  lean:
+  - HALean.Helpers.InputText.Entity.maxLen
+  status: translated
+  hash: deb22d2d2dcf08a7
+- python: components/text/__init__.py::TextEntity.pattern_cmp
+  lean:
+  - HALean.Helpers.Pattern.parse
+  - HALean.Helpers.Pattern.isMatch
+  status: translated
+  notes: a subset of re syntax; \d \w \s on ASCII only
+  hash: 75b67362e9e17306
+- python: components/counter/__init__.py::async_setup
+  lean:
+  - HALean.Helpers.Counter.decodeConfig
+  - HALean.Helpers.Counter.services
+  - HALean.Helpers.Helpers.setup
+  status: translated
+  notes: YAML items only (no storage collection)
+  hash: 31cc4e67251842b4
+- python: components/counter/__init__.py::Counter.__init__
+  lean:
+  - HALean.Helpers.Counter.Entity.create
+  status: translated
+  notes: initial is not clamped (as upstream)
+  hash: 40e298d8a5d2ded3
+- python: components/counter/__init__.py::Counter.extra_state_attributes
+  lean:
+  - HALean.Helpers.Counter.Entity.attrs
+  status: translated
+  hash: 11e63db364ae19e0
+- python: components/counter/__init__.py::Counter.compute_next_state
+  lean:
+  - HALean.Helpers.Counter.clamp
+  status: proven
+  notes: theorems clamp_le_max, min_le_clamp
+  hash: 2918760431d9da71
+- python: components/counter/__init__.py::Counter.async_added_to_hass
+  lean:
+  - HALean.Helpers.Counter.Entity.create
+  status: translated
+  notes: a last state int() cannot read is unsupported
+  hash: 3f7c84fb97f8f02c
+- python: components/counter/__init__.py::Counter.async_increment
+  lean:
+  - HALean.Helpers.Counter.increment
+  status: proven
+  notes: theorem increment_inBounds
+  hash: 87e098939ced2efa
+- python: components/counter/__init__.py::Counter.async_decrement
+  lean:
+  - HALean.Helpers.Counter.decrement
+  status: proven
+  notes: theorem decrement_inBounds
+  hash: 11d90155e0fc878a
+- python: components/counter/__init__.py::Counter.async_reset
+  lean:
+  - HALean.Helpers.Counter.reset
+  status: proven
+  notes: theorem reset_inBounds
+  hash: f4ed92adb56dde9c
+- python: components/counter/__init__.py::Counter.async_set_value
+  lean:
+  - HALean.Helpers.Counter.setValue
+  status: proven
+  notes: theorem setValue_inBounds; step 0 raises ZeroDivisionError
+  hash: b973fc3f4b51f2c6
+- python: components/timer/__init__.py::_format_timedelta
+  lean:
+  - HALean.Helpers.Timer.formatTd
+  status: translated
+  notes: exact µs arithmetic
+  hash: 3f76a29a98bb0144
+- python: components/timer/__init__.py::async_setup
+  lean:
+  - HALean.Helpers.Timer.decodeConfig
+  - HALean.Helpers.Timer.services
+  - HALean.Helpers.Helpers.setup
+  status: translated
+  notes: YAML items only (no storage collection, no reload)
+  hash: 1a976eb13b5a62be
+- python: components/timer/__init__.py::Timer.__init__
+  lean:
+  - HALean.Helpers.Timer.Entity.create
+  - HALean.Helpers.Timer.decode
+  status: translated
+  notes: the duration goes through _format_timedelta and back
+  hash: 7ab2bd28d6163c69
+- python: components/timer/__init__.py::Timer.async_added_to_hass
+  lean:
+  - HALean.Helpers.Timer.Entity.create
+  status: translated
+  notes: idle last state only; paused/active are unsupported
+  hash: 4cff164aeb779a9b
+- python: components/timer/__init__.py::Timer.extra_state_attributes
+  lean:
+  - HALean.Helpers.Timer.Entity.attrs
+  status: translated
+  hash: b0d9daeac8f0a4a9
+- python: components/timer/__init__.py::Timer.async_start
+  lean:
+  - HALean.Helpers.Timer.start
+  status: translated
+  hash: c676bbcace5bfc7a
+- python: components/timer/__init__.py::Timer.async_change
+  lean:
+  - HALean.Helpers.Timer.change
+  status: translated
+  hash: b2a2bd28ff2f9f7d
+- python: components/timer/__init__.py::Timer.async_pause
+  lean:
+  - HALean.Helpers.Timer.pause
+  status: translated
+  hash: 836e247913985e6a
+- python: components/timer/__init__.py::Timer.async_cancel
+  lean:
+  - HALean.Helpers.Timer.cancel
+  - HALean.Helpers.Timer.toIdle
+  status: proven
+  notes: theorem toIdle_idle
+  hash: 13d283db2c806ce9
+- python: components/timer/__init__.py::Timer.async_finish
+  lean:
+  - HALean.Helpers.Timer.finish
+  - HALean.Helpers.Timer.toIdle
+  status: proven
+  notes: theorem toIdle_idle
+  hash: 45afe66cbb74e8a5
+- python: components/timer/__init__.py::Timer._async_finished
+  lean:
+  - HALean.Helpers.Timer.finished
+  status: proven
+  notes: theorem toIdle_not_due
+  hash: 7c64aa8194c21aff
+- python: components/timer/__init__.py::Timer._fire_event_and_write_state
+  lean:
+  - HALean.Helpers.Timer.fireAndWrite
+  status: translated
+  notes: 'force_update: every write fires state_changed'
+  hash: d9b49544828f26d0
