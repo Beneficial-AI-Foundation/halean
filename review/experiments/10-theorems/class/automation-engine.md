@@ -25,7 +25,7 @@ Rules used for the classes:
   `exec.loop`, the number readers of `Protocol.lean`, definitions made in the spec files such as `withRun`,
   `numericTv`) are `H`, also when they are an `iff`.
 * `C` is given to each member of a family of theorems that together fix the result of one translated function for
-  every input. There are 5 such families (11 theorems), listed below.
+  every input. There are 6 such families (11 theorems), listed below.
 * A theorem that fixes the result for one constructor of the main argument (one `Action`, one `Pattern`, one
   `SameCheck`, one message type) is `E`. This makes all 21 `step_*` case theorems `E`.
 * `Pres.f` ("`f` keeps the invariant `Inv`") is `O` when `f` has an upstream counterpart or is an input handler,
@@ -58,7 +58,7 @@ terms of `Template.pyEq`.
 **The run bound, over whole executions.** `runs_bounded` (O): after `Engine.step {} (.init ...)` and any list of
 inputs satisfying `Input.ok`, a `single` or `restart` automation has at most 1 entry in `runsOf`, a `queued` or
 `parallel` one at most `maxRuns`. It rests on `Inv.step`, `Inv.steps`, `Pres.handle`, `HPres.handlers`,
-`HPres.engine`, `Pres.triggerAutomation` and 38 further `Pres.*` theorems (all O). The invariant `Inv` is
+`HPres.engine` and the `Pres.*` theorems of the engine functions (38 of them are O). The invariant `Inv` is
 "`scripts = []`, every `maxRuns ≥ 1`, every `runsOf` length within the cap".
 
 **`triggerAutomation` (`AutomationEntity.async_trigger` plus admission).** One theorem per branch (O, one E):
@@ -303,7 +303,7 @@ Weaker than they read, vacuous, or restatements:
 
 ## Specifications independent of the code?
 
-11 `C` theorems in 5 families.
+11 `C` theorems in 6 families.
 
 | function | theorems | right-hand side |
 |---|---|---|
@@ -398,7 +398,7 @@ stale 1, correct for the wrong reason 0.
 | 2 | `restart_never_rejects` row (35) | correct | statement |
 | 3 | `admit_bounded`: "`queued` / `parallel` admission never exceeds `max`" (36) | overstated | needs `n ≤ m` and `1 ≤ m`; with `max = 0` and no run `admit` starts a run (`admit_zero`). The text at lines 60-63 says so itself. |
 | 4 | `queued_waits`: "`queued` with a run in flight queues" (37) | overstated | needs `n ≠ max`; at `max` it is rejected |
-| 5 | `evalAnd_nil`, ... "edge cases" (38) | correct | 5 E theorems |
+| 5 | `evalAnd_nil`, ... "edge cases" (38) | correct | all E in the tsv |
 | 6 | `match_invert`, `match_all` (39) | correct | statements |
 | 7 | `templateCond_static`: static template "is never evaluated" (40) | correct | result is `.ok (t.src.toLower == "true")`, independent of `env` |
 | 8 | `runs_bounded` row (55) | correct | statement; "no script entities" holds because `init` builds `scripts = []` |
@@ -406,7 +406,7 @@ stale 1, correct for the wrong reason 0.
 | 10 | `HPres.engine` row, "at every nesting depth" (57) | correct | `HPres.handlers : ∀ n`; for `startScript` and `callLocal` see "weaker than they read" |
 | 11 | `Inv.admitted`, `Inv.restarted` row (58) | correct | statements |
 | 12 | "first theorem about whole executions of `Engine.step`" (49-51) | correct | no other theorem folds `Engine.step` |
-| 13 | "With script entities the bound is not proved" (72) | correct | `Inv` contains `scripts = []` |
+| 13 | "With script entities the bound is not proved" (73) | correct | `Inv` contains `scripts = []` |
 | 14 | fuel paragraph (92-97): `handlers n`, `engine = handlers ENGINE_FUEL` opaque, `LOOP_FUEL`, `runs.length + 1`, "When fuel runs out, the engine logs an error and does nothing more" | correct | `Engine.lean` 600-610, 921-930, 1037-1049, 305-321 |
 | 15 | "`Engine.lean` has no `partial` definitions any more" (156) | **false** | `partial def eventDataMatches`, `Engine.lean` line 1410; `#print` gives `opaque` |
 | 16 | "Properties 1 and 2, and the 'one run' part of 4, are proved (`runs_bounded`)" (157-158) | correct | statement |
