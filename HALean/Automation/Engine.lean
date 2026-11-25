@@ -265,15 +265,24 @@ def StateMatch.matches (m : StateMatch) (v : Json) : Bool :=
 sub-scripts, not runs of the automation. -/
 def runsOf (e : Engine) (ai : Nat) : List Run := e.runs.filter fun r => r.autoIdx == ai && r.parent.isNone
 
-/-- A run and all branches below it. -/
-partial def familyOf (e : Engine) (id : Nat) : List Nat :=
-  id :: (e.runs.filter (·.parent == some id)).flatMap fun c => familyOf e c.id
+/-- A run and its branches, `n` levels deep. -/
+def familyOfF (e : Engine) : Nat → Nat → List Nat
+  | 0, id => [id]
+  | n + 1, id => id :: (e.runs.filter (·.parent == some id)).flatMap fun c => familyOfF e n c.id
 
-/-- The top run of a branch. -/
-partial def rootOf (e : Engine) (id : Nat) : Nat :=
-  match (e.runs.find? (·.id == id)).bind (·.parent) with
-  | some p => rootOf e p
-  | none => id
+/-- A run and all branches below it. Parents form chains of distinct runs,
+so `runs.length + 1` levels reach every branch. -/
+def familyOf (e : Engine) (id : Nat) : List Nat := familyOfF e (e.runs.length + 1) id
+
+/-- Up `n` parents from a run. -/
+def rootOfF (e : Engine) : Nat → Nat → Nat
+  | 0, id => id
+  | n + 1, id => match (e.runs.find? (·.id == id)).bind (·.parent) with
+    | some p => rootOfF e n p
+    | none => id
+
+/-- The top run of a branch (`runs.length + 1` steps up reach it). -/
+def rootOf (e : Engine) (id : Nat) : Nat := rootOfF e (e.runs.length + 1) id
 
 /-- Variables a branch keeps to itself: `wait` (`assign_parallel_protected`)
 and the `repeat` of the loop it was started in. -/
@@ -291,8 +300,12 @@ def syncFamily (e : Engine) (r : Run) : Engine :=
       if x.id == r.id || !fam.contains x.id then x
       else { x with vars := shared.foldl (fun vs (k, v) => setVar vs k v) x.vars } }
 
+/-- Put back a run that was taken from the engine and stepped. A run never
+changes the automation it belongs to or its parent, so the stored ones are
+kept. -/
 def replaceRun (e : Engine) (r : Run) : Engine :=
-  { e with runs := e.runs.map fun x => if x.id == r.id then r else x }
+  { e with runs := e.runs.map fun x =>
+      if x.id == r.id then { r with autoIdx := x.autoIdx, parent := x.parent } else x }
 
 /-- Remove every listener of a run's wait (the `finally: unsub()` /
 `remove_triggers()` of `_async_wait_with_optional_timeout`). -/
@@ -519,12 +532,48 @@ inductive StartRes where
   | failed (k : ErrKind) (msg : String)
   deriving Inhabited
 
-mutual
+/-! ## The run handlers
+
+The handlers below call each other (a run that ends answers its caller,
+which may end in turn, a queue hands its lock on, ...). Each takes the
+others as a `Handlers` record one level down, and `handlers n` ties the
+knot `n` levels deep, so everything is a plain function and can be reasoned
+about. `engine` is `handlers ENGINE_FUEL`; a chain of nested calls deeper
+than that does nothing more (`Handlers.out` logs it). -/
+
+/-- The mutually recursive run handlers, as a record. -/
+structure Handlers where
+  drive : Run → EM Unit
+  finishRun : Run → RunEnd → EM Unit
+  releaseQueue : Nat → EM Unit
+  finishBranch : Nat → Nat → RunEnd → EM Unit
+  answer : Caller → CallRes → EM Unit
+  continueNow : Caller → EM Unit
+  stopRun : Nat → Bool → EM Unit
+  cancelRun : Nat → EM Unit
+  startScript : Nat → List (String × Template.Value) → Option Caller → List Nat → EM StartRes
+  callLocal : Caller → List HALean.Script.LocalOp → EM Unit
+
+def FUEL_OUT_MSG : String := "HALean: the engine's nesting limit was reached; the rest of this chain of calls is dropped"
+
+/-- What is left when the nesting limit is reached: nothing but a log line. -/
+def Handlers.out : Handlers where
+  drive _ := emit [.log "error" FUEL_OUT_MSG]
+  finishRun _ _ := emit [.log "error" FUEL_OUT_MSG]
+  releaseQueue _ := emit [.log "error" FUEL_OUT_MSG]
+  finishBranch _ _ _ := emit [.log "error" FUEL_OUT_MSG]
+  answer _ _ := emit [.log "error" FUEL_OUT_MSG]
+  continueNow _ := emit [.log "error" FUEL_OUT_MSG]
+  stopRun _ _ := emit [.log "error" FUEL_OUT_MSG]
+  cancelRun _ := emit [.log "error" FUEL_OUT_MSG]
+  startScript _ _ _ _ := do emit [.log "error" FUEL_OUT_MSG]; return .rejected
+  callLocal _ _ := emit [.log "error" FUEL_OUT_MSG]
+
 /-- Drive a run until it blocks or ends; on end, `_finish` it (which for a
 queued script releases the lock to the next waiter). A call to one of the
 engine's own script services is handled right here, as HA runs the
 handler eagerly (`async_create_task_internal(..., eager_start=True)`). -/
-partial def drive (r : Run) : EM Unit := do
+def driveH (h : Handlers) (r : Run) : EM Unit := do
   let e ← getE
   let (res, cmds, ctx) := exec { env := e.condEnv, nextCallId := e.nextCallId } r
   let last := match res with | .blocked x | .spawn x .. | .done x _ => x
@@ -556,7 +605,7 @@ partial def drive (r : Run) : EM Unit := do
   | .blocked r' =>
     setE (replaceRun (← getE) r')
     if let some (cid, ops) := local? then
-      callLocal (.run r'.id cid) ops
+      h.callLocal (.run r'.id cid) ops
       return
     match r'.wait with
     | .waitTmpl t _ _ => setupWait r' t
@@ -566,12 +615,12 @@ partial def drive (r : Run) : EM Unit := do
         [{ runId := r'.id, autoIdx := r'.autoIdx, triggers := trigs, vars, hasTimeout := deadline.isSome }] }
       attachTriggers (.wait r'.id) trigs
     | _ => pure ()
-  | .done _ end_ => finishRun r end_
+  | .done _ end_ => h.finishRun r end_
 
-partial def finishRun (r : Run) (end_ : RunEnd) : EM Unit := do
+def finishRunH (h : Handlers) (r : Run) (end_ : RunEnd) : EM Unit := do
   let e ← getE
   if let some pid := r.parent then
-    finishBranch pid r.id end_
+    h.finishBranch pid r.id end_
     return
   let a := e.automations.getD r.autoIdx default
   match end_ with
@@ -588,28 +637,28 @@ partial def finishRun (r : Run) (end_ : RunEnd) : EM Unit := do
   -- run swallows `_AbortScript` and `_ConditionFail`, returns the response
   -- of `_StopScript`, and re-raises everything else
   if let some c := r.caller then
-    answer c (match end_ with
+    h.answer c (match end_ with
       | .error k m => .err k m
       | .stopped _ resp => .ok resp
       | _ => .ok .none)
-  releaseQueue r.autoIdx
+  h.releaseQueue r.autoIdx
 
 /-- `_QueuedScriptRun._finish` releases the FIFO lock: the oldest waiting
 run starts once no run holds it. -/
-partial def releaseQueue (ai : Nat) : EM Unit := do
+def releaseQueueH (h : Handlers) (ai : Nat) : EM Unit := do
   let e ← getE
   let a := e.automations.getD ai default
   if a.mode == .queued then
     if (runsOf e ai).all (·.wait == .queued) then
       if let some nxt := (runsOf e ai).head? then
         setE (replaceRun e { nxt with wait := .ready })
-        drive { nxt with wait := .ready }
+        h.drive { nxt with wait := .ready }
 
 /-- A `parallel` branch ended. Once all have, `gather` returns and the
 first branch (in order) that raised re-raises in the parent; an error is
 then handled like any step's (`_handle_exception` with the parallel step's
 `continue_on_error`). -/
-partial def finishBranch (pid kid : Nat) (end_ : RunEnd) : EM Unit := do
+def finishBranchH (h : Handlers) (pid kid : Nat) (end_ : RunEnd) : EM Unit := do
   setE (removeRun (← getE) kid)
   let e ← getE
   let some p := e.runs.find? (·.id == pid) | return
@@ -632,15 +681,15 @@ partial def finishBranch (pid kid : Nat) (end_ : RunEnd) : EM Unit := do
     if coe && k == .haError then later p
     else match unwindError p k m with
       | .next p' => later p'
-      | .done x => finishRun p x
+      | .done x => h.finishRun p x
       | _ => pure ()
-  | some x => finishRun p x
+  | some x => h.finishRun p x
 
 /-- Hand a call's result to its caller. A run blocked in the call resumes
 after the current callbacks (`woken`), unless `continueNow` picks it up
 because the call completed without yielding; an exception unwinds it right
 away; a cancellation stops it. The shell gets `call_done`. -/
-partial def answer (c : Caller) (res : CallRes) : EM Unit := do
+def answerH (h : Handlers) (c : Caller) (res : CallRes) : EM Unit := do
   match c with
   | .external id rr =>
     match res with
@@ -664,21 +713,21 @@ partial def answer (c : Caller) (res : CallRes) : EM Unit := do
       | .err k m => some (resumeService r false k m)
       | .cancelled => none
     match out with
-    | none => cancelRun rid
+    | none => h.cancelRun rid
     | some (.next r') =>
       setE { replaceRun e r' with woken := if e.woken.contains rid then e.woken else e.woken ++ [rid] }
-    | some (.done end_) => finishRun r end_
+    | some (.done end_) => h.finishRun r end_
     | some _ => pure ()
 
 /-- A run whose call was answered without yielding goes on at once. -/
-partial def continueNow (c : Caller) : EM Unit := do
+def continueNowH (h : Handlers) (c : Caller) : EM Unit := do
   let .run rid _ := c | return
   let e ← getE
   if !e.woken.contains rid then return
   let some r := e.runs.find? (·.id == rid) | return
   if r.wait != .ready then return
   setE { e with woken := e.woken.filter (· != rid) }
-  drive r
+  h.drive r
 
 /-- Stop a run (`_ScriptRun.async_stop`) with its branches. The script runs
 it waits for are stopped too (`Script.async_run` stops its run when the
@@ -686,7 +735,7 @@ awaiting task is cancelled). Whoever waits for it gets `None` when it was
 stopped in a wait that returns on the stop future, and is cancelled
 otherwise (`stoppedQuietly`). `release`: a queued script's next run may
 start. -/
-partial def stopRun (id : Nat) (release : Bool := true) : EM Unit := do
+def stopRunH (h : Handlers) (id : Nat) (release : Bool := true) : EM Unit := do
   let e ← getE
   let some r := e.runs.find? (·.id == id) | return
   let fam := familyOf e id
@@ -694,26 +743,26 @@ partial def stopRun (id : Nat) (release : Bool := true) : EM Unit := do
     | some (.run x _) => fam.contains x
     | _ => false
   setE (removeRun e id)
-  for c in callees do stopRun c.id
+  for c in callees do h.stopRun c.id true
   writeEntity r.autoIdx
-  if let some c := r.caller then answer c (if stoppedQuietly r then .ok .none else .cancelled)
-  if release then releaseQueue r.autoIdx
+  if let some c := r.caller then h.answer c (if stoppedQuietly r then .ok .none else .cancelled)
+  if release then h.releaseQueue r.autoIdx
 
 /-- `asyncio.CancelledError` raised in run `rid` where it waits for a call
 (the script run it awaits was cancelled). Nothing catches it: a `parallel`
 branch ends (`gather(..., return_exceptions=True)` returns it, and only
 `Exception`s are re-raised, so the parent goes on); a top-level run ends,
 and its own caller is cancelled in turn. -/
-partial def cancelRun (rid : Nat) : EM Unit := do
+def cancelRunH (h : Handlers) (rid : Nat) : EM Unit := do
   let e ← getE
   let some r := e.runs.find? (·.id == rid) | return
   match r.parent with
-  | some p => finishBranch p rid .finished
+  | some p => h.finishBranch p rid .finished
   | none =>
     setE (removeRun e rid)
     writeEntity r.autoIdx
-    if let some c := r.caller then answer c .cancelled
-    releaseQueue r.autoIdx
+    if let some c := r.caller then h.answer c .cancelled
+    h.releaseQueue r.autoIdx
 
 /-- `ScriptEntity._async_start_run` + `Script.async_run` for script entity
 `ai`: fire `script_started`; build `this` from the entity's state; refuse
@@ -722,7 +771,7 @@ variables (the run variables win); refuse a disallowed recursion
 (`restart`/`queued` scripts already in the caller's `script_stack`); add
 the run (stopping the others in `restart` mode), set `last_triggered`,
 write the state, and start the run eagerly. -/
-partial def startScript (ai : Nat) (runVars : List (String × Template.Value))
+def startScriptH (h : Handlers) (ai : Nat) (runVars : List (String × Template.Value))
     (caller : Option Caller) (stack : List Nat) : EM StartRes := do
   let e ← getE
   let (some a, some s) := (e.automations[ai]?, e.scripts[ai]?) | return .rejected
@@ -752,25 +801,25 @@ partial def startScript (ai : Nat) (runVars : List (String × Template.Value))
   setE { e with runs := e.runs ++ [run], nextRunId := e.nextRunId + 1 }
   if decision == .restart then
     -- "first add the new run and then stop any other runs"
-    for old in existing do stopRun old.id false
+    for old in existing do h.stopRun old.id false
   let e ← getE
   setE { e with lastTriggered := (e.lastTriggered.filter (·.1 != ai)) ++ [(ai, (e.now.utc : Int) * 1000)] }
   writeEntity ai
-  if wait == .ready then drive run
+  if wait == .ready then h.drive run
   return .started run.id
 
 /-- Run the handler of a `script.*` service called by `c` (`planCall`).
 A direct call waits for its run; `turn_on` answers once the runs have
 started; `turn_off` (and `toggle` of a running script) awaits the stop,
 so a calling run resumes after the current callbacks. -/
-partial def callLocal (c : Caller) (ops : List HALean.Script.LocalOp) : EM Unit := do
+def callLocalH (h : Handlers) (c : Caller) (ops : List HALean.Script.LocalOp) : EM Unit := do
   let mut yielded := false
   for op in ops do
     match op with
     | .fail k m =>
       emit [.log "error" m]
-      answer c (.err k m)
-      continueNow c
+      h.answer c (.err k m)
+      h.continueNow c
       return
     | .start ai vars true =>
       -- the callee sees the caller's `script_stack` (copied)
@@ -778,32 +827,61 @@ partial def callLocal (c : Caller) (ops : List HALean.Script.LocalOp) : EM Unit 
       let stack := match c with
         | .run rid _ => ((e.runs.find? (·.id == rootOf e rid)).map (·.stack)).getD []
         | .external .. => []
-      match ← startScript ai vars (some c) stack with
+      match ← h.startScript ai vars (some c) stack with
       | .started _ => pure ()
-      | .rejected => answer c (.ok .none)
-      | .failed k m => answer c (.err k m)
-      continueNow c
+      | .rejected => h.answer c (.ok .none)
+      | .failed k m => h.answer c (.err k m)
+      h.continueNow c
       return
     | .start ai vars false =>
       -- a fresh `script_stack`
-      match ← startScript ai vars none [] with
+      match ← h.startScript ai vars none [] with
       | .started _ => pure ()
       | _ =>
         -- HA's `await self._changed.wait()` then waits for the script's
         -- next state write, whenever that comes; HALean does not model it
         let m := "HALean: turning on a script that does not start waits for its next state change in HA, which HALean does not model"
         emit [.log "error" m]
-        answer c (.err .other m)
-        continueNow c
+        h.answer c (.err .other m)
+        h.continueNow c
         return
     | .stop ai =>
       -- every run is told to stop before any lock is handed on
-      for r in runsOf (← getE) ai do stopRun r.id false
+      for r in runsOf (← getE) ai do h.stopRun r.id false
       writeEntity ai
       yielded := true
-  answer c (.ok .none)
-  if !yielded then continueNow c
-end
+  h.answer c (.ok .none)
+  if !yielded then h.continueNow c
+
+/-- One level more: every handler, calling the ones of `h`. -/
+def Handlers.next (h : Handlers) : Handlers where
+  drive := driveH h
+  finishRun := finishRunH h
+  releaseQueue := releaseQueueH h
+  finishBranch := finishBranchH h
+  answer := answerH h
+  continueNow := continueNowH h
+  stopRun id release := stopRunH h id release
+  cancelRun := cancelRunH h
+  startScript := startScriptH h
+  callLocal := callLocalH h
+
+/-- The handlers, `n` levels of nested calls deep. -/
+def handlers : Nat → Handlers
+  | 0 => .out
+  | n + 1 => (handlers n).next
+
+/-- How deep handler calls may nest. `opaque` so that the kernel never
+unfolds `handlers ENGINE_FUEL` (proofs hold for every depth). -/
+opaque ENGINE_FUEL : Nat := 10000
+
+/-- The engine's handlers. -/
+def engine : Handlers := handlers ENGINE_FUEL
+
+def drive (r : Run) : EM Unit := engine.drive r
+def finishRun (r : Run) (end_ : RunEnd) : EM Unit := engine.finishRun r end_
+def stopRun (id : Nat) (release : Bool := true) : EM Unit := engine.stopRun id release
+def callLocal (c : Caller) (ops : List HALean.Script.LocalOp) : EM Unit := engine.callLocal c ops
 
 /-- `this` as `AutomationEntity.async_trigger` builds it:
 `hass.states.get(self.entity_id).as_dict()`. The automation entity is `on`
@@ -886,19 +964,29 @@ def fire (o : Owner) (tv : TriggerVars) : EM Unit := do
     let e := replaceRun e r
     setE { e with woken := if e.woken.contains rid then e.woken else e.woken ++ [rid] }
 
+/-- How many rounds the timer and wake-up loops run within one input at
+most (each round fires at least one thing). -/
+opaque LOOP_FUEL : Nat := 100000
+
+def LOOP_OUT_MSG : String := "HALean: too many timers or wake-ups within one input; the rest are dropped"
+
 /-- Run what is scheduled for after the current callbacks, in order: runs
 whose `wait_for_trigger` completed (their triggers are removed first),
 `parallel` branches, and parents whose branches are all done. Runs started
 here can schedule more. -/
-partial def resumeWoken : EM Unit := do
-  let ws := (← getE).woken
-  if ws.isEmpty then return
-  setE { (← getE) with woken := [] }
-  for rid in ws do
-    setE (cleanupWait (← getE) rid)
-    if let some r := (← getE).runs.find? (·.id == rid) then
-      if r.wait == .ready then drive r
-  resumeWoken
+def resumeWokenF : Nat → EM Unit
+  | 0 => emit [.log "error" LOOP_OUT_MSG]
+  | fuel + 1 => do
+    let ws := (← getE).woken
+    if ws.isEmpty then return
+    setE { (← getE) with woken := [] }
+    for rid in ws do
+      setE (cleanupWait (← getE) rid)
+      if let some r := (← getE).runs.find? (·.id == rid) then
+        if r.wait == .ready then drive r
+    resumeWokenF fuel
+
+def resumeWoken : EM Unit := resumeWokenF LOOP_FUEL
 
 /-- Every trigger listener, in registration order: the automations', then
 those of waiting runs. -/
@@ -1330,113 +1418,125 @@ def fireTimeTriggers (sec : Nat) (tz : Int) : EM Unit := do
   resumeWoken
 
 /-- Fire everything due at or before `t`: `for:` timers and delays. -/
-partial def fireDue (t : Millis) : EM Unit := do
-  let e ← getE
-  -- earliest pending timer
-  -- earliest due timer; ties in creation order
-  let p? := (e.pendings.filter (·.fireAt ≤ t)).foldl (fun acc p => match acc with
-    | some q => if p.fireAt < q.fireAt then some p else acc
-    | none => some p) none
-  let d? := e.runs.find? fun r => match r.wait with
-    | .delayUntil w => w ≤ t
-    | .waitTmpl _ (some w) _ => w ≤ t
-    | .waitTrig _ _ (some w) _ => w ≤ t
-    | _ => false
-  let rl? := e.tmplTrigs.find? fun x => match x.rlTimer with
-    | some (due, _) => due ≤ t
-    | none => false
-  match p?, d? with
-  | some p, _ =>
-    setE { e with pendings := e.pendings.filter (·.id != p.id) }
-    -- `"for": period[entity]` is read when `call_action` runs
-    let vars := match p.periodKey.bind fun k => e.periods.find? (·.1 == k) with
-      | some (_, us) => p.vars.withFor (.timedelta us)
-      | none => p.vars
-    fire p.owner vars
-    resumeWoken
-    fireDue t
-  | none, some r =>
-    match r.wait with
-    | .waitTmpl _ _ cot | .waitTrig _ _ _ cot =>
-      -- the wait's timeout: `_async_handle_timeout`, then `unsub()`
-      let r := { r with wait := .ready, vars := setWaitFields r.vars [("remaining", .float 0)] }
-      setE (cleanupWait (replaceRun e r) r.id)
-      if cot then drive r
-      else
-        emit [.log "info" TIMEOUT_MSG]
-        finishRun r (.aborted TIMEOUT_MSG)
-    | _ =>
-      let r := { r with wait := .ready }
-      setE (replaceRun e r)
-      drive r
-    resumeWoken
-    fireDue t
-  | none, none =>
-    match rl? with
-    | some x =>
-      -- the rate limiter's `call_later` replays the deferred event
-      let some (_, (eid, old, new)) := x.rlTimer | pure ()
-      let x := { x with rlTimer := none }
-      saveTT x
-      if x.tmpl.isSome then
-        if ← trackerGate x eid old new true then
-          if let some rid ← waitRefresh x then resumeRuns [rid]
-      else
-        let trigs := ((e.owners.find? (·.1 == x.owner)).map (·.2)).getD []
-        if let some t := trigs.find? (·.idx == x.trigIdx) then
-          onTemplateTrigger x.owner t eid old new (replay := true)
-          resumeWoken
-      fireDue t
-    | none => pure ()
+def fireDueF (t : Millis) : Nat → EM Unit
+  | 0 => emit [.log "error" LOOP_OUT_MSG]
+  | fuel + 1 => do
+    let e ← getE
+    -- earliest pending timer
+    -- earliest due timer; ties in creation order
+    let p? := (e.pendings.filter (·.fireAt ≤ t)).foldl (fun acc p => match acc with
+      | some q => if p.fireAt < q.fireAt then some p else acc
+      | none => some p) none
+    let d? := e.runs.find? fun r => match r.wait with
+      | .delayUntil w => w ≤ t
+      | .waitTmpl _ (some w) _ => w ≤ t
+      | .waitTrig _ _ (some w) _ => w ≤ t
+      | _ => false
+    let rl? := e.tmplTrigs.find? fun x => match x.rlTimer with
+      | some (due, _) => due ≤ t
+      | none => false
+    match p?, d? with
+    | some p, _ =>
+      setE { e with pendings := e.pendings.filter (·.id != p.id) }
+      -- `"for": period[entity]` is read when `call_action` runs
+      let vars := match p.periodKey.bind fun k => e.periods.find? (·.1 == k) with
+        | some (_, us) => p.vars.withFor (.timedelta us)
+        | none => p.vars
+      fire p.owner vars
+      resumeWoken
+      fireDueF t fuel
+    | none, some r =>
+      match r.wait with
+      | .waitTmpl _ _ cot | .waitTrig _ _ _ cot =>
+        -- the wait's timeout: `_async_handle_timeout`, then `unsub()`
+        let r := { r with wait := .ready, vars := setWaitFields r.vars [("remaining", .float 0)] }
+        setE (cleanupWait (replaceRun e r) r.id)
+        if cot then drive r
+        else
+          emit [.log "info" TIMEOUT_MSG]
+          finishRun r (.aborted TIMEOUT_MSG)
+      | _ =>
+        let r := { r with wait := .ready }
+        setE (replaceRun e r)
+        drive r
+      resumeWoken
+      fireDueF t fuel
+    | none, none =>
+      match rl? with
+      | some x =>
+        -- the rate limiter's `call_later` replays the deferred event
+        let some (_, (eid, old, new)) := x.rlTimer | pure ()
+        let x := { x with rlTimer := none }
+        saveTT x
+        if x.tmpl.isSome then
+          if ← trackerGate x eid old new true then
+            if let some rid ← waitRefresh x then resumeRuns [rid]
+        else
+          let trigs := ((e.owners.find? (·.1 == x.owner)).map (·.2)).getD []
+          if let some t := trigs.find? (·.idx == x.trigIdx) then
+            onTemplateTrigger x.owner t eid old new (replay := true)
+            resumeWoken
+        fireDueF t fuel
+      | none => pure ()
+
+def fireDue (t : Millis) : EM Unit := fireDueF t LOOP_FUEL
 
 /-- `sun` triggers due at or before `t` (ms): schedule the next event, then
 run the action (`handle_event`). -/
-partial def fireSun (t : Millis) : EM Unit := do
-  let e ← getE
-  let some ((o, idx), at_) := e.sunNext.find? (·.2 ≤ (t : Int) * 1000) | return
-  let trig? := ((e.owners.find? (·.1 == o)).map (·.2)).bind fun ts => ts.find? (·.idx == idx)
-  let rest := e.sunNext.filter (·.1 != (o, idx))
-  match trig?, e.location with
-  | some tr, some obs =>
-    let .sun sunrise off := tr.kind | setE { e with sunNext := rest }
-    -- `utcnow()` when the timer runs is the event's instant
-    let nxt := Sun.nextEvent obs sunrise at_ e.now.tzOffsetSec off
-    setE { e with sunNext := rest ++ (nxt.map (fun n => ((o, idx), n))).toList }
-    let ev := if sunrise then "sunrise" else "sunset"
-    let desc := s!"sun event {ev}"
-    fire o { id := tr.id, idx := tr.idx, platform := "sun", description := desc,
-             value := triggerValue tr "sun" [("description", .str desc), ("event", .str ev),
-               ("offset", .timedelta off)] }
-    resumeWoken
-  | _, _ => setE { e with sunNext := rest }
-  fireSun t
+def fireSunF (t : Millis) : Nat → EM Unit
+  | 0 => emit [.log "error" LOOP_OUT_MSG]
+  | fuel + 1 => do
+    let e ← getE
+    let some ((o, idx), at_) := e.sunNext.find? (·.2 ≤ (t : Int) * 1000) | return
+    let trig? := ((e.owners.find? (·.1 == o)).map (·.2)).bind fun ts => ts.find? (·.idx == idx)
+    let rest := e.sunNext.filter (·.1 != (o, idx))
+    match trig?, e.location with
+    | some tr, some obs =>
+      let .sun sunrise off := tr.kind | setE { e with sunNext := rest }
+      -- `utcnow()` when the timer runs is the event's instant
+      let nxt := Sun.nextEvent obs sunrise at_ e.now.tzOffsetSec off
+      setE { e with sunNext := rest ++ (nxt.map (fun n => ((o, idx), n))).toList }
+      let ev := if sunrise then "sunrise" else "sunset"
+      let desc := s!"sun event {ev}"
+      fire o { id := tr.id, idx := tr.idx, platform := "sun", description := desc,
+               value := triggerValue tr "sun" [("description", .str desc), ("event", .str ev),
+                 ("offset", .timedelta off)] }
+      resumeWoken
+    | _, _ => setE { e with sunNext := rest }
+    fireSunF t fuel
+
+def fireSun (t : Millis) : EM Unit := fireSunF t LOOP_FUEL
 
 /-- Time-trigger entities due at or before `t` (ms): each fires once, with
 `now` the scheduled instant in local time (`async_track_point_in_time`). -/
-partial def fireTimePoints (t : Millis) : EM Unit := do
-  let e ← getE
-  let due : List ((Owner × Nat × String × Int) × Int) := e.timeEnt.filterMap fun (k, sc) =>
-    match sc with
-    | .point us => if us ≤ (t : Int) * 1000 then some (k, us) else none
-    | .daily _ => none
-  -- the earliest first; ties in creation order
-  let first := due.foldl (fun acc x => match acc with
-    | some y => if x.2 < y.2 then some x else acc
-    | none => some x) none
-  let some ((o, idx, eid, off), at_) := first | return
-  setE { e with timeEnt := e.timeEnt.filter (·.1 != (o, idx, eid, off)) }
-  let tz := e.now.tzOffsetSec
-  let inst : Instant := { utc := (at_ / 1000).toNat, tzOffsetSec := tz }
-  let trig? := ((e.owners.find? (·.1 == o)).map (·.2)).bind fun ts => ts.find? (·.idx == idx)
-  if let some tr := trig? then
-    if let .time _ _ wd := tr.kind then
-      if (wd.map (·.contains inst.weekday)).getD true then
-        let desc := s!"time set in {eid}"
-        fire o { id := tr.id, idx := tr.idx, platform := "time", entityId := some eid, description := desc,
-                 value := triggerValue tr "time" [("now", .datetime at_ (some tz)),
-                   ("description", .str desc), ("entity_id", .str eid)] }
-        resumeWoken
-  fireTimePoints t
+def fireTimePointsF (t : Millis) : Nat → EM Unit
+  | 0 => emit [.log "error" LOOP_OUT_MSG]
+  | fuel + 1 => do
+    let e ← getE
+    let due : List ((Owner × Nat × String × Int) × Int) := e.timeEnt.filterMap fun (k, sc) =>
+      match sc with
+      | .point us => if us ≤ (t : Int) * 1000 then some (k, us) else none
+      | .daily _ => none
+    -- the earliest first; ties in creation order
+    let first := due.foldl (fun acc x => match acc with
+      | some y => if x.2 < y.2 then some x else acc
+      | none => some x) none
+    let some ((o, idx, eid, off), at_) := first | return
+    setE { e with timeEnt := e.timeEnt.filter (·.1 != (o, idx, eid, off)) }
+    let tz := e.now.tzOffsetSec
+    let inst : Instant := { utc := (at_ / 1000).toNat, tzOffsetSec := tz }
+    let trig? := ((e.owners.find? (·.1 == o)).map (·.2)).bind fun ts => ts.find? (·.idx == idx)
+    if let some tr := trig? then
+      if let .time _ _ wd := tr.kind then
+        if (wd.map (·.contains inst.weekday)).getD true then
+          let desc := s!"time set in {eid}"
+          fire o { id := tr.id, idx := tr.idx, platform := "time", entityId := some eid, description := desc,
+                   value := triggerValue tr "time" [("now", .datetime at_ (some tz)),
+                     ("description", .str desc), ("entity_id", .str eid)] }
+          resumeWoken
+    fireTimePointsF t fuel
+
+def fireTimePoints (t : Millis) : EM Unit := fireTimePointsF t LOOP_FUEL
 
 /-- Advance the clock to `now`, firing time triggers second by second. -/
 def advanceTo (now : Instant) : EM Unit := do

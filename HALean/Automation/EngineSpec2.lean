@@ -2,9 +2,8 @@
   Specs for the engine's state operations (HALean/Automation/Engine.lean):
   `runsOf`, `replaceRun`, `cleanupWait`, `removeRun`, `syncFamily`.
 
-  `familyOf` and `rootOf` are `partial`, so nothing is known about the
-  family they return; the theorems about `removeRun` and `syncFamily` hold
-  for whatever it is ("every run in the family is removed, with the
+  The theorems about `removeRun` and `syncFamily` hold for whatever family
+  `familyOf` returns ("every run in the family is removed, with the
   listeners of its wait; nothing else is").
 -/
 import HALean.Automation.Engine
@@ -79,7 +78,8 @@ theorem replaceRun_ids (e : Engine) (r : Run) :
 /-- Replacing a run that is not live changes nothing. -/
 theorem replaceRun_absent (e : Engine) (r : Run) (h : ∀ x ∈ e.runs, x.id ≠ r.id) :
     replaceRun e r = e := by
-  have : e.runs.map (fun x => if x.id == r.id then r else x) = e.runs := by
+  have : e.runs.map (fun x => if x.id == r.id then { r with autoIdx := x.autoIdx, parent := x.parent }
+      else x) = e.runs := by
     conv => rhs; rw [← List.map_id e.runs]
     apply List.map_congr_left
     intro x hx
@@ -87,24 +87,29 @@ theorem replaceRun_absent (e : Engine) (r : Run) (h : ∀ x ∈ e.runs, x.id ≠
   unfold replaceRun
   rw [this]
 
-/-- Looking the run up afterwards gives the new version. -/
-theorem replaceRun_find (e : Engine) (r : Run) (h : ∃ x ∈ e.runs, x.id = r.id) :
-    (replaceRun e r).runs.find? (·.id == r.id) = some r := by
+/-- Looking the run up afterwards gives the new version, in the stored
+run's automation and under its parent. -/
+theorem replaceRun_find (e : Engine) (r : Run) :
+    (replaceRun e r).runs.find? (·.id == r.id) =
+      (e.runs.find? (·.id == r.id)).map fun x => { r with autoIdx := x.autoIdx, parent := x.parent } := by
   simp only [replaceRun]
-  generalize e.runs = l at h
+  generalize e.runs = l
   induction l with
-  | nil => simp at h
+  | nil => simp
   | cons x xs ih =>
     by_cases hx : x.id = r.id
     · simp [hx]
-    · have : ∃ y ∈ xs, y.id = r.id := by
-        obtain ⟨y, hy, hid⟩ := h
-        rcases List.mem_cons.1 hy with rfl | hy
-        · exact absurd hid hx
-        · exact ⟨y, hy, hid⟩
-      have hb : (x.id == r.id) = false := by simp [hx]
+    · have hb : (x.id == r.id) = false := by simp [hx]
       simp only [List.map_cons, List.find?_cons, hb, Bool.false_eq_true, ite_false]
-      exact ih this
+      exact ih
+
+/-- When the stored run has the same automation and parent (it does when
+`r` is a stepped copy of it), looking it up gives exactly `r`. -/
+theorem replaceRun_find_same (e : Engine) (r x : Run) (hx : e.runs.find? (·.id == r.id) = some x)
+    (ha : x.autoIdx = r.autoIdx) (hp : x.parent = r.parent) :
+    (replaceRun e r).runs.find? (·.id == r.id) = some r := by
+  rw [replaceRun_find, hx]
+  simp [ha, hp]
 
 /-- Other runs are untouched. -/
 theorem replaceRun_find_other (e : Engine) (r : Run) (id : Nat) (h : id ≠ r.id) :
@@ -131,20 +136,15 @@ theorem replaceRun_idem (e : Engine) (r : Run) :
   intro x _
   by_cases h : x.id = r.id <;> simp [h]
 
-/-- Updating a run in place (same automation, same parent) keeps every
-automation's number of runs: resuming or blocking a run never affects
+/-- Updating a run in place keeps every automation's number of runs: resuming or blocking a run never affects
 admission (`admit`). -/
-theorem replaceRun_runsOf_length (e : Engine) (r : Run) (ai : Nat)
-    (h : ∀ x ∈ e.runs, x.id = r.id → x.autoIdx = r.autoIdx ∧ x.parent = r.parent) :
+theorem replaceRun_runsOf_length (e : Engine) (r : Run) (ai : Nat) :
     (runsOf (replaceRun e r) ai).length = (runsOf e ai).length := by
   simp only [runsOf, replaceRun, List.filter_map, List.length_map]
   congr 1
   apply List.filter_congr
   intro x hx
-  by_cases hid : x.id = r.id
-  · obtain ⟨h1, h2⟩ := h x hx hid
-    simp [hid, h1, h2]
-  · simp [hid]
+  by_cases hid : x.id = r.id <;> simp [hid]
 
 /-- Only `runs` changes. -/
 theorem replaceRun_rest (e : Engine) (r : Run) :
